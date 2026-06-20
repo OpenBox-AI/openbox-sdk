@@ -65,6 +65,7 @@ from openbox_sdk.generated.sdk_targets import (
     SDK_TARGET_IDS,
     SDK_TARGET_MANIFEST,
     SDK_TARGETS,
+    SECURITY_AUDIT,
 )
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
 from openbox_sdk.integrations.langgraph import (
@@ -457,9 +458,11 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert fixture["source"] == "specs/typespec/sdk/main.tsp"
     assert SDK_TARGET_MANIFEST == {
         "generatedArtifacts": fixture["generatedArtifacts"],
+        "securityAudit": fixture["securityAudit"],
         "targets": fixture["targets"],
     }
     assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
+    assert SECURITY_AUDIT == fixture["securityAudit"]
     assert SDK_TARGETS == fixture["targets"]
     assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]
 

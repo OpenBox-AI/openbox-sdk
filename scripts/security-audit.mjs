@@ -1,34 +1,96 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from 'node:fs';
 
-const steps = [
-  ['npm', ['audit'], { label: 'root npm audit' }],
-  ['npm', ['--prefix', 'example/n8n/custom-node', 'audit'], { label: 'n8n npm audit' }],
-];
+const repoRoot = process.cwd();
+const fixturePath = resolve(repoRoot, 'codegen/fixtures/sdk-targets.json');
 
-const secretScanExcludes = new Set([
-  // Parser/spec fixtures intentionally contain non-secret obx_* examples.
-  'codegen/fixtures/cli-auth.json',
-  'codegen/fixtures/env-resolution.json',
-  'specs/typespec/cli/main.tsp',
-  'specs/typespec/env/main.tsp',
-  'tests/e2e/core-client.test.ts',
-  'tests/unit/core-client.test.ts',
-  'tests/unit/cursor-mcp-install-coverage.test.ts',
-  'tests/unit/runtime-cursor-mappers.test.ts',
-]);
+function assertString(value, field) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`${field} must be a non-empty string`);
+  }
+}
 
-function run(command, args, { label }) {
+function assertStringArray(value, field) {
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+    throw new Error(`${field} must be a string array`);
+  }
+}
+
+function assertRecord(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${field} must be a record`);
+  }
+}
+
+function readSecurityAuditConfig() {
+  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  assertRecord(fixture, 'sdk-targets fixture');
+  const securityAudit = fixture.securityAudit;
+  assertRecord(securityAudit, 'securityAudit');
+  if (!Array.isArray(securityAudit.commands) || securityAudit.commands.length === 0) {
+    throw new Error('securityAudit.commands must be a non-empty array');
+  }
+  if (!Array.isArray(securityAudit.secretScanExcludes)) {
+    throw new Error('securityAudit.secretScanExcludes must be an array');
+  }
+
+  const commands = securityAudit.commands.map((command, index) => {
+    assertRecord(command, `securityAudit.commands[${index}]`);
+    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+      assertString(command[field], `securityAudit.commands[${index}].${field}`);
+    }
+    if (command.args !== undefined) {
+      assertStringArray(command.args, `securityAudit.commands[${index}].args`);
+    }
+    if (command.env !== undefined) {
+      assertRecord(command.env, `securityAudit.commands[${index}].env`);
+      for (const [name, value] of Object.entries(command.env)) {
+        assertString(name, `securityAudit.commands[${index}].env key`);
+        if (typeof value !== 'string') {
+          throw new Error(`securityAudit.commands[${index}].env.${name} must be a string`);
+        }
+      }
+    }
+    return {
+      id: command.id,
+      label: command.label,
+      command: command.command,
+      args: command.args ?? [],
+      cwd: resolve(repoRoot, command.workingDirectory),
+      env: command.env ?? {},
+    };
+  });
+
+  const secretScanExcludes = new Map();
+  for (const [index, exclude] of securityAudit.secretScanExcludes.entries()) {
+    assertRecord(exclude, `securityAudit.secretScanExcludes[${index}]`);
+    assertString(exclude.path, `securityAudit.secretScanExcludes[${index}].path`);
+    assertString(exclude.reason, `securityAudit.secretScanExcludes[${index}].reason`);
+    secretScanExcludes.set(exclude.path, exclude.reason);
+  }
+
+  return { commands, secretScanExcludes };
+}
+
+const { commands: auditCommands, secretScanExcludes } = readSecurityAuditConfig();
+
+function commandForPlatform(command) {
+  if (process.platform !== 'win32') return command;
+  if (command === 'npm' || command === 'npx') return `${command}.cmd`;
+  return command;
+}
+
+function run(command, args, { label, cwd = repoRoot, env = {} }) {
   process.stderr.write(`\n==> ${label}\n`);
-  const result = spawnSync(command, args, {
-    cwd: process.cwd(),
+  const result = spawnSync(commandForPlatform(command), args, {
+    cwd,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
+    env: { ...process.env, ...env },
   });
 
   if (result.error?.code === 'ENOENT') {
@@ -45,8 +107,8 @@ function run(command, args, { label }) {
   }
 }
 
-for (const [command, args, opts] of steps) {
-  run(command, args, opts);
+for (const auditCommand of auditCommands) {
+  run(auditCommand.command, auditCommand.args, auditCommand);
 }
 
 runLocalChangeScan();

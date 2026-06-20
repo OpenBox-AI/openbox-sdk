@@ -31,6 +31,62 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "securityAudit": {
+    "commands": [
+      {
+        "id": "root-npm-audit",
+        "label": "root npm audit",
+        "command": "npm",
+        "args": [
+          "audit"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "n8n-npm-audit",
+        "label": "n8n npm audit",
+        "command": "npm",
+        "args": [
+          "audit"
+        ],
+        "workingDirectory": "example/n8n/custom-node"
+      }
+    ],
+    "secretScanExcludes": [
+      {
+        "path": "codegen/fixtures/cli-auth.json",
+        "reason": "Parser/spec fixture intentionally contains non-secret obx_* examples."
+      },
+      {
+        "path": "codegen/fixtures/env-resolution.json",
+        "reason": "Parser/spec fixture intentionally contains non-secret obx_* examples."
+      },
+      {
+        "path": "specs/typespec/cli/main.tsp",
+        "reason": "CLI contract fixture intentionally contains non-secret obx_* examples."
+      },
+      {
+        "path": "specs/typespec/env/main.tsp",
+        "reason": "Env contract fixture intentionally contains non-secret obx_* examples."
+      },
+      {
+        "path": "tests/e2e/core-client.test.ts",
+        "reason": "Core client test fixture intentionally contains deterministic non-secret tokens."
+      },
+      {
+        "path": "tests/unit/core-client.test.ts",
+        "reason": "Core client test fixture intentionally contains deterministic non-secret tokens."
+      },
+      {
+        "path": "tests/unit/cursor-mcp-install-coverage.test.ts",
+        "reason": "Install fixture intentionally contains deterministic non-secret tokens."
+      },
+      {
+        "path": "tests/unit/runtime-cursor-mappers.test.ts",
+        "reason": "Runtime mapper fixture intentionally contains deterministic non-secret tokens."
+      }
+    ]
+  },
   "targets": [
     {
       "id": "typescript",
@@ -238,7 +294,8 @@ SDK_TARGET_MANIFEST = {
   ]
 }
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
+SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "SECURITY_AUDIT", "SDK_TARGETS", "SDK_TARGET_IDS"]

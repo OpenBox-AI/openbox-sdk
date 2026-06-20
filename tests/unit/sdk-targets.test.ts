@@ -14,6 +14,20 @@ interface SdkTargetsFixture {
       suffixes: string[];
     }>;
   };
+  securityAudit: {
+    commands: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+    secretScanExcludes: Array<{
+      path: string;
+      reason: string;
+    }>;
+  };
   targets: Array<{
     id: string;
     label: string;
@@ -71,6 +85,36 @@ describe('SDK target validation manifest', () => {
     expect(fixture.generatedArtifacts.nestedGeneratedFiles).toEqual([
       { root: 'ts/src', suffixes: ['.ts', '.d.ts'] },
     ]);
+  });
+
+  test('declares security audit commands and annotated secret-scan excludes', () => {
+    const fixture = readSdkTargetsFixture();
+
+    expect(fixture.securityAudit.commands).toEqual([
+      {
+        id: 'root-npm-audit',
+        label: 'root npm audit',
+        command: 'npm',
+        args: ['audit'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'n8n-npm-audit',
+        label: 'n8n npm audit',
+        command: 'npm',
+        args: ['audit'],
+        workingDirectory: 'example/n8n/custom-node',
+      },
+    ]);
+    expect(fixture.securityAudit.secretScanExcludes.map((entry) => entry.path)).toEqual(
+      expect.arrayContaining([
+        'codegen/fixtures/cli-auth.json',
+        'codegen/fixtures/env-resolution.json',
+        'specs/typespec/cli/main.tsp',
+        'specs/typespec/env/main.tsp',
+      ]),
+    );
+    expect(fixture.securityAudit.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
   });
 
   test('keeps root validation generic while target commands remain native', () => {

@@ -14,7 +14,7 @@ package-local runners as they join the shared TypeSpec emitter.
 | `govern-protocol.json` | TypeSpec-emitted scripted lifecycle cases where `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fire in the same order with the same canonical `activity_type` strings |
 | `provider-capabilities.json` | TypeSpec-emitted provider capability, guard, MCP, plugin, public integration, and n8n conformance data used by SDK parity tests |
 | `sdk-manifests.json` | TypeSpec-emitted backend/core endpoint manifests and govern preset manifest used by SDK parity tests |
-| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest and generated-artifact inventory consumed by generic root check, drift, and cleanup runners |
+| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, generated-artifact inventory, and security-audit manifest consumed by generic root check, drift, cleanup, and audit runners |
 
 ## How a target wires up
 
@@ -39,3 +39,6 @@ directly. Regenerate them with `npm run generate:sdks`.
 - n8n custom node: `example/n8n/custom-node` build/smoke commands are declared
   in `specs/typespec/sdk/main.tsp`; node and credential descriptors consume the
   TypeSpec-emitted `src/generated/openbox-n8n-spec.ts`.
+- Security audit: package audit commands and secret-scan exclusions are declared
+  in `specs/typespec/sdk/main.tsp`. Each exclusion carries a reason so scan
+  allowlists stay annotated at the canonical spec layer.

@@ -3,7 +3,13 @@ import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
 
 const gitleaksConfig = readFileSync(resolve(process.cwd(), '.gitleaks.toml'), 'utf8');
-const securityAudit = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
+const sdkTargets = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'codegen/fixtures/sdk-targets.json'), 'utf8'),
+) as {
+  securityAudit?: {
+    secretScanExcludes?: Array<{ path?: string; reason?: string }>;
+  };
+};
 
 function expectAnnotatedGitleaksPath(pathRegex: string, rationale: RegExp): void {
   const lines = gitleaksConfig.split('\n');
@@ -28,14 +34,19 @@ describe('security audit configuration', () => {
     );
   });
 
-  test('local secret-scan excludes mirror Gitleaks fixture/spec false positives', () => {
+  test('local secret-scan excludes mirror Gitleaks fixture/spec false positives with reasons', () => {
+    const excludes = sdkTargets.securityAudit?.secretScanExcludes ?? [];
+    const byPath = new Map(excludes.map((entry) => [entry.path, entry.reason]));
     for (const file of [
       'codegen/fixtures/cli-auth.json',
       'codegen/fixtures/env-resolution.json',
       'specs/typespec/cli/main.tsp',
       'specs/typespec/env/main.tsp',
     ]) {
-      expect(securityAudit, `${file} is documented in scripts/security-audit.mjs`).toContain(file);
+      expect(byPath.get(file), `${file} is documented in TypeSpec-emitted securityAudit`).toMatch(
+        /non-secret|fixture/i,
+      );
     }
+    expect(excludes.every((entry) => typeof entry.reason === 'string' && entry.reason.length > 20)).toBe(true);
   });
 });

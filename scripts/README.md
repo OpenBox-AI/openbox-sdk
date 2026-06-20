@@ -26,6 +26,11 @@ canonical TypeSpec contract.
   targets should join `specs/typespec/sdk/main.tsp` instead of adding
   root-level `check:<language>`, `check:<app>`, or `generate:<language>` entry
   points.
+- `audit:security` reads the TypeSpec-emitted security audit section in
+  `codegen/fixtures/sdk-targets.json` for package audit commands and annotated
+  secret-scan excludes. Add new audited package roots or fixture exclusions in
+  `specs/typespec/sdk/main.tsp`; do not hard-code package-specific audit steps
+  or unreasoned scan allowlists in `scripts/security-audit.mjs`.
 - Spec-bound apps currently include the VS Code extension and n8n custom-node
   package. The VS Code extension declares its package manifest surface in
   `specs/typespec/sdk/main.tsp`, and `check:sdks` compares that spec to
@@ -44,7 +49,8 @@ canonical TypeSpec contract.
   bundles after `tsup`; this depends on built runtime code and is not a spec
   emitter.
 - `openbox-cli-dev.mjs` is a local developer launcher for the TypeScript CLI.
-- `security-audit.mjs` orchestrates npm audit and secret scanning.
+- `security-audit.mjs` orchestrates TypeSpec-declared package audits and secret
+  scanning.
 - `spec-drift.ts` compares emitted OpenAPI against deployed/upstream services.
 - `check-generated-banners.ts` enforces generated-file provenance.
 

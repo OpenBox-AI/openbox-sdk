@@ -919,6 +919,79 @@ function validateExtensionManifestRecord(
   return true;
 }
 
+function validateSecurityAuditRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawSecurityAudit: unknown,
+): boolean {
+  if (!rawSecurityAudit || typeof rawSecurityAudit !== 'object' || Array.isArray(rawSecurityAudit)) {
+    reportInvalidSdkTargets(context, target, 'securityAudit must be a record');
+    return false;
+  }
+
+  const securityAudit = rawSecurityAudit as Record<string, unknown>;
+  if (!Array.isArray(securityAudit.commands) || securityAudit.commands.length === 0) {
+    reportInvalidSdkTargets(context, target, 'securityAudit.commands must be a non-empty array');
+    return false;
+  }
+
+  for (const [index, rawCommand] of securityAudit.commands.entries()) {
+    if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
+      reportInvalidSdkTargets(context, target, `securityAudit.commands ${index} must be a record`);
+      return false;
+    }
+    const command = rawCommand as Record<string, unknown>;
+    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+      if (!isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(context, target, `securityAudit.commands ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (command.args !== undefined && !isStringArray(command.args)) {
+      reportInvalidSdkTargets(context, target, `securityAudit.commands ${index}.args must be a string array`);
+      return false;
+    }
+    if (command.env !== undefined) {
+      if (!command.env || typeof command.env !== 'object' || Array.isArray(command.env)) {
+        reportInvalidSdkTargets(context, target, `securityAudit.commands ${index}.env must be a record`);
+        return false;
+      }
+      for (const [name, value] of Object.entries(command.env as Record<string, unknown>)) {
+        if (!isNonEmptyString(name) || typeof value !== 'string') {
+          reportInvalidSdkTargets(
+            context,
+            target,
+            `securityAudit.commands ${index}.env must map strings to strings`,
+          );
+          return false;
+        }
+      }
+    }
+  }
+
+  if (!Array.isArray(securityAudit.secretScanExcludes)) {
+    reportInvalidSdkTargets(context, target, 'securityAudit.secretScanExcludes must be an array');
+    return false;
+  }
+  for (const [index, rawExclude] of securityAudit.secretScanExcludes.entries()) {
+    if (!rawExclude || typeof rawExclude !== 'object' || Array.isArray(rawExclude)) {
+      reportInvalidSdkTargets(context, target, `securityAudit.secretScanExcludes ${index} must be a record`);
+      return false;
+    }
+    const exclude = rawExclude as Record<string, unknown>;
+    if (!isNonEmptyString(exclude.path) || !isNonEmptyString(exclude.reason)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `securityAudit.secretScanExcludes ${index} requires path and reason`,
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function $sdkTargets(
   context: DecoratorContext,
   target: Namespace,
@@ -970,6 +1043,12 @@ export function $sdkTargets(
           return;
         }
       }
+    }
+  }
+
+  if (record.securityAudit !== undefined) {
+    if (!validateSecurityAuditRecord(context, target, record.securityAudit)) {
+      return;
     }
   }
 

@@ -374,6 +374,10 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *       generatedFiles: #[...],
  *       nestedGeneratedFiles: #[#{ root, suffixes }, ...],
  *     },
+ *     securityAudit: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory }, ...],
+ *       secretScanExcludes: #[#{ path, reason }, ...],
+ *     },
  *     targets: #[
  *       #{
  *         id: "typescript",

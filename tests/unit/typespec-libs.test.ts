@@ -259,6 +259,13 @@ describe('typespec-workflow', () => {
     const sdk = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxSdk');
     expect(sdk).toBeDefined();
     const fixture = getSdkTargets(program, sdk!);
+    const securityAudit =
+      fixture?.securityAudit as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+            secretScanExcludes: Array<{ path: string; reason: string }>;
+          }
+        | undefined;
     const targets =
       fixture?.targets as
         | Array<{
@@ -288,5 +295,14 @@ describe('typespec-workflow', () => {
     expect(extension?.extensionManifest?.views).toContain('openbox.approvals');
     expect(extension?.extensionManifest?.commands).toContain('openbox.approve');
     expect(extension?.extensionManifest?.configurationKeys).toContain('openbox.agentId');
+    expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
+      'root-npm-audit',
+      'n8n-npm-audit',
+    ]);
+    expect(securityAudit?.commands.map((entry) => entry.workingDirectory)).toEqual([
+      '.',
+      'example/n8n/custom-node',
+    ]);
+    expect(securityAudit?.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
   });
 });

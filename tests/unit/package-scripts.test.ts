@@ -10,6 +10,7 @@ const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runt
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
+const securityAuditScript = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
 
 describe('package scripts', () => {
   test('generated cleanup and drift checks read the TypeSpec-emitted artifact inventory', () => {
@@ -41,6 +42,16 @@ describe('package scripts', () => {
     expect(checkSdksScript).toContain('contributes.views');
     expect(checkSdksScript).toContain('contributes.configuration.properties');
     expect(checkSdksScript).toContain('does not match TypeSpec manifest');
+  });
+
+  test('security audit reads TypeSpec-emitted audit commands and annotated exclusions', () => {
+    expect(packageJson.scripts['audit:security']).toBe('node scripts/security-audit.mjs');
+    expect(securityAuditScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(securityAuditScript).toContain('securityAudit.commands');
+    expect(securityAuditScript).toContain('securityAudit.secretScanExcludes');
+    expect(securityAuditScript).not.toContain("--prefix', 'example/n8n/custom-node'");
+    expect(securityAuditScript).not.toContain('const steps =');
+    expect(securityAuditScript).not.toContain('const secretScanExcludes = new Set([');
   });
 
   test('runtime plugin bundle export follows the TypeSpec provider component catalog', () => {

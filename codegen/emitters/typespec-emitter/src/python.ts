@@ -303,16 +303,17 @@ function emitSdkTargets(program: Program): string {
   const ns = findNamespace(program, 'OpenboxSdk');
   const manifest = ns ? getSdkTargets(program, ns) : undefined;
   if (!manifest) {
-    return `${PYTHON_BANNER}SDK_TARGET_MANIFEST = {}\nSDK_TARGETS = []\n`;
+    return `${PYTHON_BANNER}SDK_TARGET_MANIFEST = {}\nGENERATED_ARTIFACTS = {}\nSECURITY_AUDIT = {}\nSDK_TARGETS = []\nSDK_TARGET_IDS = []\n`;
   }
   return `${PYTHON_BANNER}# Generated from TypeSpec SDK target contracts.
 
 SDK_TARGET_MANIFEST = ${py(manifest)}
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
+SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "SECURITY_AUDIT", "SDK_TARGETS", "SDK_TARGET_IDS"]
 `;
 }
 
