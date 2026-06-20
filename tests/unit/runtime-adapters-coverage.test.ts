@@ -91,7 +91,17 @@ describe('runtime/claude-code/config', () => {
 
 describe('runtime/n8n integration descriptor', () => {
   it('exports the spec-generated packaged n8n integration surface', async () => {
-    const { OPENBOX_N8N_INTEGRATION } = await import('../../ts/src/runtime/n8n');
+    const {
+      OPENBOX_N8N_INTEGRATION,
+      getOpenBoxN8nCredential,
+      getOpenBoxN8nExample,
+      getOpenBoxN8nNode,
+      getOpenBoxN8nWorkflowTemplate,
+      listOpenBoxN8nCredentials,
+      listOpenBoxN8nExamples,
+      listOpenBoxN8nNodes,
+      listOpenBoxN8nWorkflowTemplates,
+    } = await import('../../ts/src/runtime/n8n');
     expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
     expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
       expect.arrayContaining([
@@ -102,6 +112,17 @@ describe('runtime/n8n integration descriptor', () => {
       ]),
     );
     expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+    expect(listOpenBoxN8nCredentials()).toBe(OPENBOX_N8N_INTEGRATION.credentials);
+    expect(listOpenBoxN8nNodes()).toBe(OPENBOX_N8N_INTEGRATION.nodes);
+    expect(listOpenBoxN8nWorkflowTemplates()).toBe(OPENBOX_N8N_INTEGRATION.workflowTemplates);
+    expect(listOpenBoxN8nExamples()).toBe(OPENBOX_N8N_INTEGRATION.examples);
+    expect(getOpenBoxN8nCredential()).toBe(OPENBOX_N8N_INTEGRATION.credentials[0]);
+    expect(getOpenBoxN8nNode('openboxApproval')?.name).toBe('OpenBox Approval/HITL');
+    expect(getOpenBoxN8nWorkflowTemplate('openbox-governed-ai-agent')?.nodes).toContain(
+      'openboxGuardrails',
+    );
+    expect(getOpenBoxN8nExample('mcp-client-tool')?.name).toBe('MCP Client Tool');
+    expect(getOpenBoxN8nNode('unknown-node')).toBeUndefined();
   });
 });
 

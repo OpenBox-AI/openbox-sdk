@@ -20,6 +20,13 @@ import { stampSource } from '../../approvals/source.js';
 
 export const OPENBOX_N8N_INTEGRATION = N8N_INTEGRATION_SURFACE;
 
+export type OpenBoxN8nIntegrationSurface = typeof OPENBOX_N8N_INTEGRATION;
+export type OpenBoxN8nCredentialDescriptor = OpenBoxN8nIntegrationSurface['credentials'][number];
+export type OpenBoxN8nNodeDescriptor = OpenBoxN8nIntegrationSurface['nodes'][number];
+export type OpenBoxN8nWorkflowTemplateDescriptor =
+  OpenBoxN8nIntegrationSurface['workflowTemplates'][number];
+export type OpenBoxN8nExampleDescriptor = OpenBoxN8nIntegrationSurface['examples'][number];
+
 export interface N8nUserPromptSignalOptions {
   nodeName?: string;
   sessionId?: string;
@@ -74,6 +81,49 @@ type NodePostExecuteCapableN8nSession = Pick<N8nSession, 'nodePostExecute'>;
 interface PendingNodeActivity {
   activityId: string;
   startTime: number;
+}
+
+function descriptorById<T extends Readonly<Record<string, unknown>>>(
+  items: readonly T[],
+  id: string,
+): T | undefined {
+  return items.find((entry) => entry.id === id);
+}
+
+export function listOpenBoxN8nCredentials(): readonly OpenBoxN8nCredentialDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.credentials;
+}
+
+export function listOpenBoxN8nNodes(): readonly OpenBoxN8nNodeDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.nodes;
+}
+
+export function listOpenBoxN8nWorkflowTemplates(): readonly OpenBoxN8nWorkflowTemplateDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.workflowTemplates;
+}
+
+export function listOpenBoxN8nExamples(): readonly OpenBoxN8nExampleDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.examples;
+}
+
+export function getOpenBoxN8nCredential(
+  id = 'openboxCredentials',
+): OpenBoxN8nCredentialDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.credentials, id);
+}
+
+export function getOpenBoxN8nNode(id: string): OpenBoxN8nNodeDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.nodes, id);
+}
+
+export function getOpenBoxN8nWorkflowTemplate(
+  id: string,
+): OpenBoxN8nWorkflowTemplateDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.workflowTemplates, id);
+}
+
+export function getOpenBoxN8nExample(id: string): OpenBoxN8nExampleDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.examples, id);
 }
 
 const N8N_NODE_TOOL_TYPE = 'n8n_node';
