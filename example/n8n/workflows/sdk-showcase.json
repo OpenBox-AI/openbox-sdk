@@ -237,14 +237,14 @@
         "operation": "upsert",
         "email": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.email }}",
         "additionalFields": {
-          "firstName": "={{ $json.channelPayloads.hubspot.firstName }}",
-          "lastName": "={{ $json.channelPayloads.hubspot.lastName }}",
-          "companyName": "={{ $json.channelPayloads.hubspot.companyName }}",
-          "websiteUrl": "={{ $json.channelPayloads.hubspot.websiteUrl }}",
-          "city": "={{ $json.channelPayloads.hubspot.city }}",
-          "message": "={{ $json.channelPayloads.hubspot.message }}",
-          "leadStatus": "={{ $json.channelPayloads.hubspot.leadStatus }}",
-          "lifeCycleStage": "={{ $json.channelPayloads.hubspot.lifeCycleStage }}"
+          "firstName": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.firstName }}",
+          "lastName": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.lastName }}",
+          "companyName": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.companyName }}",
+          "websiteUrl": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.websiteUrl }}",
+          "city": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.city }}",
+          "message": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.message }}",
+          "leadStatus": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.leadStatus }}",
+          "lifeCycleStage": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.lifeCycleStage }}"
         },
         "options": {
           "resolveData": true

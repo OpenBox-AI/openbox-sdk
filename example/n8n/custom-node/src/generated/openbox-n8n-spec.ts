@@ -57,6 +57,18 @@ export interface OpenBoxN8nCheckpointGateSpec {
   fail: string;
 }
 
+export interface OpenBoxN8nNodeBooleanFlagSpec {
+  node: string;
+  flag: string;
+  expected: boolean;
+}
+
+export interface OpenBoxN8nExpressionSourceCheckSpec {
+  node: string;
+  requiredContains: readonly string[];
+  forbiddenContains: readonly string[];
+}
+
 export interface OpenBoxN8nShowcaseWorkflowSpec {
   name: string;
   id: string;
@@ -69,6 +81,8 @@ export interface OpenBoxN8nShowcaseWorkflowSpec {
   requiredTerminalNodes: readonly string[];
   requiredEntryEdges: readonly OpenBoxN8nWorkflowEdgeSpec[];
   checkpointGates: readonly OpenBoxN8nCheckpointGateSpec[];
+  requiredNodeBooleanFlags: readonly OpenBoxN8nNodeBooleanFlagSpec[];
+  expressionSourceChecks: readonly OpenBoxN8nExpressionSourceCheckSpec[];
   approvalStages: readonly string[];
   requiredApprovalActionIds: readonly string[];
   requiredPathLogSteps: readonly string[];
@@ -599,6 +613,99 @@ export const OPENBOX_N8N_INTEGRATION = {
           "gate": "Channel Check Passed?",
           "pass": "Record Channel Check",
           "fail": "Package OpenBox Terminal Output"
+        }
+      ],
+      "requiredNodeBooleanFlags": [
+        {
+          "node": "OpenBox: Prompt Safety Wall",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Prompt Safety Wall",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Context Privacy Check",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Context Privacy Check",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Governed LLM Draft",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Governed LLM Draft",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Channel Output Check",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Channel Output Check",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "Post to Slack",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "Post to Slack",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "flag": "alwaysOutputData",
+          "expected": true
+        }
+      ],
+      "expressionSourceChecks": [
+        {
+          "node": "Post to Slack",
+          "requiredContains": [
+            "$('Build Final Log').item.json.channelPayloads?.slack?.channelId",
+            "$('Build Final Log').item.json.channelPayloads?.slack?.text",
+            "$('Build Final Log').item.json.channelPayloads?.slack?.blocks"
+          ],
+          "forbiddenContains": [
+            "$json.channelPayloads?.slack",
+            "$json.channelPayloads.slack"
+          ]
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "requiredContains": [
+            "$('Build Final Log').item.json.channelPayloads.hubspot.email",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.firstName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.lastName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.companyName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.websiteUrl",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.city",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.message",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.leadStatus",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.lifeCycleStage"
+          ],
+          "forbiddenContains": [
+            "$json.channelPayloads.hubspot"
+          ]
         }
       ],
       "approvalStages": [

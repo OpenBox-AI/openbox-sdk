@@ -428,9 +428,25 @@ function emitRuntimeContract(program: Program): string {
   const guardrailsResult = requireModel(core, 'GuardrailsResult');
   const approvalStatusResponse = requireModel(core, 'ApprovalStatusResponse');
   const spanData = requireModel(core, 'SpanData');
+  const sourceAttribution = requireModel(govern, 'SourceAttributionContract');
 
   const guardrailInputTypes = propertyStringLiterals(guardrailsVerdict, 'inputType');
   const guardrailFieldStatuses = propertyStringLiterals(guardrailFieldVerdict, 'status');
+  const sourceInputKey = requireValue(
+    propertyStringLiterals(sourceAttribution, 'inputKey'),
+    '_openbox_source',
+    'SourceAttributionContract.inputKey',
+  );
+  const defaultPythonSource = requireValue(
+    propertyStringLiterals(sourceAttribution, 'defaultPythonSource'),
+    'python-sdk',
+    'SourceAttributionContract.defaultPythonSource',
+  );
+  const workflowEventSource = requireValue(
+    propertyStringLiterals(sourceAttribution, 'workflowEventSource'),
+    'workflow-telemetry',
+    'SourceAttributionContract.workflowEventSource',
+  );
   const hookParentEventTypes = propertyStringLiterals(
     governedPayload,
     'hookSpanParentEventType',
@@ -642,6 +658,9 @@ GUARDRAILS_RESULT_FIELD_ALIASES = ${py(guardrailsResultFieldAliases)}
 APPROVAL_STATUS_FIELD_ALIASES = ${py(approvalStatusFieldAliases)}
 APPROVAL_EXPIRY_ALIASES = ${py(uniqueStrings([...approvalStatusFieldAliases.approvalExpiresAt, 'expires_at', 'expiresAt']))}
 TELEMETRY_FIELD_ALIASES = ${py(Object.fromEntries(telemetryFieldAliases.map(([snake, camel]) => [snake, [snake, camel]])))}
+SOURCE_INPUT_KEY = ${py(sourceInputKey)}
+DEFAULT_SDK_SOURCE = ${py(defaultPythonSource)}
+WORKFLOW_EVENT_SOURCE = ${py(workflowEventSource)}
 SPAN_ALIAS_FIELDS = ${py(spanAliasSnakeFields.map((field) => [field, snakeToCamel(field)]))}
 SPAN_PERSISTABLE_ROOT_STRING_FIELDS = ${py(spanRootStringFields)}
 SPAN_PERSISTABLE_ATTRIBUTE_FIELDS = ${py(['url.full', 'http.url', 'http.method', 'file.path', 'file.operation', 'db.statement', 'db.operation', 'db.system', 'shell.command', 'mcp.method', 'openbox.tool.name', 'tool.name', 'tool_name', 'gen_ai.system'])}

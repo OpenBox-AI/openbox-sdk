@@ -262,6 +262,9 @@ TELEMETRY_FIELD_ALIASES = {
     "fromAgentDid"
   ]
 }
+SOURCE_INPUT_KEY = "_openbox_source"
+DEFAULT_SDK_SOURCE = "python-sdk"
+WORKFLOW_EVENT_SOURCE = "workflow-telemetry"
 SPAN_ALIAS_FIELDS = [
   [
     "span_id",

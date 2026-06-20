@@ -265,6 +265,18 @@ namespace OpenboxGovern.Capabilities {
     fail: string;
   }
 
+  model N8nNodeBooleanFlagSpec {
+    node: string;
+    flag: string;
+    expected: boolean;
+  }
+
+  model N8nExpressionSourceCheckSpec {
+    node: string;
+    requiredContains: string[];
+    forbiddenContains: string[];
+  }
+
   model N8nShowcaseWorkflowSpec {
     name: string;
     id: string;
@@ -277,6 +289,8 @@ namespace OpenboxGovern.Capabilities {
     requiredTerminalNodes: string[];
     requiredEntryEdges: N8nWorkflowEdgeSpec[];
     checkpointGates: N8nCheckpointGateSpec[];
+    requiredNodeBooleanFlags: N8nNodeBooleanFlagSpec[];
+    expressionSourceChecks: N8nExpressionSourceCheckSpec[];
     approvalStages: string[];
     requiredApprovalActionIds: string[];
     requiredPathLogSteps: string[];
@@ -791,6 +805,51 @@ namespace OpenboxGovern.Capabilities {
           #{ checkpoint: "OpenBox: Context Privacy Check", gate: "Context Check Passed?", pass: "Record Context Check", fail: "Package OpenBox Terminal Output" },
           #{ checkpoint: "OpenBox: Governed LLM Draft", gate: "Draft Governance Passed?", pass: "Record Draft Governance", fail: "Package OpenBox Terminal Output" },
           #{ checkpoint: "OpenBox: Channel Output Check", gate: "Channel Check Passed?", pass: "Record Channel Check", fail: "Package OpenBox Terminal Output" },
+        ],
+        requiredNodeBooleanFlags: #[
+          #{ node: "OpenBox: Prompt Safety Wall", flag: "continueOnFail", expected: true },
+          #{ node: "OpenBox: Prompt Safety Wall", flag: "alwaysOutputData", expected: true },
+          #{ node: "OpenBox: Context Privacy Check", flag: "continueOnFail", expected: true },
+          #{ node: "OpenBox: Context Privacy Check", flag: "alwaysOutputData", expected: true },
+          #{ node: "OpenBox: Governed LLM Draft", flag: "continueOnFail", expected: true },
+          #{ node: "OpenBox: Governed LLM Draft", flag: "alwaysOutputData", expected: true },
+          #{ node: "OpenBox: Channel Output Check", flag: "continueOnFail", expected: true },
+          #{ node: "OpenBox: Channel Output Check", flag: "alwaysOutputData", expected: true },
+          #{ node: "Post to Slack", flag: "continueOnFail", expected: true },
+          #{ node: "Post to Slack", flag: "alwaysOutputData", expected: true },
+          #{ node: "Upsert HubSpot Contact (Optional)", flag: "continueOnFail", expected: true },
+          #{ node: "Upsert HubSpot Contact (Optional)", flag: "alwaysOutputData", expected: true },
+        ],
+        expressionSourceChecks: #[
+          #{
+            node: "Post to Slack",
+            requiredContains: #[
+              "$('Build Final Log').item.json.channelPayloads?.slack?.channelId",
+              "$('Build Final Log').item.json.channelPayloads?.slack?.text",
+              "$('Build Final Log').item.json.channelPayloads?.slack?.blocks",
+            ],
+            forbiddenContains: #[
+              "$json.channelPayloads?.slack",
+              "$json.channelPayloads.slack",
+            ],
+          },
+          #{
+            node: "Upsert HubSpot Contact (Optional)",
+            requiredContains: #[
+              "$('Build Final Log').item.json.channelPayloads.hubspot.email",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.firstName",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.lastName",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.companyName",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.websiteUrl",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.city",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.message",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.leadStatus",
+              "$('Build Final Log').item.json.channelPayloads.hubspot.lifeCycleStage",
+            ],
+            forbiddenContains: #[
+              "$json.channelPayloads.hubspot",
+            ],
+          },
         ],
         approvalStages: #["prompt-wall", "draft-governance", "channel-output"],
         requiredApprovalActionIds: #["openbox_prompt_false_positive", "openbox_prompt_keep_blocked", "openbox_draft_approve", "openbox_draft_reject", "openbox_send_approve", "openbox_send_reject", "openbox_send_rewrite"],

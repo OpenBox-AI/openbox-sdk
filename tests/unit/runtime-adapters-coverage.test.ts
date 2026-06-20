@@ -170,6 +170,7 @@ describe('runtime/n8n integration descriptor', () => {
         type: string;
         parameters?: Record<string, any>;
         credentials?: Record<string, { id?: string; name?: string }>;
+        [key: string]: any;
       }>;
       connections: Record<string, any>;
     };
@@ -204,6 +205,20 @@ describe('runtime/n8n integration descriptor', () => {
       expect(connectedNodeNames(gate.gate), `${gate.gate} pass/fail branches`).toEqual(
         expect.arrayContaining([gate.pass, gate.fail]),
       );
+    }
+    for (const flag of showcase.requiredNodeBooleanFlags ?? []) {
+      const node = showcaseNodeByName.get(flag.node);
+      expect(node, flag.node).toBeDefined();
+      expect(node?.[flag.flag], `${flag.node}.${flag.flag}`).toBe(flag.expected);
+    }
+    for (const check of showcase.expressionSourceChecks ?? []) {
+      const nodeText = JSON.stringify(showcaseNodeByName.get(check.node) ?? {});
+      for (const required of check.requiredContains) {
+        expect(nodeText, `${check.node} must contain ${required}`).toContain(required);
+      }
+      for (const forbidden of check.forbiddenContains) {
+        expect(nodeText, `${check.node} must not contain ${forbidden}`).not.toContain(forbidden);
+      }
     }
     for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
       expect(showcaseNodeNames.has(source)).toBe(true);

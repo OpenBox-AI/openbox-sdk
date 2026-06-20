@@ -61,6 +61,11 @@ from openbox_sdk.generated.capability_matrix import (
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
+from openbox_sdk.generated.runtime_contract import (
+    DEFAULT_SDK_SOURCE,
+    SOURCE_INPUT_KEY,
+    WORKFLOW_EVENT_SOURCE,
+)
 from openbox_sdk.generated.sdk_targets import (
     BUNDLE_BUILD,
     CLEAN_ARTIFACTS,
@@ -562,8 +567,12 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
         approval_poll_interval_seconds=0,
         on_pending_approval=lambda info: pending.append(dict(info)),
         on_approval_resolved=lambda info: resolved.append(dict(info)),
+        source="python-test",
     )
     await session.tool({"input": []})
+    approval_started = approval_core.events[1]
+    assert approval_started["source"] == WORKFLOW_EVENT_SOURCE
+    assert approval_started["activity_input"] == [{SOURCE_INPUT_KEY: "python-test"}]
     assert approval_core.polls == [
         {
             "workflow_id": session.workflow_id,
@@ -571,7 +580,9 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
             "activity_id": pending[0]["activityId"],
         }
     ]
+    assert pending[0]["source"] == "python-test"
     assert resolved[0]["arm"] == "allow"
+    assert resolved[0]["source"] == "python-test"
 
     span_core = FakeCore()
     span_session = presets.default(core=span_core)
@@ -717,6 +728,19 @@ async def test_govern_runtime_edge_paths() -> None:
     assert session.is_terminated is True
     assert await session.complete() is None
     assert await session.fail(RuntimeError("ignored")) is None
+    signal_event = next(event for event in core.events if event["event_type"] == "SignalReceived")
+    handoff_event = next(event for event in core.events if event["event_type"] == "Handoff")
+    manual_started = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "manual" and event["event_type"] == "ActivityStarted"
+    )
+    assert signal_event["source"] == WORKFLOW_EVENT_SOURCE
+    assert signal_event["activity_input"] == [{SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}]
+    assert handoff_event["activity_input"] == [
+        {"to": "agent", SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}
+    ]
+    assert manual_started["activity_input"] == [{"a": 1, SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}]
 
     inline_core = FakeCore(evals=[{"verdict": "allow"}, {"verdict": "require_approval"}])
     inline = presets.default(core=inline_core, inline_approval=True)
@@ -727,10 +751,17 @@ async def test_govern_runtime_edge_paths() -> None:
     external_core = FakeCore(
         approvals=[{"action": "reject", "reason": "no", "approval_expiration_time": _future_iso()}]
     )
+    external_infos: list[dict[str, Any]] = []
+
+    def external_decision(info: Mapping[str, Any]) -> str:
+        external_infos.append(dict(info))
+        return "approve"
+
     external = presets.default(
         core=external_core,
         approval_poll_interval_seconds=10,
-        await_external_decision=lambda _info: "approve",
+        await_external_decision=external_decision,
+        source="external-python",
     )
     rejected = await external.poll_approval(
         "activity",
@@ -738,6 +769,7 @@ async def test_govern_runtime_edge_paths() -> None:
         {"arm": "require_approval", "approvalExpiresAt": _future_iso()},
     )
     assert rejected["arm"] == "block"
+    assert external_infos[0]["source"] == "external-python"
 
     approved_after_elapsed_timestamp = await external.poll_approval(
         "activity",

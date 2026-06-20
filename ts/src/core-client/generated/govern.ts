@@ -40,6 +40,11 @@ export interface WorkflowVerdict {
   ageResult?: GovernanceVerdictResponse['age_result'];
   activityId?: string;
 }
+export interface SourceAttributionContract {
+  inputKey: "_openbox_source";
+  defaultPythonSource: "python-sdk";
+  workflowEventSource: "workflow-telemetry";
+}
 export interface GovernedPayload {
   input?: unknown[];
   output?: unknown;

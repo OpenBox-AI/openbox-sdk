@@ -18,6 +18,7 @@ from .generated.runtime_contract import (
     DEFAULT_GUARDRAIL_FIELD_STATUS,
     DEFAULT_GUARDRAIL_INPUT_TYPE,
     DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE,
+    DEFAULT_SDK_SOURCE,
     GOVERNED_PAYLOAD_FIELD_ALIASES,
     GUARDRAIL_FIELD_STATUSES,
     GUARDRAIL_INPUT_TYPES,
@@ -26,6 +27,7 @@ from .generated.runtime_contract import (
     GUARDRAILS_RESULT_RESPONSE_ALIASES,
     HANDOFF_EVENT_TYPE,
     SIGNAL_RECEIVED_EVENT_TYPE,
+    SOURCE_INPUT_KEY,
     SPAN_ALIAS_FIELDS,
     SPAN_PERSISTABLE_ATTRIBUTE_FIELDS,
     SPAN_PERSISTABLE_ROOT_STRING_FIELDS,
@@ -33,6 +35,7 @@ from .generated.runtime_contract import (
     TELEMETRY_FIELD_ALIASES,
     VERDICT_ARM_RANK,
     WORKFLOW_COMPLETED_EVENT_TYPE,
+    WORKFLOW_EVENT_SOURCE,
     WORKFLOW_FAILED_EVENT_TYPE,
     WORKFLOW_STARTED_EVENT_TYPE,
     WORKFLOW_VERDICT_FIELD_ALIASES,
@@ -95,6 +98,7 @@ class BaseGovernedSession:
         on_pending_approval: ApprovalHook | None = None,
         on_approval_resolved: ApprovalHook | None = None,
         await_external_decision: ExternalDecisionHook | None = None,
+        source: str = DEFAULT_SDK_SOURCE,
         sleep: Sleep = asyncio.sleep,
     ) -> None:
         del register_exit_handlers
@@ -113,6 +117,7 @@ class BaseGovernedSession:
         self.on_pending_approval = on_pending_approval
         self.on_approval_resolved = on_approval_resolved
         self.await_external_decision = await_external_decision
+        self.source = source
         self._sleep = sleep
         self._opened = attached
         self._finalized = False
@@ -199,7 +204,10 @@ class BaseGovernedSession:
                     "event_type": ACTIVITY_STARTED_EVENT_TYPE,
                     "activity_id": activity_id,
                     "activity_type": activity_type,
-                    "activity_input": source_payload.get("input"),
+                    "activity_input": _source_attributed_input(
+                        source_payload.get("input"),
+                        self.source,
+                    ),
                     "start_time": start_time,
                     "spans": source_payload.get("spans"),
                     **_telemetry_fields(source_payload, self.multi_agent_session_id),
@@ -276,7 +284,10 @@ class BaseGovernedSession:
                     "event_type": ACTIVITY_STARTED_EVENT_TYPE,
                     "activity_id": activity_id,
                     "activity_type": activity_type,
-                    "activity_input": source_payload.get("input"),
+                    "activity_input": _source_attributed_input(
+                        source_payload.get("input"),
+                        self.source,
+                    ),
                     "start_time": start_time,
                     "spans": source_payload.get("spans"),
                     **_telemetry_fields(source_payload, self.multi_agent_session_id),
@@ -323,7 +334,7 @@ class BaseGovernedSession:
             "event_type": event_type,
             "activity_id": activity_id,
             "activity_type": activity_type,
-            "activity_input": payload.get("input"),
+            "activity_input": _source_attributed_input(payload.get("input"), self.source),
             **_telemetry_fields(payload, self.multi_agent_session_id),
         }
         if event_type == SIGNAL_RECEIVED_EVENT_TYPE:
@@ -355,7 +366,10 @@ class BaseGovernedSession:
                 "activity_id": activity_id,
                 "activity_type": activity_type,
                 "status": _activity_completion_status(activity_type),
-                "activity_input": source_payload.get("input"),
+                "activity_input": _source_attributed_input(
+                    source_payload.get("input"),
+                    self.source,
+                ),
                 "activity_output": source_payload.get("output"),
                 "start_time": start_time,
                 "end_time": end_time,
@@ -436,7 +450,7 @@ class BaseGovernedSession:
     async def emit(self, event: Mapping[str, Any]) -> WorkflowVerdict:
         payload = {
             **dict(event),
-            "source": "workflow-telemetry",
+            "source": WORKFLOW_EVENT_SOURCE,
             "workflow_id": self.workflow_id,
             "run_id": self.run_id,
             "workflow_type": self.workflow_type,
@@ -475,6 +489,7 @@ class BaseGovernedSession:
                         "activityId": activity_id,
                         "activityType": activity_type,
                         "expiresAt": initial.get("approvalExpiresAt"),
+                        "source": self.source,
                     },
                 )
             )
@@ -542,6 +557,7 @@ class BaseGovernedSession:
                 "activityType": activity_type,
                 "expiresAt": verdict.get("approvalExpiresAt"),
                 "reason": verdict.get("reason"),
+                "source": self.source,
             },
         )
         if self.inline_approval:
@@ -555,6 +571,7 @@ class BaseGovernedSession:
                 "activityId": activity_id,
                 "activityType": activity_type,
                 "arm": resolved.get("arm"),
+                "source": self.source,
             },
         )
         return resolved
@@ -673,6 +690,24 @@ def _telemetry_fields(
     if "multi_agent_session_id" not in fields and default_multi_agent_session_id:
         fields["multi_agent_session_id"] = default_multi_agent_session_id
     return fields
+
+
+def _source_attributed_input(value: Any, source: str) -> list[Any]:
+    if isinstance(value, list):
+        items = value or [{}]
+    elif value is None:
+        items = [{}]
+    else:
+        items = [value]
+    return [_stamp_source(item, source) for item in items]
+
+
+def _stamp_source(value: Any, source: str) -> Any:
+    if isinstance(value, Mapping):
+        record = dict(value)
+        record[SOURCE_INPUT_KEY] = str(record.get(SOURCE_INPUT_KEY) or source)
+        return record
+    return {SOURCE_INPUT_KEY: source, "value": value}
 
 
 def _pick(source: Any, *keys: str) -> Any:

@@ -792,12 +792,15 @@ describe('provider capability matrix', () => {
         id?: string;
         name: string;
         type: string;
+        parameters?: Record<string, unknown>;
         credentials?: Record<string, { id?: unknown }>;
+        [key: string]: unknown;
       }>;
       connections: Record<string, Record<string, Array<Array<{ node: string }>>>>;
     };
     const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
     const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    const showcaseNodeByName = new Map(showcaseWorkflow.nodes.map((node) => [node.name, node]));
     const connectedNodes = (source: string): string[] =>
       Object.values(showcaseWorkflow.connections[source] ?? {}).flatMap(
         (branches) => branches.flatMap((branch) => branch.map((edge) => edge.node)),
@@ -829,6 +832,20 @@ describe('provider capability matrix', () => {
       expect(hasEdge(gate.checkpoint, gate.gate)).toBe(true);
       expect(hasEdge(gate.gate, gate.pass)).toBe(true);
       expect(hasEdge(gate.gate, gate.fail)).toBe(true);
+    }
+    for (const flag of showcase!.requiredNodeBooleanFlags ?? []) {
+      const node = showcaseNodeByName.get(flag.node);
+      expect(node, flag.node).toBeDefined();
+      expect(node?.[flag.flag], `${flag.node}.${flag.flag}`).toBe(flag.expected);
+    }
+    for (const check of showcase!.expressionSourceChecks ?? []) {
+      const nodeText = JSON.stringify(showcaseNodeByName.get(check.node) ?? {});
+      for (const required of check.requiredContains) {
+        expect(nodeText, `${check.node} must contain ${required}`).toContain(required);
+      }
+      for (const forbidden of check.forbiddenContains) {
+        expect(nodeText, `${check.node} must not contain ${forbidden}`).not.toContain(forbidden);
+      }
     }
     const missingConnectionRefs: string[] = [];
     for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {

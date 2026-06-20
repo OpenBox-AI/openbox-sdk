@@ -3030,6 +3030,99 @@ N8N_INTEGRATION_SURFACE = {
           "fail": "Package OpenBox Terminal Output"
         }
       ],
+      "requiredNodeBooleanFlags": [
+        {
+          "node": "OpenBox: Prompt Safety Wall",
+          "flag": "continueOnFail",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Prompt Safety Wall",
+          "flag": "alwaysOutputData",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Context Privacy Check",
+          "flag": "continueOnFail",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Context Privacy Check",
+          "flag": "alwaysOutputData",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Governed LLM Draft",
+          "flag": "continueOnFail",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Governed LLM Draft",
+          "flag": "alwaysOutputData",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Channel Output Check",
+          "flag": "continueOnFail",
+          "expected": True
+        },
+        {
+          "node": "OpenBox: Channel Output Check",
+          "flag": "alwaysOutputData",
+          "expected": True
+        },
+        {
+          "node": "Post to Slack",
+          "flag": "continueOnFail",
+          "expected": True
+        },
+        {
+          "node": "Post to Slack",
+          "flag": "alwaysOutputData",
+          "expected": True
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "flag": "continueOnFail",
+          "expected": True
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "flag": "alwaysOutputData",
+          "expected": True
+        }
+      ],
+      "expressionSourceChecks": [
+        {
+          "node": "Post to Slack",
+          "requiredContains": [
+            "$('Build Final Log').item.json.channelPayloads?.slack?.channelId",
+            "$('Build Final Log').item.json.channelPayloads?.slack?.text",
+            "$('Build Final Log').item.json.channelPayloads?.slack?.blocks"
+          ],
+          "forbiddenContains": [
+            "$json.channelPayloads?.slack",
+            "$json.channelPayloads.slack"
+          ]
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "requiredContains": [
+            "$('Build Final Log').item.json.channelPayloads.hubspot.email",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.firstName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.lastName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.companyName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.websiteUrl",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.city",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.message",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.leadStatus",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.lifeCycleStage"
+          ],
+          "forbiddenContains": [
+            "$json.channelPayloads.hubspot"
+          ]
+        }
+      ],
       "approvalStages": [
         "prompt-wall",
         "draft-governance",
