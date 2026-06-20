@@ -90,6 +90,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitCliConformanceFixture(program, repoRoot);
   emitGovernProtocolConformanceFixture(program, repoRoot);
   emitSdkTargetsFixture(program, repoRoot);
+  emitExtensionSpec(program, project, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
   emitBackendMethodNameFixture(program, repoRoot);
   emitBackendPermissionFixture(program, repoRoot);
@@ -133,6 +134,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'govern.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'runtime_contract.py'),
+    resolvePath(repoRoot, 'apps', 'extension', 'src', 'generated', 'openbox-extension-spec.ts'),
     resolvePath(repoRoot, 'example', 'n8n', 'custom-node', 'src', 'generated', 'openbox-n8n-spec.ts'),
   ]);
 }
@@ -1552,6 +1554,53 @@ function emitSdkTargetsFixture(program: Program, repoRoot: string): void {
     regenerate: 'npm run specs:compile',
     ...manifest,
   });
+}
+
+function emitExtensionSpec(program: Program, project: Project, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxSdk');
+  const manifest = ns ? getSdkTargets(program, ns) : undefined;
+  const extensionTarget = arrayOfRecords((manifest as { targets?: unknown } | undefined)?.targets).find(
+    (target) => target.id === 'extension',
+  );
+  if (!extensionTarget) return;
+
+  const out = project.createSourceFile(
+    resolvePath(repoRoot, 'apps/extension/src/generated/openbox-extension-spec.ts'),
+    '',
+    { overwrite: true },
+  );
+  out.insertText(0, BANNER + '\n\n');
+  out.addStatements([
+    `export interface OpenBoxExtensionCommandSpec {`,
+    `  command: string;`,
+    `  args?: readonly string[];`,
+    `  env?: Readonly<Record<string, string>>;`,
+    `}`,
+    '',
+    `export interface OpenBoxExtensionManifestSpec {`,
+    `  packageName: string;`,
+    `  publisher: string;`,
+    `  displayName: string;`,
+    `  main: string;`,
+    `  activationEvents: readonly string[];`,
+    `  views: readonly string[];`,
+    `  commands: readonly string[];`,
+    `  configurationKeys: readonly string[];`,
+    `}`,
+    '',
+    `export interface OpenBoxExtensionTargetSpec {`,
+    `  id: "extension";`,
+    `  label: string;`,
+    `  kind: "app";`,
+    `  workingDirectory: string;`,
+    `  extensionManifest: OpenBoxExtensionManifestSpec;`,
+    `  commands: readonly OpenBoxExtensionCommandSpec[];`,
+    `}`,
+    '',
+    `export const OPENBOX_EXTENSION_SPEC = ${literalTs(extensionTarget)} as const satisfies OpenBoxExtensionTargetSpec;`,
+    '',
+    `export const OPENBOX_EXTENSION_MANIFEST = OPENBOX_EXTENSION_SPEC.extensionManifest;`,
+  ]);
 }
 
 function writeJsonFixture(repoRoot: string, relPath: string, payload: unknown): void {

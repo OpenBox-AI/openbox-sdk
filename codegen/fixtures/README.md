@@ -32,8 +32,10 @@ directly. Regenerate them with `npm run generate:sdks`.
 - TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.
 - Python: `python/tests/test_runtime.py` covers generated capability and SDK
   manifest parity.
-- Extension: `apps/extension` build/test commands are declared in
-  `specs/typespec/sdk/main.tsp` and run through the generic target manifest.
+- Extension: `apps/extension` build/test commands and VS Code manifest surfaces
+  are declared in `specs/typespec/sdk/main.tsp`; the extension consumes
+  `src/generated/openbox-extension-spec.ts` and runs through the generic target
+  manifest.
 - n8n custom node: `example/n8n/custom-node` build/smoke commands are declared
   in `specs/typespec/sdk/main.tsp`; node and credential descriptors consume the
   TypeSpec-emitted `src/generated/openbox-n8n-spec.ts`.

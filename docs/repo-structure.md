@@ -19,6 +19,7 @@ TypeSpec emitter.
 |---|---|
 | `ts/src/**/generated/` | Generated TypeScript SDK artifacts; do not hand-edit |
 | `python/openbox_sdk/generated/` | Generated Python SDK artifacts; do not hand-edit |
+| `apps/extension/src/generated/` | Generated extension app target and VS Code manifest surfaces; do not hand-edit |
 | `ts/src/**` outside `generated/` | Hand-written TypeScript runtime implementations that consume the spec contract |
 | `python/openbox_sdk/**` outside `generated/` | Hand-written Python runtime implementations that consume the spec contract |
 
@@ -56,8 +57,10 @@ TypeSpec emitter.
   shared public shapes, protocol metadata, and support matrices stay in
   TypeSpec.
 - `apps/extension/` is validated through the same TypeSpec-emitted target
-  manifest as the SDKs; do not add one-off extension CI scripts outside that
-  manifest.
+  manifest as the SDKs. Its VS Code activation, view, command, and
+  configuration surfaces are pinned by
+  `apps/extension/src/generated/openbox-extension-spec.ts`; do not add one-off
+  extension CI scripts outside the manifest.
 - `example/n8n/custom-node/` is also a spec-bound app target. Its node and
   credential descriptors consume `src/generated/openbox-n8n-spec.ts`, emitted
   from `specs/typespec/govern/capabilities.tsp`.

@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 const GENERATED_ROOTS = [
   'specs/generated',
   'python/openbox_sdk/generated',
+  'apps/extension/src/generated',
   'example/n8n/custom-node/src/generated',
 ];
 const GENERATED_FILES = [
@@ -51,6 +52,7 @@ function trackedAndUntrackedFiles(): string[] {
       'ts/src',
       'specs/generated',
       'python/openbox_sdk/generated',
+      'apps/extension/src/generated',
       'example/n8n/custom-node/src/generated',
       ...GENERATED_FILES,
     ],
