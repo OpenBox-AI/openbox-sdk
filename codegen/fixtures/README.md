@@ -1,8 +1,8 @@
 # Conformance fixtures
 
-Shared test inputs for SDK contract behavior. The TypeScript SDK uses
-these fixtures today; additional language tracks should add their own
-package-local runners when they are developed on separate branches.
+Shared test inputs for SDK contract behavior. TypeScript and Python consume
+these fixtures today; additional language tracks should add package-local
+runners as they join the shared TypeSpec emitter.
 
 ## Layout
 
@@ -28,3 +28,5 @@ each fixture case.
 `npm run generate:sdks`.
 
 - TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.
+- Python: `python/tests/test_runtime.py` covers generated capability and SDK
+  manifest parity.

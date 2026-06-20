@@ -1,11 +1,11 @@
 # openbox-sdk
 
-TypeScript SDK for integrating applications and agent runtimes with OpenBox.
+Spec-driven SDKs for integrating applications and agent runtimes with OpenBox.
 
-The SDK is API-first. It provides typed clients for OpenBox Core and Backend,
-workflow governance helpers, generated types, and optional runtime adapters.
-It should stay generic: no app-specific business logic, demo data, or hidden
-compatibility behavior belongs in the package.
+This monorepo is API-first. It provides generated clients for OpenBox Core and
+Backend, workflow governance helpers, generated types/models, and optional
+runtime adapters. Shared public contracts come from TypeSpec and the OpenBox
+emitter; language packages should not hand-roll divergent contract surfaces.
 
 ## Install
 
