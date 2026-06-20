@@ -27,6 +27,15 @@ export interface OpenBoxAgentsRuntimeContext {
   getCoreClient(): OpenBoxCoreClient;
 }
 
+export type OpenBoxAgentsSDKDiagnosticStatus = 'pass' | 'fail' | 'skip';
+
+export interface OpenBoxAgentsSDKDiagnosticCheck {
+  name: string;
+  status: OpenBoxAgentsSDKDiagnosticStatus;
+  detail: string;
+  remediation?: string;
+}
+
 export function resolveProjectConfigDir(startDir: string = process.cwd()): string {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
@@ -42,21 +51,14 @@ export function resolveProjectConfigDir(startDir: string = process.cwd()): strin
 export function createOpenBoxAgentsRuntimeContext(
   config: OpenBoxAgentsSDKConfig = {},
 ): OpenBoxAgentsRuntimeContext {
-  const configDir = resolveProjectConfigDir(config.cwd);
-  const fileConfig = loadJsonConfig(path.join(configDir, 'config.json'));
-  const envConfig = loadDotenv(path.join(configDir, '.env'));
+  const values = openBoxAgentsConfigValues(config);
   let coreClient = config.core;
   let cacheKey: string | undefined;
-  const getConfigValue = (key: string, fallback?: string) =>
-    process.env[key] ??
-    (fileConfig[key] as string | undefined) ??
-    (envConfig[key] as string | undefined) ??
-    fallback;
 
   const getCoreClient = () => {
     if (config.core) return config.core;
-    const apiKey = config.apiKey ?? getConfigValue('OPENBOX_API_KEY');
-    const coreUrl = config.coreUrl ?? getConfigValue('OPENBOX_CORE_URL');
+    const apiKey = config.apiKey ?? values.get('OPENBOX_API_KEY');
+    const coreUrl = config.coreUrl ?? values.get('OPENBOX_CORE_URL');
     if (!apiKey) {
       throw new OpenBoxAgentsSDKError(
         'OpenBox OpenAI Agents SDK integration is enabled but OPENBOX_API_KEY is not configured.',
@@ -100,6 +102,51 @@ export function createOpenBoxAgentsRuntimeContext(
   };
 }
 
+export function verifyOpenBoxAgentsSDKConfig(
+  config: OpenBoxAgentsSDKConfig = {},
+): OpenBoxAgentsSDKDiagnosticCheck[] {
+  const values = openBoxAgentsConfigValues(config);
+  const enabled = config.enabled ?? true;
+  const checks: OpenBoxAgentsSDKDiagnosticCheck[] = [
+    {
+      name: 'runtime-enabled',
+      status: enabled ? 'pass' : 'skip',
+      detail: enabled
+        ? 'OpenBox OpenAI Agents SDK runtime governance is enabled.'
+        : 'OpenBox OpenAI Agents SDK runtime governance is disabled by config.',
+    },
+  ];
+
+  if (config.core) {
+    checks.push({
+      name: 'core-client',
+      status: 'pass',
+      detail: 'A caller-provided OpenBox Core client will be used.',
+    });
+    checks.push({
+      name: 'api-key',
+      status: 'skip',
+      detail: 'OPENBOX_API_KEY is not required when a Core client is provided.',
+    });
+    checks.push({
+      name: 'core-url',
+      status: 'skip',
+      detail: 'OPENBOX_CORE_URL is not required when a Core client is provided.',
+    });
+  } else {
+    checks.push(apiKeyCheck(config.apiKey ?? values.get('OPENBOX_API_KEY')));
+    checks.push(coreUrlCheck(config.coreUrl ?? values.get('OPENBOX_CORE_URL')));
+  }
+
+  checks.push(agentIdentityCheck(config.agentIdentity));
+  checks.push({
+    name: 'runtime-defaults',
+    status: 'pass',
+    detail: `workflowType=${config.workflowType ?? DEFAULT_OPENAI_AGENTS_WORKFLOW_TYPE}; taskQueue=${config.taskQueue ?? DEFAULT_OPENAI_AGENTS_TASK_QUEUE}; approvalMode=${config.approvalMode ?? 'wait'}`,
+  });
+  return checks;
+}
+
 function getAgentIdentity(
   config: OpenBoxAgentsSDKConfig,
 ): AgentIdentityConfig | undefined {
@@ -110,5 +157,101 @@ function getAgentIdentity(
     throw new OpenBoxAgentsSDKError(
       'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
     );
+  }
+}
+
+function openBoxAgentsConfigValues(config: OpenBoxAgentsSDKConfig): {
+  get(key: string, fallback?: string): string | undefined;
+} {
+  const configDir = resolveProjectConfigDir(config.cwd);
+  const fileConfig = loadJsonConfig(path.join(configDir, 'config.json'));
+  const envConfig = loadDotenv(path.join(configDir, '.env'));
+  return {
+    get: (key: string, fallback?: string) =>
+      process.env[key] ??
+      (fileConfig[key] as string | undefined) ??
+      (envConfig[key] as string | undefined) ??
+      fallback,
+  };
+}
+
+function apiKeyCheck(apiKey: string | undefined): OpenBoxAgentsSDKDiagnosticCheck {
+  if (!apiKey) {
+    return {
+      name: 'api-key',
+      status: 'fail',
+      detail: 'OPENBOX_API_KEY is not configured.',
+      remediation: 'Set OPENBOX_API_KEY to an obx_live_* or obx_test_* runtime key.',
+    };
+  }
+  if (OPENBOX_BACKEND_API_KEY_PATTERN.test(apiKey)) {
+    return {
+      name: 'api-key',
+      status: 'fail',
+      detail: 'OPENBOX_API_KEY is an org/backend key (obx_key_*), not an agent runtime key.',
+      remediation: 'Use an obx_live_* or obx_test_* runtime key for OpenAI Agents SDK runtime governance.',
+    };
+  }
+  if (!OPENBOX_RUNTIME_KEY_PATTERN.test(apiKey)) {
+    return {
+      name: 'api-key',
+      status: 'fail',
+      detail: 'OPENBOX_API_KEY must start with obx_live_* or obx_test_*.',
+      remediation: 'Create or configure an OpenBox runtime key for this agent.',
+    };
+  }
+  return {
+    name: 'api-key',
+    status: 'pass',
+    detail: 'OPENBOX_API_KEY has an agent runtime key prefix.',
+  };
+}
+
+function coreUrlCheck(coreUrl: string | undefined): OpenBoxAgentsSDKDiagnosticCheck {
+  return coreUrl
+    ? {
+        name: 'core-url',
+        status: 'pass',
+        detail: 'OPENBOX_CORE_URL is configured.',
+      }
+    : {
+        name: 'core-url',
+        status: 'fail',
+        detail: 'OPENBOX_CORE_URL is not configured.',
+        remediation: 'Set OPENBOX_CORE_URL to the OpenBox Core runtime endpoint.',
+      };
+}
+
+function agentIdentityCheck(
+  agentIdentity: AgentIdentityConfig | undefined,
+): OpenBoxAgentsSDKDiagnosticCheck {
+  if (agentIdentity) {
+    return {
+      name: 'signed-agent-identity',
+      status: 'pass',
+      detail: 'Signed agent identity is provided in config.',
+    };
+  }
+  if (!process.env.OPENBOX_AGENT_DID && !process.env.OPENBOX_AGENT_PRIVATE_KEY) {
+    return {
+      name: 'signed-agent-identity',
+      status: 'skip',
+      detail: 'No signed agent identity is configured; unsigned runtime requests will be used.',
+    };
+  }
+  try {
+    resolveAgentIdentity();
+    return {
+      name: 'signed-agent-identity',
+      status: 'pass',
+      detail: 'Signed agent identity environment variables are complete.',
+    };
+  } catch (error) {
+    return {
+      name: 'signed-agent-identity',
+      status: 'fail',
+      detail: error instanceof Error ? error.message : String(error),
+      remediation: 'Set both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY, or remove both.',
+    };
   }
 }

@@ -688,7 +688,7 @@ REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "referenceSurface": "Codex hook envelopes when upstream exposes usage metadata; current hook contracts are not metering surfaces.",
-    "openboxSurface": "No host usage fields yet; observe-only record prevents native claims until normalizeOpenBoxUsage can consume upstream usage.",
+    "openboxSurface": "Codex remains observe-only because host hooks do not meter usage; any upstream usage metadata that appears routes through normalizeOpenBoxUsage and generated nested-provider aliases.",
     "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
   },
@@ -858,9 +858,9 @@ REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "diagnose-only",
     "status": "runtime-diagnostic-only",
     "referenceSurface": "No host install surface; consumers import SDK helpers",
-    "openboxSurface": "public export and configuration diagnostics only",
+    "openboxSurface": "verifyOpenBoxAgentsSDKConfig validates runtime enablement, key class, Core URL, signed identity, and defaults without mutating host state.",
     "closureDecision": "Closed as diagnostic parity: the reference provider has no OpenBox-owned install surface, so the SDK validates exports and configuration without mutating host state.",
-    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#diagnoses runtime-only OpenAI Agents SDK configuration without host file mutation"
   },
   {
     "provider": "anthropic-agent-sdk",
@@ -938,9 +938,9 @@ REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "diagnose-only",
     "status": "runtime-diagnostic-only",
     "referenceSurface": "No host install surface; consumers import SDK helpers",
-    "openboxSurface": "public export and runtime configuration diagnostics only",
+    "openboxSurface": "verifyOpenBoxAnthropicAgentSDKConfig validates runtime enablement, key class, Core URL, signed identity, opt-in hook mode, and defaults without mutating host state.",
     "closureDecision": "Closed as diagnostic parity: the reference provider has no OpenBox-owned install surface, so the SDK validates exports and configuration without mutating host state.",
-    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#diagnoses runtime-only Anthropic Agent SDK configuration without host file mutation"
   },
   {
     "provider": "copilotkit",
@@ -1028,9 +1028,9 @@ REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "diagnose-only",
     "status": "runtime-diagnostic-only",
     "referenceSurface": "No host install surface; consumers wire runtime adapters and approval routes",
-    "openboxSurface": "runtime readiness and approval route diagnostics only",
+    "openboxSurface": "createOpenBoxReadinessCheck validates runtime Core wiring, backend inventory reachability, approval route dependencies, and capability readiness without installing host files.",
     "closureDecision": "Closed as diagnostic parity: the reference provider has no OpenBox-owned install surface, so the SDK validates exports and configuration without mutating host state.",
-    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#readiness treats backend inventory config as optional when Core runtime is configured"
   },
   {
     "provider": "n8n",
@@ -1098,7 +1098,7 @@ REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "diagnose-only",
     "status": "runtime-diagnostic-only",
     "referenceSurface": "Operator-owned n8n package installation; OpenBox ships descriptors and templates",
-    "openboxSurface": "packaged descriptor and workflow template inspection only",
+    "openboxSurface": "verifyOpenBoxN8nIntegrationSurface validates packaged credentials, nodes, workflow templates, examples, package ids, and showcase specs without mutating n8n instances.",
     "closureDecision": "Closed as diagnostic parity: the reference provider has no OpenBox-owned install surface, so the SDK validates exports and configuration without mutating host state.",
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
   }
@@ -1553,7 +1553,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "openBoxToolInputGuardrail",
       "openBoxToolOutputGuardrail",
       "runWithOpenBox",
-      "createOpenBoxAgentsTool"
+      "createOpenBoxAgentsTool",
+      "verifyOpenBoxAgentsSDKConfig"
     ],
     "notes": "Native helpers plus compatibility wrappers for the OpenAI Agents SDK."
   },
@@ -1564,7 +1565,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
     "exports": [
       "createOpenBoxAnthropicAgentHooks",
       "withOpenBoxAnthropicAgentOptions",
-      "createOpenBoxAnthropicAgentSDK"
+      "createOpenBoxAnthropicAgentSDK",
+      "verifyOpenBoxAnthropicAgentSDKConfig"
     ],
     "notes": "Native hook/options/query wrapper coverage; WorktreeCreate remains opt-in at host level."
   },
@@ -1576,7 +1578,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "createOpenBoxCopilotKitAdapter",
       "createOpenBoxAGUIAdapter",
       "createOpenBoxHeadlessApprovalClient",
-      "createOpenBoxApprovalRoute"
+      "createOpenBoxApprovalRoute",
+      "createOpenBoxReadinessCheck"
     ],
     "notes": "CopilotKit runtime, AG-UI event stream, React renderers, and headless HITL helpers."
   },
@@ -1597,7 +1600,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "getOpenBoxN8nCredential",
       "getOpenBoxN8nNode",
       "getOpenBoxN8nWorkflowTemplate",
-      "getOpenBoxN8nExample"
+      "getOpenBoxN8nExample",
+      "verifyOpenBoxN8nIntegrationSurface"
     ],
     "notes": "Low-level primitives plus packaged credentials, nodes, and workflow template descriptors."
   }
@@ -1673,7 +1677,7 @@ USAGE_COST_CAPABILITY_GUARDS = [
     "tier": "observe-only",
     "usageSurface": "Codex hook envelopes when upstream exposes usage metadata; current hook contracts are not metering surfaces.",
     "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "No host usage fields yet; observe-only record prevents native claims until normalizeOpenBoxUsage can consume upstream usage.",
+    "sharedNormalizer": "Codex usage remains host-owned observe-only; when upstream usage metadata appears, shared normalizeOpenBoxUsage consumes direct and nested provider usage aliases.",
     "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Codex never computes spend locally.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
   },
@@ -1810,7 +1814,9 @@ USAGE_NORMALIZATION_SURFACE = {
     "token_usage",
     "response_metadata.usage",
     "response_metadata.token_usage",
-    "llm_output.token_usage"
+    "llm_output.token_usage",
+    "providerData.response.usage",
+    "providerData.rawResponse.usage"
   ],
   "providerModelFields": [
     "model",
@@ -1819,13 +1825,20 @@ USAGE_NORMALIZATION_SURFACE = {
     "response_metadata.model",
     "response_metadata.model_name",
     "response_metadata.modelName",
-    "llm_output.model"
+    "llm_output.model",
+    "providerData.model",
+    "providerData.response.model",
+    "providerData.rawResponse.model"
   ],
   "providerFinishReasonFields": [
     "finish_reason",
     "finishReason",
     "response_metadata.finish_reason",
-    "response_metadata.finishReason"
+    "response_metadata.finishReason",
+    "providerData.finish_reason",
+    "providerData.finishReason",
+    "providerData.response.finish_reason",
+    "providerData.response.finishReason"
   ],
   "policyBoundary": "OpenBox Core remains the source of truth for usage/cost policy. SDKs normalize telemetry fields only and never locally enforce spend."
 }
@@ -2618,34 +2631,34 @@ INSTALL_DOCTOR_CAPABILITY_GUARDS = [
     "provider": "openai-agents-sdk",
     "tier": "diagnose-only",
     "installSurface": "No host install surface; consumers import SDK helpers",
-    "doctorSurface": "public export and configuration diagnostics only",
+    "doctorSurface": "verifyOpenBoxAgentsSDKConfig runtime configuration diagnostics",
     "scopeBoundary": "diagnose-only runtime library checks; no files installed",
     "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
-    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#diagnoses runtime-only OpenAI Agents SDK configuration without host file mutation"
   },
   {
     "provider": "anthropic-agent-sdk",
     "tier": "diagnose-only",
     "installSurface": "No host install surface; consumers import SDK helpers",
-    "doctorSurface": "public export and runtime configuration diagnostics only",
+    "doctorSurface": "verifyOpenBoxAnthropicAgentSDKConfig runtime configuration diagnostics",
     "scopeBoundary": "diagnose-only runtime library checks; no files installed",
     "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
-    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#diagnoses runtime-only Anthropic Agent SDK configuration without host file mutation"
   },
   {
     "provider": "copilotkit",
     "tier": "diagnose-only",
     "installSurface": "No host install surface; consumers wire runtime adapters and approval routes",
-    "doctorSurface": "runtime readiness and approval route diagnostics only",
+    "doctorSurface": "createOpenBoxReadinessCheck runtime readiness diagnostics",
     "scopeBoundary": "diagnose-only application wiring checks; no host plugin files installed",
     "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
-    "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins public SDK integrations to intended support tiers and exports"
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#readiness treats backend inventory config as optional when Core runtime is configured"
   },
   {
     "provider": "n8n",
     "tier": "diagnose-only",
     "installSurface": "Operator-owned n8n package installation; OpenBox ships descriptors and templates",
-    "doctorSurface": "packaged descriptor and workflow template inspection only",
+    "doctorSurface": "verifyOpenBoxN8nIntegrationSurface descriptor/template diagnostics",
     "scopeBoundary": "diagnose-only and operator-owned installation boundary; OpenBox does not mutate n8n instances",
     "generatedOrPackagedSurface": "OpenBox credentials, Governance node, Guardrails node, Approval/HITL node, governed AI Agent template, and MCP examples",
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"

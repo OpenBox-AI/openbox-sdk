@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   OpenBoxAgentsSDKError,
@@ -9,6 +12,7 @@ import {
   openBoxToolInputGuardrail,
   openBoxToolOutputGuardrail,
   runWithOpenBox,
+  verifyOpenBoxAgentsSDKConfig,
 } from '@openbox-ai/openbox-sdk/openai-agents-sdk';
 import type {
   GovernanceEventPayload,
@@ -21,6 +25,12 @@ import {
 } from '../../ts/src/openai-agents-sdk/payloads.js';
 
 type VerdictArm = NonNullable<GovernanceVerdictResponse['verdict']>;
+const RUNTIME_ENV_KEYS = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+] as const;
 
 function createMockCore(
   resolve: (
@@ -58,7 +68,72 @@ function verdict(
   };
 }
 
+function withRuntimeEnv<T>(
+  values: Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>,
+  fn: () => T,
+): T {
+  const previous = Object.fromEntries(
+    RUNTIME_ENV_KEYS.map((key) => [key, process.env[key]]),
+  ) as Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>;
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = values[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const key of RUNTIME_ENV_KEYS) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 describe('OpenAI Agents SDK OpenBox adapter', () => {
+  it('diagnoses runtime-only OpenAI Agents SDK configuration without host file mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-openai-agents-sdk-doctor-'));
+
+    const checks = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'obx_test_runtime',
+        OPENBOX_CORE_URL: 'https://core.openbox.test',
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAgentsSDKConfig({ cwd }),
+    );
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'runtime-enabled', status: 'pass' }),
+        expect.objectContaining({ name: 'api-key', status: 'pass' }),
+        expect.objectContaining({ name: 'core-url', status: 'pass' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'skip' }),
+        expect.objectContaining({ name: 'runtime-defaults', status: 'pass' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, '.openbox'))).toBe(false);
+
+    const failures = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'obx_key_backend',
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAgentsSDKConfig({ cwd }),
+    );
+    expect(failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'api-key', status: 'fail' }),
+        expect.objectContaining({ name: 'core-url', status: 'fail' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'fail' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, '.openbox'))).toBe(false);
+  });
+
   it('wraps tool execution and emits source-stamped tool events', async () => {
     const mock = createMockCore(() => verdict('allow'));
     const toolFactory = vi.fn((config) => config);
@@ -619,8 +694,13 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       traceId: 'trace-1',
       spanData: {
         type: 'generation',
-        model: 'gpt-4.1-mini',
-        usage: { input_tokens: 4, output_tokens: 6 },
+        providerData: {
+          response: {
+            model: 'gpt-4.1-mini',
+            finish_reason: 'stop',
+            usage: { input_tokens: 4, output_tokens: 6 },
+          },
+        },
       },
     });
     await processor.onSpanEnd({
@@ -730,9 +810,11 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         expect.objectContaining({
           event_type: 'ActivityCompleted',
           activity_type: 'OpenAIAgentsSDKRun',
+          llm_model: 'gpt-4.1-mini',
           input_tokens: 4,
           output_tokens: 6,
           total_tokens: 10,
+          finish_reason: 'stop',
         }),
       ]),
     );
@@ -742,13 +824,21 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     const result = {
       rawResponses: [
         {
-          providerData: { model: 'gpt-4o-mini' },
-          usage: { input_tokens: 4, output_tokens: 6, cost_usd: 0.01 },
+          providerData: {
+            response: {
+              model: 'gpt-4o-mini',
+              usage: { input_tokens: 4, output_tokens: 6, cost_usd: 0.01 },
+            },
+          },
           output: [{ type: 'message', text: 'first response' }],
         },
         {
-          usage: { promptTokens: 3, completionTokens: 2, costUSD: 0.02 },
-          finishReason: 'stop',
+          providerData: {
+            response: {
+              usage: { promptTokens: 3, completionTokens: 2, costUSD: 0.02 },
+              finishReason: 'stop',
+            },
+          },
         },
       ],
     };

@@ -47,6 +47,11 @@ export {
   DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
   DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE,
   OpenBoxAnthropicAgentSDKError,
+  verifyOpenBoxAnthropicAgentSDKConfig,
+} from './config.js';
+export type {
+  OpenBoxAnthropicAgentSDKDiagnosticCheck,
+  OpenBoxAnthropicAgentSDKDiagnosticStatus,
 } from './config.js';
 export {
   OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS,

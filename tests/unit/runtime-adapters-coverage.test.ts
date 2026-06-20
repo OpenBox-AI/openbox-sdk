@@ -113,6 +113,7 @@ describe('runtime/n8n integration descriptor', () => {
       listOpenBoxN8nExamples,
       listOpenBoxN8nNodes,
       listOpenBoxN8nWorkflowTemplates,
+      verifyOpenBoxN8nIntegrationSurface,
     } = await import('../../ts/src/runtime/n8n');
     const customNodeSpec = await import('../../example/n8n/custom-node/src/generated/openbox-n8n-spec');
 
@@ -150,6 +151,18 @@ describe('runtime/n8n integration descriptor', () => {
     expect(listOpenBoxN8nNodes()).toBe(OPENBOX_N8N_INTEGRATION.nodes);
     expect(listOpenBoxN8nWorkflowTemplates()).toBe(OPENBOX_N8N_INTEGRATION.workflowTemplates);
     expect(listOpenBoxN8nExamples()).toBe(OPENBOX_N8N_INTEGRATION.examples);
+    expect(verifyOpenBoxN8nIntegrationSurface().every((check) => check.status === 'pass')).toBe(true);
+    expect(
+      verifyOpenBoxN8nIntegrationSurface({
+        ...OPENBOX_N8N_INTEGRATION,
+        nodes: [],
+      } as any),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'nodes', status: 'fail' }),
+        expect.objectContaining({ name: 'package-node-ids', status: 'fail' }),
+      ]),
+    );
     expect(getOpenBoxN8nCredential()).toBe(OPENBOX_N8N_INTEGRATION.credentials[0]);
     expect(getOpenBoxN8nNode('openboxApproval')?.name).toBe('OpenBox Approval/HITL');
     expect(getOpenBoxN8nWorkflowTemplate('openbox-governed-ai-agent')?.nodes).toContain(

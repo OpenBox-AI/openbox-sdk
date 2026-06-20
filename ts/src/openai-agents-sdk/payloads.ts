@@ -11,6 +11,7 @@ import {
   normalizeOpenBoxUsage,
   type NormalizedOpenBoxUsage,
 } from '../governance/usage.js';
+import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
 import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
@@ -314,9 +315,7 @@ function toolCallAttributes(
 function aggregateRawResponseUsage(
   rawResponses: unknown[],
 ): NormalizedOpenBoxUsage | undefined {
-  return combineOpenBoxUsage(
-    ...rawResponses.map((response) => objectRecord(response).usage),
-  );
+  return combineOpenBoxUsage(...rawResponses);
 }
 
 function modelFromResult(
@@ -324,17 +323,15 @@ function modelFromResult(
   rawResponses: unknown[],
 ): string | undefined {
   return firstString(
-    resultRecord.model,
+    ...USAGE_NORMALIZATION_SURFACE.providerModelFields.map((field) =>
+      stringAtPath(resultRecord, field),
+    ),
     objectRecord(resultRecord.state).model,
     ...rawResponses.flatMap((response) => {
       const responseRecord = objectRecord(response);
-      const providerData = objectRecord(responseRecord.providerData);
-      return [
-        responseRecord.model,
-        providerData.model,
-        objectRecord(providerData.response).model,
-        objectRecord(providerData.rawResponse).model,
-      ];
+      return USAGE_NORMALIZATION_SURFACE.providerModelFields.map((field) =>
+        stringAtPath(responseRecord, field),
+      );
     }),
   );
 }
@@ -344,19 +341,16 @@ function finishReasonFromResult(
   rawResponses: unknown[],
 ): string | undefined {
   return firstString(
-    resultRecord.finishReason,
-    resultRecord.finish_reason,
+    ...USAGE_NORMALIZATION_SURFACE.providerFinishReasonFields.map((field) =>
+      stringAtPath(resultRecord, field),
+    ),
     objectRecord(resultRecord.state).finishReason,
     objectRecord(resultRecord.state).finish_reason,
     ...rawResponses.flatMap((response) => {
-      const providerData = objectRecord(objectRecord(response).providerData);
-      return [
-        objectRecord(response).finishReason,
-        objectRecord(response).finish_reason,
-        providerData.finishReason,
-        providerData.finish_reason,
-        objectRecord(providerData.response).finish_reason,
-      ];
+      const responseRecord = objectRecord(response);
+      return USAGE_NORMALIZATION_SURFACE.providerFinishReasonFields.map((field) =>
+        stringAtPath(responseRecord, field),
+      );
     }),
   );
 }
@@ -410,4 +404,20 @@ function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function stringAtPath(record: Record<string, unknown>, path: string): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(record, path)) {
+    return stringFrom(record[path]);
+  }
+  if (!path.includes('.')) return stringFrom(record[path]);
+  let current: unknown = record;
+  for (const part of path.split('.')) {
+    const currentRecord = objectRecord(current);
+    if (!Object.prototype.hasOwnProperty.call(currentRecord, part)) {
+      return undefined;
+    }
+    current = currentRecord[part];
+  }
+  return stringFrom(current);
 }

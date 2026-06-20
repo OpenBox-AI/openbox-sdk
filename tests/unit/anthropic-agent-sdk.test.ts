@@ -15,6 +15,7 @@ import {
   OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS,
   createOpenBoxAnthropicAgentHooks,
   createOpenBoxAnthropicAgentSDK,
+  verifyOpenBoxAnthropicAgentSDKConfig,
   withOpenBoxAnthropicAgentOptions,
 } from '@openbox-ai/openbox-sdk/anthropic-agent-sdk';
 import type {
@@ -24,6 +25,12 @@ import type {
 } from '../../ts/src/core-client/index.js';
 
 type VerdictArm = NonNullable<GovernanceVerdictResponse['verdict']>;
+const RUNTIME_ENV_KEYS = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+] as const;
 
 function createMockCore(
   resolve: (payload: GovernanceEventPayload) => Partial<GovernanceVerdictResponse>,
@@ -59,6 +66,29 @@ function verdict(
   };
 }
 
+function withRuntimeEnv<T>(
+  values: Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>,
+  fn: () => T,
+): T {
+  const previous = Object.fromEntries(
+    RUNTIME_ENV_KEYS.map((key) => [key, process.env[key]]),
+  ) as Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>;
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = values[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const key of RUNTIME_ENV_KEYS) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 async function runHook(
   hooks: ReturnType<typeof createOpenBoxAnthropicAgentHooks>,
   event: keyof ReturnType<typeof createOpenBoxAnthropicAgentHooks>,
@@ -82,6 +112,48 @@ const baseInput = {
 };
 
 describe('Anthropic Agent SDK OpenBox adapter', () => {
+  it('diagnoses runtime-only Anthropic Agent SDK configuration without host file mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-anthropic-agent-sdk-doctor-'));
+
+    const checks = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'obx_live_runtime',
+        OPENBOX_CORE_URL: 'https://core.openbox.test',
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAnthropicAgentSDKConfig({ worktreeRoot: join(cwd, 'worktrees') }),
+    );
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'runtime-enabled', status: 'pass' }),
+        expect.objectContaining({ name: 'api-key', status: 'pass' }),
+        expect.objectContaining({ name: 'core-url', status: 'pass' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'skip' }),
+        expect.objectContaining({ name: 'runtime-defaults', status: 'pass' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, 'worktrees'))).toBe(false);
+
+    const failures = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'not-a-runtime-key',
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAnthropicAgentSDKConfig({ worktreeRoot: join(cwd, 'worktrees') }),
+    );
+    expect(failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'api-key', status: 'fail' }),
+        expect.objectContaining({ name: 'core-url', status: 'fail' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'fail' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, 'worktrees'))).toBe(false);
+  });
+
   it('prepends OpenBox hooks without mutating user options', () => {
     const mock = createMockCore(() => verdict('allow'));
     const userHook = vi.fn(async () => ({}));
