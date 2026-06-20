@@ -48,6 +48,10 @@ canonical TypeSpec contract.
   targets should join `specs/typespec/sdk/main.tsp` instead of adding
   root-level `check:<language>`, `check:<app>`, or `generate:<language>` entry
   points.
+- Root `package.json` scripts are also declared in the TypeSpec-emitted
+  `packageScripts` table. The package script test compares `package.json`
+  exactly against that table so new root entrypoints must be intentional
+  spec-owned routers or explicit npm lifecycle/compatibility aliases.
 - `test`, `test:unit`, `test:contract`, and `test:hook-integration` read the
   TypeSpec-emitted `testSuites` routing table and execute the declared suite
   commands. Add, remove, or rename root test suites in

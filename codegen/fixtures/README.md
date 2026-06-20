@@ -68,5 +68,8 @@ directly. Regenerate them with `npm run generate:sdks`.
 - Generated checks: root generated drift and banner lint scripts read the
   `generatedChecks` table from this fixture, next to the generated artifact
   inventory they validate.
+- Package scripts: the root script surface is declared in `packageScripts`.
+  Tests compare it exactly with `package.json` so language-specific root
+  aliases cannot drift in outside the canonical SDK manifest.
 - Local CI: the root `ci:local` runner reads the `localCi.steps` pipeline from
   this fixture, so new local gates are added once in TypeSpec.

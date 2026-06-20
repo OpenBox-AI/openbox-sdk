@@ -1241,6 +1241,60 @@ function validatePackageSurfaceRecord(
   return true;
 }
 
+const PACKAGE_SCRIPT_KINDS = new Set(['spec-runner', 'lifecycle-alias', 'compatibility-alias']);
+
+function validatePackageScriptsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawPackageScripts: unknown,
+): boolean {
+  if (!rawPackageScripts || typeof rawPackageScripts !== 'object' || Array.isArray(rawPackageScripts)) {
+    reportInvalidSdkTargets(context, target, 'packageScripts must be a record');
+    return false;
+  }
+
+  const packageScripts = rawPackageScripts as Record<string, unknown>;
+  if (!Array.isArray(packageScripts.scripts) || packageScripts.scripts.length === 0) {
+    reportInvalidSdkTargets(context, target, 'packageScripts.scripts must be a non-empty array');
+    return false;
+  }
+
+  const scriptNames = new Set<string>();
+  for (const [index, rawScript] of packageScripts.scripts.entries()) {
+    if (!rawScript || typeof rawScript !== 'object' || Array.isArray(rawScript)) {
+      reportInvalidSdkTargets(context, target, `packageScripts.scripts ${index} must be a record`);
+      return false;
+    }
+
+    const script = rawScript as Record<string, unknown>;
+    for (const field of ['name', 'command', 'kind']) {
+      if (!isNonEmptyString(script[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `packageScripts.scripts ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (scriptNames.has(script.name as string)) {
+      reportInvalidSdkTargets(context, target, `packageScripts.scripts duplicate name ${script.name}`);
+      return false;
+    }
+    scriptNames.add(script.name as string);
+    if (!PACKAGE_SCRIPT_KINDS.has(script.kind as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `packageScripts.scripts ${index}.kind must be spec-runner, lifecycle-alias, or compatibility-alias`,
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function validateCleanArtifactsRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1350,6 +1404,12 @@ export function $sdkTargets(
 
   if (record.packageSurface !== undefined) {
     if (!validatePackageSurfaceRecord(context, target, record.packageSurface)) {
+      return;
+    }
+  }
+
+  if (record.packageScripts !== undefined) {
+    if (!validatePackageScriptsRecord(context, target, record.packageScripts)) {
       return;
     }
   }

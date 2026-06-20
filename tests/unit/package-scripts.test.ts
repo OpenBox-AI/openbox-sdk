@@ -6,6 +6,17 @@ import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-m
 const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
   scripts: Record<string, string>;
 };
+const sdkTargetsFixture = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'codegen/fixtures/sdk-targets.json'), 'utf8'),
+) as {
+  packageScripts: {
+    scripts: Array<{
+      name: string;
+      command: string;
+      kind: string;
+    }>;
+  };
+};
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
 const runSpecCommandScript = readFileSync(resolve(process.cwd(), 'scripts/run-spec-command.mjs'), 'utf8');
 const runRootPipelineScript = readFileSync(resolve(process.cwd(), 'scripts/run-root-pipeline.mjs'), 'utf8');
@@ -24,6 +35,18 @@ const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.
 const securityAuditScript = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
 
 describe('package scripts', () => {
+  test('root package scripts match the TypeSpec-emitted script surface exactly', () => {
+    const specScripts = Object.fromEntries(
+      sdkTargetsFixture.packageScripts.scripts.map((script) => [script.name, script.command]),
+    );
+    const allowedKinds = new Set(['spec-runner', 'lifecycle-alias', 'compatibility-alias']);
+
+    expect(packageJson.scripts).toEqual(specScripts);
+    expect(sdkTargetsFixture.packageScripts.scripts.every((script) => allowedKinds.has(script.kind))).toBe(
+      true,
+    );
+  });
+
   test('SDK generation reads the TypeSpec-emitted pipeline', () => {
     expect(packageJson.scripts['generate:sdks']).toBe('node scripts/run-sdk-generation.mjs');
     expect(packageJson.scripts['generate:sdks']).not.toContain('build:codegen');

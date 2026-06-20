@@ -461,6 +461,115 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "packageScripts": {
+    "scripts": [
+      {
+        "name": "build:codegen",
+        "command": "node scripts/build-codegen.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "build:bundle",
+        "command": "node scripts/run-bundle-build.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "build",
+        "command": "node scripts/run-root-pipeline.mjs build",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "prepublishOnly",
+        "command": "npm run build",
+        "kind": "lifecycle-alias"
+      },
+      {
+        "name": "clean",
+        "command": "node scripts/clean.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "clean:generated",
+        "command": "node scripts/clean-generated.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "check:generated-drift",
+        "command": "node scripts/run-generated-check.mjs drift",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "lint",
+        "command": "node scripts/run-quality.mjs lint",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "format",
+        "command": "node scripts/run-quality.mjs format",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test",
+        "command": "node scripts/run-tests.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:unit",
+        "command": "node scripts/run-tests.mjs unit",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:contract",
+        "command": "node scripts/run-tests.mjs contract",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-integration",
+        "command": "node scripts/run-tests.mjs hook-integration",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "generate:sdks",
+        "command": "node scripts/run-sdk-generation.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "check:sdks",
+        "command": "node scripts/run-root-pipeline.mjs check-sdks",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "ci:local",
+        "command": "node scripts/run-local-ci.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "specs:compile",
+        "command": "node scripts/run-spec-command.mjs compile",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "specs:all",
+        "command": "npm run generate:sdks",
+        "kind": "compatibility-alias"
+      },
+      {
+        "name": "specs:watch",
+        "command": "node scripts/run-spec-command.mjs watch",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "lint:generated-banners",
+        "command": "node scripts/run-generated-check.mjs banners",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "audit:security",
+        "command": "node scripts/security-audit.mjs",
+        "kind": "spec-runner"
+      }
+    ]
+  },
   "cleanArtifacts": {
     "paths": [
       "dist",
@@ -856,10 +965,11 @@ BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
 QUALITY_COMMANDS = SDK_TARGET_MANIFEST.get("qualityCommands", {})
 GENERATED_CHECKS = SDK_TARGET_MANIFEST.get("generatedChecks", {})
 PACKAGE_SURFACE = SDK_TARGET_MANIFEST.get("packageSurface", {})
+PACKAGE_SCRIPTS = SDK_TARGET_MANIFEST.get("packageScripts", {})
 CLEAN_ARTIFACTS = SDK_TARGET_MANIFEST.get("cleanArtifacts", {})
 SECURITY_AUDIT = SDK_TARGET_MANIFEST.get("securityAudit", {})
 LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "SPEC_COMMANDS", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "GENERATED_CHECKS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "SPEC_COMMANDS", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "GENERATED_CHECKS", "PACKAGE_SURFACE", "PACKAGE_SCRIPTS", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

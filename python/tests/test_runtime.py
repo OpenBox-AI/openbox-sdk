@@ -67,6 +67,7 @@ from openbox_sdk.generated.sdk_targets import (
     GENERATED_ARTIFACTS,
     GENERATED_CHECKS,
     LOCAL_CI,
+    PACKAGE_SCRIPTS,
     PACKAGE_SURFACE,
     QUALITY_COMMANDS,
     ROOT_PIPELINES,
@@ -474,6 +475,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
         "generatedArtifacts": fixture["generatedArtifacts"],
         "generatedChecks": fixture["generatedChecks"],
         "localCi": fixture["localCi"],
+        "packageScripts": fixture["packageScripts"],
         "packageSurface": fixture["packageSurface"],
         "qualityCommands": fixture["qualityCommands"],
         "rootPipelines": fixture["rootPipelines"],
@@ -489,6 +491,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
     assert GENERATED_CHECKS == fixture["generatedChecks"]
     assert LOCAL_CI == fixture["localCi"]
+    assert PACKAGE_SCRIPTS == fixture["packageScripts"]
     assert PACKAGE_SURFACE == fixture["packageSurface"]
     assert QUALITY_COMMANDS == fixture["qualityCommands"]
     assert ROOT_PIPELINES == fixture["rootPipelines"]

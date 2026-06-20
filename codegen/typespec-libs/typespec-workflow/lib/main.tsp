@@ -380,6 +380,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *       files: #[...],
  *       exports: #[#{ subpath, types, importPath }, ...],
  *     },
+ *     packageScripts: #{
+ *       scripts: #[#{ name, command, kind }, ...],
+ *     },
  *     codegenBuild: #{
  *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
  *     },

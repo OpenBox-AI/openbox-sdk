@@ -112,6 +112,13 @@ interface SdkTargetsFixture {
       importPath: string;
     }>;
   };
+  packageScripts: {
+    scripts: Array<{
+      name: string;
+      command: string;
+      kind: string;
+    }>;
+  };
   cleanArtifacts: {
     paths: string[];
     nestedNames: Array<{
@@ -520,6 +527,48 @@ describe('SDK target validation manifest', () => {
         './runtime/n8n',
       ]),
     );
+  });
+
+  test('declares every root package script as a spec-owned router or explicit alias', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+    const expectedScripts = Object.fromEntries(
+      fixture.packageScripts.scripts.map((script) => [script.name, script.command]),
+    );
+
+    expect(packageJson.scripts).toEqual(expectedScripts);
+    expect(fixture.packageScripts.scripts.map((script) => script.kind)).toEqual([
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'lifecycle-alias',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'compatibility-alias',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
+    ]);
+    expect(
+      Object.keys(packageJson.scripts).filter((script) =>
+        /:(python|py|typescript|ts|js)$/.test(script),
+      ),
+    ).toEqual([]);
   });
 
   test('declares security audit commands and annotated secret-scan excludes', () => {
