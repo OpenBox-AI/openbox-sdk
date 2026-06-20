@@ -282,6 +282,12 @@ describe('typespec-workflow', () => {
             steps: Array<{ id: string; command: string; workingDirectory: string }>;
           }
         | undefined;
+    const sdkGeneration =
+      fixture?.sdkGeneration as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
     const testSuites =
       fixture?.testSuites as
         | {
@@ -363,6 +369,11 @@ describe('typespec-workflow', () => {
       'typespec-emitter',
     ]);
     expect(codegenBuild?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(sdkGeneration?.steps.map((entry) => entry.id)).toEqual([
+      'build-codegen',
+      'specs-compile',
+    ]);
+    expect(sdkGeneration?.steps.every((entry) => entry.command === 'npm')).toBe(true);
     expect(testSuites?.defaultSuites).toEqual(['unit', 'contract', 'hook-integration']);
     expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
       'unit',

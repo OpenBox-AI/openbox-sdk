@@ -7,9 +7,10 @@ canonical TypeSpec contract.
 ## Emitter-Owned
 
 - `generate:sdks` is the generic SDK artifact generation command. It builds
-  the TypeSpec decorator libraries and shared emitter, then compiles the
-  canonical TypeSpec contract. TypeScript, Python, OpenAPI, JSON Schema, and
-  future language targets must all hang off this command.
+  the TypeSpec-emitted `sdkGeneration.steps` pipeline. TypeScript, Python,
+  OpenAPI, JSON Schema, and future language targets must all hang off this
+  command. If generated fixtures were cleaned, it falls back to the bootstrap
+  generation sequence long enough to regenerate the canonical manifest.
 - `build:codegen` reads the TypeSpec-emitted `codegenBuild.steps` pipeline from
   `codegen/fixtures/sdk-targets.json` and builds the TypeSpec decorator
   libraries plus shared emitter. If generated fixtures were cleaned, it falls

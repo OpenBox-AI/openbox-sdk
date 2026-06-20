@@ -170,7 +170,7 @@
     "test:unit": "node scripts/run-tests.mjs unit",
     "test:contract": "node scripts/run-tests.mjs contract",
     "test:hook-integration": "node scripts/run-tests.mjs hook-integration",
-    "generate:sdks": "npm run build:codegen && npm run specs:compile",
+    "generate:sdks": "node scripts/run-sdk-generation.mjs",
     "check:sdks": "npm run generate:sdks && node scripts/check-sdks.mjs",
     "ci:local": "node scripts/run-local-ci.mjs",
     "specs:compile": "tsp compile specs/typespec",

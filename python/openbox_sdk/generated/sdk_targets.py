@@ -83,6 +83,30 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "sdkGeneration": {
+    "steps": [
+      {
+        "id": "build-codegen",
+        "label": "Codegen package build",
+        "command": "npm",
+        "args": [
+          "run",
+          "build:codegen"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "specs-compile",
+        "label": "TypeSpec contract compile",
+        "command": "npm",
+        "args": [
+          "run",
+          "specs:compile"
+        ],
+        "workingDirectory": "."
+      }
+    ]
+  },
   "testSuites": {
     "defaultSuites": [
       "unit",
@@ -718,6 +742,7 @@ SDK_TARGET_MANIFEST = {
 }
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
+SDK_GENERATION = SDK_TARGET_MANIFEST.get("sdkGeneration", {})
 TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
 BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
 QUALITY_COMMANDS = SDK_TARGET_MANIFEST.get("qualityCommands", {})
@@ -728,4 +753,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

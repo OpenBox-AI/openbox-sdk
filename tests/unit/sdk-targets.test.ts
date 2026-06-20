@@ -24,6 +24,16 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  sdkGeneration: {
+    steps: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      env?: Record<string, string>;
+    }>;
+  };
   testSuites: {
     defaultSuites: string[];
     suites: Array<{
@@ -200,6 +210,33 @@ describe('SDK target validation manifest', () => {
         label: 'OpenBox TypeSpec emitter',
         command: 'npm',
         args: ['run', 'build', '-w', 'typespec-emitter'],
+        workingDirectory: '.',
+      },
+    ]);
+  });
+
+  test('declares SDK generation stages outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts['generate:sdks']).toBe('node scripts/run-sdk-generation.mjs');
+    expect(fixture.sdkGeneration.steps).toEqual([
+      {
+        id: 'build-codegen',
+        label: 'Codegen package build',
+        command: 'npm',
+        args: ['run', 'build:codegen'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'specs-compile',
+        label: 'TypeSpec contract compile',
+        command: 'npm',
+        args: ['run', 'specs:compile'],
         workingDirectory: '.',
       },
     ]);

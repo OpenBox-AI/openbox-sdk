@@ -39,6 +39,12 @@ using OpenBox.Workflow;
       #{ id: "typespec-emitter", label: "OpenBox TypeSpec emitter", command: "npm", args: #["run", "build", "-w", "typespec-emitter"], workingDirectory: "." },
     ],
   },
+  sdkGeneration: #{
+    steps: #[
+      #{ id: "build-codegen", label: "Codegen package build", command: "npm", args: #["run", "build:codegen"], workingDirectory: "." },
+      #{ id: "specs-compile", label: "TypeSpec contract compile", command: "npm", args: #["run", "specs:compile"], workingDirectory: "." },
+    ],
+  },
   testSuites: #{
     defaultSuites: #["unit", "contract", "hook-integration"],
     suites: #[

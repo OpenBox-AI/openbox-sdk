@@ -383,6 +383,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     codegenBuild: #{
  *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
  *     },
+ *     sdkGeneration: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
  *     testSuites: #{
  *       defaultSuites: #[...],
  *       suites: #[#{ id, label, command, args, workingDirectory, env }, ...],

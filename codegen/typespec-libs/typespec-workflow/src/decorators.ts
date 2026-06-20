@@ -1060,6 +1060,20 @@ function validateCodegenBuildRecord(
   return validateCommandStepArray(context, target, 'codegenBuild.steps', codegenBuild.steps);
 }
 
+function validateSdkGenerationRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawSdkGeneration: unknown,
+): boolean {
+  if (!rawSdkGeneration || typeof rawSdkGeneration !== 'object' || Array.isArray(rawSdkGeneration)) {
+    reportInvalidSdkTargets(context, target, 'sdkGeneration must be a record');
+    return false;
+  }
+
+  const sdkGeneration = rawSdkGeneration as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'sdkGeneration.steps', sdkGeneration.steps);
+}
+
 function validateBundleBuildRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1272,6 +1286,12 @@ export function $sdkTargets(
 
   if (record.codegenBuild !== undefined) {
     if (!validateCodegenBuildRecord(context, target, record.codegenBuild)) {
+      return;
+    }
+  }
+
+  if (record.sdkGeneration !== undefined) {
+    if (!validateSdkGenerationRecord(context, target, record.sdkGeneration)) {
       return;
     }
   }
