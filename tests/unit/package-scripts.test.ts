@@ -33,6 +33,7 @@ const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
 const securityAuditScript = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
+const specDriftScript = readFileSync(resolve(process.cwd(), 'scripts/spec-drift.ts'), 'utf8');
 
 describe('package scripts', () => {
   test('root package scripts match the TypeSpec-emitted script surface exactly', () => {
@@ -194,6 +195,18 @@ describe('package scripts', () => {
     expect(securityAuditScript).not.toContain("--prefix', 'example/n8n/custom-node'");
     expect(securityAuditScript).not.toContain('const steps =');
     expect(securityAuditScript).not.toContain('const secretScanExcludes = new Set([');
+  });
+
+  test('service drift reads TypeSpec-emitted service/tier metadata', () => {
+    expect(specDriftScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(specDriftScript).toContain('fixture.serviceDrift');
+    expect(specDriftScript).toContain('SERVICE_DRIFT.services');
+    expect(specDriftScript).toContain('SERVICE_DRIFT.tiers');
+    expect(specDriftScript).toContain('outputPathTemplate');
+    expect(specDriftScript).not.toContain("const SERVICES = new Set(['backend', 'core'])");
+    expect(specDriftScript).not.toContain("const TIERS = new Set(['prod', 'staging', 'develop', 'main'])");
+    expect(specDriftScript).not.toContain('`/tmp/upstream-${service}-${tier}.json`');
+    expect(specDriftScript).not.toContain('`/tmp/spec-drift-${service}-${tier}.md`');
   });
 
   test('runtime plugin bundle export follows the TypeSpec provider component catalog', () => {
