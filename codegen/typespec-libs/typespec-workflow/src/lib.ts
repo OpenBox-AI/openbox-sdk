@@ -87,6 +87,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @providerCapabilities: ${'reason'}`,
       },
     },
+    'invalid-govern-protocol': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @governProtocol: ${'reason'}`,
+      },
+    },
     'invalid-backend-permissions': {
       severity: 'error',
       messages: {
@@ -118,6 +124,7 @@ export const $lib = createTypeSpecLibrary({
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
     hookEventLabel: { description: 'human-readable label attached to an adapter @hookEvent operation' },
     providerCapabilities: { description: 'provider capability/support-tier matrix attached to a namespace' },
+    governProtocol: { description: 'cross-language governance protocol conformance fixture attached to a namespace' },
     backendPermissions: {
       description: 'backend operationId → required RBAC permissions table attached to a namespace',
     },

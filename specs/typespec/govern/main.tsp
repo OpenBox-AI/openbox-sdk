@@ -257,6 +257,79 @@ using OpenBox.Workflow;
   file_write: "File Write",
   agent_action: "Agent Action",
 })
+@governProtocol(#{
+  name: "govern-protocol",
+  description: "The govern() wrapper fires events in the right order with the right canonical activity_type strings, in every language.",
+  cases: #[
+    #{
+      name: "single-allow",
+      scenario: #[
+        #{ kind: "begin_workflow", workflowId: "wf-1", runId: "run-1" },
+        #{
+          kind: "activity",
+          activityType: "PromptSubmission",
+          input: #[#{ prompt: "hello" }],
+          verdict: #{ arm: "allow", riskScore: 0.1 },
+        },
+        #{ kind: "end_workflow" },
+      ],
+      expectedEvents: #[
+        #{ event_type: "WorkflowStarted", workflow_id: "wf-1", run_id: "run-1" },
+        #{ event_type: "ActivityStarted", activity_type: "PromptSubmission" },
+        #{ event_type: "ActivityCompleted", activity_type: "PromptSubmission" },
+        #{ event_type: "WorkflowCompleted", workflow_id: "wf-1", run_id: "run-1" },
+      ],
+    },
+    #{
+      name: "block-halts-workflow",
+      scenario: #[
+        #{ kind: "begin_workflow", workflowId: "wf-2", runId: "run-2" },
+        #{
+          kind: "activity",
+          activityType: "ShellExecution",
+          input: #[#{ command: "rm -rf /" }],
+          verdict: #{ arm: "block", riskScore: 1.0, reason: "destructive" },
+        },
+      ],
+      expectedEvents: #[
+        #{ event_type: "WorkflowStarted", workflow_id: "wf-2", run_id: "run-2" },
+        #{ event_type: "ActivityStarted", activity_type: "ShellExecution" },
+        #{
+          event_type: "WorkflowFailed",
+          workflow_id: "wf-2",
+          run_id: "run-2",
+          status: "failed",
+        },
+      ],
+      note: "Blocked activities never emit ActivityCompleted; the workflow ends in WorkflowFailed.",
+    },
+    #{
+      name: "approval-poll-then-allow",
+      scenario: #[
+        #{ kind: "begin_workflow", workflowId: "wf-3", runId: "run-3" },
+        #{
+          kind: "activity",
+          activityType: "ToolCompleted",
+          input: #[#{ tool: "transfer_funds", amount: 5000 }],
+          verdict: #{
+            arm: "require_approval",
+            approvalId: "ap-xyz",
+            riskScore: 0.7,
+          },
+          approvalResolution: #{ arm: "allow", riskScore: 0.7 },
+        },
+        #{ kind: "end_workflow" },
+      ],
+      expectedEvents: #[
+        #{ event_type: "WorkflowStarted", workflow_id: "wf-3", run_id: "run-3" },
+        #{ event_type: "ActivityStarted", activity_type: "ToolCompleted" },
+        #{ event_type: "ActivityCompleted", activity_type: "ToolCompleted" },
+        #{ event_type: "WorkflowCompleted", workflow_id: "wf-3", run_id: "run-3" },
+      ],
+      note: "Approval polling happens between ActivityStarted and ActivityCompleted; SDK only emits one Started/Completed pair regardless of how many polls were issued.",
+    },
+  ],
+})
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------

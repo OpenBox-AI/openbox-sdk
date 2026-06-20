@@ -17,6 +17,7 @@ import {
   presets,
   BaseGovernedSession,
   CustomSession,
+  CANONICAL_ACTIVITY_LABELS,
 } from '../../ts/src/core-client/generated/govern.js';
 import * as corePublic from '../../ts/src/core-client/index.js';
 
@@ -31,6 +32,32 @@ function readSdkManifestFixture(): {
     generatedBy: string;
     sources: string[];
     governPresetManifest: unknown;
+  };
+}
+
+function readGovernProtocolFixture(): {
+  generatedBy: string;
+  source: string;
+  regenerate: string;
+  name: string;
+  cases: Array<{
+    name: string;
+    scenario: Array<Record<string, unknown>>;
+    expectedEvents: Array<Record<string, unknown>>;
+  }>;
+} {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), 'codegen/fixtures/govern-protocol.json'), 'utf8'),
+  ) as {
+    generatedBy: string;
+    source: string;
+    regenerate: string;
+    name: string;
+    cases: Array<{
+      name: string;
+      scenario: Array<Record<string, unknown>>;
+      expectedEvents: Array<Record<string, unknown>>;
+    }>;
   };
 }
 
@@ -68,6 +95,35 @@ describe('TypeSpec govern manifest conformance fixture', () => {
     expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
     expect(fixture.sources).toContain('specs/typespec/govern/main.tsp');
     expect(PRESET_MANIFEST).toEqual(fixture.governPresetManifest);
+  });
+
+  test('generated lifecycle fixture is TypeSpec-owned and references canonical activity labels', () => {
+    const fixture = readGovernProtocolFixture();
+
+    expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
+    expect(fixture.source).toBe('specs/typespec/govern/main.tsp');
+    expect(fixture.regenerate).toBe('npm run specs:compile');
+    expect(fixture.name).toBe('govern-protocol');
+    expect(fixture.cases.map((entry) => entry.name)).toEqual([
+      'single-allow',
+      'block-halts-workflow',
+      'approval-poll-then-allow',
+    ]);
+
+    const activityTypes = new Set<string>();
+    for (const entry of fixture.cases) {
+      for (const step of entry.scenario) {
+        if (typeof step.activityType === 'string') activityTypes.add(step.activityType);
+      }
+      for (const event of entry.expectedEvents) {
+        if (typeof event.activity_type === 'string') activityTypes.add(event.activity_type);
+      }
+    }
+
+    expect([...activityTypes].sort()).toEqual(['PromptSubmission', 'ShellExecution', 'ToolCompleted']);
+    for (const activityType of activityTypes) {
+      expect(CANONICAL_ACTIVITY_LABELS[activityType], activityType).toBeTruthy();
+    }
   });
 });
 

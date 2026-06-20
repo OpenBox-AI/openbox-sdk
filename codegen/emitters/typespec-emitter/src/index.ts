@@ -51,6 +51,7 @@ import {
   getActivityLabels,
   getHookEventLabel,
   getProviderCapabilities,
+  getGovernProtocol,
   getBackendPermissions,
   getSdkMethodNames,
   type CanonicalEventType,
@@ -78,6 +79,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/src/core-client/generated/core-types.ts');
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
+  emitGovernProtocolConformanceFixture(program, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
   emitBackendMethodNameFixture(program, repoRoot);
   emitBackendPermissionFixture(program, repoRoot);
@@ -1425,6 +1427,19 @@ function writeProviderCapabilityConformanceFixture(
   payload: ProviderCapabilityConformancePayload,
 ): void {
   writeJsonFixture(repoRoot, 'codegen/fixtures/provider-capabilities.json', payload);
+}
+
+function emitGovernProtocolConformanceFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxGovern');
+  const fixture = ns ? getGovernProtocol(program, ns) : undefined;
+  if (!fixture) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/govern-protocol.json', {
+    $schema: '../snapshots/govern-protocol.schema.json',
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/govern/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...fixture,
+  });
 }
 
 function writeJsonFixture(repoRoot: string, relPath: string, payload: unknown): void {
