@@ -36,6 +36,7 @@ describe('Claude Code plugin asset', () => {
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'plugin.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'marketplace.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'instructions', 'CLAUDE.md'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'component-inventory.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'claude-code-governance.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'monitors.opt-in.json'))).toBe(true);
@@ -49,6 +50,7 @@ describe('Claude Code plugin asset', () => {
       'openbox-status.md',
     ]);
     expect(fs.readdirSync(path.join(out, 'agents'))).toEqual(['openbox-reviewer.md']);
+    expect(fs.readdirSync(path.join(out, 'instructions'))).toEqual(['CLAUDE.md']);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(out, '.claude-plugin', 'plugin.json'), 'utf-8'));
     expect(manifest.name).toBe('openbox');
@@ -77,6 +79,14 @@ describe('Claude Code plugin asset', () => {
       args: ['${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs', 'mcp', 'serve'],
     });
 
+    const instructions = fs.readFileSync(path.join(out, 'instructions', 'CLAUDE.md'), 'utf-8');
+    expect(instructions).toContain('OpenBox Governance for Claude Code');
+    expect(instructions).toContain('Use the OpenBox Claude Code plugin, MCP tools, or slash commands');
+    expect(instructions).toContain('Do not evaluate OPA/Rego, behavior-rule predicates');
+    expect(instructions).toContain('Projection summary:');
+    expect(instructions).toContain('- Agent: `openbox-core`');
+    expect(instructions).toContain('## Guardrails');
+
     const inventory = JSON.parse(
       fs.readFileSync(path.join(out, 'diagnostics', 'component-inventory.json'), 'utf-8'),
     );
@@ -85,6 +95,7 @@ describe('Claude Code plugin asset', () => {
     expect(inventory.components.hooks.defaultEvents).toContain('Elicitation');
     expect(inventory.components.hooks.optInEvents).toContain('WorktreeCreate');
     expect(inventory.components.hooks.optInEvents).toContain('SessionEnd');
+    expect(inventory.components.instructions.path).toBe('instructions/CLAUDE.md');
     expect(inventory.components.bin.files).toContain('openbox-cli.mjs');
     expect(inventory.components.settings.status).toBe('diagnose_only');
     expect(inventory.components.settings.emitted).toBe(false);

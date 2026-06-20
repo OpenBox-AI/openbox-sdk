@@ -220,7 +220,7 @@ PROVIDER_CAPABILITY_MATRIX = [
     "provider": "claude-code",
     "capability": "rules-instructions",
     "tier": "wrapped",
-    "rationale": "CLAUDE/AGENTS-style instruction projection is documentation-only; policy logic stays in Core."
+    "rationale": "CLAUDE/AGENTS-style instruction projection ships in the plugin as documentation-only guidance; policy logic stays in Core."
   },
   {
     "provider": "claude-code",
@@ -1018,6 +1018,12 @@ PROVIDER_PLUGIN_COMPONENTS = [
         "reason": "Agent template."
       },
       {
+        "name": "instructions",
+        "tier": "wrapped",
+        "path": "instructions/CLAUDE.md",
+        "reason": "CLAUDE/AGENTS-style instruction projection rendered from the shared OpenBox rules projection renderer."
+      },
+      {
         "name": "hooks",
         "tier": "native",
         "path": "hooks/hooks.json",
@@ -1580,9 +1586,9 @@ RULES_INSTRUCTION_CAPABILITY_GUARDS = [
   {
     "provider": "claude-code",
     "tier": "wrapped",
-    "projectionSurface": "Claude Code plugin reviewer agent, slash command guidance, OpenBox skill, and optional CLAUDE/AGENTS-style instruction projection",
+    "projectionSurface": "Claude Code plugin reviewer agent, slash command guidance, OpenBox skill, and instructions/CLAUDE.md rendered from the shared CLAUDE/AGENTS-style instruction projection",
     "sourceOfTruth": "OpenBox Core/backend",
-    "allowedProjectionWork": "Ship reviewer and command instructions that ask MCP/Core for policies, guardrails, behavior rules, trust, and governance verdicts.",
+    "allowedProjectionWork": "Ship reviewer, command, and instruction assets that ask MCP/Core for policies, guardrails, behavior rules, trust, and governance verdicts.",
     "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, invented endpoint shapes, or local policy decisions in plugin assets",
     "hostBoundary": "Claude Code instruction assets are documentation and review aids; hooks/MCP/Core provide enforcement.",
     "guardTest": "tests/unit/claude-code-plugin.test.ts#exports a complete marketplace-ready plugin folder"
@@ -2025,7 +2031,7 @@ INSTALL_DOCTOR_CAPABILITY_GUARDS = [
     "installSurface": "Claude Code plugin export/install through project scope",
     "doctorSurface": "verifyClaudeCodeInstall, verifyClaudeCodePlugin, openbox-plugin-doctor, and claude_code_doctor MCP tool",
     "scopeBoundary": "project-local plugin target and runtime config only; monitors opt-in and LSP out-of-scope",
-    "generatedOrPackagedSurface": ".claude-plugin/plugin.json, hooks/hooks.json, .mcp.json, commands, agents, skills/openbox, diagnostics, and bin/openbox-plugin-doctor",
+    "generatedOrPackagedSurface": ".claude-plugin/plugin.json, hooks/hooks.json, .mcp.json, commands, agents, instructions/CLAUDE.md, skills/openbox, diagnostics, and bin/openbox-plugin-doctor",
     "guardTest": "tests/hook-integration/claude-code-install.test.ts#claude-code plugin install --scope project writes a complete native plugin folder"
   },
   {

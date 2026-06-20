@@ -118,6 +118,7 @@ describe('minimal install command', () => {
     expect(existsSync(join(plugin, 'hooks', 'hooks.json'))).toBe(true);
     expect(existsSync(join(plugin, '.mcp.json'))).toBe(true);
     expect(existsSync(join(plugin, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(plugin, 'instructions', 'CLAUDE.md'))).toBe(true);
     expect(existsSync(join(project, '.claude-hooks', 'config.json'))).toBe(true);
     expect(existsSync(join(project, '.claude', 'settings.json'))).toBe(false);
 
