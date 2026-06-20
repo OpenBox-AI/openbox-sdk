@@ -51,12 +51,13 @@ export interface ProviderEventCatalogEntry {
 
 export interface ProviderPluginComponentCatalogEntry {
   provider: OpenBoxProviderId;
-  components: readonly { name: string; tier: OpenBoxSupportTier; path?: string; reason: string }[];
+  components: readonly { name: string; tier: OpenBoxSupportTier; surface?: string; path?: string; reason: string }[];
 }
 
 export interface PublicIntegrationSupportEntry {
   integration: OpenBoxProviderId;
   tier: OpenBoxSupportTier;
+  packageSubpath: string;
   exports: readonly string[];
   notes: string;
 }
@@ -79,6 +80,23 @@ export interface UsageCostCapabilityGuardEntry {
   sharedNormalizer: string;
   costPolicyBoundary: string;
   guardTest: string;
+}
+
+export interface UsageNormalizationSurface {
+  minimumValue: number;
+  tokenValuesRequireIntegers: boolean;
+  canonicalFields: readonly string[];
+  inputTokenAliases: readonly string[];
+  outputTokenAliases: readonly string[];
+  totalTokenAliases: readonly string[];
+  cacheReadInputTokenAliases: readonly string[];
+  cacheCreationInputTokenAliases: readonly string[];
+  webSearchRequestAliases: readonly string[];
+  costUsdAliases: readonly string[];
+  providerUsageContainers: readonly string[];
+  providerModelFields: readonly string[];
+  providerFinishReasonFields: readonly string[];
+  policyBoundary: string;
 }
 
 export interface TracingCapabilityGuardEntry {
@@ -204,11 +222,17 @@ export interface McpToolSurfaceEntry {
   openWorldHint: boolean;
 }
 
+export interface McpPromptArgEntry {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
 export interface McpPromptSurfaceEntry {
   name: string;
   title: string;
   description: string;
-  args: readonly { name: string; description: string; required: boolean }[];
+  args: readonly McpPromptArgEntry[];
   instructions: string;
 }
 
@@ -220,11 +244,91 @@ export interface McpResourceTemplateSurfaceEntry {
   mimeType: string;
 }
 
+export interface McpSkillReferenceSurfaceEntry {
+  name: string;
+  path: string;
+  description: string;
+}
+
+export interface N8nPackageManifestSurface {
+  n8nNodesApiVersion: number;
+  credentials: readonly string[];
+  nodes: readonly string[];
+  openboxSpecSource: string;
+  openboxSpecNodeIds: readonly string[];
+}
+
+export interface N8nWorkflowEdgeSurface {
+  from: string;
+  to: string;
+}
+
+export interface N8nCheckpointGateSurface {
+  checkpoint: string;
+  gate: string;
+  pass: string;
+  fail: string;
+}
+
+export interface N8nWorkflowNodeIdentitySurface {
+  name: string;
+  id: string;
+  type: string;
+}
+
+export interface N8nNodeBooleanFlagSurface {
+  node: string;
+  flag: string;
+  expected: boolean;
+}
+
+export interface N8nExpressionSourceCheckSurface {
+  node: string;
+  requiredContains: readonly string[];
+  forbiddenContains: readonly string[];
+}
+
+export interface N8nNodeParameterCheckSurface {
+  nodeType: string;
+  parameter: string;
+  requiredContains: readonly string[];
+  forbiddenContains: readonly string[];
+  forbiddenValues: readonly string[];
+}
+
+export interface N8nShowcaseWorkflowSurface {
+  name: string;
+  id: string;
+  path: string;
+  description: string;
+  requiredOpenBoxNodeIds: readonly string[];
+  requiredOpenBoxNodeTypes: readonly string[];
+  requiredTriggerTypes: readonly string[];
+  requiredCheckpoints: readonly string[];
+  requiredTerminalNodes: readonly string[];
+  requiredEntryEdges: readonly N8nWorkflowEdgeSurface[];
+  checkpointGates: readonly N8nCheckpointGateSurface[];
+  requiredNodeIdentities: readonly N8nWorkflowNodeIdentitySurface[];
+  requiredNodeBooleanFlags: readonly N8nNodeBooleanFlagSurface[];
+  expressionSourceChecks: readonly N8nExpressionSourceCheckSurface[];
+  requiredOpenBoxNodeParameterChecks: readonly N8nNodeParameterCheckSurface[];
+  approvalStages: readonly string[];
+  requiredApprovalActionIds: readonly string[];
+  requiredPathLogSteps: readonly string[];
+  requiredTerminalEventTypes: readonly string[];
+  allowedCredentialPlaceholders: readonly string[];
+  forbiddenWorkflowText: readonly string[];
+  forbiddenWorkflowRegexes: readonly string[];
+  terminalLogTable: string;
+}
+
 export interface N8nIntegrationSurface {
+  packageManifest: N8nPackageManifestSurface;
   credentials: readonly Record<string, unknown>[];
   nodes: readonly Record<string, unknown>[];
   workflowTemplates: readonly Record<string, unknown>[];
   examples: readonly Record<string, unknown>[];
+  showcaseWorkflows: readonly N8nShowcaseWorkflowSurface[];
 }
 
 export const PROVIDER_CAPABILITY_MATRIX = [
@@ -1123,56 +1227,93 @@ export const PROVIDER_PLUGIN_COMPONENTS = [
       {
         "name": "plugin-manifest",
         "tier": "native",
+        "surface": "plugin",
         "path": ".cursor-plugin/plugin.json",
         "reason": "Cursor local plugin metadata."
       },
       {
         "name": "marketplace",
         "tier": "native",
+        "surface": "plugin",
         "path": ".cursor-plugin/marketplace.json",
         "reason": "Cursor marketplace-style metadata."
       },
       {
         "name": "hooks",
         "tier": "native",
+        "surface": "plugin",
         "path": "hooks/hooks.json",
-        "reason": "Plugin hook config; repo mode writes .cursor/hooks.json."
+        "reason": "Plugin hook config."
       },
       {
         "name": "mcp",
         "tier": "native",
+        "surface": "plugin",
         "path": "mcp.json",
-        "reason": "Plugin MCP config; repo mode writes .cursor/mcp.json."
+        "reason": "Plugin MCP config."
       },
       {
         "name": "rules",
         "tier": "native",
+        "surface": "plugin",
         "path": "rules/openbox.mdc",
         "reason": "Cursor .mdc governance projection."
       },
       {
         "name": "commands",
         "tier": "native",
+        "surface": "plugin",
         "path": "commands/",
         "reason": "Cursor slash command markdown files."
       },
       {
         "name": "agents",
         "tier": "native",
+        "surface": "plugin",
         "path": "agents/openbox-reviewer.md",
         "reason": "Cursor agent template."
       },
       {
         "name": "skills",
         "tier": "native",
+        "surface": "plugin",
         "path": "skills/openbox/SKILL.md",
-        "reason": "Plugin skill bundle; repo mode writes .agents/skills/openbox."
+        "reason": "Plugin skill bundle."
       },
       {
         "name": "workspaceOpen",
         "tier": "wrapped",
+        "surface": "plugin",
         "path": "workspaceOpen.json",
         "reason": "Metadata hint for workspace plugin discovery/loading."
+      },
+      {
+        "name": "repo-hooks",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".cursor/hooks.json",
+        "reason": "Cloud-compatible repo hook config."
+      },
+      {
+        "name": "repo-mcp",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".cursor/mcp.json",
+        "reason": "Cloud-compatible repo MCP config."
+      },
+      {
+        "name": "repo-rules",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".cursor/rules/openbox-governance.mdc",
+        "reason": "Cloud-compatible repo .mdc governance projection."
+      },
+      {
+        "name": "repo-skill",
+        "tier": "native",
+        "surface": "repo",
+        "path": ".agents/skills/openbox/SKILL.md",
+        "reason": "Project-local skill install for repo-mode discovery."
       }
     ]
   },
@@ -1257,6 +1398,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "openai-agents-sdk",
     "tier": "native",
+    "packageSubpath": "./openai-agents-sdk",
     "exports": [
       "createOpenBoxAgentHooks",
       "createOpenBoxTracingProcessor",
@@ -1272,6 +1414,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "anthropic-agent-sdk",
     "tier": "native",
+    "packageSubpath": "./anthropic-agent-sdk",
     "exports": [
       "createOpenBoxAnthropicAgentHooks",
       "withOpenBoxAnthropicAgentOptions",
@@ -1282,6 +1425,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "copilotkit",
     "tier": "wrapped",
+    "packageSubpath": "./copilotkit",
     "exports": [
       "createOpenBoxCopilotKitAdapter",
       "createOpenBoxAGUIAdapter",
@@ -1293,6 +1437,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "n8n",
     "tier": "wrapped",
+    "packageSubpath": "./runtime/n8n",
     "exports": [
       "emitN8nUserPromptSignal",
       "emitN8nNodePreExecute",
@@ -1436,9 +1581,9 @@ export const USAGE_COST_CAPABILITY_GUARDS = [
     "tier": "observe-only",
     "usageSurface": "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present",
     "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "CopilotKit middleware routes usageMetadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
+    "sharedNormalizer": "CopilotKit middleware and AG-UI events route usage metadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
     "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit only observes model usage.",
-    "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits Core-extractable assistant output spans for goal alignment"
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#normalizes usage and cost from AG-UI run completion events"
   },
   {
     "provider": "n8n",
@@ -1450,6 +1595,90 @@ export const USAGE_COST_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
   }
 ] as const satisfies readonly UsageCostCapabilityGuardEntry[];
+export const USAGE_NORMALIZATION_SURFACE = {
+  "minimumValue": 0,
+  "tokenValuesRequireIntegers": true,
+  "canonicalFields": [
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "web_search_requests",
+    "cost_usd"
+  ],
+  "inputTokenAliases": [
+    "inputTokens",
+    "promptTokens",
+    "input_tokens",
+    "prompt_tokens",
+    "inputTokenCount",
+    "promptTokenCount",
+    "input_token_count",
+    "prompt_token_count"
+  ],
+  "outputTokenAliases": [
+    "outputTokens",
+    "completionTokens",
+    "output_tokens",
+    "completion_tokens",
+    "outputTokenCount",
+    "candidatesTokenCount",
+    "responseTokenCount",
+    "output_token_count",
+    "candidates_token_count",
+    "response_token_count"
+  ],
+  "totalTokenAliases": [
+    "totalTokens",
+    "total_tokens",
+    "totalTokenCount",
+    "total_token_count"
+  ],
+  "cacheReadInputTokenAliases": [
+    "cacheReadInputTokens",
+    "cache_read_input_tokens"
+  ],
+  "cacheCreationInputTokenAliases": [
+    "cacheCreationInputTokens",
+    "cache_creation_input_tokens"
+  ],
+  "webSearchRequestAliases": [
+    "webSearchRequests",
+    "web_search_requests"
+  ],
+  "costUsdAliases": [
+    "costUsd",
+    "costUSD",
+    "cost_usd",
+    "total_cost_usd"
+  ],
+  "providerUsageContainers": [
+    "usage_metadata",
+    "usageMetadata",
+    "usage",
+    "token_usage",
+    "response_metadata.usage",
+    "response_metadata.token_usage",
+    "llm_output.token_usage"
+  ],
+  "providerModelFields": [
+    "model",
+    "model_name",
+    "modelName",
+    "response_metadata.model",
+    "response_metadata.model_name",
+    "response_metadata.modelName",
+    "llm_output.model"
+  ],
+  "providerFinishReasonFields": [
+    "finish_reason",
+    "finishReason",
+    "response_metadata.finish_reason",
+    "response_metadata.finishReason"
+  ],
+  "policyBoundary": "OpenBox Core remains the source of truth for usage/cost policy. SDKs normalize telemetry fields only and never locally enforce spend."
+} as const satisfies UsageNormalizationSurface;
 export const TRACING_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
@@ -2537,7 +2766,75 @@ export const MCP_RESOURCE_TEMPLATE_SURFACES = [
     "mimeType": "text/markdown"
   }
 ] as const satisfies readonly McpResourceTemplateSurfaceEntry[];
+export const MCP_SKILL_REFERENCE_SURFACES = [
+  {
+    "name": "governance-flow",
+    "path": "references/governance-flow.md",
+    "description": "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches"
+  },
+  {
+    "name": "guardrails",
+    "path": "references/guardrails.md",
+    "description": "Guardrail configuration: numeric IDs, stage gating, legacy binding no-ops, per-field status, backend validation gaps"
+  },
+  {
+    "name": "behaviors",
+    "path": "references/behaviors.md",
+    "description": "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal"
+  },
+  {
+    "name": "backend-api",
+    "path": "references/backend-api.md",
+    "description": "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability"
+  },
+  {
+    "name": "rego-reference",
+    "path": "references/rego-reference.md",
+    "description": "Rego policy syntax, input fields, example policies, policy lifecycle gotchas"
+  },
+  {
+    "name": "span-reference",
+    "path": "references/span-reference.md",
+    "description": "Span types, gate attributes, semantic type detection"
+  },
+  {
+    "name": "commands",
+    "path": "references/commands.md",
+    "description": "Full CLI command reference"
+  },
+  {
+    "name": "claude-code-governance",
+    "path": "references/claude-code-governance.md",
+    "description": "Claude Code hook/plugin/MCP governance surface audit and coverage matrix"
+  },
+  {
+    "name": "existing-sdks",
+    "path": "references/existing-sdks.md",
+    "description": "Available SDKs and installation"
+  }
+] as const satisfies readonly McpSkillReferenceSurfaceEntry[];
 export const N8N_INTEGRATION_SURFACE = {
+  "packageManifest": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/OpenBoxCredentials.credentials.js"
+    ],
+    "nodes": [
+      "dist/OpenboxLlm.node.js",
+      "dist/OpenBoxGovernance.node.js",
+      "dist/OpenBoxGuardrails.node.js",
+      "dist/OpenBoxApproval.node.js",
+      "dist/OpenBoxGovernedAiAgent.node.js"
+    ],
+    "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
+    "openboxSpecNodeIds": [
+      "openboxLlm",
+      "openboxGovernance",
+      "openboxGuardrails",
+      "openboxApproval",
+      "openboxGovernedAiAgent"
+    ]
+  },
   "credentials": [
     {
       "name": "OpenBox Credentials",
@@ -2553,6 +2850,12 @@ export const N8N_INTEGRATION_SURFACE = {
     }
   ],
   "nodes": [
+    {
+      "name": "OpenBox: LLM",
+      "id": "openboxLlm",
+      "tier": "wrapped",
+      "description": "Runs an OpenAI-compatible or Ollama LLM call and emits OpenBox pre/post governance spans."
+    },
     {
       "name": "OpenBox Governance",
       "id": "openboxGovernance",
@@ -2588,29 +2891,751 @@ export const N8N_INTEGRATION_SURFACE = {
         "openboxGuardrails",
         "openboxApproval"
       ],
-      "description": "Govern prompt, review tool calls, enforce guardrails, and resolve HITL approvals around an n8n AI Agent."
+      "description": "Govern prompt, review tool calls, enforce guardrails, and resolve HITL approvals around an n8n AI Agent.",
+      "workflow": {
+        "name": "OpenBox Governed AI Agent",
+        "nodes": [
+          {
+            "id": "openbox-governance",
+            "name": "openboxGovernance",
+            "type": "n8n-nodes-openbox-hook.openboxGovernance",
+            "typeVersion": 1,
+            "position": [
+              0,
+              0
+            ],
+            "parameters": {
+              "prompt": "={{ $json.chatInput || $json.prompt || $json.text || \"\" }}"
+            }
+          },
+          {
+            "id": "n8n-ai-agent",
+            "name": "n8nAiAgent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 2,
+            "position": [
+              300,
+              0
+            ],
+            "parameters": {
+              "agent": "toolsAgent"
+            }
+          },
+          {
+            "id": "openbox-guardrails",
+            "name": "openboxGuardrails",
+            "type": "n8n-nodes-openbox-hook.openboxGuardrails",
+            "typeVersion": 1,
+            "position": [
+              600,
+              0
+            ],
+            "parameters": {
+              "text": "={{ $json.output || $json.text || \"\" }}"
+            }
+          },
+          {
+            "id": "openbox-approval",
+            "name": "openboxApproval",
+            "type": "n8n-nodes-openbox-hook.openboxApproval",
+            "typeVersion": 1,
+            "position": [
+              900,
+              0
+            ],
+            "parameters": {
+              "approvalReason": "={{ $json.approvalReason || \"Review governed AI agent output.\" }}"
+            }
+          }
+        ],
+        "connections": {
+          "openboxGovernance": {
+            "main": [
+              [
+                {
+                  "node": "n8nAiAgent",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "n8nAiAgent": {
+            "main": [
+              [
+                {
+                  "node": "openboxGuardrails",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "openboxGuardrails": {
+            "main": [
+              [
+                {
+                  "node": "openboxApproval",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          }
+        },
+        "settings": {
+          "executionOrder": "v1"
+        }
+      }
     }
   ],
   "examples": [
     {
       "name": "AI Agent Tool Review",
       "id": "ai-agent-tool-review",
-      "description": "Pre/post tool review around an n8n AI Agent tool call."
+      "description": "Pre/post tool review around an n8n AI Agent tool call.",
+      "workflow": {
+        "name": "OpenBox AI Agent Tool Review",
+        "nodes": [
+          {
+            "id": "openbox-governance",
+            "name": "openboxGovernance",
+            "type": "n8n-nodes-openbox-hook.openboxGovernance",
+            "typeVersion": 1,
+            "position": [
+              0,
+              0
+            ],
+            "parameters": {
+              "prompt": "={{ $json.toolRequest || $json.chatInput || \"\" }}"
+            }
+          },
+          {
+            "id": "n8n-ai-agent",
+            "name": "n8nAiAgent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 2,
+            "position": [
+              300,
+              0
+            ],
+            "parameters": {
+              "agent": "toolsAgent"
+            }
+          },
+          {
+            "id": "openbox-approval",
+            "name": "openboxApproval",
+            "type": "n8n-nodes-openbox-hook.openboxApproval",
+            "typeVersion": 1,
+            "position": [
+              600,
+              0
+            ],
+            "parameters": {
+              "approvalReason": "={{ $json.approvalReason || \"Review proposed AI Agent tool call.\" }}"
+            }
+          }
+        ],
+        "connections": {
+          "openboxGovernance": {
+            "main": [
+              [
+                {
+                  "node": "n8nAiAgent",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "n8nAiAgent": {
+            "main": [
+              [
+                {
+                  "node": "openboxApproval",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          }
+        },
+        "settings": {
+          "executionOrder": "v1"
+        }
+      }
     },
     {
       "name": "Guardrails Node Interop",
       "id": "guardrails-node-interop",
-      "description": "OpenBox guardrail wrapper around the native n8n Guardrails node."
+      "description": "OpenBox guardrail wrapper around the native n8n Guardrails node.",
+      "workflow": {
+        "name": "OpenBox Guardrails Node Interop",
+        "nodes": [
+          {
+            "id": "openbox-governance",
+            "name": "openboxGovernance",
+            "type": "n8n-nodes-openbox-hook.openboxGovernance",
+            "typeVersion": 1,
+            "position": [
+              0,
+              0
+            ],
+            "parameters": {
+              "prompt": "={{ $json.prompt || $json.chatInput || \"\" }}"
+            }
+          },
+          {
+            "id": "openbox-guardrails",
+            "name": "openboxGuardrails",
+            "type": "n8n-nodes-openbox-hook.openboxGuardrails",
+            "typeVersion": 1,
+            "position": [
+              300,
+              0
+            ],
+            "parameters": {
+              "text": "={{ $json.output || $json.text || \"\" }}"
+            }
+          }
+        ],
+        "connections": {
+          "openboxGovernance": {
+            "main": [
+              [
+                {
+                  "node": "openboxGuardrails",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          }
+        },
+        "settings": {
+          "executionOrder": "v1"
+        }
+      }
     },
     {
       "name": "MCP Client Tool",
       "id": "mcp-client-tool",
-      "description": "OpenBox-governed n8n MCP Client Tool invocation."
+      "description": "OpenBox-governed n8n MCP Client Tool invocation.",
+      "workflow": {
+        "name": "OpenBox MCP Client Tool",
+        "nodes": [
+          {
+            "id": "openbox-governance",
+            "name": "openboxGovernance",
+            "type": "n8n-nodes-openbox-hook.openboxGovernance",
+            "typeVersion": 1,
+            "position": [
+              0,
+              0
+            ],
+            "parameters": {
+              "prompt": "={{ $json.mcpRequest || $json.chatInput || \"\" }}"
+            }
+          },
+          {
+            "id": "mcp-client-tool",
+            "name": "mcpClientTool",
+            "type": "@n8n/n8n-nodes-langchain.toolmcp",
+            "typeVersion": 1,
+            "position": [
+              300,
+              180
+            ],
+            "parameters": {
+              "serverUrl": "={{ $env.OPENBOX_MCP_URL || \"http://localhost:3000/mcp\" }}"
+            }
+          },
+          {
+            "id": "n8n-ai-agent",
+            "name": "n8nAiAgent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 2,
+            "position": [
+              600,
+              0
+            ],
+            "parameters": {
+              "agent": "toolsAgent"
+            }
+          }
+        ],
+        "connections": {
+          "openboxGovernance": {
+            "main": [
+              [
+                {
+                  "node": "n8nAiAgent",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          },
+          "mcpClientTool": {
+            "ai_tool": [
+              [
+                {
+                  "node": "n8nAiAgent",
+                  "type": "ai_tool",
+                  "index": 0
+                }
+              ]
+            ]
+          }
+        },
+        "settings": {
+          "executionOrder": "v1"
+        }
+      }
     },
     {
       "name": "MCP Server Trigger",
       "id": "mcp-server-trigger",
-      "description": "OpenBox-governed n8n MCP Server Trigger workflow entrypoint."
+      "description": "OpenBox-governed n8n MCP Server Trigger workflow entrypoint.",
+      "workflow": {
+        "name": "OpenBox MCP Server Trigger",
+        "nodes": [
+          {
+            "id": "mcp-server-trigger",
+            "name": "mcpServerTrigger",
+            "type": "@n8n/n8n-nodes-langchain.mcptrigger",
+            "typeVersion": 1,
+            "position": [
+              0,
+              0
+            ],
+            "parameters": {
+              "path": "openbox-governed"
+            }
+          },
+          {
+            "id": "openbox-governance",
+            "name": "openboxGovernance",
+            "type": "n8n-nodes-openbox-hook.openboxGovernance",
+            "typeVersion": 1,
+            "position": [
+              300,
+              0
+            ],
+            "parameters": {
+              "prompt": "={{ $json.prompt || $json.input || \"\" }}"
+            }
+          }
+        ],
+        "connections": {
+          "mcpServerTrigger": {
+            "main": [
+              [
+                {
+                  "node": "openboxGovernance",
+                  "type": "main",
+                  "index": 0
+                }
+              ]
+            ]
+          }
+        },
+        "settings": {
+          "executionOrder": "v1"
+        }
+      }
+    }
+  ],
+  "showcaseWorkflows": [
+    {
+      "name": "OpenBox Governed Support Triage",
+      "id": "sdk-showcase",
+      "path": "example/n8n/workflows/sdk-showcase.json",
+      "description": "Local n8n demo workflow for governed support triage across chat, Slack, Postgres logging, optional HubSpot output, and Slack approval actions.",
+      "requiredOpenBoxNodeIds": [
+        "openboxLlm"
+      ],
+      "requiredOpenBoxNodeTypes": [
+        "n8n-nodes-openbox-hook.openboxLlm"
+      ],
+      "requiredTriggerTypes": [
+        "@n8n/n8n-nodes-langchain.chatTrigger",
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.webhook"
+      ],
+      "requiredCheckpoints": [
+        "OpenBox: Prompt Safety Wall",
+        "OpenBox: Context Privacy Check",
+        "OpenBox: Governed LLM Draft",
+        "OpenBox: Channel Output Check"
+      ],
+      "requiredTerminalNodes": [
+        "Package OpenBox Terminal Output",
+        "Build Final Log",
+        "Record Planned Path Log",
+        "Return Chat Summary"
+      ],
+      "requiredEntryEdges": [
+        {
+          "from": "When Chat Message Received",
+          "to": "OpenBox: Prompt Safety Wall"
+        },
+        {
+          "from": "When Slack Agent Message Received",
+          "to": "Normalize Slack Agent Input"
+        },
+        {
+          "from": "Normalize Slack Agent Input",
+          "to": "OpenBox: Prompt Safety Wall"
+        },
+        {
+          "from": "When Slack Approval Action Received",
+          "to": "Parse Slack Approval Action"
+        },
+        {
+          "from": "Parse Slack Approval Action",
+          "to": "Record Slack Approval Decision"
+        },
+        {
+          "from": "Record Slack Approval Decision",
+          "to": "Acknowledge Slack Approval Decision"
+        }
+      ],
+      "checkpointGates": [
+        {
+          "checkpoint": "OpenBox: Prompt Safety Wall",
+          "gate": "Prompt Wall Passed?",
+          "pass": "Prepare Ticket Context",
+          "fail": "Package OpenBox Terminal Output"
+        },
+        {
+          "checkpoint": "OpenBox: Context Privacy Check",
+          "gate": "Context Check Passed?",
+          "pass": "Record Context Check",
+          "fail": "Package OpenBox Terminal Output"
+        },
+        {
+          "checkpoint": "OpenBox: Governed LLM Draft",
+          "gate": "Draft Governance Passed?",
+          "pass": "Record Draft Governance",
+          "fail": "Package OpenBox Terminal Output"
+        },
+        {
+          "checkpoint": "OpenBox: Channel Output Check",
+          "gate": "Channel Check Passed?",
+          "pass": "Record Channel Check",
+          "fail": "Package OpenBox Terminal Output"
+        }
+      ],
+      "requiredNodeIdentities": [
+        {
+          "name": "OpenBox: Prompt Safety Wall",
+          "id": "openbox-input-wall",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Context Privacy Check",
+          "id": "openbox-context-privacy-check",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Governed LLM Draft",
+          "id": "openbox-llm",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "OpenBox: Channel Output Check",
+          "id": "openbox-channel-output-check",
+          "type": "n8n-nodes-openbox-hook.openboxLlm"
+        },
+        {
+          "name": "When Slack Agent Message Received",
+          "id": "slack-agent-trigger",
+          "type": "n8n-nodes-base.slackTrigger"
+        },
+        {
+          "name": "Normalize Slack Agent Input",
+          "id": "normalize-slack-agent-input",
+          "type": "n8n-nodes-base.set"
+        },
+        {
+          "name": "HubSpot CRM Configured?",
+          "id": "hubspot-crm-configured",
+          "type": "n8n-nodes-base.if"
+        },
+        {
+          "name": "Upsert HubSpot Contact (Optional)",
+          "id": "upsert-hubspot-contact",
+          "type": "n8n-nodes-base.hubspot"
+        },
+        {
+          "name": "When Slack Approval Action Received",
+          "id": "slack-approval-action-webhook",
+          "type": "n8n-nodes-base.webhook"
+        },
+        {
+          "name": "Acknowledge Slack Approval Decision",
+          "id": "ack-slack-approval-decision",
+          "type": "n8n-nodes-base.httpRequest"
+        }
+      ],
+      "requiredNodeBooleanFlags": [
+        {
+          "node": "OpenBox: Prompt Safety Wall",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Prompt Safety Wall",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Context Privacy Check",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Context Privacy Check",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Governed LLM Draft",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Governed LLM Draft",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Channel Output Check",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "OpenBox: Channel Output Check",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "Post to Slack",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "Post to Slack",
+          "flag": "alwaysOutputData",
+          "expected": true
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "flag": "continueOnFail",
+          "expected": true
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "flag": "alwaysOutputData",
+          "expected": true
+        }
+      ],
+      "expressionSourceChecks": [
+        {
+          "node": "When Slack Agent Message Received",
+          "requiredContains": [
+            "$env.SLACK_CHANNEL_ID"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Prompt Wall Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Context Check Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Draft Governance Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Channel Check Passed?",
+          "requiredContains": [
+            "Boolean($json._openbox?.governed)",
+            "!$json._openbox?.blocked",
+            "!$json._openbox?.providerError",
+            "!$json.error"
+          ],
+          "forbiddenContains": []
+        },
+        {
+          "node": "Post to Slack",
+          "requiredContains": [
+            "$('Build Final Log').item.json.channelPayloads?.slack?.channelId",
+            "$('Build Final Log').item.json.channelPayloads?.slack?.text",
+            "$('Build Final Log').item.json.channelPayloads?.slack?.blocks"
+          ],
+          "forbiddenContains": [
+            "$json.channelPayloads?.slack",
+            "$json.channelPayloads.slack"
+          ]
+        },
+        {
+          "node": "Upsert HubSpot Contact (Optional)",
+          "requiredContains": [
+            "$('Build Final Log').item.json.channelPayloads.hubspot.email",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.firstName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.lastName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.companyName",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.websiteUrl",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.city",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.message",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.leadStatus",
+            "$('Build Final Log').item.json.channelPayloads.hubspot.lifeCycleStage"
+          ],
+          "forbiddenContains": [
+            "$json.channelPayloads.hubspot"
+          ]
+        }
+      ],
+      "requiredOpenBoxNodeParameterChecks": [
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "apiEndpoint",
+          "requiredContains": [
+            "OPENBOX_API_URL",
+            "host.docker.internal:8086"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": []
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "apiKey",
+          "requiredContains": [
+            "OPENBOX_API_KEY"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": []
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "llmProvider",
+          "requiredContains": [
+            "LLM_PROVIDER_API_KEY",
+            "LLM7_API_KEY",
+            "OPENROUTER_API_KEY",
+            "openrouter",
+            "ollama"
+          ],
+          "forbiddenContains": [],
+          "forbiddenValues": [
+            "openrouter",
+            "ollama"
+          ]
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "model",
+          "requiredContains": [
+            "LLM_PROVIDER_MODEL",
+            "OPENROUTER_MODEL",
+            "OLLAMA_MODEL"
+          ],
+          "forbiddenContains": [
+            "\"default\""
+          ],
+          "forbiddenValues": [
+            "default"
+          ]
+        },
+        {
+          "nodeType": "n8n-nodes-openbox-hook.openboxLlm",
+          "parameter": "openRouterBaseUrl",
+          "requiredContains": [
+            "LLM_PROVIDER_BASE_URL",
+            "OPENROUTER_BASE_URL",
+            "https://openrouter.ai/api/v1"
+          ],
+          "forbiddenContains": [
+            "api.llm7.io"
+          ],
+          "forbiddenValues": []
+        }
+      ],
+      "approvalStages": [
+        "prompt-wall",
+        "draft-governance",
+        "channel-output"
+      ],
+      "requiredApprovalActionIds": [
+        "openbox_prompt_false_positive",
+        "openbox_prompt_keep_blocked",
+        "openbox_draft_approve",
+        "openbox_draft_reject",
+        "openbox_send_approve",
+        "openbox_send_reject",
+        "openbox_send_rewrite"
+      ],
+      "requiredPathLogSteps": [
+        "input",
+        "slack-input",
+        "prompt-wall",
+        "customer-lookup",
+        "context-check",
+        "draft-governance",
+        "channel-check",
+        "review-package",
+        "chat-output",
+        "slack-output",
+        "hubspot-output",
+        "backend-final-log"
+      ],
+      "requiredTerminalEventTypes": [
+        "planned-path",
+        "chat-output",
+        "slack-output",
+        "hubspot-output",
+        "approval-decision"
+      ],
+      "allowedCredentialPlaceholders": [
+        "demo-postgres-placeholder",
+        "demo-slack-api-placeholder",
+        "demo-hubspot-app-token"
+      ],
+      "forbiddenWorkflowText": [
+        "webhook-configured",
+        "post-webhook",
+        "jiraDescription",
+        "webhook payload summary",
+        "final webhook/chat response"
+      ],
+      "forbiddenWorkflowRegexes": [
+        "\"value\":\"[CDG][A-Z0-9]{8,}\""
+      ],
+      "terminalLogTable": "demo.triage_events"
     }
   ]
 } as const satisfies N8nIntegrationSurface;

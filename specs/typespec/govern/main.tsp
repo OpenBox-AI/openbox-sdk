@@ -500,6 +500,23 @@ model WorkflowVerdict {
   activityId?: string;
 }
 
+/**
+ * Cross-SDK source attribution contract for approval rows. The Core
+ * Approval model does not have a dedicated source column yet, so SDKs
+ * stamp the first activity input item with `inputKey`; pending-approval
+ * readers use that value after the backend has stripped span details.
+ */
+model SourceAttributionContract {
+  /** Activity input key used by SDKs for source attribution. */
+  inputKey: "_openbox_source";
+
+  /** Default source used by the generic Python governed-session runtime. */
+  defaultPythonSource: "python-sdk";
+
+  /** Canonical Core event source for generated governed-session payloads. */
+  workflowEventSource: "workflow-telemetry";
+}
+
 /** Free-form input/output payload. Server stringifies; SDKs pass through. */
 model GovernedPayload {
   /** Activity input (request side). Wrap singletons as a one-element array. */
@@ -522,6 +539,9 @@ model GovernedPayload {
 
   /** Total token count observed by the SDK. */
   totalTokens?: numeric;
+
+  /** Estimated provider/API cost in USD observed by the SDK. */
+  costUsd?: numeric;
 
   /** True when the LLM completion requested tool calls. */
   hasToolCalls?: boolean;

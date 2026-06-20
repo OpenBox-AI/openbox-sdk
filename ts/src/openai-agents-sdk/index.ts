@@ -564,7 +564,12 @@ function generationTelemetry(
 function functionSpanInput(spanData: Record<string, unknown>): Record<string, unknown> {
   const input = parseMaybeJson(spanData.input);
   const mcpData = parseMaybeJson(spanData.mcp_data);
+  const mcpToolsInput =
+    spanData.type === 'mcp_tools' && firstString(spanData.server)
+      ? { server: firstString(spanData.server) }
+      : {};
   return {
+    ...mcpToolsInput,
     ...objectRecord(input),
     ...(Object.keys(objectRecord(mcpData)).length > 0
       ? { mcp_data: objectRecord(mcpData) }
@@ -573,6 +578,9 @@ function functionSpanInput(spanData: Record<string, unknown>): Record<string, un
 }
 
 function functionSpanOutput(spanData: Record<string, unknown>): unknown {
+  if (spanData.type === 'mcp_tools' && Array.isArray(spanData.result)) {
+    return { tools: spanData.result };
+  }
   return parseMaybeJson(spanData.output);
 }
 

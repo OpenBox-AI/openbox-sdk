@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/codex.js';
+import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-matrix.js';
 import {
   codexMarketplaceFile,
   codexPluginTargetDir,
@@ -24,6 +25,33 @@ const EXPECTED_EVENTS = [
   'PostToolUse',
   'Stop',
 ];
+
+const CODEX_COMPONENTS = PROVIDER_PLUGIN_COMPONENTS.find(
+  (entry) => entry.provider === 'codex',
+)!.components;
+
+function componentPath(name: string): string {
+  const component = CODEX_COMPONENTS.find((entry) => entry.name === name);
+  expect(component, `Codex plugin component ${name}`).toBeDefined();
+  expect(component!.path, `Codex plugin component ${name} path`).toBeTruthy();
+  return component!.path!;
+}
+
+function assertExportedSpecComponentPathsExist(root: string): void {
+  for (const component of CODEX_COMPONENTS) {
+    expect(component.path, `Codex plugin component ${component.name} path`).toBeTruthy();
+    if (component.path!.startsWith('.agents/')) continue;
+    expect(existsSync(path.join(root, component.path!)), component.name).toBe(true);
+  }
+}
+
+function assertInstalledSpecComponentPathsExist(cwd: string, pluginRoot: string): void {
+  for (const component of CODEX_COMPONENTS) {
+    expect(component.path, `Codex plugin component ${component.name} path`).toBeTruthy();
+    const root = component.path!.startsWith('.agents/') ? cwd : pluginRoot;
+    expect(existsSync(path.join(root, component.path!)), component.name).toBe(true);
+  }
+}
 
 describe('codex HOOK_SPEC', () => {
   it('exposes the project-local Codex hook events in spec order', () => {
@@ -62,13 +90,36 @@ describe('codex HOOK_SPEC', () => {
       matchers: {
         PreToolUse: 'Bash|Write',
       },
+      rulesProjection: {
+        agentId: 'agent-codex',
+        fetchedAt: 'test',
+        version: 1,
+        rules: [
+          {
+            id: 'block-rm-rf',
+            source: 'behavior-rule',
+            description: 'Block recursive deletion without review',
+            body: 'Block recursive deletion without review.',
+            trigger: 'always',
+            severity: 'block',
+            rendererHints: {
+              exactShellPrefix: ['rm', '-rf'],
+            },
+          },
+        ],
+      },
     });
 
-    expect(existsSync(path.join(out, '.codex-plugin', 'plugin.json'))).toBe(true);
-    expect(existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
-    expect(existsSync(path.join(out, 'hooks', 'hooks.json'))).toBe(true);
-    expect(existsSync(path.join(out, '.mcp.json'))).toBe(true);
-    expect(readFileSync(path.join(out, 'AGENTS.md'), 'utf-8')).toContain('OpenBox Core is the source of truth');
+    assertExportedSpecComponentPathsExist(out);
+
+    const agents = readFileSync(path.join(out, componentPath('agents-md')), 'utf-8');
+    expect(agents).toContain('OpenBox Core is the source of truth');
+    expect(agents).toContain('- Agent: `agent-codex`');
+    const rules = readFileSync(path.join(out, componentPath('rules')), 'utf-8');
+    expect(rules).toContain('Only exact shell command-prefix execution policy is projected here');
+    expect(rules).toContain('prefix_rule(');
+    expect(rules).toContain('pattern = ["rm", "-rf"]');
+    expect(rules).toContain('decision = "forbidden"');
 
     const hooks = JSON.parse(readFileSync(path.join(out, 'hooks', 'hooks.json'), 'utf-8')) as any;
     expect(hooks.hooks.PreToolUse[0].matcher).toBe('Bash|Write');
@@ -76,7 +127,9 @@ describe('codex HOOK_SPEC', () => {
 
     const target = installCodexPlugin({ cwd });
     expect(target).toBe(codexPluginTargetDir(cwd));
-    expect(existsSync(path.join(codexRepoSkillTargetDir(cwd), 'SKILL.md'))).toBe(true);
+    assertInstalledSpecComponentPathsExist(cwd, target);
+    expect(existsSync(path.join(cwd, componentPath('repo-skill')))).toBe(true);
+    expect(existsSync(path.join(cwd, componentPath('marketplace')))).toBe(true);
     expect(readFileSync(codexMarketplaceFile(cwd), 'utf-8')).toContain('"openbox"');
     expect(verifyCodexPlugin({ cwd, includeProjectSurfaces: true }).every((check) => check.status === 'pass')).toBe(true);
 

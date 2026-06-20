@@ -298,6 +298,18 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     capabilities: #[#{ provider, capability, tier, rationale }, ...],
  *     goalSignalGuards: #[#{ provider, tier, entrySurface, signalActivity, firstGovernedSurface, guardTest, orderGuarantee }, ...],
  *     usageCostCapabilityGuards: #[#{ provider, tier, usageSurface, normalizedFields, sharedNormalizer, costPolicyBoundary, guardTest }, ...],
+ *     usageNormalization: #{
+ *       canonicalFields: #[...],
+ *       inputTokenAliases: #[...],
+ *       outputTokenAliases: #[...],
+ *       totalTokenAliases: #[...],
+ *       cacheReadInputTokenAliases: #[...],
+ *       cacheCreationInputTokenAliases: #[...],
+ *       webSearchRequestAliases: #[...],
+ *       costUsdAliases: #[...],
+ *       providerUsageContainers: #[...],
+ *       policyBoundary: "...",
+ *     },
  *     tracingCapabilityGuards: #[#{ provider, tier, traceSurface, spanCoverage, spanEmission, sourceAttribution, guardTest }, ...],
  *     hitlCapabilityGuards: #[#{ provider, tier, requireApprovalSurface, sourceAttribution, nativeSurface, fallbackSurface, guardTest, failClosedBehavior }, ...],
  *     guardrailCapabilityGuards: #[#{ provider, tier, governedSurfaces, coreContract, redactionBehavior, failClosedBehavior, guardTest }, ...],
@@ -312,6 +324,18 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     eventCatalog: #[...],
  *     pluginComponents: #[...],
  *     publicIntegrations: #[...],
+ *     mcpTools: #[...],
+ *     mcpPrompts: #[...],
+ *     mcpResourceTemplates: #[...],
+ *     mcpSkillReferences: #[...],
+ *     n8nIntegration: #{
+ *       packageManifest: #{...},
+ *       credentials: #[...],
+ *       nodes: #[...],
+ *       workflowTemplates: #[...],
+ *       examples: #[...],
+ *       showcaseWorkflows: #[#{ id, path, requiredEntryEdges, checkpointGates, ... }],
+ *     },
  *   }
  */
 extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);
@@ -359,3 +383,107 @@ extern dec backendPermissions(target: Namespace, permissions: valueof Record<unk
  *   }
  */
 extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown>);
+
+/**
+ * Target-native validation manifest. The root `check:sdks` command reads the
+ * emitted fixture and runs each target's native validation commands; generated
+ * drift and cleanup scripts read the emitted artifact inventory. New language
+ * SDK ports and spec-bound apps should add TypeSpec records here instead of
+ * adding root-level target-specific scripts.
+ *
+ * Shape:
+ *   #{
+ *     generatedArtifacts: #{
+ *       generatedRoots: #[...],
+ *       generatedFiles: #[...],
+ *       nestedGeneratedFiles: #[#{ root, suffixes }, ...],
+ *     },
+ *     packageSurface: #{
+ *       packageName: "@scope/name",
+ *       bin: #[#{ name, path }, ...],
+ *       files: #[...],
+ *       exports: #[#{ subpath, types, importPath }, ...],
+ *     },
+ *     packageScripts: #{
+ *       scripts: #[#{ name, command, kind }, ...],
+ *     },
+ *     scriptInventory: #{
+ *       entries: #[#{ path, category, canonicalSurface, role }, ...],
+ *     },
+ *     codegenBuild: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     sdkGeneration: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     specCommands: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     serviceDrift: #{
+ *       script: "scripts/spec-drift.ts",
+ *       services: #[...],
+ *       tiers: #[...],
+ *       commands: #[#{ id, label, command, args, workingDirectory, outputPathTemplate, behavior }, ...],
+ *       upstreamSources: #[#{ service, tier, source }, ...],
+ *       policy: "...",
+ *     },
+ *     rootPipelines: #{
+ *       pipelines: #[#{ id, label, steps }, ...],
+ *     },
+ *     testSuites: #{
+ *       defaultSuites: #[...],
+ *       suites: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     bundleBuild: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     qualityCommands: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     generatedChecks: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     cleanArtifacts: #{
+ *       paths: #[...],
+ *       nestedNames: #[#{ root, names }, ...],
+ *       filePatterns: #[#{ root, prefix, suffix }, ...],
+ *     },
+ *     securityAudit: #{
+ *       commands: #[#{ id, label, command, args, workingDirectory }, ...],
+ *       secretScanExcludes: #[#{ path, reason }, ...],
+ *     },
+ *     localCi: #{
+ *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     targets: #[
+ *       #{
+ *         id: "typescript",
+ *         workingDirectory: ".",
+ *         commands: #[#{ command: "npm", args: #["run", "test"] }],
+ *       },
+ *       #{
+ *         id: "extension",
+ *         kind: "app",
+ *         workingDirectory: "apps/extension",
+ *         extensionManifest: #{
+ *           packageName: "openbox",
+ *           publisher: "openbox",
+ *           displayName: "OpenBox",
+ *           main: "./dist/extension.js",
+ *           activationEvents: #[...],
+ *           views: #[...],
+ *           commands: #[...],
+ *           configurationKeys: #[...],
+ *           viewContainers: #[...],
+ *           viewDefinitions: #[...],
+ *           commandDefinitions: #[...],
+ *           configurationProperties: #[...],
+ *           viewsWelcome: #[...],
+ *           menus: #[...],
+ *         },
+ *         commands: #[#{ command: "npm", args: #["run", "test"] }],
+ *       },
+ *     ],
+ *   }
+ */
+extern dec sdkTargets(target: Namespace, manifest: valueof Record<unknown>);

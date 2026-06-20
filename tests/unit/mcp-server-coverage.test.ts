@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import {
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
 } from '../../ts/src/governance/capability-matrix.js';
 
@@ -33,6 +34,11 @@ interface CapturedPrompt {
   cb: (args: any) => Promise<any>;
 }
 
+interface PromptArgSchema {
+  description?: string;
+  safeParse: (value: unknown) => { success: boolean };
+}
+
 interface CapturedResource {
   name: string;
   uriOrTemplate: any;
@@ -40,11 +46,22 @@ interface CapturedResource {
   cb: (...args: any[]) => Promise<any>;
 }
 
+interface CapturedStaticResource {
+  name: string;
+  uri: string;
+  meta: any;
+  cb: (...args: any[]) => Promise<any>;
+}
+
 const captured: CapturedTool[] = [];
 const capturedPrompts: CapturedPrompt[] = [];
 const capturedResources: CapturedResource[] = [];
+const capturedStaticResources: CapturedStaticResource[] = [];
+const realFetch = globalThis.fetch;
 const mockState = vi.hoisted(() => ({
   clientName: 'mock-mcp-client',
+  httpHandled: 0,
+  httpClosed: 0,
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
@@ -82,9 +99,8 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
       registerResource(name: string, uriOrTemplate: any, config: any, cb: any) {
         capturedResources.push({ name, uriOrTemplate, config, cb });
       }
-      resource(_name: string, _uri: string, _meta: any, _cb: any) {
-        // not exercised in coverage; but accept calls so registration
-        // doesn't throw.
+      resource(name: string, uri: string, meta: any, cb: any) {
+        capturedStaticResources.push({ name, uri, meta, cb });
       }
       async connect(_t: any) {
         // No-op; the real connect would block on stdio.
@@ -99,11 +115,31 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
   };
 });
 
+vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
+  return {
+    StreamableHTTPServerTransport: class {
+      constructor(_options: any) {}
+      async handleRequest(req: any, res: any) {
+        mockState.httpHandled += 1;
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: true, method: req.method }));
+      }
+      async close() {
+        mockState.httpClosed += 1;
+      }
+    },
+  };
+});
+
 beforeEach(() => {
   captured.length = 0;
   capturedPrompts.length = 0;
   capturedResources.length = 0;
+  capturedStaticResources.length = 0;
   mockState.clientName = 'mock-mcp-client';
+  mockState.httpHandled = 0;
+  mockState.httpClosed = 0;
   // Default fetch: return a generic JSON envelope; individual tool
   // tests override per-call as needed.
   vi.stubGlobal('fetch', async (url: string, _init?: RequestInit) => {
@@ -251,6 +287,12 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         expect(Object.keys(promptEntry!.config.argsSchema)).toEqual(
           surface.args.map((arg) => arg.name),
         );
+        for (const arg of surface.args) {
+          const schema = promptEntry!.config.argsSchema[arg.name] as PromptArgSchema;
+          expect(schema.description).toBe(arg.description);
+          expect(schema.safeParse(undefined).success).toBe(!arg.required);
+          expect(schema.safeParse('value').success).toBe(true);
+        }
       }
       const prompt = capturedPrompts.find((entry) => entry.name === 'governance_check')!;
       expect(Object.keys(prompt.config.argsSchema)).toEqual(['agent_id', 'span_type', 'activity_input']);
@@ -280,6 +322,146 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         mimeType: 'application/json',
       });
       expect(agentResource.uriOrTemplate.uriTemplate.toString()).toBe('openbox://agent/{agent_id}');
+
+      expect(capturedStaticResources.map((resource) => resource.name)).toEqual(
+        MCP_SKILL_REFERENCE_SURFACES.map((surface) => surface.name),
+      );
+      for (const surface of MCP_SKILL_REFERENCE_SURFACES) {
+        const resource = capturedStaticResources.find((entry) => entry.name === surface.name);
+        expect(resource, `missing MCP skill reference ${surface.name}`).toBeDefined();
+        expect(resource!.uri).toBe(`openbox://skill/${surface.name}`);
+        expect(resource!.meta.description).toBe(surface.description);
+      }
+    });
+  });
+
+  it('reads every spec-driven MCP resource template callback', async () => {
+    await withMcpEnv(async () => {
+      const seenUrls: string[] = [];
+      vi.stubGlobal('fetch', async (url: string) => {
+        const u = String(url);
+        seenUrls.push(u);
+        const json = (data: unknown) =>
+          new Response(JSON.stringify({ status: 200, data }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+
+        if (u.includes('/agent/agent-1/guardrails/guardrail-1')) {
+          return json({ id: 'guardrail-1', kind: 'guardrail' });
+        }
+        if (u.includes('/agent/agent-1/policies/policy-1')) {
+          return json({ id: 'policy-1', kind: 'policy' });
+        }
+        if (u.includes('/agent/agent-1/behavior-rule/rule-1')) {
+          return json({ id: 'rule-1', kind: 'behavior-rule' });
+        }
+        if (u.includes('/agent/agent-1/approvals/pending')) {
+          return json({ approvals: { data: [{ id: 'approval-1', status: 'pending' }] } });
+        }
+        if (u.match(/\/agent\/agent-1$/)) {
+          return json({ id: 'agent-1', agent_name: 'Resource Agent' });
+        }
+        return json({});
+      });
+
+      const resourceInputs: Record<string, { uri: URL; variables: Record<string, string> }> = {
+        agent: {
+          uri: new URL('openbox://agent/agent-1'),
+          variables: { agent_id: 'agent-1' },
+        },
+        guardrail: {
+          uri: new URL('openbox://agent/agent-1/guardrail/guardrail-1'),
+          variables: { agent_id: 'agent-1', guardrail_id: 'guardrail-1' },
+        },
+        policy: {
+          uri: new URL('openbox://agent/agent-1/policy/policy-1'),
+          variables: { agent_id: 'agent-1', policy_id: 'policy-1' },
+        },
+        'behavior-rule': {
+          uri: new URL('openbox://agent/agent-1/behavior-rule/rule-1'),
+          variables: { agent_id: 'agent-1', behavior_rule_id: 'rule-1' },
+        },
+        approval: {
+          uri: new URL('openbox://agent/agent-1/approval/approval-1'),
+          variables: { agent_id: 'agent-1', approval_id: 'approval-1' },
+        },
+        'skill-reference': {
+          uri: new URL('openbox://skill/governance-flow'),
+          variables: { name: 'governance-flow' },
+        },
+      };
+
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+
+      for (const surface of MCP_RESOURCE_TEMPLATE_SURFACES) {
+        const resource = capturedResources.find((entry) => entry.name === surface.name);
+        expect(resource, `missing MCP resource ${surface.name}`).toBeDefined();
+        const input = resourceInputs[surface.name];
+        expect(input, `missing MCP resource test input for ${surface.name}`).toBeDefined();
+
+        const out = await resource!.cb(input.uri, input.variables);
+        expect(out.contents).toHaveLength(1);
+        expect(out.contents[0].uri).toBe(String(input.uri));
+        expect(out.contents[0].text.length).toBeGreaterThan(0);
+        if (surface.mimeType === 'application/json') {
+          expect(out.contents[0].mimeType).toBe('application/json');
+          const parsed = JSON.parse(out.contents[0].text);
+          expect(parsed).toBeDefined();
+        }
+      }
+
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/guardrails/guardrail-1'))).toBe(true);
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/policies/policy-1'))).toBe(true);
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/behavior-rule/rule-1'))).toBe(true);
+      expect(seenUrls.some((u) => u.includes('/agent/agent-1/approvals/pending'))).toBe(true);
+    });
+  });
+
+  it('serves the optional Streamable HTTP transport and closes on abort', async () => {
+    await withMcpEnv(async () => {
+      const abort = new AbortController();
+      const logs: string[] = [];
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+        logs.push(args.map(String).join(' '));
+      });
+
+      try {
+        const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+        await runMcpServer({
+          transport: 'http',
+          host: '127.0.0.1',
+          port: 0,
+          signal: abort.signal,
+        });
+
+        const listenLine = logs.find((line) =>
+          line.includes('OpenBox MCP Streamable HTTP listening at http://'));
+        expect(listenLine).toBeDefined();
+        const url = listenLine!.match(/http:\/\/.+$/)?.[0];
+        expect(url).toBeDefined();
+
+        vi.stubGlobal('fetch', realFetch);
+        const response = await fetch(url!, { method: 'POST' });
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({ ok: true, method: 'POST' });
+        expect(mockState.httpHandled).toBe(1);
+
+        const missing = await fetch(url!.replace('/mcp', '/missing'));
+        expect(missing.status).toBe(404);
+
+        const badMethod = await fetch(url!, { method: 'PUT' });
+        expect(badMethod.status).toBe(405);
+        expect(badMethod.headers.get('allow')).toBe('GET, POST, DELETE');
+
+        abort.abort();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(mockState.httpClosed).toBe(1);
+      } finally {
+        errorSpy.mockRestore();
+        abort.abort();
+      }
     });
   });
 

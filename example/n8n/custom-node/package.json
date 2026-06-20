@@ -2,7 +2,7 @@
   "name": "n8n-nodes-openbox-hook",
   "version": "0.0.1",
   "private": true,
-  "description": "OpenBox governance node for n8n (example)",
+  "description": "OpenBox governance nodes for n8n (example)",
   "license": "MIT",
   "main": "dist/OpenboxLlm.node.js",
   "files": [
@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && cp assets/OB_logomark.png dist/OB_logomark.png",
-    "smoke:load": "node -e \"require('./dist/OpenboxLlm.node.js'); console.log('node-load-ok')\""
+    "smoke:load": "node -e \"const { OPENBOX_N8N_INTEGRATION: i, OPENBOX_N8N_PACKAGE_MANIFEST: m } = require('./dist/generated/openbox-n8n-spec.js'); for (const file of [...m.nodes, ...m.credentials]) require('./' + file); for (const entry of [...i.workflowTemplates, ...i.examples]) { if (!entry.workflow?.nodes?.length) throw new Error('missing workflow: ' + entry.id); } console.log('node-load-ok')\""
   },
   "dependencies": {
     "@openbox-ai/openbox-sdk": "0.1.1"
@@ -28,8 +28,23 @@
   },
   "n8n": {
     "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/OpenBoxCredentials.credentials.js"
+    ],
     "nodes": [
-      "dist/OpenboxLlm.node.js"
+      "dist/OpenboxLlm.node.js",
+      "dist/OpenBoxGovernance.node.js",
+      "dist/OpenBoxGuardrails.node.js",
+      "dist/OpenBoxApproval.node.js",
+      "dist/OpenBoxGovernedAiAgent.node.js"
+    ],
+    "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
+    "openboxSpecNodeIds": [
+      "openboxLlm",
+      "openboxGovernance",
+      "openboxGuardrails",
+      "openboxApproval",
+      "openboxGovernedAiAgent"
     ]
   }
 }

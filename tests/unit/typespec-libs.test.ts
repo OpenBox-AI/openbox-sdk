@@ -15,15 +15,18 @@ let program: Program;
 let getEnvVar: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getEnvVar;
 let getTokenFormat: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getTokenFormat;
 let isOsPath: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').isOsPath;
+let getEnvConformance: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getEnvConformance;
 let $cli_command: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').$cli_command;
 let $cli_validator: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').$cli_validator;
 let getCommand: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getCommand;
 let getFlag: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getFlag;
 let getValidator: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getValidator;
+let getCliConformance: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getCliConformance;
 let getMapsTo: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getMapsTo;
 let getPreset: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getPreset;
 let getVerdictModel: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getVerdictModel;
 let getGovernProtocol: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getGovernProtocol;
+let getSdkTargets: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getSdkTargets;
 
 beforeAll(async () => {
   const root = resolvePath(import.meta.dirname, '..', '..');
@@ -37,15 +40,16 @@ beforeAll(async () => {
   const workflowDecorators = await import(
     '../../codegen/typespec-libs/typespec-workflow/dist/decorators.js'
   );
-  ({ getEnvVar, getTokenFormat, isOsPath } = envDecorators);
+  ({ getEnvVar, getTokenFormat, isOsPath, getEnvConformance } = envDecorators);
   ({
     $cli_command,
     $cli_validator,
     getCommand,
     getFlag,
     getValidator,
+    getCliConformance,
   } = cliDecorators);
-  ({ getMapsTo, getPreset, getVerdictModel, getGovernProtocol } = workflowDecorators);
+  ({ getMapsTo, getPreset, getVerdictModel, getGovernProtocol, getSdkTargets } = workflowDecorators);
   const main = resolvePath(root, 'specs', 'typespec', 'main.tsp');
   program = await compile(NodeHost, main, {
     noEmit: true,
@@ -166,6 +170,14 @@ describe('typespec-env', () => {
     expect(isOsPath(program, prop(creds, 'path'))).toBe(true);
     expect(isOsPath(program, prop(creds, 'apiKey'))).toBe(false);
   });
+
+  test('@env_conformance attaches the shared env-resolution fixture', () => {
+    const env = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxEnv');
+    expect(env).toBeDefined();
+    const fixture = getEnvConformance(program, env!);
+    expect(fixture?.name).toBe('env-resolution');
+    expect((fixture?.cases as unknown[] | undefined)?.length).toBe(5);
+  });
 });
 
 describe('typespec-cli', () => {
@@ -183,6 +195,14 @@ describe('typespec-cli', () => {
     const apiKey = { name: 'apiKey' } as ModelProperty;
     $cli_validator({ program } as never, apiKey, 'validateApiKeyFormat');
     expect(getValidator(program, apiKey)).toBe('validateApiKeyFormat');
+  });
+
+  test('@cli_conformance attaches the shared auth fixture', () => {
+    const cli = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxCli');
+    expect(cli).toBeDefined();
+    const fixture = getCliConformance(program, cli!);
+    expect(fixture?.name).toBe('cli-auth');
+    expect((fixture?.cases as unknown[] | undefined)?.length).toBe(6);
   });
 });
 
@@ -233,5 +253,195 @@ describe('typespec-workflow', () => {
     const fixture = getGovernProtocol(program, govern!);
     expect(fixture?.name).toBe('govern-protocol');
     expect((fixture?.cases as unknown[] | undefined)?.length).toBe(3);
+  });
+
+  test('@sdkTargets attaches the shared SDK validation manifest', () => {
+    const sdk = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxSdk');
+    expect(sdk).toBeDefined();
+    const fixture = getSdkTargets(program, sdk!);
+    const cleanArtifacts =
+      fixture?.cleanArtifacts as
+        | {
+            paths: string[];
+            nestedNames: Array<{ root: string; names: string[] }>;
+            filePatterns: Array<{ root: string; prefix: string; suffix: string }>;
+          }
+        | undefined;
+    const packageSurface =
+      fixture?.packageSurface as
+        | {
+            packageName: string;
+            bin: Array<{ name: string; path: string }>;
+            files: string[];
+            exports: Array<{ subpath: string; types: string; importPath: string }>;
+          }
+        | undefined;
+    const codegenBuild =
+      fixture?.codegenBuild as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const sdkGeneration =
+      fixture?.sdkGeneration as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const specCommands =
+      fixture?.specCommands as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const rootPipelines =
+      fixture?.rootPipelines as
+        | {
+            pipelines: Array<{
+              id: string;
+              steps: Array<{ id: string; command: string; workingDirectory: string }>;
+            }>;
+          }
+        | undefined;
+    const testSuites =
+      fixture?.testSuites as
+        | {
+            defaultSuites: string[];
+            suites: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const bundleBuild =
+      fixture?.bundleBuild as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const qualityCommands =
+      fixture?.qualityCommands as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const generatedChecks =
+      fixture?.generatedChecks as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+          }
+        | undefined;
+    const securityAudit =
+      fixture?.securityAudit as
+        | {
+            commands: Array<{ id: string; command: string; workingDirectory: string }>;
+            secretScanExcludes: Array<{ path: string; reason: string }>;
+          }
+        | undefined;
+    const localCi =
+      fixture?.localCi as
+        | {
+            steps: Array<{ id: string; command: string; workingDirectory: string; env?: Record<string, string> }>;
+          }
+        | undefined;
+    const targets =
+      fixture?.targets as
+        | Array<{
+            id: string;
+            kind?: string;
+            commands: unknown[];
+            extensionManifest?: {
+              packageName: string;
+              metadata?: {
+                license?: string;
+                engines?: { vscode?: string };
+              };
+              activationEvents: string[];
+              views: string[];
+              commands: string[];
+              configurationKeys: string[];
+            };
+          }>
+        | undefined;
+    expect(targets?.map((target) => target.id)).toEqual([
+      'typescript',
+      'python',
+      'extension',
+      'n8n-custom-node',
+    ]);
+    expect(targets?.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app', 'app']);
+    expect(targets?.every((target) => target.commands.length > 0)).toBe(true);
+    const extension = targets?.find((target) => target.id === 'extension');
+    expect(extension?.extensionManifest?.packageName).toBe('openbox');
+    expect(extension?.extensionManifest?.metadata?.license).toBe('MIT');
+    expect(extension?.extensionManifest?.metadata?.engines?.vscode).toBe('^1.85.0');
+    expect(extension?.extensionManifest?.activationEvents).toContain('onStartupFinished');
+    expect(extension?.extensionManifest?.views).toContain('openbox.approvals');
+    expect(extension?.extensionManifest?.commands).toContain('openbox.approve');
+    expect(extension?.extensionManifest?.configurationKeys).toContain('openbox.agentId');
+    expect(cleanArtifacts?.paths).toEqual(['dist', 'dist-pack', 'apps/extension/dist']);
+    expect(cleanArtifacts?.nestedNames).toEqual([
+      { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
+    ]);
+    expect(cleanArtifacts?.filePatterns).toEqual([
+      { root: 'apps/extension', prefix: 'openbox-', suffix: '.vsix' },
+    ]);
+    expect(packageSurface?.packageName).toBe('@openbox-ai/openbox-sdk');
+    expect(packageSurface?.bin).toEqual([{ name: 'openbox', path: './dist/cli/index.js' }]);
+    expect(packageSurface?.files).toEqual(['dist', 'skill']);
+    expect(packageSurface?.exports.map((entry) => entry.subpath)).toEqual(
+      expect.arrayContaining(['.', './runtime/n8n', './openai-agents-sdk']),
+    );
+    expect(codegenBuild?.steps.map((entry) => entry.id)).toEqual([
+      'typespec-env',
+      'typespec-cli',
+      'typespec-workflow',
+      'typespec-emitter',
+    ]);
+    expect(codegenBuild?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(sdkGeneration?.steps.map((entry) => entry.id)).toEqual([
+      'build-codegen',
+      'specs-compile',
+    ]);
+    expect(sdkGeneration?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(specCommands?.commands.map((entry) => entry.id)).toEqual(['compile', 'watch']);
+    expect(specCommands?.commands.every((entry) => entry.command === 'npx')).toBe(true);
+    expect(rootPipelines?.pipelines.map((entry) => entry.id)).toEqual(['build', 'check-sdks']);
+    expect(rootPipelines?.pipelines.find((entry) => entry.id === 'build')?.steps.map((entry) => entry.id)).toEqual([
+      'generate-sdks',
+      'bundle-build',
+    ]);
+    expect(testSuites?.defaultSuites).toEqual(['unit', 'contract', 'hook-integration']);
+    expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
+      'unit',
+      'contract',
+      'hook-integration',
+    ]);
+    expect(testSuites?.suites.every((entry) => entry.command === 'npx')).toBe(true);
+    expect(bundleBuild?.steps.map((entry) => entry.id)).toEqual(['tsup', 'runtime-assets']);
+    expect(bundleBuild?.steps.map((entry) => entry.command)).toEqual(['npx', 'node']);
+    expect(qualityCommands?.commands.map((entry) => entry.id)).toEqual(['lint', 'format']);
+    expect(qualityCommands?.commands.every((entry) => entry.command === 'npx')).toBe(true);
+    expect(generatedChecks?.commands.map((entry) => entry.id)).toEqual(['drift', 'banners']);
+    expect(generatedChecks?.commands.every((entry) => entry.command === 'node')).toBe(true);
+    expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
+      'root-npm-audit',
+      'n8n-npm-audit',
+    ]);
+    expect(securityAudit?.commands.map((entry) => entry.workingDirectory)).toEqual([
+      '.',
+      'example/n8n/custom-node',
+    ]);
+    expect(securityAudit?.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
+    expect(localCi?.steps.map((entry) => entry.id)).toEqual([
+      'check-sdks',
+      'coverage',
+      'build',
+      'generated-drift',
+      'generated-banners',
+      'openapi-lint',
+      'npm-audit',
+      'security-audit',
+    ]);
+    expect(localCi?.steps.find((entry) => entry.id === 'coverage')?.env?.OPENBOX_CLI).toBe(
+      './scripts/openbox-cli-dev.mjs',
+    );
   });
 });

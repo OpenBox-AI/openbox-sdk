@@ -6,6 +6,7 @@ import {
   NodeOperationError,
 } from 'n8n-workflow';
 import type { WorkflowVerdict } from '@openbox-ai/openbox-sdk';
+import { requiredNodeSpec } from './openboxRuntime';
 
 type OpenBoxSdk = typeof import('@openbox-ai/openbox-sdk');
 interface LLMTokenUsage {
@@ -60,6 +61,7 @@ interface OpenBoxN8nRuntimeSdk {
 const importModule = new Function('specifier', 'return import(specifier)') as (
   specifier: string,
 ) => Promise<OpenBoxSdk | OpenBoxN8nRuntimeSdk>;
+const spec = requiredNodeSpec('openboxLlm');
 
 let openboxSdkPromise: Promise<OpenBoxSdk> | undefined;
 let openboxN8nRuntimePromise: Promise<OpenBoxN8nRuntimeSdk> | undefined;
@@ -225,14 +227,14 @@ function deterministicBlockReason(nodeName: string, prompt: string): string | un
 
 export class OpenboxLlm implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'OpenBox: LLM',
-    name: 'openboxLlm',
+    displayName: spec.name,
+    name: spec.id,
     icon: 'file:OB_logomark.png',
     group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["model"]}}',
-    description: 'Govern an LLM call through OpenBox',
-    defaults: { name: 'OpenBox: LLM' },
+    description: spec.description,
+    defaults: { name: spec.name },
     inputs: ['main'] as any,
     outputs: ['main'] as any,
     properties: [
@@ -244,7 +246,8 @@ export class OpenboxLlm implements INodeType {
           { name: 'OpenRouter', value: 'openrouter' },
           { name: 'Ollama', value: 'ollama' },
         ],
-        default: '={{ $env["OPENROUTER_API_KEY"] ? "openrouter" : "ollama" }}',
+        default:
+          '={{ $env["LLM_PROVIDER_API_KEY"] || $env["LLM7_API_KEY"] || $env["OPENROUTER_API_KEY"] ? "openrouter" : "ollama" }}',
         description: 'Choose the runtime LLM provider. Hosted demos can use an OpenRouter-compatible provider; local demos can use Ollama.',
       },
       {
@@ -287,7 +290,7 @@ export class OpenboxLlm implements INodeType {
         name: 'model',
         type: 'string',
         default:
-          '={{ $env["LLM_PROVIDER_MODEL"] || $env["OPENROUTER_MODEL"] || $env["OLLAMA_MODEL"] || "liquid/lfm-2.5-1.2b-instruct:free" }}',
+          '={{ $env["LLM_PROVIDER_MODEL"] || ($env["LLM_PROVIDER_API_KEY"] || $env["LLM7_API_KEY"] || $env["OPENROUTER_API_KEY"] ? ($env["OPENROUTER_MODEL"] || "liquid/lfm-2.5-1.2b-instruct:free") : ($env["OLLAMA_MODEL"] || "tinyllama")) }}',
       },
       {
         displayName: 'System Prompt',

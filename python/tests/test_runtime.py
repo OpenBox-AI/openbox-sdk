@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, get_args
 
 import httpx
 import pytest
@@ -39,6 +39,7 @@ from openbox_sdk.generated.capability_matrix import (
     MCP_CAPABILITY_GUARDS,
     MCP_PROMPT_SURFACES,
     MCP_RESOURCE_TEMPLATE_SURFACES,
+    MCP_SKILL_REFERENCE_SURFACES,
     MCP_TOOL_SURFACES,
     N8N_INTEGRATION_SURFACE,
     OPENBOX_CAPABILITY_IDS,
@@ -55,10 +56,41 @@ from openbox_sdk.generated.capability_matrix import (
     SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
     TRACING_CAPABILITY_GUARDS,
     USAGE_COST_CAPABILITY_GUARDS,
+    USAGE_NORMALIZATION_SURFACE,
 )
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
+from openbox_sdk.generated.rules_projection import (
+    ProjectedRule,
+    RuleSeverity,
+    RulesProjection,
+    RuleTrigger,
+)
+from openbox_sdk.generated.runtime_contract import (
+    DEFAULT_SDK_SOURCE,
+    SOURCE_INPUT_KEY,
+    WORKFLOW_EVENT_SOURCE,
+)
+from openbox_sdk.generated.sdk_targets import (
+    BUNDLE_BUILD,
+    CLEAN_ARTIFACTS,
+    CODEGEN_BUILD,
+    GENERATED_ARTIFACTS,
+    GENERATED_CHECKS,
+    LOCAL_CI,
+    PACKAGE_SCRIPTS,
+    PACKAGE_SURFACE,
+    QUALITY_COMMANDS,
+    ROOT_PIPELINES,
+    SDK_GENERATION,
+    SDK_TARGET_IDS,
+    SDK_TARGET_MANIFEST,
+    SDK_TARGETS,
+    SECURITY_AUDIT,
+    SPEC_COMMANDS,
+    TEST_SUITES,
+)
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
 from openbox_sdk.integrations.langgraph import (
     OpenBoxLangGraphMiddleware,
@@ -108,6 +140,13 @@ def _provider_capability_fixture() -> dict[str, Any]:
 def _sdk_manifest_fixture() -> dict[str, Any]:
     repo = Path(__file__).parents[2]
     fixture = json.loads((repo / "codegen/fixtures/sdk-manifests.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
+def _sdk_targets_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/sdk-targets.json").read_text())
     assert isinstance(fixture, dict)
     return cast(dict[str, Any], fixture)
 
@@ -418,6 +457,7 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert PUBLIC_INTEGRATION_SUPPORT == fixture["publicIntegrationSupport"]
     assert GOAL_SIGNAL_GUARDS == fixture["goalSignalGuards"]
     assert USAGE_COST_CAPABILITY_GUARDS == fixture["usageCostCapabilityGuards"]
+    assert USAGE_NORMALIZATION_SURFACE == fixture["usageNormalizationSurface"]
     assert TRACING_CAPABILITY_GUARDS == fixture["tracingCapabilityGuards"]
     assert HITL_CAPABILITY_GUARDS == fixture["hitlCapabilityGuards"]
     assert GUARDRAIL_CAPABILITY_GUARDS == fixture["guardrailCapabilityGuards"]
@@ -432,7 +472,63 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert MCP_TOOL_SURFACES == fixture["mcpToolSurfaces"]
     assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
     assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]
+    assert MCP_SKILL_REFERENCE_SURFACES == fixture["mcpSkillReferenceSurfaces"]
     assert N8N_INTEGRATION_SURFACE == fixture["n8nIntegrationSurface"]
+
+
+def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
+    fixture = _sdk_targets_fixture()
+
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert fixture["source"] == "specs/typespec/sdk/main.tsp"
+    expected_manifest = {
+        key: value
+        for key, value in fixture.items()
+        if key not in {"generatedBy", "source", "regenerate"}
+    }
+    assert SDK_TARGET_MANIFEST == expected_manifest
+    assert BUNDLE_BUILD == fixture["bundleBuild"]
+    assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
+    assert CODEGEN_BUILD == fixture["codegenBuild"]
+    assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
+    assert GENERATED_CHECKS == fixture["generatedChecks"]
+    assert LOCAL_CI == fixture["localCi"]
+    assert PACKAGE_SCRIPTS == fixture["packageScripts"]
+    assert PACKAGE_SURFACE == fixture["packageSurface"]
+    assert QUALITY_COMMANDS == fixture["qualityCommands"]
+    assert ROOT_PIPELINES == fixture["rootPipelines"]
+    assert SECURITY_AUDIT == fixture["securityAudit"]
+    assert SDK_GENERATION == fixture["sdkGeneration"]
+    assert SPEC_COMMANDS == fixture["specCommands"]
+    assert TEST_SUITES == fixture["testSuites"]
+    assert SDK_TARGETS == fixture["targets"]
+    assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]
+
+
+def test_generated_python_rules_projection_contract_matches_typespec_shape() -> None:
+    assert get_args(RuleTrigger) == (
+        "always",
+        "globMatch",
+        "agentRequested",
+        "manual",
+    )
+    assert get_args(RuleSeverity) == ("block", "warn", "info")
+    assert set(ProjectedRule.__annotations__) == {
+        "id",
+        "source",
+        "description",
+        "body",
+        "trigger",
+        "severity",
+        "globs",
+        "rendererHints",
+    }
+    assert set(RulesProjection.__annotations__) == {
+        "agentId",
+        "fetchedAt",
+        "version",
+        "rules",
+    }
 
 
 def test_generated_python_permission_rules_match_backend_permission_map() -> None:
@@ -492,8 +588,12 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
         approval_poll_interval_seconds=0,
         on_pending_approval=lambda info: pending.append(dict(info)),
         on_approval_resolved=lambda info: resolved.append(dict(info)),
+        source="python-test",
     )
     await session.tool({"input": []})
+    approval_started = approval_core.events[1]
+    assert approval_started["source"] == WORKFLOW_EVENT_SOURCE
+    assert approval_started["activity_input"] == [{SOURCE_INPUT_KEY: "python-test"}]
     assert approval_core.polls == [
         {
             "workflow_id": session.workflow_id,
@@ -501,7 +601,9 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
             "activity_id": pending[0]["activityId"],
         }
     ]
+    assert pending[0]["source"] == "python-test"
     assert resolved[0]["arm"] == "allow"
+    assert resolved[0]["source"] == "python-test"
 
     span_core = FakeCore()
     span_session = presets.default(core=span_core)
@@ -647,6 +749,19 @@ async def test_govern_runtime_edge_paths() -> None:
     assert session.is_terminated is True
     assert await session.complete() is None
     assert await session.fail(RuntimeError("ignored")) is None
+    signal_event = next(event for event in core.events if event["event_type"] == "SignalReceived")
+    handoff_event = next(event for event in core.events if event["event_type"] == "Handoff")
+    manual_started = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "manual" and event["event_type"] == "ActivityStarted"
+    )
+    assert signal_event["source"] == WORKFLOW_EVENT_SOURCE
+    assert signal_event["activity_input"] == [{SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}]
+    assert handoff_event["activity_input"] == [
+        {"to": "agent", SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}
+    ]
+    assert manual_started["activity_input"] == [{"a": 1, SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}]
 
     inline_core = FakeCore(evals=[{"verdict": "allow"}, {"verdict": "require_approval"}])
     inline = presets.default(core=inline_core, inline_approval=True)
@@ -657,10 +772,17 @@ async def test_govern_runtime_edge_paths() -> None:
     external_core = FakeCore(
         approvals=[{"action": "reject", "reason": "no", "approval_expiration_time": _future_iso()}]
     )
+    external_infos: list[dict[str, Any]] = []
+
+    def external_decision(info: Mapping[str, Any]) -> str:
+        external_infos.append(dict(info))
+        return "approve"
+
     external = presets.default(
         core=external_core,
         approval_poll_interval_seconds=10,
-        await_external_decision=lambda _info: "approve",
+        await_external_decision=external_decision,
+        source="external-python",
     )
     rejected = await external.poll_approval(
         "activity",
@@ -668,6 +790,7 @@ async def test_govern_runtime_edge_paths() -> None:
         {"arm": "require_approval", "approvalExpiresAt": _future_iso()},
     )
     assert rejected["arm"] == "block"
+    assert external_infos[0]["source"] == "external-python"
 
     approved_after_elapsed_timestamp = await external.poll_approval(
         "activity",
@@ -801,7 +924,7 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
 
     model_payload = {
         "content": "answer",
-        "usage_metadata": {"input_tokens": 8, "output_tokens": 3},
+        "usage_metadata": {"input_tokens": 8, "output_tokens": 3, "total_cost_usd": 0.025},
         "response_metadata": {"model_name": "gpt-4.1-mini", "finish_reason": "stop"},
     }
     model_request: Mapping[str, Any] = {
@@ -823,9 +946,41 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     assert model_completed["input_tokens"] == 8
     assert model_completed["output_tokens"] == 3
     assert model_completed["total_tokens"] == 11
+    assert model_completed["cost_usd"] == 0.025
     assert model_completed["has_tool_calls"] is False
     assert model_completed["finish_reason"] == "stop"
     assert model_completed["completion"] == "answer"
+
+    zero_usage_payload = {
+        "content": "cached answer",
+        "usage_metadata": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "total_cost_usd": 0,
+        },
+    }
+    zero_usage_request: Mapping[str, Any] = {
+        "run_id": "model-zero",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "use cache"}],
+    }
+    await middleware.wrap_model_call(
+        zero_usage_request,
+        lambda _req: zero_usage_payload,
+    )
+    zero_usage_completed = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "model-zero"
+        and event["event_type"] == "ActivityCompleted"
+    )
+    assert USAGE_NORMALIZATION_SURFACE["minimumValue"] == 0
+    assert USAGE_NORMALIZATION_SURFACE["tokenValuesRequireIntegers"] is True
+    assert zero_usage_completed["input_tokens"] == 0
+    assert zero_usage_completed["output_tokens"] == 0
+    assert zero_usage_completed["total_tokens"] == 0
+    assert zero_usage_completed["cost_usd"] == 0
 
     approval_core = FakeCore(
         evals=[

@@ -105,6 +105,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @sdkMethodNames: ${'reason'}`,
       },
     },
+    'invalid-sdk-targets': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @sdkTargets: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -130,6 +136,9 @@ export const $lib = createTypeSpecLibrary({
     },
     sdkMethodNames: {
       description: 'backend operationId → public SDK method name table attached to a namespace',
+    },
+    sdkTargets: {
+      description: 'SDK validation target manifest attached to a namespace',
     },
   },
 });

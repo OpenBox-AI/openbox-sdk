@@ -488,6 +488,58 @@ describe('CopilotKit OpenBox adapter', () => {
     });
   });
 
+  it('normalizes usage and cost from AG-UI run completion events', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      action: 'allow',
+      risk_score: 0,
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    });
+    const agui = createOpenBoxAGUIAdapter({ adapter });
+
+    const result = await agui.handleEvent({
+      type: 'RUN_FINISHED',
+      threadId: 'thread-usage',
+      runId: 'run-usage',
+      model: 'gpt-4o-mini',
+      usage: {
+        inputTokens: 5,
+        outputTokens: 7,
+        total_cost_usd: 0.019,
+      },
+      output: 'done',
+    });
+
+    expect(result.kind).toBe('message');
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'CopilotKitAGUI:RUN_FINISHED',
+    );
+    expect(completed).toMatchObject({
+      llm_model: 'gpt-4o-mini',
+      input_tokens: 5,
+      output_tokens: 7,
+      total_tokens: 12,
+      cost_usd: 0.019,
+      completion: 'done',
+    });
+    expect(completed?.activity_output).toMatchObject({
+      event_type: 'RUN_FINISHED',
+      model: 'gpt-4o-mini',
+      usage: {
+        inputTokens: 5,
+        outputTokens: 7,
+        total_cost_usd: 0.019,
+      },
+      output: 'done',
+      content: 'done',
+    });
+  });
+
   it('resolves OpenBox approvals from headless non-React callers', async () => {
     const originalFetch = globalThis.fetch;
     const fetchMock = vi

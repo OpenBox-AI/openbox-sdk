@@ -2,6 +2,7 @@ import {
   llmTokenUsageFromRecord,
   type LLMTokenUsage,
 } from './spans.js';
+import { USAGE_NORMALIZATION_SURFACE } from './generated/capability-matrix.js';
 
 export interface NormalizedOpenBoxUsage {
   inputTokens?: number;
@@ -19,19 +20,9 @@ export function normalizeOpenBoxUsage(
 ): NormalizedOpenBoxUsage | undefined {
   const usage = llmTokenUsageFromRecord(value);
   if (!usage) return undefined;
-  const inputTokens = firstNumber(
-    usage.inputTokens,
-    usage.promptTokens,
-    usage.input_tokens,
-    usage.prompt_tokens,
-  );
-  const outputTokens = firstNumber(
-    usage.outputTokens,
-    usage.completionTokens,
-    usage.output_tokens,
-    usage.completion_tokens,
-  );
-  const explicitTotalTokens = firstNumber(usage.totalTokens, usage.total_tokens);
+  const inputTokens = firstNumberForAliases(usage, USAGE_NORMALIZATION_SURFACE.inputTokenAliases);
+  const outputTokens = firstNumberForAliases(usage, USAGE_NORMALIZATION_SURFACE.outputTokenAliases);
+  const explicitTotalTokens = firstNumberForAliases(usage, USAGE_NORMALIZATION_SURFACE.totalTokenAliases);
   const calculatedTotalTokens = derivedTotal(inputTokens, outputTokens);
   const totalTokens =
     explicitTotalTokens !== undefined && calculatedTotalTokens !== undefined
@@ -41,19 +32,19 @@ export function normalizeOpenBoxUsage(
     inputTokens,
     outputTokens,
     totalTokens,
-    cacheReadInputTokens: firstNumber(
-      usage.cacheReadInputTokens,
-      usage.cache_read_input_tokens,
+    cacheReadInputTokens: firstNumberForAliases(
+      usage,
+      USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases,
     ),
-    cacheCreationInputTokens: firstNumber(
-      usage.cacheCreationInputTokens,
-      usage.cache_creation_input_tokens,
+    cacheCreationInputTokens: firstNumberForAliases(
+      usage,
+      USAGE_NORMALIZATION_SURFACE.cacheCreationInputTokenAliases,
     ),
-    webSearchRequests: firstNumber(
-      usage.webSearchRequests,
-      usage.web_search_requests,
+    webSearchRequests: firstNumberForAliases(
+      usage,
+      USAGE_NORMALIZATION_SURFACE.webSearchRequestAliases,
     ),
-    costUsd: firstNumber(usage.costUsd, usage.costUSD, usage.cost_usd),
+    costUsd: firstNumberForAliases(usage, USAGE_NORMALIZATION_SURFACE.costUsdAliases),
     raw: withCanonicalTotal(usage, totalTokens),
   };
 }
@@ -88,32 +79,32 @@ export function combineOpenBoxUsage(
 function addUsage(left: LLMTokenUsage, right: LLMTokenUsage): LLMTokenUsage {
   return {
     inputTokens: add(
-      firstNumber(left.inputTokens, left.promptTokens, left.input_tokens, left.prompt_tokens),
-      firstNumber(right.inputTokens, right.promptTokens, right.input_tokens, right.prompt_tokens),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.inputTokenAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.inputTokenAliases),
     ),
     outputTokens: add(
-      firstNumber(left.outputTokens, left.completionTokens, left.output_tokens, left.completion_tokens),
-      firstNumber(right.outputTokens, right.completionTokens, right.output_tokens, right.completion_tokens),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.outputTokenAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.outputTokenAliases),
     ),
     totalTokens: add(
-      firstNumber(left.totalTokens, left.total_tokens),
-      firstNumber(right.totalTokens, right.total_tokens),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.totalTokenAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.totalTokenAliases),
     ),
     cacheReadInputTokens: add(
-      firstNumber(left.cacheReadInputTokens, left.cache_read_input_tokens),
-      firstNumber(right.cacheReadInputTokens, right.cache_read_input_tokens),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases),
     ),
     cacheCreationInputTokens: add(
-      firstNumber(left.cacheCreationInputTokens, left.cache_creation_input_tokens),
-      firstNumber(right.cacheCreationInputTokens, right.cache_creation_input_tokens),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.cacheCreationInputTokenAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.cacheCreationInputTokenAliases),
     ),
     webSearchRequests: add(
-      firstNumber(left.webSearchRequests, left.web_search_requests),
-      firstNumber(right.webSearchRequests, right.web_search_requests),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.webSearchRequestAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.webSearchRequestAliases),
     ),
     costUsd: add(
-      firstNumber(left.costUsd, left.costUSD, left.cost_usd),
-      firstNumber(right.costUsd, right.costUSD, right.cost_usd),
+      firstNumberForAliases(left, USAGE_NORMALIZATION_SURFACE.costUsdAliases),
+      firstNumberForAliases(right, USAGE_NORMALIZATION_SURFACE.costUsdAliases),
     ),
   };
 }
@@ -151,4 +142,12 @@ function firstNumber(...values: unknown[]): number | undefined {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
   }
   return undefined;
+}
+
+function firstNumberForAliases(
+  value: LLMTokenUsage,
+  aliases: readonly string[],
+): number | undefined {
+  const record = value as Record<string, unknown>;
+  return firstNumber(...aliases.map((alias) => record[alias]));
 }

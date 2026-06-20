@@ -44,9 +44,11 @@ import { withSpanActivityId, type SpanType } from "../../governance/spans.js";
 import {
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
   type McpPromptSurfaceEntry,
   type McpResourceTemplateSurfaceEntry,
+  type McpSkillReferenceSurfaceEntry,
   type McpToolSurfaceEntry,
 } from "../../governance/capability-matrix.js";
 
@@ -578,8 +580,8 @@ registerOpenBoxTool("check_governance", "Evaluate an action against governance r
 function promptArgsSchema(prompt: McpPromptSurfaceEntry): Record<string, any> {
   const schema: Record<string, any> = {};
   for (const arg of prompt.args) {
-    const base = z.string().describe(arg.description);
-    schema[arg.name] = arg.required ? base : base.optional();
+    const base = arg.required ? z.string() : z.string().optional();
+    schema[arg.name] = base.describe(arg.description);
   }
   return schema;
 }
@@ -615,19 +617,6 @@ for (const prompt of MCP_PROMPT_SURFACES) {
     }),
   );
 }
-
-// Skill references; one per topical domain.
-const SKILL_PATHS = [
-  { name: "governance-flow", path: "references/governance-flow.md", desc: "Event protocol, wire format, verdicts, approval polling, spec-vs-implementation mismatches" },
-  { name: "guardrails", path: "references/guardrails.md", desc: "Guardrail configuration: numeric IDs, stage gating, legacy binding no-ops, per-field status, backend validation gaps" },
-  { name: "behaviors", path: "references/behaviors.md", desc: "Behavior rules: trigger/states enum, time_window, priority, active toggle, shell-as-internal" },
-  { name: "backend-api", path: "references/backend-api.md", desc: "Backend conventions: {status,data} envelope, X-Openbox-Client header, /auth/refresh caveats, OpenAPI availability" },
-  { name: "rego-reference", path: "references/rego-reference.md", desc: "Rego policy syntax, input fields, example policies, policy lifecycle gotchas" },
-  { name: "span-reference", path: "references/span-reference.md", desc: "Span types, gate attributes, semantic type detection" },
-  { name: "commands", path: "references/commands.md", desc: "Full CLI command reference" },
-  { name: "claude-code-governance", path: "references/claude-code-governance.md", desc: "Claude Code hook/plugin/MCP governance surface audit and coverage matrix" },
-  { name: "existing-sdks", path: "references/existing-sdks.md", desc: "Available SDKs and installation" },
-];
 
 function findSkillDir(): string | null {
   const candidates = [
@@ -693,7 +682,9 @@ function rowId(row: unknown): string | undefined {
 }
 
 async function readSkillReference(name: string, uri: string | URL) {
-  const ref = SKILL_PATHS.find((entry) => entry.name === name);
+  const ref = (MCP_SKILL_REFERENCE_SURFACES as readonly McpSkillReferenceSurfaceEntry[]).find(
+    (entry) => entry.name === name,
+  );
   if (!ref) {
     return textResource(uri, `Unknown OpenBox skill reference: ${name}`, "text/plain");
   }
@@ -774,8 +765,8 @@ for (const template of MCP_RESOURCE_TEMPLATE_SURFACES) {
   );
 }
 
-for (const ref of SKILL_PATHS) {
-  server.resource(ref.name, `openbox://skill/${ref.name}`, { description: ref.desc }, async () => {
+for (const ref of MCP_SKILL_REFERENCE_SURFACES) {
+  server.resource(ref.name, `openbox://skill/${ref.name}`, { description: ref.description }, async () => {
     return readSkillReference(ref.name, `openbox://skill/${ref.name}`);
   });
 }

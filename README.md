@@ -80,7 +80,8 @@ npm run lint:generated-banners
 TypeSpec under `specs/typespec/` is the source for generated contracts. Fix the
 spec or generator first; do not patch generated output by hand.
 `check:sdks` is the generic validation gate for every language SDK target; it
-currently covers TypeScript and Python from the shared TypeSpec emitter.
+reads the TypeSpec-emitted target manifest and currently covers TypeScript and
+Python from the shared TypeSpec emitter.
 The repository layout and generation boundaries are documented in
 [`docs/repo-structure.md`](./docs/repo-structure.md).
 

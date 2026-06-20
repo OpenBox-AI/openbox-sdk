@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import inspect
+import math
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, TypeVar, overload
 
 from openbox_sdk._govern_runtime import BaseGovernedSession, WorkflowVerdict
 from openbox_sdk.clients import AsyncOpenBoxCoreClient
+from openbox_sdk.generated.capability_matrix import USAGE_NORMALIZATION_SURFACE
 from openbox_sdk.generated.govern import PRESET_ACTIVITY_TYPES, presets
 from openbox_sdk.generated.runtime_contract import (
     ACTIVITY_COMPLETED_EVENT_TYPE,
@@ -375,29 +377,15 @@ def _model_request_fields(request: Any) -> dict[str, Any]:
 
 def _model_completion_fields(request: Any, result: Any) -> dict[str, Any]:
     usage = _usage_from(result) or _usage_from(request)
-    input_tokens = _token_value(
-        usage,
-        "input_tokens",
-        "prompt_tokens",
-        "inputTokens",
-        "promptTokens",
-    )
-    output_tokens = _token_value(
-        usage,
-        "output_tokens",
-        "completion_tokens",
-        "outputTokens",
-        "completionTokens",
-    )
-    total_tokens = _token_value(usage, "total_tokens", "totalTokens")
+    input_tokens = _token_value(usage, _usage_aliases("inputTokenAliases"))
+    output_tokens = _token_value(usage, _usage_aliases("outputTokenAliases"))
+    total_tokens = _token_value(usage, _usage_aliases("totalTokenAliases"))
     if total_tokens is None and (input_tokens is not None or output_tokens is not None):
         total_tokens = (input_tokens or 0) + (output_tokens or 0)
+    cost_usd = _number_value(usage, _usage_aliases("costUsdAliases"))
     model = _model_from(result) or _model_from(request)
     finish_reason = _first_string(
-        _value(result, "finish_reason"),
-        _value(result, "finishReason"),
-        _nested_value(result, "response_metadata", "finish_reason"),
-        _nested_value(result, "response_metadata", "finishReason"),
+        *(_field_value(result, field) for field in _usage_aliases("providerFinishReasonFields"))
     )
     completion = _completion_from(result)
     return {
@@ -405,6 +393,7 @@ def _model_completion_fields(request: Any, result: Any) -> dict[str, Any]:
         **({"input_tokens": input_tokens} if input_tokens is not None else {}),
         **({"output_tokens": output_tokens} if output_tokens is not None else {}),
         **({"total_tokens": total_tokens} if total_tokens is not None else {}),
+        **({"cost_usd": cost_usd} if cost_usd is not None else {}),
         "has_tool_calls": _has_tool_calls(result),
         **({"finish_reason": finish_reason} if finish_reason else {}),
         **({"completion": completion} if completion else {}),
@@ -412,15 +401,8 @@ def _model_completion_fields(request: Any, result: Any) -> dict[str, Any]:
 
 
 def _usage_from(value: Any) -> Mapping[str, Any] | None:
-    for candidate in (
-        _value(value, "usage_metadata"),
-        _value(value, "usageMetadata"),
-        _value(value, "usage"),
-        _value(value, "token_usage"),
-        _nested_value(value, "response_metadata", "usage"),
-        _nested_value(value, "response_metadata", "token_usage"),
-        _nested_value(value, "llm_output", "token_usage"),
-    ):
+    for field in _usage_aliases("providerUsageContainers"):
+        candidate = _field_value(value, field)
         if isinstance(candidate, Mapping):
             return candidate
     return None
@@ -428,13 +410,7 @@ def _usage_from(value: Any) -> Mapping[str, Any] | None:
 
 def _model_from(value: Any) -> str | None:
     return _first_string(
-        _value(value, "model"),
-        _value(value, "model_name"),
-        _value(value, "modelName"),
-        _nested_value(value, "response_metadata", "model"),
-        _nested_value(value, "response_metadata", "model_name"),
-        _nested_value(value, "response_metadata", "modelName"),
-        _nested_value(value, "llm_output", "model"),
+        *(_field_value(value, field) for field in _usage_aliases("providerModelFields"))
     )
 
 
@@ -484,23 +460,68 @@ def _has_tool_calls(value: Any) -> bool:
     return any(isinstance(candidate, list) and len(candidate) > 0 for candidate in candidates)
 
 
-def _token_value(source: Mapping[str, Any] | None, *keys: str) -> int | None:
+def _usage_aliases(key: str) -> list[str]:
+    aliases = USAGE_NORMALIZATION_SURFACE.get(key, [])
+    return [alias for alias in aliases if isinstance(alias, str)]
+
+
+def _usage_minimum_value() -> float:
+    value = USAGE_NORMALIZATION_SURFACE.get("minimumValue", 0)
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return 0
+    return float(value)
+
+
+def _token_value(source: Mapping[str, Any] | None, keys: list[str]) -> int | None:
     if source is None:
         return None
+    minimum = _usage_minimum_value()
     for key in keys:
         value = source.get(key)
-        if isinstance(value, int) and value >= 0:
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int) and value >= minimum:
             return value
-        if isinstance(value, float) and value >= 0 and value.is_integer():
+        if (
+            isinstance(value, float)
+            and math.isfinite(value)
+            and value >= minimum
+            and (
+                not USAGE_NORMALIZATION_SURFACE.get("tokenValuesRequireIntegers", True)
+                or value.is_integer()
+            )
+        ):
             return int(value)
     return None
 
 
+def _number_value(source: Mapping[str, Any] | None, keys: list[str]) -> float | None:
+    if source is None:
+        return None
+    minimum = _usage_minimum_value()
+    for key in keys:
+        value = source.get(key)
+        if (
+            not isinstance(value, bool)
+            and isinstance(value, int | float)
+            and math.isfinite(value)
+            and value >= minimum
+        ):
+            return float(value)
+    return None
+
+
+def _field_value(value: Any, field: str) -> Any:
+    current = value
+    for part in field.split("."):
+        current = _value(current, part)
+        if current is None:
+            return None
+    return current
+
+
 def _nested_value(value: Any, first: str, second: str) -> Any:
-    child = _value(value, first)
-    if isinstance(child, Mapping):
-        return child.get(second)
-    return getattr(child, second, None) if child is not None else None
+    return _field_value(value, f"{first}.{second}")
 
 
 def _first_string(*values: Any) -> str | None:

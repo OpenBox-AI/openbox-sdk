@@ -25,12 +25,18 @@ import type {
 } from '@typespec/compiler';
 import { resolvePath, getDoc } from '@typespec/compiler';
 import { listHttpOperationsIn } from '@typespec/http';
-import { getEnvVar, getTokenFormat, isOsPath } from 'typespec-env/decorators';
+import {
+  getEnvVar,
+  getTokenFormat,
+  isOsPath,
+  getEnvConformance,
+} from 'typespec-env/decorators';
 import {
   getCommand,
   getFlag,
   getMaturity,
   getFeatureFlag,
+  getCliConformance,
   type Maturity,
 } from 'typespec-cli/decorators';
 import {
@@ -54,6 +60,7 @@ import {
   getGovernProtocol,
   getBackendPermissions,
   getSdkMethodNames,
+  getSdkTargets,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -77,9 +84,14 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitEndpointManifest(program, project, repoRoot, 'OpenboxBackend', 'BACKEND_ENDPOINT_MANIFEST', 'ts/src/client/generated/endpoint-manifest.ts');
   emitEndpointManifest(program, project, repoRoot, 'OpenboxCore', 'CORE_ENDPOINT_MANIFEST', 'ts/src/core-client/generated/endpoint-manifest.ts');
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/src/core-client/generated/core-types.ts');
+  emitNamespaceTypes(program, project, repoRoot, 'OpenboxGovern.RulesProjection', 'ts/src/governance/generated/rules-projection.ts');
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
+  emitEnvConformanceFixture(program, repoRoot);
+  emitCliConformanceFixture(program, repoRoot);
   emitGovernProtocolConformanceFixture(program, repoRoot);
+  emitSdkTargetsFixture(program, repoRoot);
+  emitExtensionSpec(program, project, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
   emitBackendMethodNameFixture(program, repoRoot);
   emitBackendPermissionFixture(program, repoRoot);
@@ -108,6 +120,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'cli', 'generated', 'cli-maturity.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'govern.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'capability-matrix.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'rules-projection.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
@@ -121,8 +134,12 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'permissions.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'schemas.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
+    resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'sdk_targets.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'govern.py'),
+    resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'rules_projection.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'runtime_contract.py'),
+    resolvePath(repoRoot, 'apps', 'extension', 'src', 'generated', 'openbox-extension-spec.ts'),
+    resolvePath(repoRoot, 'example', 'n8n', 'custom-node', 'src', 'generated', 'openbox-n8n-spec.ts'),
   ]);
 }
 
@@ -1086,6 +1103,7 @@ interface ProviderCapabilityConformancePayload {
   publicIntegrationSupport: unknown;
   goalSignalGuards: unknown;
   usageCostCapabilityGuards: unknown;
+  usageNormalizationSurface: unknown;
   tracingCapabilityGuards: unknown;
   hitlCapabilityGuards: unknown;
   guardrailCapabilityGuards: unknown;
@@ -1100,6 +1118,7 @@ interface ProviderCapabilityConformancePayload {
   mcpToolSurfaces: unknown;
   mcpPromptSurfaces: unknown;
   mcpResourceTemplateSurfaces: unknown;
+  mcpSkillReferenceSurfaces: unknown;
   n8nIntegrationSurface: unknown;
 }
 
@@ -1110,6 +1129,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
   if (!matrix) return;
   const conformance = providerCapabilityConformancePayload(matrix);
   writeProviderCapabilityConformanceFixture(repoRoot, conformance);
+  emitN8nCustomNodeSpec(project, repoRoot, conformance.n8nIntegrationSurface);
 
   const out = project.createSourceFile(
     resolvePath(repoRoot, 'ts/src/governance/generated/capability-matrix.ts'),
@@ -1148,12 +1168,13 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export interface ProviderPluginComponentCatalogEntry {`,
     `  provider: OpenBoxProviderId;`,
-    `  components: readonly { name: string; tier: OpenBoxSupportTier; path?: string; reason: string }[];`,
+    `  components: readonly { name: string; tier: OpenBoxSupportTier; surface?: string; path?: string; reason: string }[];`,
     `}`,
     '',
     `export interface PublicIntegrationSupportEntry {`,
     `  integration: OpenBoxProviderId;`,
     `  tier: OpenBoxSupportTier;`,
+    `  packageSubpath: string;`,
     `  exports: readonly string[];`,
     `  notes: string;`,
     `}`,
@@ -1176,6 +1197,23 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  sharedNormalizer: string;`,
     `  costPolicyBoundary: string;`,
     `  guardTest: string;`,
+    `}`,
+    '',
+    `export interface UsageNormalizationSurface {`,
+    `  minimumValue: number;`,
+    `  tokenValuesRequireIntegers: boolean;`,
+    `  canonicalFields: readonly string[];`,
+    `  inputTokenAliases: readonly string[];`,
+    `  outputTokenAliases: readonly string[];`,
+    `  totalTokenAliases: readonly string[];`,
+    `  cacheReadInputTokenAliases: readonly string[];`,
+    `  cacheCreationInputTokenAliases: readonly string[];`,
+    `  webSearchRequestAliases: readonly string[];`,
+    `  costUsdAliases: readonly string[];`,
+    `  providerUsageContainers: readonly string[];`,
+    `  providerModelFields: readonly string[];`,
+    `  providerFinishReasonFields: readonly string[];`,
+    `  policyBoundary: string;`,
     `}`,
     '',
     `export interface TracingCapabilityGuardEntry {`,
@@ -1301,11 +1339,17 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  openWorldHint: boolean;`,
     `}`,
     '',
+    `export interface McpPromptArgEntry {`,
+    `  name: string;`,
+    `  description: string;`,
+    `  required: boolean;`,
+    `}`,
+    '',
     `export interface McpPromptSurfaceEntry {`,
     `  name: string;`,
     `  title: string;`,
     `  description: string;`,
-    `  args: readonly { name: string; description: string; required: boolean }[];`,
+    `  args: readonly McpPromptArgEntry[];`,
     `  instructions: string;`,
     `}`,
     '',
@@ -1317,11 +1361,91 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  mimeType: string;`,
     `}`,
     '',
+    `export interface McpSkillReferenceSurfaceEntry {`,
+    `  name: string;`,
+    `  path: string;`,
+    `  description: string;`,
+    `}`,
+    '',
+    `export interface N8nPackageManifestSurface {`,
+    `  n8nNodesApiVersion: number;`,
+    `  credentials: readonly string[];`,
+    `  nodes: readonly string[];`,
+    `  openboxSpecSource: string;`,
+    `  openboxSpecNodeIds: readonly string[];`,
+    `}`,
+    '',
+    `export interface N8nWorkflowEdgeSurface {`,
+    `  from: string;`,
+    `  to: string;`,
+    `}`,
+    '',
+    `export interface N8nCheckpointGateSurface {`,
+    `  checkpoint: string;`,
+    `  gate: string;`,
+    `  pass: string;`,
+    `  fail: string;`,
+    `}`,
+    '',
+    `export interface N8nWorkflowNodeIdentitySurface {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  type: string;`,
+    `}`,
+    '',
+    `export interface N8nNodeBooleanFlagSurface {`,
+    `  node: string;`,
+    `  flag: string;`,
+    `  expected: boolean;`,
+    `}`,
+    '',
+    `export interface N8nExpressionSourceCheckSurface {`,
+    `  node: string;`,
+    `  requiredContains: readonly string[];`,
+    `  forbiddenContains: readonly string[];`,
+    `}`,
+    '',
+    `export interface N8nNodeParameterCheckSurface {`,
+    `  nodeType: string;`,
+    `  parameter: string;`,
+    `  requiredContains: readonly string[];`,
+    `  forbiddenContains: readonly string[];`,
+    `  forbiddenValues: readonly string[];`,
+    `}`,
+    '',
+    `export interface N8nShowcaseWorkflowSurface {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  path: string;`,
+    `  description: string;`,
+    `  requiredOpenBoxNodeIds: readonly string[];`,
+    `  requiredOpenBoxNodeTypes: readonly string[];`,
+    `  requiredTriggerTypes: readonly string[];`,
+    `  requiredCheckpoints: readonly string[];`,
+    `  requiredTerminalNodes: readonly string[];`,
+    `  requiredEntryEdges: readonly N8nWorkflowEdgeSurface[];`,
+    `  checkpointGates: readonly N8nCheckpointGateSurface[];`,
+    `  requiredNodeIdentities: readonly N8nWorkflowNodeIdentitySurface[];`,
+    `  requiredNodeBooleanFlags: readonly N8nNodeBooleanFlagSurface[];`,
+    `  expressionSourceChecks: readonly N8nExpressionSourceCheckSurface[];`,
+    `  requiredOpenBoxNodeParameterChecks: readonly N8nNodeParameterCheckSurface[];`,
+    `  approvalStages: readonly string[];`,
+    `  requiredApprovalActionIds: readonly string[];`,
+    `  requiredPathLogSteps: readonly string[];`,
+    `  requiredTerminalEventTypes: readonly string[];`,
+    `  allowedCredentialPlaceholders: readonly string[];`,
+    `  forbiddenWorkflowText: readonly string[];`,
+    `  forbiddenWorkflowRegexes: readonly string[];`,
+    `  terminalLogTable: string;`,
+    `}`,
+    '',
     `export interface N8nIntegrationSurface {`,
+    `  packageManifest: N8nPackageManifestSurface;`,
     `  credentials: readonly Record<string, unknown>[];`,
     `  nodes: readonly Record<string, unknown>[];`,
     `  workflowTemplates: readonly Record<string, unknown>[];`,
     `  examples: readonly Record<string, unknown>[];`,
+    `  showcaseWorkflows: readonly N8nShowcaseWorkflowSurface[];`,
     `}`,
     '',
     `export const PROVIDER_CAPABILITY_MATRIX = ${literalTs(conformance.providerCapabilityMatrix)} as const satisfies readonly ProviderCapabilityEntry[];`,
@@ -1335,6 +1459,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const GOAL_SIGNAL_GUARDS = ${literalTs(conformance.goalSignalGuards)} as const satisfies readonly GoalSignalGuardEntry[];`,
     '',
     `export const USAGE_COST_CAPABILITY_GUARDS = ${literalTs(conformance.usageCostCapabilityGuards)} as const satisfies readonly UsageCostCapabilityGuardEntry[];`,
+    '',
+    `export const USAGE_NORMALIZATION_SURFACE = ${literalTs(conformance.usageNormalizationSurface)} as const satisfies UsageNormalizationSurface;`,
     '',
     `export const TRACING_CAPABILITY_GUARDS = ${literalTs(conformance.tracingCapabilityGuards)} as const satisfies readonly TracingCapabilityGuardEntry[];`,
     '',
@@ -1364,7 +1490,156 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const MCP_RESOURCE_TEMPLATE_SURFACES = ${literalTs(conformance.mcpResourceTemplateSurfaces)} as const satisfies readonly McpResourceTemplateSurfaceEntry[];`,
     '',
+    `export const MCP_SKILL_REFERENCE_SURFACES = ${literalTs(conformance.mcpSkillReferenceSurfaces)} as const satisfies readonly McpSkillReferenceSurfaceEntry[];`,
+    '',
     `export const N8N_INTEGRATION_SURFACE = ${literalTs(conformance.n8nIntegrationSurface)} as const satisfies N8nIntegrationSurface;`,
+  ]);
+}
+
+function emitN8nCustomNodeSpec(project: Project, repoRoot: string, surface: unknown): void {
+  const out = project.createSourceFile(
+    resolvePath(repoRoot, 'example/n8n/custom-node/src/generated/openbox-n8n-spec.ts'),
+    '',
+    { overwrite: true },
+  );
+  out.insertText(0, BANNER + '\n\n');
+  out.addStatements([
+    `export interface OpenBoxN8nCredentialSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  properties: readonly string[];`,
+    `  reason: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nNodeSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  tier: string;`,
+    `  description: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nWorkflowArtifact {`,
+    `  name: string;`,
+    `  nodes: readonly Record<string, unknown>[];`,
+    `  connections: Record<string, unknown>;`,
+    `  settings?: Record<string, unknown>;`,
+    `  pinData?: Record<string, unknown>;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nWorkflowTemplateSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  nodes: readonly string[];`,
+    `  description: string;`,
+    `  workflow: OpenBoxN8nWorkflowArtifact;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nExampleSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  description: string;`,
+    `  workflow: OpenBoxN8nWorkflowArtifact;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nPackageManifestSpec {`,
+    `  n8nNodesApiVersion: number;`,
+    `  credentials: readonly string[];`,
+    `  nodes: readonly string[];`,
+    `  openboxSpecSource: string;`,
+    `  openboxSpecNodeIds: readonly string[];`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nWorkflowEdgeSpec {`,
+    `  from: string;`,
+    `  to: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nCheckpointGateSpec {`,
+    `  checkpoint: string;`,
+    `  gate: string;`,
+    `  pass: string;`,
+    `  fail: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nWorkflowNodeIdentitySpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  type: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nNodeBooleanFlagSpec {`,
+    `  node: string;`,
+    `  flag: string;`,
+    `  expected: boolean;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nExpressionSourceCheckSpec {`,
+    `  node: string;`,
+    `  requiredContains: readonly string[];`,
+    `  forbiddenContains: readonly string[];`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nNodeParameterCheckSpec {`,
+    `  nodeType: string;`,
+    `  parameter: string;`,
+    `  requiredContains: readonly string[];`,
+    `  forbiddenContains: readonly string[];`,
+    `  forbiddenValues: readonly string[];`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nShowcaseWorkflowSpec {`,
+    `  name: string;`,
+    `  id: string;`,
+    `  path: string;`,
+    `  description: string;`,
+    `  requiredOpenBoxNodeIds: readonly string[];`,
+    `  requiredOpenBoxNodeTypes: readonly string[];`,
+    `  requiredTriggerTypes: readonly string[];`,
+    `  requiredCheckpoints: readonly string[];`,
+    `  requiredTerminalNodes: readonly string[];`,
+    `  requiredEntryEdges: readonly OpenBoxN8nWorkflowEdgeSpec[];`,
+    `  checkpointGates: readonly OpenBoxN8nCheckpointGateSpec[];`,
+    `  requiredNodeIdentities: readonly OpenBoxN8nWorkflowNodeIdentitySpec[];`,
+    `  requiredNodeBooleanFlags: readonly OpenBoxN8nNodeBooleanFlagSpec[];`,
+    `  expressionSourceChecks: readonly OpenBoxN8nExpressionSourceCheckSpec[];`,
+    `  requiredOpenBoxNodeParameterChecks: readonly OpenBoxN8nNodeParameterCheckSpec[];`,
+    `  approvalStages: readonly string[];`,
+    `  requiredApprovalActionIds: readonly string[];`,
+    `  requiredPathLogSteps: readonly string[];`,
+    `  requiredTerminalEventTypes: readonly string[];`,
+    `  allowedCredentialPlaceholders: readonly string[];`,
+    `  forbiddenWorkflowText: readonly string[];`,
+    `  forbiddenWorkflowRegexes: readonly string[];`,
+    `  terminalLogTable: string;`,
+    `}`,
+    '',
+    `export interface OpenBoxN8nIntegrationSpec {`,
+    `  packageManifest: OpenBoxN8nPackageManifestSpec;`,
+    `  credentials: readonly OpenBoxN8nCredentialSpec[];`,
+    `  nodes: readonly OpenBoxN8nNodeSpec[];`,
+    `  workflowTemplates: readonly OpenBoxN8nWorkflowTemplateSpec[];`,
+    `  examples: readonly OpenBoxN8nExampleSpec[];`,
+    `  showcaseWorkflows: readonly OpenBoxN8nShowcaseWorkflowSpec[];`,
+    `}`,
+    '',
+    `export const OPENBOX_N8N_INTEGRATION = ${literalTs(surface)} as const satisfies OpenBoxN8nIntegrationSpec;`,
+    `export const OPENBOX_N8N_PACKAGE_MANIFEST = OPENBOX_N8N_INTEGRATION.packageManifest;`,
+    '',
+    `export function getOpenBoxN8nCredentialSpec(id: string): OpenBoxN8nCredentialSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.credentials.find((entry) => entry.id === id);`,
+    `}`,
+    '',
+    `export function getOpenBoxN8nNodeSpec(id: string): OpenBoxN8nNodeSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.nodes.find((entry) => entry.id === id);`,
+    `}`,
+    '',
+    `export function getOpenBoxN8nWorkflowTemplateSpec(id: string): OpenBoxN8nWorkflowTemplateSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.workflowTemplates.find((entry) => entry.id === id);`,
+    `}`,
+    '',
+    `export function getOpenBoxN8nExampleSpec(id: string): OpenBoxN8nExampleSpec | undefined {`,
+    `  return OPENBOX_N8N_INTEGRATION.examples.find((entry) => entry.id === id);`,
+    `}`,
   ]);
 }
 
@@ -1404,6 +1679,7 @@ function providerCapabilityConformancePayload(
     publicIntegrationSupport: matrix.publicIntegrations,
     goalSignalGuards: matrix.goalSignalGuards,
     usageCostCapabilityGuards: matrix.usageCostCapabilityGuards,
+    usageNormalizationSurface: matrix.usageNormalization,
     tracingCapabilityGuards: matrix.tracingCapabilityGuards,
     hitlCapabilityGuards: matrix.hitlCapabilityGuards,
     guardrailCapabilityGuards: matrix.guardrailCapabilityGuards,
@@ -1418,6 +1694,7 @@ function providerCapabilityConformancePayload(
     mcpToolSurfaces: matrix.mcpTools,
     mcpPromptSurfaces: matrix.mcpPrompts,
     mcpResourceTemplateSurfaces: matrix.mcpResourceTemplates,
+    mcpSkillReferenceSurfaces: matrix.mcpSkillReferences,
     n8nIntegrationSurface: matrix.n8nIntegration,
   };
 }
@@ -1427,6 +1704,32 @@ function writeProviderCapabilityConformanceFixture(
   payload: ProviderCapabilityConformancePayload,
 ): void {
   writeJsonFixture(repoRoot, 'codegen/fixtures/provider-capabilities.json', payload);
+}
+
+function emitEnvConformanceFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxEnv');
+  const fixture = ns ? getEnvConformance(program, ns) : undefined;
+  if (!fixture) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/env-resolution.json', {
+    $schema: '../snapshots/env-resolution.schema.json',
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/env/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...fixture,
+  });
+}
+
+function emitCliConformanceFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxCli');
+  const fixture = ns ? getCliConformance(program, ns) : undefined;
+  if (!fixture) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/cli-auth.json', {
+    $schema: '../snapshots/cli-auth.schema.json',
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/cli/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...fixture,
+  });
 }
 
 function emitGovernProtocolConformanceFixture(program: Program, repoRoot: string): void {
@@ -1440,6 +1743,82 @@ function emitGovernProtocolConformanceFixture(program: Program, repoRoot: string
     regenerate: 'npm run specs:compile',
     ...fixture,
   });
+}
+
+function emitSdkTargetsFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxSdk');
+  const manifest = ns ? getSdkTargets(program, ns) : undefined;
+  if (!manifest) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/sdk-targets.json', {
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/sdk/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...manifest,
+  });
+}
+
+function emitExtensionSpec(program: Program, project: Project, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxSdk');
+  const manifest = ns ? getSdkTargets(program, ns) : undefined;
+  const extensionTarget = arrayOfRecords((manifest as { targets?: unknown } | undefined)?.targets).find(
+    (target) => target.id === 'extension',
+  );
+  if (!extensionTarget) return;
+
+  const out = project.createSourceFile(
+    resolvePath(repoRoot, 'apps/extension/src/generated/openbox-extension-spec.ts'),
+    '',
+    { overwrite: true },
+  );
+  out.insertText(0, BANNER + '\n\n');
+  out.addStatements([
+    `export interface OpenBoxExtensionCommandSpec {`,
+    `  command: string;`,
+    `  args?: readonly string[];`,
+    `  env?: Readonly<Record<string, string>>;`,
+    `}`,
+    '',
+    `export interface OpenBoxExtensionManifestSpec {`,
+    `  packageName: string;`,
+    `  publisher: string;`,
+    `  displayName: string;`,
+    `  metadata: Readonly<{`,
+    `    description: string;`,
+    `    icon: string;`,
+    `    license: string;`,
+    `    homepage: string;`,
+    `    repository: Readonly<Record<string, string>>;`,
+    `    bugs: Readonly<Record<string, string>>;`,
+    `    keywords: readonly string[];`,
+    `    engines: Readonly<Record<string, string>>;`,
+    `    categories: readonly string[];`,
+    `  }>;`,
+    `  main: string;`,
+    `  activationEvents: readonly string[];`,
+    `  views: readonly string[];`,
+    `  commands: readonly string[];`,
+    `  configurationKeys: readonly string[];`,
+    `  viewContainers: readonly Record<string, unknown>[];`,
+    `  viewDefinitions: readonly Record<string, unknown>[];`,
+    `  commandDefinitions: readonly Record<string, unknown>[];`,
+    `  configurationProperties: readonly Record<string, unknown>[];`,
+    `  viewsWelcome: readonly Record<string, unknown>[];`,
+    `  menus: readonly Record<string, unknown>[];`,
+    `}`,
+    '',
+    `export interface OpenBoxExtensionTargetSpec {`,
+    `  id: "extension";`,
+    `  label: string;`,
+    `  kind: "app";`,
+    `  workingDirectory: string;`,
+    `  extensionManifest: OpenBoxExtensionManifestSpec;`,
+    `  commands: readonly OpenBoxExtensionCommandSpec[];`,
+    `}`,
+    '',
+    `export const OPENBOX_EXTENSION_SPEC = ${literalTs(extensionTarget)} as const satisfies OpenBoxExtensionTargetSpec;`,
+    '',
+    `export const OPENBOX_EXTENSION_MANIFEST = OPENBOX_EXTENSION_SPEC.extensionManifest;`,
+  ]);
 }
 
 function writeJsonFixture(repoRoot: string, relPath: string, payload: unknown): void {
@@ -2848,6 +3227,7 @@ type TelemetryEventFields = Pick<
   | 'input_tokens'
   | 'output_tokens'
   | 'total_tokens'
+  | 'cost_usd'
   | 'has_tool_calls'
   | 'finish_reason'
   | 'prompt'
@@ -2866,6 +3246,7 @@ function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventF
     input_tokens: payload.inputTokens,
     output_tokens: payload.outputTokens,
     total_tokens: payload.totalTokens,
+    cost_usd: payload.costUsd,
     has_tool_calls: payload.hasToolCalls,
     finish_reason: payload.finishReason,
     prompt: payload.prompt,

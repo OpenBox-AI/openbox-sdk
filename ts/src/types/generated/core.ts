@@ -296,6 +296,11 @@ export interface components {
              * @description Total token count observed by the SDK.
              */
             total_tokens?: number;
+            /**
+             * Format: double
+             * @description Estimated provider/API cost in USD observed by the SDK.
+             */
+            cost_usd?: number;
             /** @description True when the LLM completion requested tool calls. */
             has_tool_calls?: boolean;
             /** @description Provider finish reason, when available. */

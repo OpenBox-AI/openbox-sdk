@@ -17,3 +17,4 @@ import "./govern/main.tsp";
 import "./govern/adapters.tsp";
 import "./govern/rules-projection.tsp";
 import "./govern/capabilities.tsp";
+import "./sdk/main.tsp";

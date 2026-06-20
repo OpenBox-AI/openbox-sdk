@@ -21,6 +21,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @cli_output_kind '${'kind'}'; must be one of table, list, json, kv, custom`,
       },
     },
+    'invalid-cli-conformance': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @cli_conformance: ${'reason'}`,
+      },
+    },
   },
   state: {
     command: { description: 'CLI command binding attached to an interface' },
@@ -43,6 +49,7 @@ export const $lib = createTypeSpecLibrary({
     postValidate: { description: 'names of registered post-validate callbacks run before the call' },
     destructive: { description: 'flag: op is destructive (delete/revoke/etc); runtime requires --yes / non-interactive context' },
     recipe: { description: 'tier-2 composite: list of tier-1 backend calls + how to assemble their results' },
+    cliConformance: { description: 'CLI conformance fixture attached to a namespace' },
   },
 });
 

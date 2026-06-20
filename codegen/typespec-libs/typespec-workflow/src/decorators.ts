@@ -695,7 +695,7 @@ export function $providerCapabilities(
     return;
   }
   const record = value as Record<string, unknown>;
-  for (const key of ['capabilityIds', 'providers', 'capabilities', 'goalSignalGuards', 'usageCostCapabilityGuards', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations']) {
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'goalSignalGuards', 'usageCostCapabilityGuards', 'usageNormalization', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations', 'mcpTools', 'mcpPrompts', 'mcpResourceTemplates', 'mcpSkillReferences', 'n8nIntegration']) {
     if (!(key in record)) {
       reportDiagnostic(context.program, {
         code: 'invalid-provider-capabilities',
@@ -856,4 +856,1174 @@ export function getSdkMethodNames(
   target: Namespace,
 ): SdkMethodNamesBinding | undefined {
   return program.stateMap(stateKeys.sdkMethodNames).get(target);
+}
+
+// ─── Target-native validation surfaces ──────────────────────────────
+// The root check command is generic; language SDKs, spec-bound apps, and their
+// native validation commands live in TypeSpec and are emitted as a fixture.
+
+export type SdkTargetsBinding = Record<string, unknown>;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function reportInvalidSdkTargets(
+  context: DecoratorContext,
+  target: Namespace,
+  reason: string,
+): void {
+  reportDiagnostic(context.program, {
+    code: 'invalid-sdk-targets',
+    format: { reason },
+    target,
+  });
+}
+
+function validateCommandStepArray(
+  context: DecoratorContext,
+  target: Namespace,
+  fieldPath: string,
+  rawSteps: unknown,
+): boolean {
+  if (!Array.isArray(rawSteps) || rawSteps.length === 0) {
+    reportInvalidSdkTargets(context, target, `${fieldPath} must be a non-empty array`);
+    return false;
+  }
+
+  for (const [index, rawStep] of rawSteps.entries()) {
+    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) {
+      reportInvalidSdkTargets(context, target, `${fieldPath} ${index} must be a record`);
+      return false;
+    }
+    const step = rawStep as Record<string, unknown>;
+    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+      if (!isNonEmptyString(step[field])) {
+        reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (step.args !== undefined && !isStringArray(step.args)) {
+      reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.args must be a string array`);
+      return false;
+    }
+    if (step.env !== undefined) {
+      if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) {
+        reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.env must be a record`);
+        return false;
+      }
+      for (const [name, value] of Object.entries(step.env as Record<string, unknown>)) {
+        if (!isNonEmptyString(name) || typeof value !== 'string') {
+          reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.env must map strings to strings`);
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+function validateExtensionManifestRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  targetId: string,
+  rawManifest: unknown,
+): boolean {
+  if (!isRecord(rawManifest)) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest must be a record`);
+    return false;
+  }
+
+  const manifest = rawManifest;
+  for (const field of ['packageName', 'publisher', 'displayName', 'main']) {
+    if (!isNonEmptyString(manifest[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.${field} must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+  if (!isRecord(manifest.metadata)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata must be a record`,
+    );
+    return false;
+  }
+  const metadata = manifest.metadata as Record<string, unknown>;
+  for (const field of ['description', 'icon', 'license', 'homepage']) {
+    if (!isNonEmptyString(metadata[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.metadata.${field} must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+  if (!isRecord(metadata.repository)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata.repository must be a record`,
+    );
+    return false;
+  }
+  for (const field of ['type', 'url']) {
+    if (!isNonEmptyString((metadata.repository as Record<string, unknown>)[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.metadata.repository.${field} must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+  if (!isRecord(metadata.bugs) || !isNonEmptyString((metadata.bugs as Record<string, unknown>).url)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata.bugs.url must be a non-empty string`,
+    );
+    return false;
+  }
+  if (!isRecord(metadata.engines) || !isNonEmptyString((metadata.engines as Record<string, unknown>).vscode)) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.metadata.engines.vscode must be a non-empty string`,
+    );
+    return false;
+  }
+  for (const field of ['keywords', 'categories']) {
+    if (!isStringArray(metadata[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.metadata.${field} must be a string array`,
+      );
+      return false;
+    }
+  }
+
+  for (const field of ['activationEvents', 'views', 'commands', 'configurationKeys']) {
+    if (!isStringArray(manifest[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.${field} must be a string array`,
+      );
+      return false;
+    }
+  }
+
+  const views = manifest.views as string[];
+  const commands = manifest.commands as string[];
+  const configurationKeys = manifest.configurationKeys as string[];
+  const viewSet = new Set(views);
+  const commandSet = new Set(commands);
+  if (viewSet.size !== views.length || commandSet.size !== commands.length) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest has duplicate views or commands`);
+    return false;
+  }
+  if (new Set(configurationKeys).size !== configurationKeys.length) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest has duplicate configuration keys`);
+    return false;
+  }
+
+  const recordArrays = [
+    'viewContainers',
+    'viewDefinitions',
+    'commandDefinitions',
+    'configurationProperties',
+    'viewsWelcome',
+    'menus',
+  ];
+  for (const field of recordArrays) {
+    const value = manifest[field];
+    if (!Array.isArray(value) || value.some((entry) => !isRecord(entry))) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.${field} must be a record array`,
+      );
+      return false;
+    }
+  }
+
+  const viewContainers = manifest.viewContainers as Array<Record<string, unknown>>;
+  const viewDefinitions = manifest.viewDefinitions as Array<Record<string, unknown>>;
+  const commandDefinitions = manifest.commandDefinitions as Array<Record<string, unknown>>;
+  const configurationProperties = manifest.configurationProperties as Array<Record<string, unknown>>;
+  const viewsWelcome = manifest.viewsWelcome as Array<Record<string, unknown>>;
+  const menus = manifest.menus as Array<Record<string, unknown>>;
+
+  const containerIds = new Set<string>();
+  for (const [index, container] of viewContainers.entries()) {
+    for (const field of ['location', 'id', 'title']) {
+      if (!isNonEmptyString(container[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewContainers ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (container.icon !== undefined && !isNonEmptyString(container.icon)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewContainers ${index}.icon must be a non-empty string`,
+      );
+      return false;
+    }
+    containerIds.add(container.id as string);
+  }
+
+  const definedViews: string[] = [];
+  for (const [index, view] of viewDefinitions.entries()) {
+    for (const field of ['container', 'id', 'name']) {
+      if (!isNonEmptyString(view[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (!containerIds.has(view.container as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewDefinitions ${index}.container references unknown view container`,
+      );
+      return false;
+    }
+    for (const field of ['icon', 'when']) {
+      if (view[field] !== undefined && !isNonEmptyString(view[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    definedViews.push(view.id as string);
+  }
+  if (definedViews.join('\n') !== views.join('\n')) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest.viewDefinitions must match views`);
+    return false;
+  }
+
+  const definedCommands: string[] = [];
+  for (const [index, command] of commandDefinitions.entries()) {
+    for (const field of ['command', 'title']) {
+      if (!isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.commandDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    for (const field of ['category', 'icon', 'enablement']) {
+      if (command[field] !== undefined && !isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.commandDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    definedCommands.push(command.command as string);
+  }
+  if (definedCommands.join('\n') !== commands.join('\n')) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.commandDefinitions must match commands`,
+    );
+    return false;
+  }
+
+  const definedConfigurationKeys: string[] = [];
+  for (const [index, property] of configurationProperties.entries()) {
+    for (const field of ['key', 'type', 'description']) {
+      if (!isNonEmptyString(property[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.configurationProperties ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (
+      property.defaultValue !== undefined &&
+      !['boolean', 'number', 'string'].includes(typeof property.defaultValue)
+    ) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.configurationProperties ${index}.defaultValue must be scalar`,
+      );
+      return false;
+    }
+    definedConfigurationKeys.push(property.key as string);
+  }
+  if (definedConfigurationKeys.join('\n') !== configurationKeys.join('\n')) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.configurationProperties must match configurationKeys`,
+    );
+    return false;
+  }
+
+  for (const [index, entry] of viewsWelcome.entries()) {
+    for (const field of ['view', 'contents']) {
+      if (!isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewsWelcome ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (!viewSet.has(entry.view as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewsWelcome ${index}.view references unknown view`,
+      );
+      return false;
+    }
+    if (entry.when !== undefined && !isNonEmptyString(entry.when)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewsWelcome ${index}.when must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+
+  for (const [index, entry] of menus.entries()) {
+    for (const field of ['location', 'command']) {
+      if (!isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.menus ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (!commandSet.has(entry.command as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.menus ${index}.command references unknown command`,
+      );
+      return false;
+    }
+    for (const field of ['when', 'group']) {
+      if (entry[field] !== undefined && !isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.menus ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+  }
+
+  for (const activationEvent of manifest.activationEvents as string[]) {
+    if (activationEvent.startsWith('onView:') && !viewSet.has(activationEvent.slice('onView:'.length))) {
+      reportInvalidSdkTargets(context, target, `${targetId} extensionManifest.activationEvents references unknown view`);
+      return false;
+    }
+    if (
+      activationEvent.startsWith('onCommand:') &&
+      !commandSet.has(activationEvent.slice('onCommand:'.length))
+    ) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.activationEvents references unknown command`,
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function validateSecurityAuditRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawSecurityAudit: unknown,
+): boolean {
+  if (!rawSecurityAudit || typeof rawSecurityAudit !== 'object' || Array.isArray(rawSecurityAudit)) {
+    reportInvalidSdkTargets(context, target, 'securityAudit must be a record');
+    return false;
+  }
+
+  const securityAudit = rawSecurityAudit as Record<string, unknown>;
+  if (!validateCommandStepArray(context, target, 'securityAudit.commands', securityAudit.commands)) {
+    return false;
+  }
+
+  if (!Array.isArray(securityAudit.secretScanExcludes)) {
+    reportInvalidSdkTargets(context, target, 'securityAudit.secretScanExcludes must be an array');
+    return false;
+  }
+  for (const [index, rawExclude] of securityAudit.secretScanExcludes.entries()) {
+    if (!rawExclude || typeof rawExclude !== 'object' || Array.isArray(rawExclude)) {
+      reportInvalidSdkTargets(context, target, `securityAudit.secretScanExcludes ${index} must be a record`);
+      return false;
+    }
+    const exclude = rawExclude as Record<string, unknown>;
+    if (!isNonEmptyString(exclude.path) || !isNonEmptyString(exclude.reason)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `securityAudit.secretScanExcludes ${index} requires path and reason`,
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function validateLocalCiRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawLocalCi: unknown,
+): boolean {
+  if (!rawLocalCi || typeof rawLocalCi !== 'object' || Array.isArray(rawLocalCi)) {
+    reportInvalidSdkTargets(context, target, 'localCi must be a record');
+    return false;
+  }
+
+  const localCi = rawLocalCi as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'localCi.steps', localCi.steps);
+}
+
+function validateTestSuitesRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawTestSuites: unknown,
+): boolean {
+  if (!rawTestSuites || typeof rawTestSuites !== 'object' || Array.isArray(rawTestSuites)) {
+    reportInvalidSdkTargets(context, target, 'testSuites must be a record');
+    return false;
+  }
+
+  const testSuites = rawTestSuites as Record<string, unknown>;
+  const defaultSuites = testSuites.defaultSuites;
+  if (!isStringArray(defaultSuites) || defaultSuites.length === 0) {
+    reportInvalidSdkTargets(context, target, 'testSuites.defaultSuites must be a non-empty string array');
+    return false;
+  }
+  if (!validateCommandStepArray(context, target, 'testSuites.suites', testSuites.suites)) {
+    return false;
+  }
+
+  const suiteIds = new Set((testSuites.suites as Array<Record<string, unknown>>).map((suite) => suite.id as string));
+  for (const suiteId of defaultSuites) {
+    if (!suiteIds.has(suiteId)) {
+      reportInvalidSdkTargets(context, target, `testSuites.defaultSuites references unknown suite ${suiteId}`);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function validateCodegenBuildRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawCodegenBuild: unknown,
+): boolean {
+  if (!rawCodegenBuild || typeof rawCodegenBuild !== 'object' || Array.isArray(rawCodegenBuild)) {
+    reportInvalidSdkTargets(context, target, 'codegenBuild must be a record');
+    return false;
+  }
+
+  const codegenBuild = rawCodegenBuild as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'codegenBuild.steps', codegenBuild.steps);
+}
+
+function validateSdkGenerationRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawSdkGeneration: unknown,
+): boolean {
+  if (!rawSdkGeneration || typeof rawSdkGeneration !== 'object' || Array.isArray(rawSdkGeneration)) {
+    reportInvalidSdkTargets(context, target, 'sdkGeneration must be a record');
+    return false;
+  }
+
+  const sdkGeneration = rawSdkGeneration as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'sdkGeneration.steps', sdkGeneration.steps);
+}
+
+function validateSpecCommandsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawSpecCommands: unknown,
+): boolean {
+  if (!rawSpecCommands || typeof rawSpecCommands !== 'object' || Array.isArray(rawSpecCommands)) {
+    reportInvalidSdkTargets(context, target, 'specCommands must be a record');
+    return false;
+  }
+
+  const specCommands = rawSpecCommands as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'specCommands.commands', specCommands.commands);
+}
+
+function validateServiceDriftRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawServiceDrift: unknown,
+): boolean {
+  if (!rawServiceDrift || typeof rawServiceDrift !== 'object' || Array.isArray(rawServiceDrift)) {
+    reportInvalidSdkTargets(context, target, 'serviceDrift must be a record');
+    return false;
+  }
+
+  const serviceDrift = rawServiceDrift as Record<string, unknown>;
+  if (
+    !isNonEmptyString(serviceDrift.script) ||
+    !isStringArray(serviceDrift.services) ||
+    serviceDrift.services.length === 0 ||
+    !isStringArray(serviceDrift.tiers) ||
+    serviceDrift.tiers.length === 0 ||
+    !isNonEmptyString(serviceDrift.policy)
+  ) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      'serviceDrift requires script, non-empty services/tiers, and policy',
+    );
+    return false;
+  }
+
+  if (!Array.isArray(serviceDrift.commands) || serviceDrift.commands.length === 0) {
+    reportInvalidSdkTargets(context, target, 'serviceDrift.commands must be a non-empty array');
+    return false;
+  }
+
+  const commandIds = new Set<string>();
+  for (const [index, rawCommand] of serviceDrift.commands.entries()) {
+    if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.commands ${index} must be a record`);
+      return false;
+    }
+    const command = rawCommand as Record<string, unknown>;
+    for (const field of ['id', 'label', 'command', 'workingDirectory', 'outputPathTemplate', 'behavior']) {
+      if (!isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `serviceDrift.commands ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (commandIds.has(command.id as string)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.commands duplicate id ${command.id}`);
+      return false;
+    }
+    commandIds.add(command.id as string);
+    if (command.args !== undefined && !isStringArray(command.args)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.commands ${index}.args must be a string array`);
+      return false;
+    }
+  }
+
+  if (!Array.isArray(serviceDrift.upstreamSources) || serviceDrift.upstreamSources.length === 0) {
+    reportInvalidSdkTargets(context, target, 'serviceDrift.upstreamSources must be a non-empty array');
+    return false;
+  }
+
+  const sourcePairs = new Set<string>();
+  for (const [index, rawSource] of serviceDrift.upstreamSources.entries()) {
+    if (!rawSource || typeof rawSource !== 'object' || Array.isArray(rawSource)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.upstreamSources ${index} must be a record`);
+      return false;
+    }
+    const source = rawSource as Record<string, unknown>;
+    for (const field of ['service', 'tier', 'source']) {
+      if (!isNonEmptyString(source[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `serviceDrift.upstreamSources ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    sourcePairs.add(`${source.service}:${source.tier}`);
+  }
+
+  for (const service of serviceDrift.services) {
+    for (const tier of serviceDrift.tiers) {
+      const pair = `${service}:${tier}`;
+      if (!sourcePairs.has(pair)) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `serviceDrift.upstreamSources is missing ${pair}`,
+        );
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function validateRootPipelinesRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawRootPipelines: unknown,
+): boolean {
+  if (!rawRootPipelines || typeof rawRootPipelines !== 'object' || Array.isArray(rawRootPipelines)) {
+    reportInvalidSdkTargets(context, target, 'rootPipelines must be a record');
+    return false;
+  }
+
+  const rootPipelines = rawRootPipelines as Record<string, unknown>;
+  if (!Array.isArray(rootPipelines.pipelines) || rootPipelines.pipelines.length === 0) {
+    reportInvalidSdkTargets(context, target, 'rootPipelines.pipelines must be a non-empty array');
+    return false;
+  }
+
+  const ids = new Set<string>();
+  for (const [index, rawPipeline] of rootPipelines.pipelines.entries()) {
+    if (!rawPipeline || typeof rawPipeline !== 'object' || Array.isArray(rawPipeline)) {
+      reportInvalidSdkTargets(context, target, `rootPipelines.pipelines ${index} must be a record`);
+      return false;
+    }
+    const pipeline = rawPipeline as Record<string, unknown>;
+    for (const field of ['id', 'label']) {
+      if (!isNonEmptyString(pipeline[field])) {
+        reportInvalidSdkTargets(context, target, `rootPipelines.pipelines ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (ids.has(pipeline.id as string)) {
+      reportInvalidSdkTargets(context, target, `rootPipelines.pipelines duplicate id ${pipeline.id}`);
+      return false;
+    }
+    ids.add(pipeline.id as string);
+    if (!validateCommandStepArray(context, target, `rootPipelines.pipelines ${index}.steps`, pipeline.steps)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function validateBundleBuildRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawBundleBuild: unknown,
+): boolean {
+  if (!rawBundleBuild || typeof rawBundleBuild !== 'object' || Array.isArray(rawBundleBuild)) {
+    reportInvalidSdkTargets(context, target, 'bundleBuild must be a record');
+    return false;
+  }
+
+  const bundleBuild = rawBundleBuild as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'bundleBuild.steps', bundleBuild.steps);
+}
+
+function validateQualityCommandsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawQualityCommands: unknown,
+): boolean {
+  if (!rawQualityCommands || typeof rawQualityCommands !== 'object' || Array.isArray(rawQualityCommands)) {
+    reportInvalidSdkTargets(context, target, 'qualityCommands must be a record');
+    return false;
+  }
+
+  const qualityCommands = rawQualityCommands as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'qualityCommands.commands', qualityCommands.commands);
+}
+
+function validateGeneratedChecksRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawGeneratedChecks: unknown,
+): boolean {
+  if (!rawGeneratedChecks || typeof rawGeneratedChecks !== 'object' || Array.isArray(rawGeneratedChecks)) {
+    reportInvalidSdkTargets(context, target, 'generatedChecks must be a record');
+    return false;
+  }
+
+  const generatedChecks = rawGeneratedChecks as Record<string, unknown>;
+  return validateCommandStepArray(context, target, 'generatedChecks.commands', generatedChecks.commands);
+}
+
+function validatePackageSurfaceRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawPackageSurface: unknown,
+): boolean {
+  if (!rawPackageSurface || typeof rawPackageSurface !== 'object' || Array.isArray(rawPackageSurface)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface must be a record');
+    return false;
+  }
+
+  const packageSurface = rawPackageSurface as Record<string, unknown>;
+  if (!isNonEmptyString(packageSurface.packageName)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.packageName must be a non-empty string');
+    return false;
+  }
+  if (!isStringArray(packageSurface.files)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.files must be a string array');
+    return false;
+  }
+
+  if (!Array.isArray(packageSurface.bin)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.bin must be an array');
+    return false;
+  }
+  const binNames = new Set<string>();
+  for (const [index, rawBin] of packageSurface.bin.entries()) {
+    if (!rawBin || typeof rawBin !== 'object' || Array.isArray(rawBin)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.bin ${index} must be a record`);
+      return false;
+    }
+    const bin = rawBin as Record<string, unknown>;
+    if (!isNonEmptyString(bin.name) || !isNonEmptyString(bin.path)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.bin ${index} requires name and path`);
+      return false;
+    }
+    if (binNames.has(bin.name)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.bin duplicate name ${bin.name}`);
+      return false;
+    }
+    binNames.add(bin.name);
+  }
+
+  if (!Array.isArray(packageSurface.exports) || packageSurface.exports.length === 0) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.exports must be a non-empty array');
+    return false;
+  }
+  const exportSubpaths = new Set<string>();
+  for (const [index, rawExport] of packageSurface.exports.entries()) {
+    if (!rawExport || typeof rawExport !== 'object' || Array.isArray(rawExport)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.exports ${index} must be a record`);
+      return false;
+    }
+    const exportEntry = rawExport as Record<string, unknown>;
+    for (const field of ['subpath', 'types', 'importPath']) {
+      if (!isNonEmptyString(exportEntry[field])) {
+        reportInvalidSdkTargets(context, target, `packageSurface.exports ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (exportSubpaths.has(exportEntry.subpath as string)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.exports duplicate subpath ${exportEntry.subpath}`);
+      return false;
+    }
+    exportSubpaths.add(exportEntry.subpath as string);
+  }
+
+  return true;
+}
+
+const PACKAGE_SCRIPT_KINDS = new Set(['spec-runner', 'lifecycle-alias', 'compatibility-alias']);
+
+function validatePackageScriptsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawPackageScripts: unknown,
+): boolean {
+  if (!rawPackageScripts || typeof rawPackageScripts !== 'object' || Array.isArray(rawPackageScripts)) {
+    reportInvalidSdkTargets(context, target, 'packageScripts must be a record');
+    return false;
+  }
+
+  const packageScripts = rawPackageScripts as Record<string, unknown>;
+  if (!Array.isArray(packageScripts.scripts) || packageScripts.scripts.length === 0) {
+    reportInvalidSdkTargets(context, target, 'packageScripts.scripts must be a non-empty array');
+    return false;
+  }
+
+  const scriptNames = new Set<string>();
+  for (const [index, rawScript] of packageScripts.scripts.entries()) {
+    if (!rawScript || typeof rawScript !== 'object' || Array.isArray(rawScript)) {
+      reportInvalidSdkTargets(context, target, `packageScripts.scripts ${index} must be a record`);
+      return false;
+    }
+
+    const script = rawScript as Record<string, unknown>;
+    for (const field of ['name', 'command', 'kind']) {
+      if (!isNonEmptyString(script[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `packageScripts.scripts ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (scriptNames.has(script.name as string)) {
+      reportInvalidSdkTargets(context, target, `packageScripts.scripts duplicate name ${script.name}`);
+      return false;
+    }
+    scriptNames.add(script.name as string);
+    if (!PACKAGE_SCRIPT_KINDS.has(script.kind as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `packageScripts.scripts ${index}.kind must be spec-runner, lifecycle-alias, or compatibility-alias`,
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function validateScriptInventoryRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawScriptInventory: unknown,
+): boolean {
+  if (!rawScriptInventory || typeof rawScriptInventory !== 'object' || Array.isArray(rawScriptInventory)) {
+    reportInvalidSdkTargets(context, target, 'scriptInventory must be a record');
+    return false;
+  }
+
+  const scriptInventory = rawScriptInventory as Record<string, unknown>;
+  if (!Array.isArray(scriptInventory.entries) || scriptInventory.entries.length === 0) {
+    reportInvalidSdkTargets(context, target, 'scriptInventory.entries must be a non-empty array');
+    return false;
+  }
+
+  const paths = new Set<string>();
+  for (const [index, rawEntry] of scriptInventory.entries.entries()) {
+    if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) {
+      reportInvalidSdkTargets(context, target, `scriptInventory.entries ${index} must be a record`);
+      return false;
+    }
+    const entry = rawEntry as Record<string, unknown>;
+    for (const field of ['path', 'category', 'canonicalSurface', 'role']) {
+      if (!isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `scriptInventory.entries ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (paths.has(entry.path as string)) {
+      reportInvalidSdkTargets(context, target, `scriptInventory.entries duplicate path ${entry.path}`);
+      return false;
+    }
+    paths.add(entry.path as string);
+  }
+
+  return true;
+}
+
+function validateCleanArtifactsRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawCleanArtifacts: unknown,
+): boolean {
+  if (!rawCleanArtifacts || typeof rawCleanArtifacts !== 'object' || Array.isArray(rawCleanArtifacts)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts must be a record');
+    return false;
+  }
+
+  const cleanArtifacts = rawCleanArtifacts as Record<string, unknown>;
+  if (!isStringArray(cleanArtifacts.paths)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts.paths must be a string array');
+    return false;
+  }
+
+  if (!Array.isArray(cleanArtifacts.nestedNames)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts.nestedNames must be an array');
+    return false;
+  }
+  for (const [index, rawNested] of cleanArtifacts.nestedNames.entries()) {
+    if (!rawNested || typeof rawNested !== 'object' || Array.isArray(rawNested)) {
+      reportInvalidSdkTargets(context, target, `cleanArtifacts.nestedNames ${index} must be a record`);
+      return false;
+    }
+    const nested = rawNested as Record<string, unknown>;
+    if (!isNonEmptyString(nested.root) || !isStringArray(nested.names)) {
+      reportInvalidSdkTargets(context, target, `cleanArtifacts.nestedNames ${index} requires root and names`);
+      return false;
+    }
+  }
+
+  if (!Array.isArray(cleanArtifacts.filePatterns)) {
+    reportInvalidSdkTargets(context, target, 'cleanArtifacts.filePatterns must be an array');
+    return false;
+  }
+  for (const [index, rawPattern] of cleanArtifacts.filePatterns.entries()) {
+    if (!rawPattern || typeof rawPattern !== 'object' || Array.isArray(rawPattern)) {
+      reportInvalidSdkTargets(context, target, `cleanArtifacts.filePatterns ${index} must be a record`);
+      return false;
+    }
+    const pattern = rawPattern as Record<string, unknown>;
+    for (const field of ['root', 'prefix', 'suffix']) {
+      if (!isNonEmptyString(pattern[field])) {
+        reportInvalidSdkTargets(context, target, `cleanArtifacts.filePatterns ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+export function $sdkTargets(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportInvalidSdkTargets(context, target, 'expected a record literal');
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (record.generatedArtifacts !== undefined) {
+    if (!record.generatedArtifacts || typeof record.generatedArtifacts !== 'object' || Array.isArray(record.generatedArtifacts)) {
+      reportInvalidSdkTargets(context, target, 'generatedArtifacts must be a record');
+      return;
+    }
+
+    const artifacts = record.generatedArtifacts as Record<string, unknown>;
+    for (const field of ['generatedRoots', 'generatedFiles']) {
+      if (!isStringArray(artifacts[field])) {
+        reportInvalidSdkTargets(context, target, `generatedArtifacts.${field} must be a string array`);
+        return;
+      }
+    }
+
+    const nested = artifacts.nestedGeneratedFiles;
+    if (nested !== undefined) {
+      if (!Array.isArray(nested)) {
+        reportInvalidSdkTargets(context, target, 'generatedArtifacts.nestedGeneratedFiles must be an array');
+        return;
+      }
+      for (const [index, rawNested] of nested.entries()) {
+        if (!rawNested || typeof rawNested !== 'object' || Array.isArray(rawNested)) {
+          reportInvalidSdkTargets(
+            context,
+            target,
+            `generatedArtifacts.nestedGeneratedFiles ${index} must be a record`,
+          );
+          return;
+        }
+        const nestedEntry = rawNested as Record<string, unknown>;
+        if (!isNonEmptyString(nestedEntry.root) || !isStringArray(nestedEntry.suffixes)) {
+          reportInvalidSdkTargets(
+            context,
+            target,
+            `generatedArtifacts.nestedGeneratedFiles ${index} requires root and suffixes`,
+          );
+          return;
+        }
+      }
+    }
+  }
+
+  if (record.packageSurface !== undefined) {
+    if (!validatePackageSurfaceRecord(context, target, record.packageSurface)) {
+      return;
+    }
+  }
+
+  if (record.packageScripts !== undefined) {
+    if (!validatePackageScriptsRecord(context, target, record.packageScripts)) {
+      return;
+    }
+  }
+
+  if (record.scriptInventory !== undefined) {
+    if (!validateScriptInventoryRecord(context, target, record.scriptInventory)) {
+      return;
+    }
+  }
+
+  if (record.codegenBuild !== undefined) {
+    if (!validateCodegenBuildRecord(context, target, record.codegenBuild)) {
+      return;
+    }
+  }
+
+  if (record.sdkGeneration !== undefined) {
+    if (!validateSdkGenerationRecord(context, target, record.sdkGeneration)) {
+      return;
+    }
+  }
+
+  if (record.specCommands !== undefined) {
+    if (!validateSpecCommandsRecord(context, target, record.specCommands)) {
+      return;
+    }
+  }
+
+  if (record.serviceDrift !== undefined) {
+    if (!validateServiceDriftRecord(context, target, record.serviceDrift)) {
+      return;
+    }
+  }
+
+  if (record.rootPipelines !== undefined) {
+    if (!validateRootPipelinesRecord(context, target, record.rootPipelines)) {
+      return;
+    }
+  }
+
+  if (record.bundleBuild !== undefined) {
+    if (!validateBundleBuildRecord(context, target, record.bundleBuild)) {
+      return;
+    }
+  }
+
+  if (record.qualityCommands !== undefined) {
+    if (!validateQualityCommandsRecord(context, target, record.qualityCommands)) {
+      return;
+    }
+  }
+
+  if (record.generatedChecks !== undefined) {
+    if (!validateGeneratedChecksRecord(context, target, record.generatedChecks)) {
+      return;
+    }
+  }
+
+  if (record.testSuites !== undefined) {
+    if (!validateTestSuitesRecord(context, target, record.testSuites)) {
+      return;
+    }
+  }
+
+  if (record.cleanArtifacts !== undefined) {
+    if (!validateCleanArtifactsRecord(context, target, record.cleanArtifacts)) {
+      return;
+    }
+  }
+
+  if (record.securityAudit !== undefined) {
+    if (!validateSecurityAuditRecord(context, target, record.securityAudit)) {
+      return;
+    }
+  }
+
+  if (record.localCi !== undefined) {
+    if (!validateLocalCiRecord(context, target, record.localCi)) {
+      return;
+    }
+  }
+
+  const targets = record.targets;
+  if (!Array.isArray(targets) || targets.length === 0) {
+    reportInvalidSdkTargets(context, target, 'targets must be a non-empty array');
+    return;
+  }
+
+  for (const [index, rawTarget] of targets.entries()) {
+    if (!rawTarget || typeof rawTarget !== 'object' || Array.isArray(rawTarget)) {
+      reportInvalidSdkTargets(context, target, `target ${index} must be a record`);
+      return;
+    }
+    const sdkTarget = rawTarget as Record<string, unknown>;
+    if (!isNonEmptyString(sdkTarget.id)) {
+      reportInvalidSdkTargets(context, target, `target ${index} is missing id`);
+      return;
+    }
+    if (!Array.isArray(sdkTarget.commands) || sdkTarget.commands.length === 0) {
+      reportInvalidSdkTargets(context, target, `${sdkTarget.id} commands must be a non-empty array`);
+      return;
+    }
+
+    for (const [commandIndex, rawCommand] of sdkTarget.commands.entries()) {
+      if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
+        reportInvalidSdkTargets(context, target, `${sdkTarget.id} command ${commandIndex} must be a record`);
+        return;
+      }
+      const command = rawCommand as Record<string, unknown>;
+      if (!isNonEmptyString(command.command)) {
+        reportInvalidSdkTargets(context, target, `${sdkTarget.id} command ${commandIndex} is missing command`);
+        return;
+      }
+      if (command.args !== undefined) {
+        if (!Array.isArray(command.args) || !command.args.every((arg) => typeof arg === 'string')) {
+          reportInvalidSdkTargets(context, target, `${sdkTarget.id} ${command.command} args must be a string array`);
+          return;
+        }
+      }
+      if (command.env !== undefined) {
+        if (!command.env || typeof command.env !== 'object' || Array.isArray(command.env)) {
+          reportInvalidSdkTargets(context, target, `${sdkTarget.id} ${command.command} env must be a record`);
+          return;
+        }
+        for (const [name, value] of Object.entries(command.env as Record<string, unknown>)) {
+          if (!isNonEmptyString(name) || typeof value !== 'string') {
+            reportInvalidSdkTargets(
+              context,
+              target,
+              `${sdkTarget.id} ${command.command} env must map strings to strings`,
+            );
+            return;
+          }
+        }
+      }
+    }
+
+    if (sdkTarget.extensionManifest !== undefined) {
+      if (sdkTarget.kind !== 'app') {
+        reportInvalidSdkTargets(context, target, `${sdkTarget.id} extensionManifest is only valid for app targets`);
+        return;
+      }
+      if (!validateExtensionManifestRecord(context, target, sdkTarget.id, sdkTarget.extensionManifest)) {
+        return;
+      }
+    }
+  }
+
+  context.program.stateMap(stateKeys.sdkTargets).set(target, record);
+}
+
+export function getSdkTargets(
+  program: Program,
+  target: Namespace,
+): SdkTargetsBinding | undefined {
+  return program.stateMap(stateKeys.sdkTargets).get(target);
 }

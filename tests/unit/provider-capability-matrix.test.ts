@@ -20,6 +20,7 @@ import {
   POLICY_EVALUATION_GUARDS,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
+  MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
   N8N_INTEGRATION_SURFACE,
   PLUGIN_CAPABILITY_GUARDS,
@@ -34,6 +35,7 @@ import {
   SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
+  USAGE_NORMALIZATION_SURFACE,
   type OpenBoxProviderId,
 } from '../../ts/src/governance/capability-matrix.js';
 
@@ -86,6 +88,7 @@ describe('provider capability matrix', () => {
     expect(PUBLIC_INTEGRATION_SUPPORT).toEqual(fixture.publicIntegrationSupport);
     expect(GOAL_SIGNAL_GUARDS).toEqual(fixture.goalSignalGuards);
     expect(USAGE_COST_CAPABILITY_GUARDS).toEqual(fixture.usageCostCapabilityGuards);
+    expect(USAGE_NORMALIZATION_SURFACE).toEqual(fixture.usageNormalizationSurface);
     expect(TRACING_CAPABILITY_GUARDS).toEqual(fixture.tracingCapabilityGuards);
     expect(HITL_CAPABILITY_GUARDS).toEqual(fixture.hitlCapabilityGuards);
     expect(GUARDRAIL_CAPABILITY_GUARDS).toEqual(fixture.guardrailCapabilityGuards);
@@ -104,6 +107,7 @@ describe('provider capability matrix', () => {
     expect(MCP_TOOL_SURFACES).toEqual(fixture.mcpToolSurfaces);
     expect(MCP_PROMPT_SURFACES).toEqual(fixture.mcpPromptSurfaces);
     expect(MCP_RESOURCE_TEMPLATE_SURFACES).toEqual(fixture.mcpResourceTemplateSurfaces);
+    expect(MCP_SKILL_REFERENCE_SURFACES).toEqual(fixture.mcpSkillReferenceSurfaces);
     expect(N8N_INTEGRATION_SURFACE).toEqual(fixture.n8nIntegrationSurface);
   });
 
@@ -236,6 +240,16 @@ describe('provider capability matrix', () => {
       expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toContain('OpenBox Core');
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
+    expect(USAGE_NORMALIZATION_SURFACE.canonicalFields).toEqual(
+      expect.arrayContaining(['input_tokens', 'output_tokens', 'total_tokens', 'cost_usd']),
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.inputTokenAliases).toEqual(
+      expect.arrayContaining(['inputTokens', 'input_tokens', 'promptTokenCount']),
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.costUsdAliases).toEqual(
+      expect.arrayContaining(['costUSD', 'cost_usd', 'total_cost_usd']),
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.policyBoundary).toContain('OpenBox Core');
   });
 
   it('pins tracing support claims to explicit tracing guard coverage', () => {
@@ -635,8 +649,30 @@ describe('provider capability matrix', () => {
       expect.arrayContaining(['manifest', 'marketplace', 'skills', 'repo-skill', 'hooks', 'mcp', 'agents-md', 'rules']),
     );
     expect(byProvider.get('cursor')?.map((entry) => entry.name)).toEqual(
-      expect.arrayContaining(['plugin-manifest', 'hooks', 'mcp', 'rules', 'commands', 'agents', 'skills', 'workspaceOpen']),
+      expect.arrayContaining([
+        'plugin-manifest',
+        'hooks',
+        'mcp',
+        'rules',
+        'commands',
+        'agents',
+        'skills',
+        'workspaceOpen',
+        'repo-hooks',
+        'repo-mcp',
+        'repo-rules',
+        'repo-skill',
+      ]),
     );
+    const cursorRepoComponents = (byProvider.get('cursor') ?? []).filter(
+      (entry) => (entry as { surface?: string }).surface === 'repo',
+    );
+    expect(cursorRepoComponents.map((entry) => (entry as { path?: string }).path)).toEqual([
+      '.cursor/hooks.json',
+      '.cursor/mcp.json',
+      '.cursor/rules/openbox-governance.mdc',
+      '.agents/skills/openbox/SKILL.md',
+    ]);
     expect(byProvider.get('claude-code')?.find((entry) => entry.name === 'lsp')?.tier).toBe('out-of-scope');
     expect(byProvider.get('claude-code')?.find((entry) => entry.name === 'monitors')?.tier).toBe('diagnose-only');
   });
@@ -647,6 +683,7 @@ describe('provider capability matrix', () => {
     );
 
     expect(byIntegration.get('openai-agents-sdk')?.tier).toBe('native');
+    expect(byIntegration.get('openai-agents-sdk')?.packageSubpath).toBe('./openai-agents-sdk');
     expect(byIntegration.get('openai-agents-sdk')?.exports).toEqual(
       expect.arrayContaining([
         'createOpenBoxAgentHooks',
@@ -657,7 +694,10 @@ describe('provider capability matrix', () => {
         'openBoxToolOutputGuardrail',
       ]),
     );
+    expect(byIntegration.get('anthropic-agent-sdk')?.packageSubpath).toBe('./anthropic-agent-sdk');
+    expect(byIntegration.get('copilotkit')?.packageSubpath).toBe('./copilotkit');
     expect(byIntegration.get('copilotkit')?.exports).toContain('createOpenBoxAGUIAdapter');
+    expect(byIntegration.get('n8n')?.packageSubpath).toBe('./runtime/n8n');
     expect(byIntegration.get('n8n')?.exports).toContain('OPENBOX_N8N_INTEGRATION');
     expect(byIntegration.get('n8n')?.exports).toEqual(
       expect.arrayContaining([
@@ -703,6 +743,7 @@ describe('provider capability matrix', () => {
     expect(N8N_INTEGRATION_SURFACE.credentials[0].id).toBe('openboxCredentials');
     expect(N8N_INTEGRATION_SURFACE.nodes.map((entry) => entry.id)).toEqual(
       expect.arrayContaining([
+        'openboxLlm',
         'openboxGovernance',
         'openboxGuardrails',
         'openboxApproval',
@@ -710,6 +751,15 @@ describe('provider capability matrix', () => {
       ]),
     );
     expect(N8N_INTEGRATION_SURFACE.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+    expect((N8N_INTEGRATION_SURFACE.workflowTemplates[0].workflow as { nodes?: readonly unknown[] }).nodes?.length).toBeGreaterThan(0);
+    expect((N8N_INTEGRATION_SURFACE.workflowTemplates[0].workflow as { nodes: ReadonlyArray<{ type: string }> }).nodes.map((node) => node.type)).toEqual(
+      expect.arrayContaining([
+        'n8n-nodes-openbox-hook.openboxGovernance',
+        '@n8n/n8n-nodes-langchain.agent',
+        'n8n-nodes-openbox-hook.openboxGuardrails',
+        'n8n-nodes-openbox-hook.openboxApproval',
+      ]),
+    );
     expect(N8N_INTEGRATION_SURFACE.examples.map((entry) => entry.id)).toEqual(
       expect.arrayContaining([
         'ai-agent-tool-review',
@@ -718,5 +768,150 @@ describe('provider capability matrix', () => {
         'mcp-server-trigger',
       ]),
     );
+    expect(N8N_INTEGRATION_SURFACE.examples.every((entry) =>
+      Array.isArray((entry.workflow as { nodes?: readonly unknown[] }).nodes))).toBe(true);
+    expect(N8N_INTEGRATION_SURFACE.examples.find((entry) => entry.id === 'mcp-client-tool')?.workflow).toMatchObject({
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ type: '@n8n/n8n-nodes-langchain.toolmcp' }),
+      ]),
+    });
+    expect(N8N_INTEGRATION_SURFACE.examples.find((entry) => entry.id === 'mcp-server-trigger')?.workflow).toMatchObject({
+      nodes: expect.arrayContaining([
+        expect.objectContaining({ type: '@n8n/n8n-nodes-langchain.mcptrigger' }),
+      ]),
+    });
+    const showcase = N8N_INTEGRATION_SURFACE.showcaseWorkflows.find(
+      (entry) => entry.id === 'sdk-showcase',
+    ) as Record<string, any> | undefined;
+    expect(showcase).toBeDefined();
+    const showcaseWorkflow = JSON.parse(
+      readFileSync(resolve(process.cwd(), showcase!.path), 'utf8'),
+    ) as {
+      name: string;
+      nodes: Array<{
+        id?: string;
+        name: string;
+        type: string;
+        parameters?: Record<string, unknown>;
+        credentials?: Record<string, { id?: unknown }>;
+        [key: string]: unknown;
+      }>;
+      connections: Record<string, Record<string, Array<Array<{ node: string }>>>>;
+    };
+    const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
+    const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    const showcaseNodeByName = new Map(showcaseWorkflow.nodes.map((node) => [node.name, node]));
+    const connectedNodes = (source: string): string[] =>
+      Object.values(showcaseWorkflow.connections[source] ?? {}).flatMap(
+        (branches) => branches.flatMap((branch) => branch.map((edge) => edge.node)),
+      );
+    const hasEdge = (from: string, to: string): boolean =>
+      connectedNodes(from).includes(to);
+    expect(showcaseWorkflow.name).toBe(showcase!.name);
+    for (const openboxNodeId of showcase!.requiredOpenBoxNodeIds) {
+      expect(N8N_INTEGRATION_SURFACE.packageManifest.openboxSpecNodeIds).toContain(openboxNodeId);
+    }
+    for (const type of showcase!.requiredOpenBoxNodeTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const type of showcase!.requiredTriggerTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const checkpoint of showcase!.requiredCheckpoints) {
+      expect(showcaseNodeNames.has(checkpoint)).toBe(true);
+      const node = showcaseWorkflow.nodes.find((entry) => entry.name === checkpoint);
+      expect(showcase!.requiredOpenBoxNodeTypes).toContain(node?.type);
+    }
+    for (const terminalNode of showcase!.requiredTerminalNodes) {
+      expect(showcaseNodeNames.has(terminalNode)).toBe(true);
+    }
+    for (const edge of showcase!.requiredEntryEdges) {
+      expect(hasEdge(edge.from, edge.to)).toBe(true);
+    }
+    for (const gate of showcase!.checkpointGates) {
+      expect(hasEdge(gate.checkpoint, gate.gate)).toBe(true);
+      expect(hasEdge(gate.gate, gate.pass)).toBe(true);
+      expect(hasEdge(gate.gate, gate.fail)).toBe(true);
+    }
+    for (const identity of showcase!.requiredNodeIdentities ?? []) {
+      const node = showcaseNodeByName.get(identity.name);
+      expect(node, identity.name).toBeDefined();
+      expect(node?.id, `${identity.name}.id`).toBe(identity.id);
+      expect(node?.type, `${identity.name}.type`).toBe(identity.type);
+    }
+    for (const flag of showcase!.requiredNodeBooleanFlags ?? []) {
+      const node = showcaseNodeByName.get(flag.node);
+      expect(node, flag.node).toBeDefined();
+      expect(node?.[flag.flag], `${flag.node}.${flag.flag}`).toBe(flag.expected);
+    }
+    for (const check of showcase!.expressionSourceChecks ?? []) {
+      const nodeText = JSON.stringify(showcaseNodeByName.get(check.node) ?? {});
+      for (const required of check.requiredContains) {
+        expect(nodeText, `${check.node} must contain ${required}`).toContain(required);
+      }
+      for (const forbidden of check.forbiddenContains) {
+        expect(nodeText, `${check.node} must not contain ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+    for (const check of showcase!.requiredOpenBoxNodeParameterChecks ?? []) {
+      const nodes = showcaseWorkflow.nodes.filter((node) => node.type === check.nodeType);
+      expect(nodes.length, `${check.nodeType} nodes`).toBeGreaterThan(0);
+      for (const node of nodes) {
+        const value = String(node.parameters?.[check.parameter] ?? '');
+        expect(value, `${node.name}.${check.parameter}`).not.toBe('');
+        for (const required of check.requiredContains) {
+          expect(value, `${node.name}.${check.parameter} must contain ${required}`).toContain(required);
+        }
+        for (const forbidden of check.forbiddenContains) {
+          expect(value, `${node.name}.${check.parameter} must not contain ${forbidden}`).not.toContain(
+            forbidden,
+          );
+        }
+        expect(check.forbiddenValues, `${node.name}.${check.parameter} exact value`).not.toContain(
+          value,
+        );
+      }
+    }
+    const missingConnectionRefs: string[] = [];
+    for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
+      if (!showcaseNodeNames.has(source)) missingConnectionRefs.push(source);
+      for (const branches of Object.values(outputs)) {
+        for (const branch of branches) {
+          for (const edge of branch) {
+            if (!showcaseNodeNames.has(edge.node)) missingConnectionRefs.push(edge.node);
+          }
+        }
+      }
+    }
+    expect(missingConnectionRefs).toEqual([]);
+    const showcaseJson = JSON.stringify(showcaseWorkflow);
+    expect(showcaseJson).toContain(showcase!.terminalLogTable);
+    for (const forbidden of showcase!.forbiddenWorkflowText ?? []) {
+      expect(showcaseJson, `showcase must not contain ${forbidden}`).not.toContain(forbidden);
+    }
+    for (const forbiddenPattern of showcase!.forbiddenWorkflowRegexes ?? []) {
+      expect(showcaseJson, `showcase must not match ${forbiddenPattern}`).not.toMatch(
+        new RegExp(forbiddenPattern),
+      );
+    }
+    for (const stage of showcase!.approvalStages) {
+      expect(showcaseJson).toContain(`'${stage}'`);
+    }
+    for (const actionId of showcase!.requiredApprovalActionIds) {
+      expect(showcaseJson).toContain(`'${actionId}'`);
+    }
+    for (const step of showcase!.requiredPathLogSteps) {
+      expect(showcaseJson).toContain(`step: '${step}'`);
+    }
+    for (const eventType of showcase!.requiredTerminalEventTypes) {
+      expect(showcaseJson).toContain(`eventType: '${eventType}'`);
+    }
+    const credentialIds = new Set<string>();
+    for (const node of showcaseWorkflow.nodes) {
+      for (const credential of Object.values(node.credentials ?? {})) {
+        if (typeof credential.id === 'string') credentialIds.add(credential.id);
+      }
+    }
+    expect([...credentialIds].sort()).toEqual([...showcase!.allowedCredentialPlaceholders].sort());
   });
 });

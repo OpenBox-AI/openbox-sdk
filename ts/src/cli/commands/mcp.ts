@@ -2,9 +2,8 @@ import { Command } from 'commander';
 
 /**
  * `openbox mcp <subcommand>`; bridges the OpenBox SDK to MCP-compatible
- * LLM tools (Claude Desktop, Cursor, etc.). Today: just `serve` over
- * stdio. Future: `install` (writes the MCP config block into a tool's
- * settings file).
+ * LLM tools (Claude Desktop, Cursor, etc.). `serve` supports stdio and
+ * optional Streamable HTTP; host config installation remains adapter-owned.
  */
 export function registerMcpCommands(program: Command) {
   const mcp = program.command('mcp').description('OpenBox MCP server');

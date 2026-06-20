@@ -39,3 +39,11 @@ extern dec token_format(target: ModelProperty, pattern: valueof string);
  * for tests, CI, sandboxes, or caller-managed storage.
  */
 extern dec os_path(target: ModelProperty);
+
+/**
+ * Attaches a language-neutral runtime env-resolution conformance
+ * fixture to the env namespace. Emitters materialize it as
+ * `codegen/fixtures/*.json`; SDK ports consume that JSON instead of
+ * hand-authoring target-specific resolution suites.
+ */
+extern dec env_conformance(target: Namespace, fixture: valueof Record<unknown>);

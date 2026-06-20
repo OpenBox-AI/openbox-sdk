@@ -221,6 +221,10 @@ TELEMETRY_FIELD_ALIASES = {
     "total_tokens",
     "totalTokens"
   ],
+  "cost_usd": [
+    "cost_usd",
+    "costUsd"
+  ],
   "has_tool_calls": [
     "has_tool_calls",
     "hasToolCalls"
@@ -258,6 +262,9 @@ TELEMETRY_FIELD_ALIASES = {
     "fromAgentDid"
   ]
 }
+SOURCE_INPUT_KEY = "_openbox_source"
+DEFAULT_SDK_SOURCE = "python-sdk"
+WORKFLOW_EVENT_SOURCE = "workflow-telemetry"
 SPAN_ALIAS_FIELDS = [
   [
     "span_id",

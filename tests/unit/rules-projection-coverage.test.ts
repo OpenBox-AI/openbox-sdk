@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { RulesProjection } from '../../ts/src/governance/rules-projection.js';
 
 const apiState = vi.hoisted(() => ({
@@ -17,6 +18,34 @@ describe('governance rules projection coverage', () => {
   beforeEach(() => {
     apiState.responses.clear();
     apiState.calls.length = 0;
+  });
+
+  it('uses the TypeSpec-emitted projection contract instead of local output shapes', () => {
+    const generated = readFileSync(
+      'ts/src/governance/generated/rules-projection.ts',
+      'utf-8',
+    );
+    expect(generated).toContain('AUTO-GENERATED');
+    expect(generated).toContain('export type RuleTrigger');
+    expect(generated).toContain('export type RuleSeverity');
+    expect(generated).toContain('export interface ProjectedRule');
+    expect(generated).toContain('export interface RulesProjection');
+
+    const runtime = readFileSync('ts/src/governance/rules-projection.ts', 'utf-8');
+    expect(runtime).toContain("from './generated/rules-projection.js'");
+    expect(runtime).not.toMatch(/export\s+interface\s+ProjectedRule/);
+    expect(runtime).not.toMatch(/export\s+interface\s+RulesProjection/);
+    expect(runtime).not.toMatch(/export\s+type\s+RuleTrigger\s*=/);
+    expect(runtime).not.toMatch(/export\s+type\s+RuleSeverity\s*=/);
+    expect(runtime).not.toContain('hand-mirrored from the TypeSpec model');
+  });
+
+  it('emits Python rules projection from the shared namespace type emitter', () => {
+    const emitter = readFileSync('codegen/emitters/typespec-emitter/src/python.ts', 'utf-8');
+    expect(emitter).toContain('function emitPythonNamespaceTypes');
+    expect(emitter).toContain("namespaceName: 'OpenboxGovern.RulesProjection'");
+    expect(emitter).toContain("resolvePath(outDir, 'rules_projection.py')");
+    expect(emitter).not.toContain('function emitRulesProjection');
   });
 
   it('projects active guardrails and policies from backend envelopes', async () => {

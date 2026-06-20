@@ -14,6 +14,7 @@
 // distinguish traffic by originating adapter.
 
 import type { SpanData } from '../core-client/index.js';
+import { USAGE_NORMALIZATION_SURFACE } from './generated/capability-matrix.js';
 
 function hex(len: number): string {
   return Array.from({ length: len }, () =>
@@ -232,26 +233,36 @@ function stringifyBody(value: unknown): string | undefined {
   return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-function toPositiveInteger(value: unknown): number | undefined {
+function toUsageInteger(value: unknown): number | undefined {
   const numberValue =
     typeof value === 'number'
       ? value
       : typeof value === 'string' && value.trim() !== ''
         ? Number(value)
         : undefined;
-  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
+  if (
+    numberValue === undefined ||
+    !Number.isFinite(numberValue) ||
+    (USAGE_NORMALIZATION_SURFACE.tokenValuesRequireIntegers &&
+      !Number.isInteger(numberValue)) ||
+    numberValue < USAGE_NORMALIZATION_SURFACE.minimumValue
+  )
     return undefined;
-  return Math.trunc(numberValue);
+  return numberValue;
 }
 
-function toPositiveNumber(value: unknown): number | undefined {
+function toUsageNumber(value: unknown): number | undefined {
   const numberValue =
     typeof value === 'number'
       ? value
       : typeof value === 'string' && value.trim() !== ''
         ? Number(value)
         : undefined;
-  if (numberValue === undefined || !Number.isFinite(numberValue) || numberValue <= 0)
+  if (
+    numberValue === undefined ||
+    !Number.isFinite(numberValue) ||
+    numberValue < USAGE_NORMALIZATION_SURFACE.minimumValue
+  )
     return undefined;
   return numberValue;
 }
@@ -303,44 +314,34 @@ function deriveDurationNsFromRawTimestamps(
 
 export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefined {
   const record = objectRecord(value);
-  const promptTokens = toPositiveInteger(
-    record.promptTokens ??
-      record.prompt_tokens ??
-      record.inputTokens ??
-      record.input_tokens ??
-      record.promptTokenCount ??
-      record.prompt_token_count ??
-      record.inputTokenCount ??
-      record.input_token_count,
+  const promptTokens = firstUsageIntegerForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.inputTokenAliases,
   );
-  const completionTokens = toPositiveInteger(
-    record.completionTokens ??
-      record.completion_tokens ??
-      record.outputTokens ??
-      record.output_tokens ??
-      record.candidatesTokenCount ??
-      record.candidates_token_count ??
-      record.outputTokenCount ??
-      record.output_token_count ??
-      record.responseTokenCount ??
-      record.response_token_count,
+  const completionTokens = firstUsageIntegerForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.outputTokenAliases,
   );
-  const totalTokens = toPositiveInteger(
-    record.totalTokens ??
-      record.total_tokens ??
-      record.totalTokenCount ??
-      record.total_token_count,
+  const totalTokens = firstUsageIntegerForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.totalTokenAliases,
   );
-  const cacheReadInputTokens = toPositiveInteger(
-    record.cacheReadInputTokens ?? record.cache_read_input_tokens,
+  const cacheReadInputTokens = firstUsageIntegerForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases,
   );
-  const cacheCreationInputTokens = toPositiveInteger(
-    record.cacheCreationInputTokens ?? record.cache_creation_input_tokens,
+  const cacheCreationInputTokens = firstUsageIntegerForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.cacheCreationInputTokenAliases,
   );
-  const webSearchRequests = toPositiveInteger(
-    record.webSearchRequests ?? record.web_search_requests,
+  const webSearchRequests = firstUsageIntegerForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.webSearchRequestAliases,
   );
-  const costUsd = toPositiveNumber(record.costUSD ?? record.costUsd ?? record.cost_usd);
+  const costUsd = firstUsageNumberForAliases(
+    record,
+    USAGE_NORMALIZATION_SURFACE.costUsdAliases,
+  );
   const usage: LLMTokenUsage = {
     promptTokens,
     completionTokens,
@@ -358,27 +359,59 @@ export function llmTokenUsageFromRecord(value: unknown): LLMTokenUsage | undefin
     : undefined;
 }
 
+function firstUsageIntegerForAliases(
+  record: JsonRecord,
+  aliases: readonly string[],
+): number | undefined {
+  for (const alias of aliases) {
+    const value = toUsageInteger(record[alias]);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function firstUsageNumberForAliases(
+  record: JsonRecord,
+  aliases: readonly string[],
+): number | undefined {
+  for (const alias of aliases) {
+    const value = toUsageNumber(record[alias]);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
   const normalizedUsage = llmTokenUsageFromRecord(usage);
   if (!normalizedUsage) return undefined;
-  const promptTokens = toPositiveInteger(
-    normalizedUsage.promptTokens ?? normalizedUsage.inputTokens,
+  const normalizedUsageRecord = normalizedUsage as JsonRecord;
+  const promptTokens = firstUsageIntegerForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.inputTokenAliases,
   );
-  const completionTokens = toPositiveInteger(
-    normalizedUsage.completionTokens ?? normalizedUsage.outputTokens,
+  const completionTokens = firstUsageIntegerForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.outputTokenAliases,
   );
-  const totalTokens = toPositiveInteger(normalizedUsage.totalTokens);
-  const cacheReadInputTokens = toPositiveInteger(
-    normalizedUsage.cacheReadInputTokens ?? normalizedUsage.cache_read_input_tokens,
+  const totalTokens = firstUsageIntegerForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.totalTokenAliases,
   );
-  const cacheCreationInputTokens = toPositiveInteger(
-    normalizedUsage.cacheCreationInputTokens ?? normalizedUsage.cache_creation_input_tokens,
+  const cacheReadInputTokens = firstUsageIntegerForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases,
   );
-  const webSearchRequests = toPositiveInteger(
-    normalizedUsage.webSearchRequests ?? normalizedUsage.web_search_requests,
+  const cacheCreationInputTokens = firstUsageIntegerForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.cacheCreationInputTokenAliases,
   );
-  const costUsd = toPositiveNumber(
-    normalizedUsage.costUSD ?? normalizedUsage.costUsd ?? normalizedUsage.cost_usd,
+  const webSearchRequests = firstUsageIntegerForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.webSearchRequestAliases,
+  );
+  const costUsd = firstUsageNumberForAliases(
+    normalizedUsageRecord,
+    USAGE_NORMALIZATION_SURFACE.costUsdAliases,
   );
   const derivedTotalTokens =
     totalTokens ??
@@ -658,19 +691,19 @@ export function buildLLMCompletionSpan(
     deriveDurationNsFromRawTimestamps(rawStartTime, rawEndTime) ??
     deriveDurationNs(startTime, endTime);
   const usage = normalizeUsage(input.usage);
-  const inputTokens = toPositiveInteger(
+  const inputTokens = toUsageInteger(
     usage?.input_tokens ?? usage?.prompt_tokens,
   );
-  const outputTokens = toPositiveInteger(
+  const outputTokens = toUsageInteger(
     usage?.output_tokens ?? usage?.completion_tokens,
   );
-  const totalTokens = toPositiveInteger(usage?.total_tokens);
-  const cacheReadInputTokens = toPositiveInteger(usage?.cache_read_input_tokens);
-  const cacheCreationInputTokens = toPositiveInteger(
+  const totalTokens = toUsageInteger(usage?.total_tokens);
+  const cacheReadInputTokens = toUsageInteger(usage?.cache_read_input_tokens);
+  const cacheCreationInputTokens = toUsageInteger(
     usage?.cache_creation_input_tokens,
   );
-  const webSearchRequests = toPositiveInteger(usage?.web_search_requests);
-  const costUsd = toPositiveNumber(usage?.cost_usd);
+  const webSearchRequests = toUsageInteger(usage?.web_search_requests);
+  const costUsd = toUsageNumber(usage?.cost_usd);
   const explicitProviderUrl =
     input.providerUrl ??
     source.http_url ??
@@ -809,19 +842,19 @@ export function buildSpan(
       // provider URL from the model and fall back to OpenAI-compatible.
       // See `span-reference.md`.
       const usage = normalizeUsage(input.usage);
-      const inputTokens = toPositiveInteger(
+      const inputTokens = toUsageInteger(
         usage?.input_tokens ?? usage?.prompt_tokens,
       );
-      const outputTokens = toPositiveInteger(
+      const outputTokens = toUsageInteger(
         usage?.output_tokens ?? usage?.completion_tokens,
       );
-      const totalTokens = toPositiveInteger(usage?.total_tokens);
-      const cacheReadInputTokens = toPositiveInteger(usage?.cache_read_input_tokens);
-      const cacheCreationInputTokens = toPositiveInteger(
+      const totalTokens = toUsageInteger(usage?.total_tokens);
+      const cacheReadInputTokens = toUsageInteger(usage?.cache_read_input_tokens);
+      const cacheCreationInputTokens = toUsageInteger(
         usage?.cache_creation_input_tokens,
       );
-      const webSearchRequests = toPositiveInteger(usage?.web_search_requests);
-      const costUsd = toPositiveNumber(usage?.cost_usd);
+      const webSearchRequests = toUsageInteger(usage?.web_search_requests);
+      const costUsd = toUsageNumber(usage?.cost_usd);
       const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
       const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
       const llmRequestBody = {

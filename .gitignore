@@ -29,3 +29,12 @@ ts/*/src/**/*.d.ts.map
 .github-account
 .gh-account
 .gh-user
+
+# Project-local hook runtime output. Hook config/install files can be
+# intentionally committed, but per-session state and logs are local runtime data.
+.claude-hooks/sessions/
+.claude-hooks/log/
+.codex-hooks/sessions/
+.codex-hooks/log/
+.cursor-hooks/sessions/
+.cursor-hooks/log/

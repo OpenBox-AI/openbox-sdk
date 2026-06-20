@@ -7,7 +7,7 @@
 // Real session-vs-core behavior is covered by e2e.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -91,6 +91,18 @@ describe('runtime/claude-code/config', () => {
 
 describe('runtime/n8n integration descriptor', () => {
   it('exports the spec-generated packaged n8n integration surface', async () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), 'example/n8n/custom-node/package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+      n8n?: {
+        n8nNodesApiVersion?: number;
+        credentials?: string[];
+        nodes?: string[];
+        openboxSpecNodeIds?: string[];
+        openboxSpecSource?: string;
+      };
+    };
     const {
       OPENBOX_N8N_INTEGRATION,
       getOpenBoxN8nCredential,
@@ -102,9 +114,16 @@ describe('runtime/n8n integration descriptor', () => {
       listOpenBoxN8nNodes,
       listOpenBoxN8nWorkflowTemplates,
     } = await import('../../ts/src/runtime/n8n');
+    const customNodeSpec = await import('../../example/n8n/custom-node/src/generated/openbox-n8n-spec');
+
+    expect(customNodeSpec.OPENBOX_N8N_INTEGRATION).toEqual(OPENBOX_N8N_INTEGRATION);
+    expect(customNodeSpec.OPENBOX_N8N_PACKAGE_MANIFEST).toEqual(
+      OPENBOX_N8N_INTEGRATION.packageManifest,
+    );
     expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
     expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
       expect.arrayContaining([
+        'openboxLlm',
         'openboxGovernance',
         'openboxGuardrails',
         'openboxApproval',
@@ -112,6 +131,21 @@ describe('runtime/n8n integration descriptor', () => {
       ]),
     );
     expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+    expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].workflow.nodes.map((node: any) => node.type)).toEqual(
+      expect.arrayContaining([
+        'n8n-nodes-openbox-hook.openboxGovernance',
+        '@n8n/n8n-nodes-langchain.agent',
+        'n8n-nodes-openbox-hook.openboxGuardrails',
+        'n8n-nodes-openbox-hook.openboxApproval',
+      ]),
+    );
+    expect(OPENBOX_N8N_INTEGRATION.examples.every((entry: any) => entry.workflow?.nodes?.length > 0)).toBe(true);
+    expect(getOpenBoxN8nExample('mcp-client-tool')?.workflow.nodes.map((node: any) => node.type)).toContain(
+      '@n8n/n8n-nodes-langchain.toolmcp',
+    );
+    expect(getOpenBoxN8nExample('mcp-server-trigger')?.workflow.nodes.map((node: any) => node.type)).toContain(
+      '@n8n/n8n-nodes-langchain.mcptrigger',
+    );
     expect(listOpenBoxN8nCredentials()).toBe(OPENBOX_N8N_INTEGRATION.credentials);
     expect(listOpenBoxN8nNodes()).toBe(OPENBOX_N8N_INTEGRATION.nodes);
     expect(listOpenBoxN8nWorkflowTemplates()).toBe(OPENBOX_N8N_INTEGRATION.workflowTemplates);
@@ -123,6 +157,139 @@ describe('runtime/n8n integration descriptor', () => {
     );
     expect(getOpenBoxN8nExample('mcp-client-tool')?.name).toBe('MCP Client Tool');
     expect(getOpenBoxN8nNode('unknown-node')).toBeUndefined();
+    const showcase = OPENBOX_N8N_INTEGRATION.showcaseWorkflows.find(
+      (entry: any) => entry.id === 'sdk-showcase',
+    ) as any;
+    expect(showcase).toBeDefined();
+    const showcaseWorkflow = JSON.parse(
+      readFileSync(join(process.cwd(), showcase.path), 'utf8'),
+    ) as {
+      name: string;
+      nodes: Array<{
+        name: string;
+        type: string;
+        parameters?: Record<string, any>;
+        credentials?: Record<string, { id?: string; name?: string }>;
+        [key: string]: any;
+      }>;
+      connections: Record<string, any>;
+    };
+    const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
+    const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    const showcaseNodeByName = new Map(showcaseWorkflow.nodes.map((node) => [node.name, node]));
+    const connectedNodeNames = (source: string): string[] =>
+      Object.values(showcaseWorkflow.connections[source] ?? {}).flatMap((branches: any) =>
+        branches.flatMap((branch: any[]) => branch.map((edge) => edge.node)),
+      );
+
+    expect(showcaseWorkflow.name).toBe(showcase.name);
+    for (const type of showcase.requiredOpenBoxNodeTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const type of showcase.requiredTriggerTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const checkpoint of showcase.requiredCheckpoints) {
+      expect(showcaseNodeNames.has(checkpoint)).toBe(true);
+    }
+    for (const terminalNode of showcase.requiredTerminalNodes) {
+      expect(showcaseNodeNames.has(terminalNode)).toBe(true);
+    }
+    for (const edge of showcase.requiredEntryEdges) {
+      expect(connectedNodeNames(edge.from), `${edge.from} -> ${edge.to}`).toContain(edge.to);
+    }
+    for (const gate of showcase.checkpointGates) {
+      expect(connectedNodeNames(gate.checkpoint), `${gate.checkpoint} -> ${gate.gate}`).toContain(
+        gate.gate,
+      );
+      expect(connectedNodeNames(gate.gate), `${gate.gate} pass/fail branches`).toEqual(
+        expect.arrayContaining([gate.pass, gate.fail]),
+      );
+    }
+    for (const identity of showcase.requiredNodeIdentities ?? []) {
+      const node = showcaseNodeByName.get(identity.name);
+      expect(node, identity.name).toBeDefined();
+      expect(node?.id, `${identity.name}.id`).toBe(identity.id);
+      expect(node?.type, `${identity.name}.type`).toBe(identity.type);
+    }
+    for (const flag of showcase.requiredNodeBooleanFlags ?? []) {
+      const node = showcaseNodeByName.get(flag.node);
+      expect(node, flag.node).toBeDefined();
+      expect(node?.[flag.flag], `${flag.node}.${flag.flag}`).toBe(flag.expected);
+    }
+    for (const check of showcase.expressionSourceChecks ?? []) {
+      const nodeText = JSON.stringify(showcaseNodeByName.get(check.node) ?? {});
+      for (const required of check.requiredContains) {
+        expect(nodeText, `${check.node} must contain ${required}`).toContain(required);
+      }
+      for (const forbidden of check.forbiddenContains) {
+        expect(nodeText, `${check.node} must not contain ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+    for (const check of showcase.requiredOpenBoxNodeParameterChecks ?? []) {
+      const nodes = showcaseWorkflow.nodes.filter((node) => node.type === check.nodeType);
+      expect(nodes.length, `${check.nodeType} nodes`).toBeGreaterThan(0);
+      for (const node of nodes) {
+        const value = String(node.parameters?.[check.parameter] ?? '');
+        expect(value, `${node.name}.${check.parameter}`).not.toBe('');
+        for (const required of check.requiredContains) {
+          expect(value, `${node.name}.${check.parameter} must contain ${required}`).toContain(required);
+        }
+        for (const forbidden of check.forbiddenContains) {
+          expect(value, `${node.name}.${check.parameter} must not contain ${forbidden}`).not.toContain(
+            forbidden,
+          );
+        }
+        expect(check.forbiddenValues, `${node.name}.${check.parameter} exact value`).not.toContain(
+          value,
+        );
+      }
+    }
+    for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
+      expect(showcaseNodeNames.has(source)).toBe(true);
+      for (const branches of Object.values(outputs as Record<string, any>)) {
+        for (const branch of branches as any[]) {
+          for (const edge of branch) {
+            expect(showcaseNodeNames.has(edge.node)).toBe(true);
+          }
+        }
+      }
+    }
+    const showcaseJson = JSON.stringify(showcaseWorkflow);
+    expect(showcaseJson).toContain(showcase.terminalLogTable);
+    for (const forbidden of showcase.forbiddenWorkflowText ?? []) {
+      expect(showcaseJson, `showcase must not contain ${forbidden}`).not.toContain(forbidden);
+    }
+    for (const stage of showcase.approvalStages) {
+      expect(showcaseJson).toContain(stage);
+    }
+    for (const actionId of showcase.requiredApprovalActionIds) {
+      expect(showcaseJson).toContain(actionId);
+    }
+    for (const eventType of showcase.requiredTerminalEventTypes) {
+      expect(showcaseJson).toContain(eventType);
+    }
+    const buildFinalLogCode = String(
+      showcaseNodeByName.get('Build Final Log')?.parameters?.jsCode ?? '',
+    );
+    for (const step of showcase.requiredPathLogSteps) {
+      expect(buildFinalLogCode).toContain(`step: '${step}'`);
+    }
+    const credentialIds = new Set<string>();
+    for (const node of showcaseWorkflow.nodes) {
+      for (const credential of Object.values(node.credentials ?? {})) {
+        if (typeof credential.id === 'string') credentialIds.add(credential.id);
+      }
+    }
+    expect([...credentialIds].sort()).toEqual(
+      [...showcase.allowedCredentialPlaceholders].sort(),
+    );
+
+    expect(packageJson.n8n).toEqual(OPENBOX_N8N_INTEGRATION.packageManifest);
+    expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_PACKAGE_MANIFEST');
+    expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_INTEGRATION');
+    expect(packageJson.scripts['smoke:load']).toContain('workflowTemplates');
+    expect(packageJson.scripts['smoke:load']).not.toContain('OpenBoxGovernance.node');
   });
 });
 

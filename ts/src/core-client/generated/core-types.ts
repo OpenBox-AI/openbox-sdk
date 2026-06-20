@@ -36,6 +36,7 @@ export interface GovernanceEventPayload {
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+  cost_usd?: number;
   has_tool_calls?: boolean;
   finish_reason?: string;
   prompt?: string;

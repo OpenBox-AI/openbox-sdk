@@ -485,6 +485,7 @@ function telemetryForGate(
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'prompt'
   | 'completion'
   | 'toolName'
