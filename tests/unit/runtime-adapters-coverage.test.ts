@@ -123,6 +123,7 @@ describe('runtime/n8n integration descriptor', () => {
     expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
     expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
       expect.arrayContaining([
+        'openboxLlm',
         'openboxGovernance',
         'openboxGuardrails',
         'openboxApproval',
@@ -156,6 +157,43 @@ describe('runtime/n8n integration descriptor', () => {
     );
     expect(getOpenBoxN8nExample('mcp-client-tool')?.name).toBe('MCP Client Tool');
     expect(getOpenBoxN8nNode('unknown-node')).toBeUndefined();
+    const showcase = OPENBOX_N8N_INTEGRATION.showcaseWorkflows.find(
+      (entry: any) => entry.id === 'sdk-showcase',
+    ) as any;
+    expect(showcase).toBeDefined();
+    const showcaseWorkflow = JSON.parse(
+      readFileSync(join(process.cwd(), showcase.path), 'utf8'),
+    ) as { name: string; nodes: Array<{ name: string; type: string }>; connections: Record<string, any> };
+    const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
+    const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    expect(showcaseWorkflow.name).toBe(showcase.name);
+    for (const type of showcase.requiredOpenBoxNodeTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const type of showcase.requiredTriggerTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const checkpoint of showcase.requiredCheckpoints) {
+      expect(showcaseNodeNames.has(checkpoint)).toBe(true);
+    }
+    for (const terminalNode of showcase.requiredTerminalNodes) {
+      expect(showcaseNodeNames.has(terminalNode)).toBe(true);
+    }
+    for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
+      expect(showcaseNodeNames.has(source)).toBe(true);
+      for (const branches of Object.values(outputs as Record<string, any>)) {
+        for (const branch of branches as any[]) {
+          for (const edge of branch) {
+            expect(showcaseNodeNames.has(edge.node)).toBe(true);
+          }
+        }
+      }
+    }
+    const showcaseJson = JSON.stringify(showcaseWorkflow);
+    expect(showcaseJson).toContain(showcase.terminalLogTable);
+    for (const stage of showcase.approvalStages) {
+      expect(showcaseJson).toContain(stage);
+    }
 
     expect(packageJson.n8n).toEqual(OPENBOX_N8N_INTEGRATION.packageManifest);
     expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_PACKAGE_MANIFEST');

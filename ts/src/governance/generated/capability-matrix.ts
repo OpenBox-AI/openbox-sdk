@@ -241,6 +241,7 @@ export interface N8nIntegrationSurface {
   nodes: readonly Record<string, unknown>[];
   workflowTemplates: readonly Record<string, unknown>[];
   examples: readonly Record<string, unknown>[];
+  showcaseWorkflows: readonly Record<string, unknown>[];
 }
 
 export const PROVIDER_CAPABILITY_MATRIX = [
@@ -2656,6 +2657,7 @@ export const N8N_INTEGRATION_SURFACE = {
     ],
     "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
     "openboxSpecNodeIds": [
+      "openboxLlm",
       "openboxGovernance",
       "openboxGuardrails",
       "openboxApproval",
@@ -2677,6 +2679,12 @@ export const N8N_INTEGRATION_SURFACE = {
     }
   ],
   "nodes": [
+    {
+      "name": "OpenBox: LLM",
+      "id": "openboxLlm",
+      "tier": "wrapped",
+      "description": "Runs an OpenAI-compatible or Ollama LLM call and emits OpenBox pre/post governance spans."
+    },
     {
       "name": "OpenBox Governance",
       "id": "openboxGovernance",
@@ -3066,6 +3074,43 @@ export const N8N_INTEGRATION_SURFACE = {
           "executionOrder": "v1"
         }
       }
+    }
+  ],
+  "showcaseWorkflows": [
+    {
+      "name": "OpenBox Governed Support Triage",
+      "id": "sdk-showcase",
+      "path": "example/n8n/workflows/sdk-showcase.json",
+      "description": "Local n8n demo workflow for governed support triage across chat, Slack, Postgres logging, optional HubSpot output, and Slack approval actions.",
+      "requiredOpenBoxNodeIds": [
+        "openboxLlm"
+      ],
+      "requiredOpenBoxNodeTypes": [
+        "n8n-nodes-openbox-hook.openboxLlm"
+      ],
+      "requiredTriggerTypes": [
+        "@n8n/n8n-nodes-langchain.chatTrigger",
+        "n8n-nodes-base.slackTrigger",
+        "n8n-nodes-base.webhook"
+      ],
+      "requiredCheckpoints": [
+        "OpenBox: Prompt Safety Wall",
+        "OpenBox: Context Privacy Check",
+        "OpenBox: Governed LLM Draft",
+        "OpenBox: Channel Output Check"
+      ],
+      "requiredTerminalNodes": [
+        "Package OpenBox Terminal Output",
+        "Build Final Log",
+        "Record Planned Path Log",
+        "Return Chat Summary"
+      ],
+      "approvalStages": [
+        "prompt-wall",
+        "draft-governance",
+        "channel-output"
+      ],
+      "terminalLogTable": "demo.triage_events"
     }
   ]
 } as const satisfies N8nIntegrationSurface;

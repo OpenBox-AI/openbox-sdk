@@ -244,6 +244,7 @@ namespace OpenboxGovern.Capabilities {
     nodes: Record<unknown>[];
     workflowTemplates: Record<unknown>[];
     examples: Record<unknown>[];
+    showcaseWorkflows: Record<unknown>[];
   }
 }
 
@@ -600,12 +601,13 @@ namespace OpenboxGovern.Capabilities {
       credentials: #["dist/OpenBoxCredentials.credentials.js"],
       nodes: #["dist/OpenboxLlm.node.js", "dist/OpenBoxGovernance.node.js", "dist/OpenBoxGuardrails.node.js", "dist/OpenBoxApproval.node.js", "dist/OpenBoxGovernedAiAgent.node.js"],
       openboxSpecSource: "specs/typespec/govern/capabilities.tsp",
-      openboxSpecNodeIds: #["openboxGovernance", "openboxGuardrails", "openboxApproval", "openboxGovernedAiAgent"],
+      openboxSpecNodeIds: #["openboxLlm", "openboxGovernance", "openboxGuardrails", "openboxApproval", "openboxGovernedAiAgent"],
     },
     credentials: #[
       #{ name: "OpenBox Credentials", id: "openboxCredentials", properties: #["coreUrl", "apiKey", "apiUrl", "backendApiKey", "agentId"], reason: "Core governance requires a runtime API key; backend approval decisions optionally use backend credentials." },
     ],
     nodes: #[
+      #{ name: "OpenBox: LLM", id: "openboxLlm", tier: "wrapped", description: "Runs an OpenAI-compatible or Ollama LLM call and emits OpenBox pre/post governance spans." },
       #{ name: "OpenBox Governance", id: "openboxGovernance", tier: "wrapped", description: "Runs prompt or node pre-execution governance through OpenBox Core." },
       #{ name: "OpenBox Guardrails", id: "openboxGuardrails", tier: "native", description: "Wraps n8n guardrail checks and emits OpenBox guardrail spans." },
       #{ name: "OpenBox Approval/HITL", id: "openboxApproval", tier: "native", description: "Pauses/resumes workflow execution through OpenBox approval rows." },
@@ -702,6 +704,21 @@ namespace OpenboxGovern.Capabilities {
           },
           settings: #{ executionOrder: "v1" },
         },
+      },
+    ],
+    showcaseWorkflows: #[
+      #{
+        name: "OpenBox Governed Support Triage",
+        id: "sdk-showcase",
+        path: "example/n8n/workflows/sdk-showcase.json",
+        description: "Local n8n demo workflow for governed support triage across chat, Slack, Postgres logging, optional HubSpot output, and Slack approval actions.",
+        requiredOpenBoxNodeIds: #["openboxLlm"],
+        requiredOpenBoxNodeTypes: #["n8n-nodes-openbox-hook.openboxLlm"],
+        requiredTriggerTypes: #["@n8n/n8n-nodes-langchain.chatTrigger", "n8n-nodes-base.slackTrigger", "n8n-nodes-base.webhook"],
+        requiredCheckpoints: #["OpenBox: Prompt Safety Wall", "OpenBox: Context Privacy Check", "OpenBox: Governed LLM Draft", "OpenBox: Channel Output Check"],
+        requiredTerminalNodes: #["Package OpenBox Terminal Output", "Build Final Log", "Record Planned Path Log", "Return Chat Summary"],
+        approvalStages: #["prompt-wall", "draft-governance", "channel-output"],
+        terminalLogTable: "demo.triage_events",
       },
     ],
   },

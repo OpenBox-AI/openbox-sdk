@@ -79,7 +79,8 @@ npm test                       # vitest unit tests
 npm --prefix tests/e2e-extension test  # wdio against VS Code
 ```
 
-The extension's validation commands and VS Code manifest surfaces are declared
-in `specs/typespec/sdk/main.tsp` and emitted to
+The extension's validation commands and VS Code manifest surfaces, including
+view containers, views, commands, settings, welcome content, and menus, are
+declared in `specs/typespec/sdk/main.tsp` and emitted to
 `src/generated/openbox-extension-spec.ts`. Regenerate with
 `npm run generate:sdks`; do not edit generated files directly.

@@ -45,8 +45,9 @@ node and credential descriptors consume the generated
 `specs/typespec/govern/capabilities.tsp`. The same generated spec includes
 compact importable workflow artifacts for the governed AI Agent template and
 the AI Agent tool review, Guardrails interop, MCP Client Tool, and MCP Server
-Trigger examples. The richer `workflows/sdk-showcase.json` remains the local
-demo workflow.
+Trigger examples. It also declares the richer `workflows/sdk-showcase.json`
+as the local showcase workflow and audits its required OpenBox checkpoints,
+triggers, terminal nodes, approval stages, and log table.
 
 Local defaults can use Ollama:
 

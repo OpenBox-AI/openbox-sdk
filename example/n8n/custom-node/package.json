@@ -40,6 +40,7 @@
     ],
     "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
     "openboxSpecNodeIds": [
+      "openboxLlm",
       "openboxGovernance",
       "openboxGuardrails",
       "openboxApproval",

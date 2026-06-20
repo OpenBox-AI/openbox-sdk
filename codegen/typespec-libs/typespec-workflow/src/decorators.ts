@@ -872,6 +872,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function reportInvalidSdkTargets(
   context: DecoratorContext,
   target: Namespace,
@@ -934,12 +938,12 @@ function validateExtensionManifestRecord(
   targetId: string,
   rawManifest: unknown,
 ): boolean {
-  if (!rawManifest || typeof rawManifest !== 'object' || Array.isArray(rawManifest)) {
+  if (!isRecord(rawManifest)) {
     reportInvalidSdkTargets(context, target, `${targetId} extensionManifest must be a record`);
     return false;
   }
 
-  const manifest = rawManifest as Record<string, unknown>;
+  const manifest = rawManifest;
   for (const field of ['packageName', 'publisher', 'displayName', 'main']) {
     if (!isNonEmptyString(manifest[field])) {
       reportInvalidSdkTargets(
@@ -950,6 +954,7 @@ function validateExtensionManifestRecord(
       return false;
     }
   }
+
   for (const field of ['activationEvents', 'views', 'commands', 'configurationKeys']) {
     if (!isStringArray(manifest[field])) {
       reportInvalidSdkTargets(
@@ -960,6 +965,253 @@ function validateExtensionManifestRecord(
       return false;
     }
   }
+
+  const views = manifest.views as string[];
+  const commands = manifest.commands as string[];
+  const configurationKeys = manifest.configurationKeys as string[];
+  const viewSet = new Set(views);
+  const commandSet = new Set(commands);
+  if (viewSet.size !== views.length || commandSet.size !== commands.length) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest has duplicate views or commands`);
+    return false;
+  }
+  if (new Set(configurationKeys).size !== configurationKeys.length) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest has duplicate configuration keys`);
+    return false;
+  }
+
+  const recordArrays = [
+    'viewContainers',
+    'viewDefinitions',
+    'commandDefinitions',
+    'configurationProperties',
+    'viewsWelcome',
+    'menus',
+  ];
+  for (const field of recordArrays) {
+    const value = manifest[field];
+    if (!Array.isArray(value) || value.some((entry) => !isRecord(entry))) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.${field} must be a record array`,
+      );
+      return false;
+    }
+  }
+
+  const viewContainers = manifest.viewContainers as Array<Record<string, unknown>>;
+  const viewDefinitions = manifest.viewDefinitions as Array<Record<string, unknown>>;
+  const commandDefinitions = manifest.commandDefinitions as Array<Record<string, unknown>>;
+  const configurationProperties = manifest.configurationProperties as Array<Record<string, unknown>>;
+  const viewsWelcome = manifest.viewsWelcome as Array<Record<string, unknown>>;
+  const menus = manifest.menus as Array<Record<string, unknown>>;
+
+  const containerIds = new Set<string>();
+  for (const [index, container] of viewContainers.entries()) {
+    for (const field of ['location', 'id', 'title']) {
+      if (!isNonEmptyString(container[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewContainers ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (container.icon !== undefined && !isNonEmptyString(container.icon)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewContainers ${index}.icon must be a non-empty string`,
+      );
+      return false;
+    }
+    containerIds.add(container.id as string);
+  }
+
+  const definedViews: string[] = [];
+  for (const [index, view] of viewDefinitions.entries()) {
+    for (const field of ['container', 'id', 'name']) {
+      if (!isNonEmptyString(view[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (!containerIds.has(view.container as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewDefinitions ${index}.container references unknown view container`,
+      );
+      return false;
+    }
+    for (const field of ['icon', 'when']) {
+      if (view[field] !== undefined && !isNonEmptyString(view[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    definedViews.push(view.id as string);
+  }
+  if (definedViews.join('\n') !== views.join('\n')) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest.viewDefinitions must match views`);
+    return false;
+  }
+
+  const definedCommands: string[] = [];
+  for (const [index, command] of commandDefinitions.entries()) {
+    for (const field of ['command', 'title']) {
+      if (!isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.commandDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    for (const field of ['category', 'icon', 'enablement']) {
+      if (command[field] !== undefined && !isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.commandDefinitions ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    definedCommands.push(command.command as string);
+  }
+  if (definedCommands.join('\n') !== commands.join('\n')) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.commandDefinitions must match commands`,
+    );
+    return false;
+  }
+
+  const definedConfigurationKeys: string[] = [];
+  for (const [index, property] of configurationProperties.entries()) {
+    for (const field of ['key', 'type', 'description']) {
+      if (!isNonEmptyString(property[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.configurationProperties ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (
+      property.defaultValue !== undefined &&
+      !['boolean', 'number', 'string'].includes(typeof property.defaultValue)
+    ) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.configurationProperties ${index}.defaultValue must be scalar`,
+      );
+      return false;
+    }
+    definedConfigurationKeys.push(property.key as string);
+  }
+  if (definedConfigurationKeys.join('\n') !== configurationKeys.join('\n')) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      `${targetId} extensionManifest.configurationProperties must match configurationKeys`,
+    );
+    return false;
+  }
+
+  for (const [index, entry] of viewsWelcome.entries()) {
+    for (const field of ['view', 'contents']) {
+      if (!isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.viewsWelcome ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (!viewSet.has(entry.view as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewsWelcome ${index}.view references unknown view`,
+      );
+      return false;
+    }
+    if (entry.when !== undefined && !isNonEmptyString(entry.when)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.viewsWelcome ${index}.when must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+
+  for (const [index, entry] of menus.entries()) {
+    for (const field of ['location', 'command']) {
+      if (!isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.menus ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (!commandSet.has(entry.command as string)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.menus ${index}.command references unknown command`,
+      );
+      return false;
+    }
+    for (const field of ['when', 'group']) {
+      if (entry[field] !== undefined && !isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `${targetId} extensionManifest.menus ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+  }
+
+  for (const activationEvent of manifest.activationEvents as string[]) {
+    if (activationEvent.startsWith('onView:') && !viewSet.has(activationEvent.slice('onView:'.length))) {
+      reportInvalidSdkTargets(context, target, `${targetId} extensionManifest.activationEvents references unknown view`);
+      return false;
+    }
+    if (
+      activationEvent.startsWith('onCommand:') &&
+      !commandSet.has(activationEvent.slice('onCommand:'.length))
+    ) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.activationEvents references unknown command`,
+      );
+      return false;
+    }
+  }
+
   return true;
 }
 

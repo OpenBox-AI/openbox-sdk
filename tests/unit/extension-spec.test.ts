@@ -13,11 +13,26 @@ interface ExtensionPackageJson {
   main: string;
   activationEvents: string[];
   contributes: {
-    views: Record<string, Array<{ id: string }>>;
-    commands: Array<{ command: string }>;
+    viewsContainers: Record<string, Array<{ id: string; title: string; icon?: string }>>;
+    views: Record<
+      string,
+      Array<{ id: string; name: string; icon?: string; when?: string }>
+    >;
+    commands: Array<{
+      command: string;
+      title: string;
+      category?: string;
+      icon?: string;
+      enablement?: string;
+    }>;
     configuration: {
-      properties: Record<string, unknown>;
+      properties: Record<
+        string,
+        { type: string; default?: string | boolean | number; description: string }
+      >;
     };
+    viewsWelcome: Array<{ view: string; contents: string; when?: string }>;
+    menus: Record<string, Array<{ command: string; when?: string; group?: string }>>;
   };
   scripts: Record<string, string>;
 }
@@ -28,16 +43,46 @@ function readExtensionPackageJson(): ExtensionPackageJson {
   ) as ExtensionPackageJson;
 }
 
+function compactRecord<T extends Record<string, unknown>>(record: T): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => value !== undefined),
+  );
+}
+
 describe('extension TypeSpec target surface', () => {
   it('keeps VS Code manifest surfaces pinned to the TypeSpec-emitted spec', () => {
     const packageJson = readExtensionPackageJson();
-    const contributedViews = Object.values(packageJson.contributes.views)
-      .flat()
+    const contributedViewContainers = Object.entries(packageJson.contributes.viewsContainers)
+      .flatMap(([location, containers]) =>
+        containers.map((container) => compactRecord({ location, ...container })),
+      );
+    const contributedViewDefinitions = Object.entries(packageJson.contributes.views)
+      .flatMap(([container, views]) =>
+        views.map((view) => compactRecord({ container, ...view })),
+      );
+    const contributedViews = contributedViewDefinitions
       .map((view) => view.id);
-    const contributedCommands = packageJson.contributes.commands.map(
+    const contributedCommandDefinitions = packageJson.contributes.commands.map((command) =>
+      compactRecord(command),
+    );
+    const contributedCommands = contributedCommandDefinitions.map(
       (command) => command.command,
     );
-    const configurationKeys = Object.keys(packageJson.contributes.configuration.properties);
+    const configurationProperties = Object.entries(packageJson.contributes.configuration.properties)
+      .map(([key, property]) =>
+        compactRecord({
+          key,
+          type: property.type,
+          defaultValue: property.default,
+          description: property.description,
+        }),
+      );
+    const configurationKeys = configurationProperties.map((property) => property.key);
+    const viewsWelcome = packageJson.contributes.viewsWelcome.map((entry) => compactRecord(entry));
+    const menus = Object.entries(packageJson.contributes.menus)
+      .flatMap(([location, entries]) =>
+        entries.map((entry) => compactRecord({ location, ...entry })),
+      );
 
     expect(OPENBOX_EXTENSION_SPEC).toMatchObject({
       id: 'extension',
@@ -56,8 +101,22 @@ describe('extension TypeSpec target surface', () => {
     expect(packageJson.activationEvents).toEqual([
       ...OPENBOX_EXTENSION_MANIFEST.activationEvents,
     ]);
+    expect(contributedViewContainers).toEqual([
+      ...OPENBOX_EXTENSION_MANIFEST.viewContainers,
+    ]);
+    expect(contributedViewDefinitions).toEqual([
+      ...OPENBOX_EXTENSION_MANIFEST.viewDefinitions,
+    ]);
     expect(contributedViews).toEqual([...OPENBOX_EXTENSION_MANIFEST.views]);
+    expect(contributedCommandDefinitions).toEqual([
+      ...OPENBOX_EXTENSION_MANIFEST.commandDefinitions,
+    ]);
     expect(contributedCommands).toEqual([...OPENBOX_EXTENSION_MANIFEST.commands]);
+    expect(configurationProperties).toEqual([
+      ...OPENBOX_EXTENSION_MANIFEST.configurationProperties,
+    ]);
     expect(configurationKeys).toEqual([...OPENBOX_EXTENSION_MANIFEST.configurationKeys]);
+    expect(viewsWelcome).toEqual([...OPENBOX_EXTENSION_MANIFEST.viewsWelcome]);
+    expect(menus).toEqual([...OPENBOX_EXTENSION_MANIFEST.menus]);
   });
 });

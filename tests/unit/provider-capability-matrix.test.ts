@@ -731,6 +731,7 @@ describe('provider capability matrix', () => {
     expect(N8N_INTEGRATION_SURFACE.credentials[0].id).toBe('openboxCredentials');
     expect(N8N_INTEGRATION_SURFACE.nodes.map((entry) => entry.id)).toEqual(
       expect.arrayContaining([
+        'openboxLlm',
         'openboxGovernance',
         'openboxGuardrails',
         'openboxApproval',
@@ -767,5 +768,42 @@ describe('provider capability matrix', () => {
         expect.objectContaining({ type: '@n8n/n8n-nodes-langchain.mcptrigger' }),
       ]),
     });
+    const showcase = N8N_INTEGRATION_SURFACE.showcaseWorkflows.find(
+      (entry) => entry.id === 'sdk-showcase',
+    ) as Record<string, any> | undefined;
+    expect(showcase).toBeDefined();
+    const showcaseWorkflow = JSON.parse(
+      readFileSync(resolve(process.cwd(), showcase!.path), 'utf8'),
+    ) as { name: string; nodes: Array<{ name: string; type: string }>; connections: Record<string, any> };
+    const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
+    const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    expect(showcaseWorkflow.name).toBe(showcase!.name);
+    expect(showcaseNodeTypes.has('n8n-nodes-openbox-hook.openboxLlm')).toBe(true);
+    for (const type of showcase!.requiredTriggerTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const checkpoint of showcase!.requiredCheckpoints) {
+      expect(showcaseNodeNames.has(checkpoint)).toBe(true);
+    }
+    for (const terminalNode of showcase!.requiredTerminalNodes) {
+      expect(showcaseNodeNames.has(terminalNode)).toBe(true);
+    }
+    const missingConnectionRefs: string[] = [];
+    for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
+      if (!showcaseNodeNames.has(source)) missingConnectionRefs.push(source);
+      for (const branches of Object.values(outputs as Record<string, any>)) {
+        for (const branch of branches as any[]) {
+          for (const edge of branch) {
+            if (!showcaseNodeNames.has(edge.node)) missingConnectionRefs.push(edge.node);
+          }
+        }
+      }
+    }
+    expect(missingConnectionRefs).toEqual([]);
+    const showcaseJson = JSON.stringify(showcaseWorkflow);
+    expect(showcaseJson).toContain(showcase!.terminalLogTable);
+    for (const stage of showcase!.approvalStages) {
+      expect(showcaseJson).toContain(stage);
+    }
   });
 });

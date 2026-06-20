@@ -15,6 +15,12 @@ export interface OpenBoxExtensionManifestSpec {
   views: readonly string[];
   commands: readonly string[];
   configurationKeys: readonly string[];
+  viewContainers: readonly Record<string, unknown>[];
+  viewDefinitions: readonly Record<string, unknown>[];
+  commandDefinitions: readonly Record<string, unknown>[];
+  configurationProperties: readonly Record<string, unknown>[];
+  viewsWelcome: readonly Record<string, unknown>[];
+  menus: readonly Record<string, unknown>[];
 }
 
 export interface OpenBoxExtensionTargetSpec {
@@ -101,6 +107,453 @@ export const OPENBOX_EXTENSION_SPEC = {
       "openbox.tabObserver.active",
       "openbox.fileOpGate.enabled",
       "openbox.strictSourceFilter"
+    ],
+    "viewContainers": [
+      {
+        "location": "activitybar",
+        "id": "openbox",
+        "title": "OpenBox",
+        "icon": "$(openbox-logo)"
+      }
+    ],
+    "viewDefinitions": [
+      {
+        "container": "openbox",
+        "id": "openbox.onboard",
+        "name": "Welcome",
+        "when": "openbox.needsKey"
+      },
+      {
+        "container": "openbox",
+        "id": "openbox.approvals",
+        "name": "Pending Approvals",
+        "when": "!openbox.needsKey"
+      },
+      {
+        "container": "openbox",
+        "id": "openbox.history",
+        "name": "History",
+        "when": "!openbox.needsKey"
+      },
+      {
+        "container": "openbox",
+        "id": "openbox.profile",
+        "name": "Profile",
+        "when": "!openbox.needsKey"
+      },
+      {
+        "container": "openbox",
+        "id": "openbox.debugControls",
+        "name": "Debug",
+        "when": "openbox.debug"
+      }
+    ],
+    "commandDefinitions": [
+      {
+        "command": "openbox.approve",
+        "title": "Approve",
+        "icon": "$(check)"
+      },
+      {
+        "command": "openbox.reject",
+        "title": "Reject",
+        "icon": "$(x)"
+      },
+      {
+        "command": "openbox.refresh",
+        "title": "Refresh Approvals",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.openDetail",
+        "title": "Open Approval Detail"
+      },
+      {
+        "command": "openbox.copyDetail",
+        "title": "Copy Approval Detail"
+      },
+      {
+        "command": "openbox.search",
+        "title": "OpenBox: Search Approvals",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openbox.filter",
+        "title": "OpenBox: Filter Approvals",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openbox.filterTier",
+        "title": "OpenBox: Filter by Tier"
+      },
+      {
+        "command": "openbox.filterType",
+        "title": "OpenBox: Filter by Activity Type"
+      },
+      {
+        "command": "openbox.filterTeam",
+        "title": "OpenBox: Filter by Team"
+      },
+      {
+        "command": "openbox.filterOwner",
+        "title": "OpenBox: Filter by Owner"
+      },
+      {
+        "command": "openbox.toggleSort",
+        "title": "OpenBox: Toggle Sort Order",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "openbox.clearFilters",
+        "title": "OpenBox: Clear Filters",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openbox.loadMore",
+        "title": "Load More Approvals"
+      },
+      {
+        "command": "openbox.setPageSize",
+        "title": "OpenBox: Set Pending List Size",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "openbox.history.refresh",
+        "title": "Refresh History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.history.search",
+        "title": "OpenBox: Search History",
+        "icon": "$(search)"
+      },
+      {
+        "command": "openbox.history.filter",
+        "title": "OpenBox: Filter History",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openbox.history.filterTier",
+        "title": "OpenBox: Filter History by Tier"
+      },
+      {
+        "command": "openbox.history.filterType",
+        "title": "OpenBox: Filter History by Activity Type"
+      },
+      {
+        "command": "openbox.history.filterTeam",
+        "title": "OpenBox: Filter History by Team"
+      },
+      {
+        "command": "openbox.history.filterOwner",
+        "title": "OpenBox: Filter History by Owner"
+      },
+      {
+        "command": "openbox.history.toggleSort",
+        "title": "OpenBox: Toggle History Sort Order",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "openbox.history.clearFilters",
+        "title": "OpenBox: Clear History Filters",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openbox.history.setStatus",
+        "title": "OpenBox: Set History Status",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openbox.history.setDateRange",
+        "title": "OpenBox: Set History Date Range",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "openbox.history.loadMore",
+        "title": "Load More History"
+      },
+      {
+        "command": "openbox.history.setPageSize",
+        "title": "OpenBox: Set History List Size",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "openbox.setApiKey",
+        "title": "OpenBox: Connect…",
+        "icon": "$(key)"
+      },
+      {
+        "command": "openbox.openDashboard",
+        "title": "OpenBox: Open Dashboard",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "openbox.clearCredentials",
+        "title": "OpenBox: Clear Connection…"
+      },
+      {
+        "command": "openbox.signOut",
+        "title": "OpenBox: Disconnect",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "openbox.reboot",
+        "title": "OpenBox: Reload",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openbox.openWalkthrough",
+        "title": "OpenBox: Open Getting Started"
+      },
+      {
+        "command": "openbox.showDebugInfo",
+        "title": "OpenBox: Show Debug Info",
+        "icon": "$(info)",
+        "enablement": "openbox.debug"
+      }
+    ],
+    "configurationProperties": [
+      {
+        "key": "openbox.tabObserver.enabled",
+        "type": "boolean",
+        "defaultValue": false,
+        "description": "Observe non-keystroke buffer mutations (Tab autocomplete accept, Cmd-K, Composer multi-file edits) and log them to the 'OpenBox: Tab Observer' output channel. Cursor does not expose hooks for these surfaces, so the observer classifies changes heuristically (size + idle timing). Off by default; turn on to inspect what the observer would report before piping to OpenBox."
+      },
+      {
+        "key": "openbox.tabObserver.outputLog",
+        "type": "boolean",
+        "defaultValue": true,
+        "description": "When tabObserver.enabled is true, also write each classified change to the 'OpenBox: Tab Observer' output channel. Set false to suppress that visibility; the in-process classification still runs. Has no effect when tabObserver.enabled is false."
+      },
+      {
+        "key": "openbox.tabObserver.emitAgentTrace",
+        "type": "boolean",
+        "defaultValue": false,
+        "description": "When true (and openbox.tabObserver.enabled is also true), every classified non-keystroke insert appends a TraceRecord to ~/.openbox/log/agent-trace.jsonl following the cursor/agent-trace v0.1.0 RFC. Records carry contributor type (human/ai), file path, line range, and SHA-256 content hash. Lets git tools / canvas / audit pipelines that ingest the open Agent Trace format pick up OpenBox's attribution data without bespoke wiring. Has no effect when tabObserver.enabled is false."
+      },
+      {
+        "key": "openbox.agentId",
+        "type": "string",
+        "defaultValue": "",
+        "description": "OpenBox agent ID used by workspace policy checks. Demo setup normally configures this automatically."
+      },
+      {
+        "key": "openbox.preWriteGate.active",
+        "type": "boolean",
+        "defaultValue": false,
+        "description": "When true, every save calls check_governance(file_write) for the configured agent. `allow` lets the save proceed; `require_approval` blocks the save with a modal until decided; `block` or `halt` cancels the save with a notification. Network deadline is 4s under VS Code's ~5s save timeout; on timeout or network failure the gate cancels the action fail-closed. Requires openbox.agentId."
+      },
+      {
+        "key": "openbox.tabObserver.active",
+        "type": "boolean",
+        "defaultValue": false,
+        "description": "When true (and openbox.tabObserver.enabled is also true), classified non-keystroke inserts are evaluated via check_governance(file_write). Blocked or halted inserts get reverted via WorkspaceEdit and a notification is shown. UX is jarring (the insert briefly appears, then disappears); use sparingly and prefer preWriteGate.active for at-save enforcement when possible. Requires openbox.agentId."
+      },
+      {
+        "key": "openbox.fileOpGate.enabled",
+        "type": "boolean",
+        "defaultValue": false,
+        "description": "When true, intercepts onWillCreateFiles / onWillDeleteFiles / onWillRenameFiles and evaluates each via check_governance. Catches Composer multi-file creates and AI-driven file ops that don't route through the agent's Write tool. Requires openbox.agentId."
+      },
+      {
+        "key": "openbox.strictSourceFilter",
+        "type": "boolean",
+        "defaultValue": false,
+        "description": "When true, hide approval rows whose source cannot be resolved to the current workspace. Leave off unless you are debugging workspace isolation."
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "openbox.onboard",
+        "contents": "Welcome to OpenBox.\n\nPaste the OpenBox key provided by your organization to start reviewing approvals.\n\n[Connect](command:openbox.setApiKey)\n[Open Dashboard](command:openbox.openDashboard)"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "Loading…",
+        "when": "!openbox.needsKey && openbox.loading"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "No pending approvals\n\nYou're all caught up.\n[Refresh](command:openbox.refresh)",
+        "when": "!openbox.needsKey && !openbox.loading && !openbox.hasFilters"
+      },
+      {
+        "view": "openbox.approvals",
+        "contents": "No matches\n\nTry clearing your filters.\n\n[Clear filters](command:openbox.clearFilters)",
+        "when": "!openbox.needsKey && !openbox.loading && openbox.hasFilters"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "Loading…",
+        "when": "!openbox.needsKey && openbox.history.loading"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "Nothing here yet\n\nDecided approvals will show up here.",
+        "when": "!openbox.needsKey && !openbox.history.loading && !openbox.history.hasFilters"
+      },
+      {
+        "view": "openbox.history",
+        "contents": "No matches\n\nTry clearing your filters.\n\n[Clear filters](command:openbox.history.clearFilters)",
+        "when": "!openbox.needsKey && !openbox.history.loading && openbox.history.hasFilters"
+      }
+    ],
+    "menus": [
+      {
+        "location": "commandPalette",
+        "command": "openbox.showDebugInfo",
+        "when": "openbox.debug"
+      },
+      {
+        "location": "commandPalette",
+        "command": "openbox.openDetail",
+        "when": "false"
+      },
+      {
+        "location": "commandPalette",
+        "command": "openbox.copyDetail",
+        "when": "false"
+      },
+      {
+        "location": "commandPalette",
+        "command": "openbox.loadMore",
+        "when": "false"
+      },
+      {
+        "location": "commandPalette",
+        "command": "openbox.history.loadMore",
+        "when": "false"
+      },
+      {
+        "location": "commandPalette",
+        "command": "openbox.setPageSize",
+        "when": "false"
+      },
+      {
+        "location": "commandPalette",
+        "command": "openbox.history.setPageSize",
+        "when": "false"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.search",
+        "when": "view == openbox.approvals",
+        "group": "navigation@1"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.filter",
+        "when": "view == openbox.approvals",
+        "group": "navigation@2"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.toggleSort",
+        "when": "view == openbox.approvals",
+        "group": "navigation@3"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.setPageSize",
+        "when": "view == openbox.approvals",
+        "group": "navigation@4"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.clearFilters",
+        "when": "view == openbox.approvals && openbox.hasFilters",
+        "group": "navigation@5"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.refresh",
+        "when": "view == openbox.approvals",
+        "group": "navigation@6"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.search",
+        "when": "view == openbox.history",
+        "group": "navigation@1"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.setDateRange",
+        "when": "view == openbox.history",
+        "group": "navigation@2"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.setPageSize",
+        "when": "view == openbox.history",
+        "group": "navigation@3"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.filter",
+        "when": "view == openbox.history",
+        "group": "navigation@4"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.toggleSort",
+        "when": "view == openbox.history",
+        "group": "navigation@5"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.clearFilters",
+        "when": "view == openbox.history && openbox.history.hasFilters",
+        "group": "navigation@6"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.history.refresh",
+        "when": "view == openbox.history",
+        "group": "navigation@7"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.openDashboard",
+        "when": "view == openbox.profile",
+        "group": "navigation@1"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.setApiKey",
+        "when": "view == openbox.profile",
+        "group": "navigation@2"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.signOut",
+        "when": "view == openbox.profile",
+        "group": "navigation@3"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.showDebugInfo",
+        "when": "view == openbox.debugControls",
+        "group": "navigation@2"
+      },
+      {
+        "location": "view/title",
+        "command": "openbox.reboot",
+        "when": "view == openbox.debugControls",
+        "group": "navigation@6"
+      },
+      {
+        "location": "view/item/context",
+        "command": "openbox.approve",
+        "when": "viewItem == approval",
+        "group": "inline"
+      },
+      {
+        "location": "view/item/context",
+        "command": "openbox.reject",
+        "when": "viewItem == approval",
+        "group": "inline"
+      }
     ]
   },
   "commands": [
