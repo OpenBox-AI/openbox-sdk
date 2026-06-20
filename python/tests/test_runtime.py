@@ -68,6 +68,7 @@ from openbox_sdk.generated.sdk_targets import (
     LOCAL_CI,
     PACKAGE_SURFACE,
     QUALITY_COMMANDS,
+    ROOT_PIPELINES,
     SDK_GENERATION,
     SDK_TARGET_IDS,
     SDK_TARGET_MANIFEST,
@@ -472,6 +473,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
         "localCi": fixture["localCi"],
         "packageSurface": fixture["packageSurface"],
         "qualityCommands": fixture["qualityCommands"],
+        "rootPipelines": fixture["rootPipelines"],
         "securityAudit": fixture["securityAudit"],
         "sdkGeneration": fixture["sdkGeneration"],
         "targets": fixture["targets"],
@@ -484,6 +486,7 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
     assert LOCAL_CI == fixture["localCi"]
     assert PACKAGE_SURFACE == fixture["packageSurface"]
     assert QUALITY_COMMANDS == fixture["qualityCommands"]
+    assert ROOT_PIPELINES == fixture["rootPipelines"]
     assert SECURITY_AUDIT == fixture["securityAudit"]
     assert SDK_GENERATION == fixture["sdkGeneration"]
     assert TEST_SUITES == fixture["testSuites"]

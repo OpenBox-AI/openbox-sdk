@@ -1074,6 +1074,48 @@ function validateSdkGenerationRecord(
   return validateCommandStepArray(context, target, 'sdkGeneration.steps', sdkGeneration.steps);
 }
 
+function validateRootPipelinesRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawRootPipelines: unknown,
+): boolean {
+  if (!rawRootPipelines || typeof rawRootPipelines !== 'object' || Array.isArray(rawRootPipelines)) {
+    reportInvalidSdkTargets(context, target, 'rootPipelines must be a record');
+    return false;
+  }
+
+  const rootPipelines = rawRootPipelines as Record<string, unknown>;
+  if (!Array.isArray(rootPipelines.pipelines) || rootPipelines.pipelines.length === 0) {
+    reportInvalidSdkTargets(context, target, 'rootPipelines.pipelines must be a non-empty array');
+    return false;
+  }
+
+  const ids = new Set<string>();
+  for (const [index, rawPipeline] of rootPipelines.pipelines.entries()) {
+    if (!rawPipeline || typeof rawPipeline !== 'object' || Array.isArray(rawPipeline)) {
+      reportInvalidSdkTargets(context, target, `rootPipelines.pipelines ${index} must be a record`);
+      return false;
+    }
+    const pipeline = rawPipeline as Record<string, unknown>;
+    for (const field of ['id', 'label']) {
+      if (!isNonEmptyString(pipeline[field])) {
+        reportInvalidSdkTargets(context, target, `rootPipelines.pipelines ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (ids.has(pipeline.id as string)) {
+      reportInvalidSdkTargets(context, target, `rootPipelines.pipelines duplicate id ${pipeline.id}`);
+      return false;
+    }
+    ids.add(pipeline.id as string);
+    if (!validateCommandStepArray(context, target, `rootPipelines.pipelines ${index}.steps`, pipeline.steps)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function validateBundleBuildRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1292,6 +1334,12 @@ export function $sdkTargets(
 
   if (record.sdkGeneration !== undefined) {
     if (!validateSdkGenerationRecord(context, target, record.sdkGeneration)) {
+      return;
+    }
+  }
+
+  if (record.rootPipelines !== undefined) {
+    if (!validateRootPipelinesRecord(context, target, record.rootPipelines)) {
       return;
     }
   }

@@ -19,6 +19,9 @@ canonical TypeSpec contract.
 - `build:bundle` reads the TypeSpec-emitted `bundleBuild.steps` pipeline for
   bundling and runtime asset sync. Add build-stage changes in
   `specs/typespec/sdk/main.tsp`, not in the root package script.
+- `build` and `check:sdks` read TypeSpec-emitted `rootPipelines` entries. Keep
+  high-level root pipeline composition in `specs/typespec/sdk/main.tsp`, not in
+  `package.json`.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted contract metadata
   maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.

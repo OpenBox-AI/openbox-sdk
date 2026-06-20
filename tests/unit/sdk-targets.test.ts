@@ -34,6 +34,20 @@ interface SdkTargetsFixture {
       env?: Record<string, string>;
     }>;
   };
+  rootPipelines: {
+    pipelines: Array<{
+      id: string;
+      label: string;
+      steps: Array<{
+        id: string;
+        label: string;
+        command: string;
+        args?: string[];
+        workingDirectory: string;
+        env?: Record<string, string>;
+      }>;
+    }>;
+  };
   testSuites: {
     defaultSuites: string[];
     suites: Array<{
@@ -240,6 +254,42 @@ describe('SDK target validation manifest', () => {
         workingDirectory: '.',
       },
     ]);
+  });
+
+  test('declares root build and check pipelines outside package scripts', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+    };
+    const pipelines = Object.fromEntries(
+      fixture.rootPipelines.pipelines.map((pipeline) => [pipeline.id, pipeline]),
+    );
+
+    expect(packageJson.scripts.build).toBe('node scripts/run-root-pipeline.mjs build');
+    expect(packageJson.scripts['check:sdks']).toBe(
+      'node scripts/run-root-pipeline.mjs check-sdks',
+    );
+    expect(fixture.rootPipelines.pipelines.map((pipeline) => pipeline.id)).toEqual([
+      'build',
+      'check-sdks',
+    ]);
+    expect(pipelines.build?.steps.map((step) => step.id)).toEqual([
+      'generate-sdks',
+      'bundle-build',
+    ]);
+    expect(pipelines['check-sdks']?.steps.map((step) => step.id)).toEqual([
+      'generate-sdks',
+      'validate-targets',
+    ]);
+    expect(pipelines['check-sdks']?.steps.at(-1)).toEqual({
+      id: 'validate-targets',
+      label: 'Validate SDK targets',
+      command: 'node',
+      args: ['scripts/check-sdks.mjs'],
+      workingDirectory: '.',
+    });
   });
 
   test('declares root test suite routing outside package scripts', () => {

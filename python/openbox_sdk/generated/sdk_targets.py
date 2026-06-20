@@ -107,6 +107,61 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "rootPipelines": {
+    "pipelines": [
+      {
+        "id": "build",
+        "label": "Package build",
+        "steps": [
+          {
+            "id": "generate-sdks",
+            "label": "Generate SDK artifacts",
+            "command": "npm",
+            "args": [
+              "run",
+              "generate:sdks"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "bundle-build",
+            "label": "Bundle package",
+            "command": "npm",
+            "args": [
+              "run",
+              "build:bundle"
+            ],
+            "workingDirectory": "."
+          }
+        ]
+      },
+      {
+        "id": "check-sdks",
+        "label": "SDK target check",
+        "steps": [
+          {
+            "id": "generate-sdks",
+            "label": "Generate SDK artifacts",
+            "command": "npm",
+            "args": [
+              "run",
+              "generate:sdks"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "validate-targets",
+            "label": "Validate SDK targets",
+            "command": "node",
+            "args": [
+              "scripts/check-sdks.mjs"
+            ],
+            "workingDirectory": "."
+          }
+        ]
+      }
+    ]
+  },
   "testSuites": {
     "defaultSuites": [
       "unit",
@@ -743,6 +798,7 @@ SDK_TARGET_MANIFEST = {
 GENERATED_ARTIFACTS = SDK_TARGET_MANIFEST.get("generatedArtifacts", {})
 CODEGEN_BUILD = SDK_TARGET_MANIFEST.get("codegenBuild", {})
 SDK_GENERATION = SDK_TARGET_MANIFEST.get("sdkGeneration", {})
+ROOT_PIPELINES = SDK_TARGET_MANIFEST.get("rootPipelines", {})
 TEST_SUITES = SDK_TARGET_MANIFEST.get("testSuites", {})
 BUNDLE_BUILD = SDK_TARGET_MANIFEST.get("bundleBuild", {})
 QUALITY_COMMANDS = SDK_TARGET_MANIFEST.get("qualityCommands", {})
@@ -753,4 +809,4 @@ LOCAL_CI = SDK_TARGET_MANIFEST.get("localCi", {})
 SDK_TARGETS = SDK_TARGET_MANIFEST.get("targets", [])
 SDK_TARGET_IDS = [target["id"] for target in SDK_TARGETS]
 
-__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]
+__all__ = ["SDK_TARGET_MANIFEST", "GENERATED_ARTIFACTS", "CODEGEN_BUILD", "SDK_GENERATION", "ROOT_PIPELINES", "TEST_SUITES", "BUNDLE_BUILD", "QUALITY_COMMANDS", "PACKAGE_SURFACE", "CLEAN_ARTIFACTS", "SECURITY_AUDIT", "LOCAL_CI", "SDK_TARGETS", "SDK_TARGET_IDS"]

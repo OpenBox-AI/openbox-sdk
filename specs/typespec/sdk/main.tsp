@@ -45,6 +45,26 @@ using OpenBox.Workflow;
       #{ id: "specs-compile", label: "TypeSpec contract compile", command: "npm", args: #["run", "specs:compile"], workingDirectory: "." },
     ],
   },
+  rootPipelines: #{
+    pipelines: #[
+      #{
+        id: "build",
+        label: "Package build",
+        steps: #[
+          #{ id: "generate-sdks", label: "Generate SDK artifacts", command: "npm", args: #["run", "generate:sdks"], workingDirectory: "." },
+          #{ id: "bundle-build", label: "Bundle package", command: "npm", args: #["run", "build:bundle"], workingDirectory: "." },
+        ],
+      },
+      #{
+        id: "check-sdks",
+        label: "SDK target check",
+        steps: #[
+          #{ id: "generate-sdks", label: "Generate SDK artifacts", command: "npm", args: #["run", "generate:sdks"], workingDirectory: "." },
+          #{ id: "validate-targets", label: "Validate SDK targets", command: "node", args: #["scripts/check-sdks.mjs"], workingDirectory: "." },
+        ],
+      },
+    ],
+  },
   testSuites: #{
     defaultSuites: #["unit", "contract", "hook-integration"],
     suites: #[

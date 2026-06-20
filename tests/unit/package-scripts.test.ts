@@ -7,6 +7,7 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
   scripts: Record<string, string>;
 };
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
+const runRootPipelineScript = readFileSync(resolve(process.cwd(), 'scripts/run-root-pipeline.mjs'), 'utf8');
 const runSdkGenerationScript = readFileSync(resolve(process.cwd(), 'scripts/run-sdk-generation.mjs'), 'utf8');
 const buildCodegenScript = readFileSync(resolve(process.cwd(), 'scripts/build-codegen.mjs'), 'utf8');
 const runBundleBuildScript = readFileSync(resolve(process.cwd(), 'scripts/run-bundle-build.mjs'), 'utf8');
@@ -28,6 +29,18 @@ describe('package scripts', () => {
     expect(runSdkGenerationScript).toContain('sdkGeneration.steps');
     expect(runSdkGenerationScript).toContain('bootstrapSteps');
     expect(runSdkGenerationScript).toContain("from './lib/spec-steps.mjs'");
+  });
+
+  test('root build and SDK check read TypeSpec-emitted pipelines', () => {
+    expect(packageJson.scripts.build).toBe('node scripts/run-root-pipeline.mjs build');
+    expect(packageJson.scripts['check:sdks']).toBe(
+      'node scripts/run-root-pipeline.mjs check-sdks',
+    );
+    expect(packageJson.scripts.build).not.toContain('generate:sdks');
+    expect(packageJson.scripts['check:sdks']).not.toContain('check-sdks.mjs');
+    expect(runRootPipelineScript).toContain('rootPipelines');
+    expect(runRootPipelineScript).toContain('fallbackPipelines');
+    expect(runRootPipelineScript).toContain("from './lib/spec-steps.mjs'");
   });
 
   test('codegen build reads the TypeSpec-emitted pipeline', () => {
@@ -73,7 +86,7 @@ describe('package scripts', () => {
   test('SDK generation stays behind the generic TypeSpec command', () => {
     expect(packageJson.scripts['generate:sdks']).toBe('node scripts/run-sdk-generation.mjs');
     expect(packageJson.scripts['check:sdks']).toBe(
-      'npm run generate:sdks && node scripts/check-sdks.mjs',
+      'node scripts/run-root-pipeline.mjs check-sdks',
     );
     expect(packageJson.scripts['check:sdks']).not.toContain('cd python');
     expect(packageJson.scripts['check:sdks']).not.toContain('uv run');

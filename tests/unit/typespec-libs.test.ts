@@ -288,6 +288,15 @@ describe('typespec-workflow', () => {
             steps: Array<{ id: string; command: string; workingDirectory: string }>;
           }
         | undefined;
+    const rootPipelines =
+      fixture?.rootPipelines as
+        | {
+            pipelines: Array<{
+              id: string;
+              steps: Array<{ id: string; command: string; workingDirectory: string }>;
+            }>;
+          }
+        | undefined;
     const testSuites =
       fixture?.testSuites as
         | {
@@ -374,6 +383,11 @@ describe('typespec-workflow', () => {
       'specs-compile',
     ]);
     expect(sdkGeneration?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(rootPipelines?.pipelines.map((entry) => entry.id)).toEqual(['build', 'check-sdks']);
+    expect(rootPipelines?.pipelines.find((entry) => entry.id === 'build')?.steps.map((entry) => entry.id)).toEqual([
+      'generate-sdks',
+      'bundle-build',
+    ]);
     expect(testSuites?.defaultSuites).toEqual(['unit', 'contract', 'hook-integration']);
     expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
       'unit',
