@@ -315,3 +315,18 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *   }
  */
 extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);
+
+/**
+ * Backend operationId → required RBAC permission strings. This is the
+ * canonical SDK-side mirror of backend controller `@Permissions(...)`
+ * decorators. Emitters use it to generate preflight permission tables
+ * for every language target and the tracked JSON fixture at
+ * `codegen/method-permissions.json`.
+ *
+ * Shape:
+ *   #{
+ *     AgentController_getAgent: #["read:agent"],
+ *     AgentController_createAgent: #["create:agent"],
+ *   }
+ */
+extern dec backendPermissions(target: Namespace, permissions: valueof Record<unknown>);

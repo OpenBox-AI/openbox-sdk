@@ -19,8 +19,14 @@ import {
   $activityLabels,
   $hookEventLabel,
   $providerCapabilities,
+  $backendPermissions,
 } from './decorators.js';
-export { getActivityType, getHookEventLabel, getProviderCapabilities } from './decorators.js';
+export {
+  getActivityType,
+  getBackendPermissions,
+  getHookEventLabel,
+  getProviderCapabilities,
+} from './decorators.js';
 
 export { $lib } from './lib.js';
 
@@ -43,5 +49,6 @@ export const $decorators = {
     activityLabels: $activityLabels,
     hookEventLabel: $hookEventLabel,
     providerCapabilities: $providerCapabilities,
+    backendPermissions: $backendPermissions,
   },
 };

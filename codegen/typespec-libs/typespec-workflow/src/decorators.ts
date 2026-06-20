@@ -714,3 +714,60 @@ export function getProviderCapabilities(
 ): ProviderCapabilitiesBinding | undefined {
   return program.stateMap(stateKeys.providerCapabilities).get(target);
 }
+
+// ─── Backend permissions ─────────────────────────────────────────────
+// Backend RBAC metadata belongs in the TypeSpec contract so generated
+// SDKs share the same preflight rules across languages. The map is keyed
+// by OpenAPI operationId and values are permission strings matching the
+// backend Permission enum.
+
+export type BackendPermissionsBinding = Record<string, string[]>;
+
+export function $backendPermissions(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-backend-permissions',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+
+  const permissions: BackendPermissionsBinding = {};
+  for (const [operationId, rawPerms] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(rawPerms) || rawPerms.length === 0) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-backend-permissions',
+        format: { reason: `${operationId} must map to a non-empty string array` },
+        target,
+      });
+      return;
+    }
+    const entries = rawPerms.filter(
+      (entry): entry is string => typeof entry === 'string' && entry.length > 0,
+    );
+    if (entries.length !== rawPerms.length) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-backend-permissions',
+        format: { reason: `${operationId} contains a non-string permission` },
+        target,
+      });
+      return;
+    }
+    permissions[operationId] = entries;
+  }
+
+  context.program.stateMap(stateKeys.backendPermissions).set(target, permissions);
+}
+
+export function getBackendPermissions(
+  program: Program,
+  target: Namespace,
+): BackendPermissionsBinding | undefined {
+  return program.stateMap(stateKeys.backendPermissions).get(target);
+}

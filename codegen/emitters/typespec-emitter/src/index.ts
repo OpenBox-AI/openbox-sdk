@@ -51,6 +51,7 @@ import {
   getActivityLabels,
   getHookEventLabel,
   getProviderCapabilities,
+  getBackendPermissions,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -77,6 +78,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
+  emitBackendPermissionFixture(program, repoRoot);
   emitPythonSdk(program, repoRoot);
   emitAdapters(program, project, repoRoot);
   await emitOpenApiWireTypes(repoRoot);
@@ -174,8 +176,7 @@ interface WrapperMethodSpec {
   bodyParam: { name: string; tsType: string } | null;
   queryParam: { name: string; tsType: string } | null;
   responseTsType: string;
-  /** Required permissions (from method-permissions.json). Empty array
-   *  if the operation has no @Permissions(...) decorator. */
+  /** Required permissions from the TypeSpec @backendPermissions map. */
   requiredPermissions: string[];
 }
 
@@ -207,10 +208,13 @@ function emitWrapperMethods(
   const [ops] = listHttpOperationsIn(program, ns);
   if (ops.length === 0) return;
 
+  const requiredPermissions = opts.emitPermissions
+    ? getBackendPermissions(program, ns) ?? {}
+    : {};
   const methods: WrapperMethodSpec[] = [];
   const seen = new Set<string>();
   for (const op of ops) {
-    const spec = wrapperMethodFor(op);
+    const spec = wrapperMethodFor(op, requiredPermissions);
     if (!spec) continue;
     // Dedup by method name in case operationIds collide after stripping
     // the controller prefix.
@@ -245,21 +249,10 @@ try {
   // operationId-stripping heuristic below.
 }
 
-// operationId → required permissions. Backend-owned mirror of NestJS
-// controllers' @Permissions(PermissionEnum.X) decorators. Drives the
-// generated pre-flight check on the backend wrapper class.
-let METHOD_PERMISSIONS_MAP: Record<string, string[]> = {};
-try {
-  const raw = readFileSync(
-    resolvePath(process.cwd(), 'codegen/method-permissions.json'),
-    'utf8',
-  );
-  METHOD_PERMISSIONS_MAP = JSON.parse(raw);
-} catch {
-  // Permissions file is optional; pre-flight degrades to a no-op.
-}
-
-function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
+function wrapperMethodFor(
+  op: HttpOp,
+  requiredPermissions: Record<string, string[]>,
+): WrapperMethodSpec | null {
   const opId = op.operation.name;
   let methodName: string;
   if (CURATED_METHOD_NAMES[opId]) {
@@ -328,7 +321,7 @@ function wrapperMethodFor(op: HttpOp): WrapperMethodSpec | null {
     bodyParam,
     queryParam,
     responseTsType,
-    requiredPermissions: METHOD_PERMISSIONS_MAP[opId] ?? [],
+    requiredPermissions: requiredPermissions[opId] ?? [],
   };
 }
 
@@ -374,7 +367,7 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
     lines.push(` * Permission requirements per method, extracted from backend NestJS`);
     lines.push(` * controllers' @Permissions(PermissionEnum.X) decorators. Methods`);
     lines.push(` * absent from this map have no @Permissions decorator (public or`);
-    lines.push(` * api-key-gated endpoints). Source: codegen/method-permissions.json.`);
+    lines.push(` * api-key-gated endpoints). Source: specs/typespec/backend/permissions.tsp.`);
     lines.push(` */`);
     lines.push(`export const METHOD_PERMISSIONS: Record<string, readonly string[]> = {`);
     for (const [name, perms] of permsEntries) {
@@ -1451,6 +1444,12 @@ function writeJsonFixture(repoRoot: string, relPath: string, payload: unknown): 
   const file = resolvePath(repoRoot, relPath);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function emitBackendPermissionFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxBackend');
+  const permissions = ns ? getBackendPermissions(program, ns) ?? {} : {};
+  writeJsonFixture(repoRoot, 'codegen/method-permissions.json', permissions);
 }
 
 function collectGovernPresetEntries(program: Program, ns: Namespace): PresetEntry[] {

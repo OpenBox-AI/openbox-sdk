@@ -11,8 +11,8 @@ canonical TypeSpec contract.
   canonical TypeSpec contract. TypeScript, Python, OpenAPI, JSON Schema, and
   future language targets must all hang off this command.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
-  TypeScript, Python, OpenAPI, JSON Schema, and TypeSpec-emitted conformance
-  fixture artifacts for drift.
+  TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted permission maps,
+  and conformance fixture artifacts for drift.
 - `check:sdks` is the generic target-native validation gate. It regenerates the
   TypeSpec-owned artifacts, then runs TypeScript and Python lint/type/test/build
   checks from their emitted contracts. Future language targets should join this

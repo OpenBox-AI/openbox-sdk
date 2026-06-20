@@ -5,7 +5,7 @@ import type { Backend } from '../../types/index.js';
  * Permission requirements per method, extracted from backend NestJS
  * controllers' @Permissions(PermissionEnum.X) decorators. Methods
  * absent from this map have no @Permissions decorator (public or
- * api-key-gated endpoints). Source: codegen/method-permissions.json.
+ * api-key-gated endpoints). Source: specs/typespec/backend/permissions.tsp.
  */
 export const METHOD_PERMISSIONS: Record<string, readonly string[]> = {
   "addTeamMembers": ["update:team"],

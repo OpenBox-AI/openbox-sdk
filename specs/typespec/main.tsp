@@ -8,6 +8,7 @@
 // .github/workflows/spec-drift.yml.
 
 import "./backend/main.tsp";
+import "./backend/permissions.tsp";
 import "./core/main.tsp";
 import "./env/main.tsp";
 import "./cli/main.tsp";
