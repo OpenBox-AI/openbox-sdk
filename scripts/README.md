@@ -21,13 +21,16 @@ canonical TypeSpec contract.
   `package.json`.
 - `check:sdks` is the generic target-native validation gate. It regenerates the
   TypeSpec-owned artifacts, then reads `codegen/fixtures/sdk-targets.json` and
-  runs each target's native lint/type/test/build commands. Future language SDKs
-  and spec-bound app targets should join `specs/typespec/sdk/main.tsp` instead
-  of adding root-level `check:<language>`, `check:<app>`, or
-  `generate:<language>` entry points.
+  validates declared app manifests before running each target's native
+  lint/type/test/build commands. Future language SDKs and spec-bound app
+  targets should join `specs/typespec/sdk/main.tsp` instead of adding
+  root-level `check:<language>`, `check:<app>`, or `generate:<language>` entry
+  points.
 - Spec-bound apps currently include the VS Code extension and n8n custom-node
-  package. The n8n package also consumes a generated manifest emitted from
-  `specs/typespec/govern/capabilities.tsp`.
+  package. The VS Code extension declares its package manifest surface in
+  `specs/typespec/sdk/main.tsp`, and `check:sdks` compares that spec to
+  `apps/extension/package.json`. The n8n package also consumes a generated
+  manifest emitted from `specs/typespec/govern/capabilities.tsp`.
 
 ## Local CI
 

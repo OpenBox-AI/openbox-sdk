@@ -259,7 +259,21 @@ describe('typespec-workflow', () => {
     const sdk = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxSdk');
     expect(sdk).toBeDefined();
     const fixture = getSdkTargets(program, sdk!);
-    const targets = fixture?.targets as Array<{ id: string; kind?: string; commands: unknown[] }> | undefined;
+    const targets =
+      fixture?.targets as
+        | Array<{
+            id: string;
+            kind?: string;
+            commands: unknown[];
+            extensionManifest?: {
+              packageName: string;
+              activationEvents: string[];
+              views: string[];
+              commands: string[];
+              configurationKeys: string[];
+            };
+          }>
+        | undefined;
     expect(targets?.map((target) => target.id)).toEqual([
       'typescript',
       'python',
@@ -268,5 +282,11 @@ describe('typespec-workflow', () => {
     ]);
     expect(targets?.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app', 'app']);
     expect(targets?.every((target) => target.commands.length > 0)).toBe(true);
+    const extension = targets?.find((target) => target.id === 'extension');
+    expect(extension?.extensionManifest?.packageName).toBe('openbox');
+    expect(extension?.extensionManifest?.activationEvents).toContain('onStartupFinished');
+    expect(extension?.extensionManifest?.views).toContain('openbox.approvals');
+    expect(extension?.extensionManifest?.commands).toContain('openbox.approve');
+    expect(extension?.extensionManifest?.configurationKeys).toContain('openbox.agentId');
   });
 });

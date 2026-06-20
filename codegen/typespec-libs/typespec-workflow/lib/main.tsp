@@ -380,6 +380,22 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *         workingDirectory: ".",
  *         commands: #[#{ command: "npm", args: #["run", "test"] }],
  *       },
+ *       #{
+ *         id: "extension",
+ *         kind: "app",
+ *         workingDirectory: "apps/extension",
+ *         extensionManifest: #{
+ *           packageName: "openbox",
+ *           publisher: "openbox",
+ *           displayName: "OpenBox",
+ *           main: "./dist/extension.js",
+ *           activationEvents: #[...],
+ *           views: #[...],
+ *           commands: #[...],
+ *           configurationKeys: #[...],
+ *         },
+ *         commands: #[#{ command: "npm", args: #["run", "test"] }],
+ *       },
  *     ],
  *   }
  */

@@ -9,6 +9,7 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
 const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
+const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
 
 describe('package scripts', () => {
   test('generated cleanup and drift checks read the TypeSpec-emitted artifact inventory', () => {
@@ -33,6 +34,13 @@ describe('package scripts', () => {
       /^(generate|check):(typescript|javascript|python|ts|js|py)$/.test(name),
     );
     expect(languageSpecificGenerationCommands).toEqual([]);
+  });
+
+  test('generic SDK check validates spec-bound extension manifests', () => {
+    expect(checkSdksScript).toContain('extensionManifest');
+    expect(checkSdksScript).toContain('contributes.views');
+    expect(checkSdksScript).toContain('contributes.configuration.properties');
+    expect(checkSdksScript).toContain('does not match TypeSpec manifest');
   });
 
   test('runtime plugin bundle export follows the TypeSpec provider component catalog', () => {

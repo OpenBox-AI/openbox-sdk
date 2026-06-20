@@ -872,6 +872,53 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
+function reportInvalidSdkTargets(
+  context: DecoratorContext,
+  target: Namespace,
+  reason: string,
+): void {
+  reportDiagnostic(context.program, {
+    code: 'invalid-sdk-targets',
+    format: { reason },
+    target,
+  });
+}
+
+function validateExtensionManifestRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  targetId: string,
+  rawManifest: unknown,
+): boolean {
+  if (!rawManifest || typeof rawManifest !== 'object' || Array.isArray(rawManifest)) {
+    reportInvalidSdkTargets(context, target, `${targetId} extensionManifest must be a record`);
+    return false;
+  }
+
+  const manifest = rawManifest as Record<string, unknown>;
+  for (const field of ['packageName', 'publisher', 'displayName', 'main']) {
+    if (!isNonEmptyString(manifest[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.${field} must be a non-empty string`,
+      );
+      return false;
+    }
+  }
+  for (const field of ['activationEvents', 'views', 'commands', 'configurationKeys']) {
+    if (!isStringArray(manifest[field])) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `${targetId} extensionManifest.${field} must be a string array`,
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
 export function $sdkTargets(
   context: DecoratorContext,
   target: Namespace,
@@ -879,33 +926,21 @@ export function $sdkTargets(
 ): void {
   const value = unwrapTspValue(raw);
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    reportDiagnostic(context.program, {
-      code: 'invalid-sdk-targets',
-      format: { reason: 'expected a record literal' },
-      target,
-    });
+    reportInvalidSdkTargets(context, target, 'expected a record literal');
     return;
   }
 
   const record = value as Record<string, unknown>;
   if (record.generatedArtifacts !== undefined) {
     if (!record.generatedArtifacts || typeof record.generatedArtifacts !== 'object' || Array.isArray(record.generatedArtifacts)) {
-      reportDiagnostic(context.program, {
-        code: 'invalid-sdk-targets',
-        format: { reason: 'generatedArtifacts must be a record' },
-        target,
-      });
+      reportInvalidSdkTargets(context, target, 'generatedArtifacts must be a record');
       return;
     }
 
     const artifacts = record.generatedArtifacts as Record<string, unknown>;
     for (const field of ['generatedRoots', 'generatedFiles']) {
       if (!isStringArray(artifacts[field])) {
-        reportDiagnostic(context.program, {
-          code: 'invalid-sdk-targets',
-          format: { reason: `generatedArtifacts.${field} must be a string array` },
-          target,
-        });
+        reportInvalidSdkTargets(context, target, `generatedArtifacts.${field} must be a string array`);
         return;
       }
     }
@@ -913,29 +948,25 @@ export function $sdkTargets(
     const nested = artifacts.nestedGeneratedFiles;
     if (nested !== undefined) {
       if (!Array.isArray(nested)) {
-        reportDiagnostic(context.program, {
-          code: 'invalid-sdk-targets',
-          format: { reason: 'generatedArtifacts.nestedGeneratedFiles must be an array' },
-          target,
-        });
+        reportInvalidSdkTargets(context, target, 'generatedArtifacts.nestedGeneratedFiles must be an array');
         return;
       }
       for (const [index, rawNested] of nested.entries()) {
         if (!rawNested || typeof rawNested !== 'object' || Array.isArray(rawNested)) {
-          reportDiagnostic(context.program, {
-            code: 'invalid-sdk-targets',
-            format: { reason: `generatedArtifacts.nestedGeneratedFiles ${index} must be a record` },
+          reportInvalidSdkTargets(
+            context,
             target,
-          });
+            `generatedArtifacts.nestedGeneratedFiles ${index} must be a record`,
+          );
           return;
         }
         const nestedEntry = rawNested as Record<string, unknown>;
         if (!isNonEmptyString(nestedEntry.root) || !isStringArray(nestedEntry.suffixes)) {
-          reportDiagnostic(context.program, {
-            code: 'invalid-sdk-targets',
-            format: { reason: `generatedArtifacts.nestedGeneratedFiles ${index} requires root and suffixes` },
+          reportInvalidSdkTargets(
+            context,
             target,
-          });
+            `generatedArtifacts.nestedGeneratedFiles ${index} requires root and suffixes`,
+          );
           return;
         }
       }
@@ -944,88 +975,66 @@ export function $sdkTargets(
 
   const targets = record.targets;
   if (!Array.isArray(targets) || targets.length === 0) {
-    reportDiagnostic(context.program, {
-      code: 'invalid-sdk-targets',
-      format: { reason: 'targets must be a non-empty array' },
-      target,
-    });
+    reportInvalidSdkTargets(context, target, 'targets must be a non-empty array');
     return;
   }
 
   for (const [index, rawTarget] of targets.entries()) {
     if (!rawTarget || typeof rawTarget !== 'object' || Array.isArray(rawTarget)) {
-      reportDiagnostic(context.program, {
-        code: 'invalid-sdk-targets',
-        format: { reason: `target ${index} must be a record` },
-        target,
-      });
+      reportInvalidSdkTargets(context, target, `target ${index} must be a record`);
       return;
     }
     const sdkTarget = rawTarget as Record<string, unknown>;
     if (!isNonEmptyString(sdkTarget.id)) {
-      reportDiagnostic(context.program, {
-        code: 'invalid-sdk-targets',
-        format: { reason: `target ${index} is missing id` },
-        target,
-      });
+      reportInvalidSdkTargets(context, target, `target ${index} is missing id`);
       return;
     }
     if (!Array.isArray(sdkTarget.commands) || sdkTarget.commands.length === 0) {
-      reportDiagnostic(context.program, {
-        code: 'invalid-sdk-targets',
-        format: { reason: `${sdkTarget.id} commands must be a non-empty array` },
-        target,
-      });
+      reportInvalidSdkTargets(context, target, `${sdkTarget.id} commands must be a non-empty array`);
       return;
     }
 
     for (const [commandIndex, rawCommand] of sdkTarget.commands.entries()) {
       if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
-        reportDiagnostic(context.program, {
-          code: 'invalid-sdk-targets',
-          format: { reason: `${sdkTarget.id} command ${commandIndex} must be a record` },
-          target,
-        });
+        reportInvalidSdkTargets(context, target, `${sdkTarget.id} command ${commandIndex} must be a record`);
         return;
       }
       const command = rawCommand as Record<string, unknown>;
       if (!isNonEmptyString(command.command)) {
-        reportDiagnostic(context.program, {
-          code: 'invalid-sdk-targets',
-          format: { reason: `${sdkTarget.id} command ${commandIndex} is missing command` },
-          target,
-        });
+        reportInvalidSdkTargets(context, target, `${sdkTarget.id} command ${commandIndex} is missing command`);
         return;
       }
       if (command.args !== undefined) {
         if (!Array.isArray(command.args) || !command.args.every((arg) => typeof arg === 'string')) {
-          reportDiagnostic(context.program, {
-            code: 'invalid-sdk-targets',
-            format: { reason: `${sdkTarget.id} ${command.command} args must be a string array` },
-            target,
-          });
+          reportInvalidSdkTargets(context, target, `${sdkTarget.id} ${command.command} args must be a string array`);
           return;
         }
       }
       if (command.env !== undefined) {
         if (!command.env || typeof command.env !== 'object' || Array.isArray(command.env)) {
-          reportDiagnostic(context.program, {
-            code: 'invalid-sdk-targets',
-            format: { reason: `${sdkTarget.id} ${command.command} env must be a record` },
-            target,
-          });
+          reportInvalidSdkTargets(context, target, `${sdkTarget.id} ${command.command} env must be a record`);
           return;
         }
         for (const [name, value] of Object.entries(command.env as Record<string, unknown>)) {
           if (!isNonEmptyString(name) || typeof value !== 'string') {
-            reportDiagnostic(context.program, {
-              code: 'invalid-sdk-targets',
-              format: { reason: `${sdkTarget.id} ${command.command} env must map strings to strings` },
+            reportInvalidSdkTargets(
+              context,
               target,
-            });
+              `${sdkTarget.id} ${command.command} env must map strings to strings`,
+            );
             return;
           }
         }
+      }
+    }
+
+    if (sdkTarget.extensionManifest !== undefined) {
+      if (sdkTarget.kind !== 'app') {
+        reportInvalidSdkTargets(context, target, `${sdkTarget.id} extensionManifest is only valid for app targets`);
+        return;
+      }
+      if (!validateExtensionManifestRecord(context, target, sdkTarget.id, sdkTarget.extensionManifest)) {
+        return;
       }
     }
   }
