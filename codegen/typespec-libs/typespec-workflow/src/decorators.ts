@@ -1041,6 +1041,75 @@ function validateLocalCiRecord(
   return true;
 }
 
+function validatePackageSurfaceRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawPackageSurface: unknown,
+): boolean {
+  if (!rawPackageSurface || typeof rawPackageSurface !== 'object' || Array.isArray(rawPackageSurface)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface must be a record');
+    return false;
+  }
+
+  const packageSurface = rawPackageSurface as Record<string, unknown>;
+  if (!isNonEmptyString(packageSurface.packageName)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.packageName must be a non-empty string');
+    return false;
+  }
+  if (!isStringArray(packageSurface.files)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.files must be a string array');
+    return false;
+  }
+
+  if (!Array.isArray(packageSurface.bin)) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.bin must be an array');
+    return false;
+  }
+  const binNames = new Set<string>();
+  for (const [index, rawBin] of packageSurface.bin.entries()) {
+    if (!rawBin || typeof rawBin !== 'object' || Array.isArray(rawBin)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.bin ${index} must be a record`);
+      return false;
+    }
+    const bin = rawBin as Record<string, unknown>;
+    if (!isNonEmptyString(bin.name) || !isNonEmptyString(bin.path)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.bin ${index} requires name and path`);
+      return false;
+    }
+    if (binNames.has(bin.name)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.bin duplicate name ${bin.name}`);
+      return false;
+    }
+    binNames.add(bin.name);
+  }
+
+  if (!Array.isArray(packageSurface.exports) || packageSurface.exports.length === 0) {
+    reportInvalidSdkTargets(context, target, 'packageSurface.exports must be a non-empty array');
+    return false;
+  }
+  const exportSubpaths = new Set<string>();
+  for (const [index, rawExport] of packageSurface.exports.entries()) {
+    if (!rawExport || typeof rawExport !== 'object' || Array.isArray(rawExport)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.exports ${index} must be a record`);
+      return false;
+    }
+    const exportEntry = rawExport as Record<string, unknown>;
+    for (const field of ['subpath', 'types', 'importPath']) {
+      if (!isNonEmptyString(exportEntry[field])) {
+        reportInvalidSdkTargets(context, target, `packageSurface.exports ${index}.${field} must be a non-empty string`);
+        return false;
+      }
+    }
+    if (exportSubpaths.has(exportEntry.subpath as string)) {
+      reportInvalidSdkTargets(context, target, `packageSurface.exports duplicate subpath ${exportEntry.subpath}`);
+      return false;
+    }
+    exportSubpaths.add(exportEntry.subpath as string);
+  }
+
+  return true;
+}
+
 function validateCleanArtifactsRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1145,6 +1214,12 @@ export function $sdkTargets(
           return;
         }
       }
+    }
+  }
+
+  if (record.packageSurface !== undefined) {
+    if (!validatePackageSurfaceRecord(context, target, record.packageSurface)) {
+      return;
     }
   }
 

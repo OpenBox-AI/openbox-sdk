@@ -267,6 +267,15 @@ describe('typespec-workflow', () => {
             filePatterns: Array<{ root: string; prefix: string; suffix: string }>;
           }
         | undefined;
+    const packageSurface =
+      fixture?.packageSurface as
+        | {
+            packageName: string;
+            bin: Array<{ name: string; path: string }>;
+            files: string[];
+            exports: Array<{ subpath: string; types: string; importPath: string }>;
+          }
+        | undefined;
     const securityAudit =
       fixture?.securityAudit as
         | {
@@ -316,6 +325,12 @@ describe('typespec-workflow', () => {
     expect(cleanArtifacts?.filePatterns).toEqual([
       { root: 'apps/extension', prefix: 'openbox-', suffix: '.vsix' },
     ]);
+    expect(packageSurface?.packageName).toBe('@openbox-ai/openbox-sdk');
+    expect(packageSurface?.bin).toEqual([{ name: 'openbox', path: './dist/cli/index.js' }]);
+    expect(packageSurface?.files).toEqual(['dist', 'skill']);
+    expect(packageSurface?.exports.map((entry) => entry.subpath)).toEqual(
+      expect.arrayContaining(['.', './runtime/n8n', './openai-agents-sdk']),
+    );
     expect(securityAudit?.commands.map((entry) => entry.id)).toEqual([
       'root-npm-audit',
       'n8n-npm-audit',

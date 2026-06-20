@@ -374,6 +374,12 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *       generatedFiles: #[...],
  *       nestedGeneratedFiles: #[#{ root, suffixes }, ...],
  *     },
+ *     packageSurface: #{
+ *       packageName: "@scope/name",
+ *       bin: #[#{ name, path }, ...],
+ *       files: #[...],
+ *       exports: #[#{ subpath, types, importPath }, ...],
+ *     },
  *     cleanArtifacts: #{
  *       paths: #[...],
  *       nestedNames: #[#{ root, names }, ...],

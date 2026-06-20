@@ -29,6 +29,161 @@
       }
     ]
   },
+  "packageSurface": {
+    "packageName": "@openbox-ai/openbox-sdk",
+    "bin": [
+      {
+        "name": "openbox",
+        "path": "./dist/cli/index.js"
+      }
+    ],
+    "files": [
+      "dist",
+      "skill"
+    ],
+    "exports": [
+      {
+        "subpath": ".",
+        "types": "./dist/index.d.ts",
+        "importPath": "./dist/index.js"
+      },
+      {
+        "subpath": "./client",
+        "types": "./dist/client/index.d.ts",
+        "importPath": "./dist/client/index.js"
+      },
+      {
+        "subpath": "./core-client",
+        "types": "./dist/core-client/index.d.ts",
+        "importPath": "./dist/core-client/index.js"
+      },
+      {
+        "subpath": "./env",
+        "types": "./dist/env/index.d.ts",
+        "importPath": "./dist/env/index.js"
+      },
+      {
+        "subpath": "./approvals",
+        "types": "./dist/approvals/index.d.ts",
+        "importPath": "./dist/approvals/index.js"
+      },
+      {
+        "subpath": "./anthropic-agent-sdk",
+        "types": "./dist/anthropic-agent-sdk/index.d.ts",
+        "importPath": "./dist/anthropic-agent-sdk/index.js"
+      },
+      {
+        "subpath": "./client-factory",
+        "types": "./dist/client-factory/index.d.ts",
+        "importPath": "./dist/client-factory/index.js"
+      },
+      {
+        "subpath": "./file-tokens",
+        "types": "./dist/file-tokens/index.d.ts",
+        "importPath": "./dist/file-tokens/index.js"
+      },
+      {
+        "subpath": "./polling",
+        "types": "./dist/polling/index.d.ts",
+        "importPath": "./dist/polling/index.js"
+      },
+      {
+        "subpath": "./os-paths",
+        "types": "./dist/env/os-paths.d.ts",
+        "importPath": "./dist/env/os-paths.js"
+      },
+      {
+        "subpath": "./types",
+        "types": "./dist/types/index.d.ts",
+        "importPath": "./dist/types/index.js"
+      },
+      {
+        "subpath": "./validators",
+        "types": "./dist/validators/index.d.ts",
+        "importPath": "./dist/validators/index.js"
+      },
+      {
+        "subpath": "./test-utils",
+        "types": "./dist/test-utils/index.d.ts",
+        "importPath": "./dist/test-utils/index.js"
+      },
+      {
+        "subpath": "./maturity",
+        "types": "./dist/maturity/index.d.ts",
+        "importPath": "./dist/maturity/index.js"
+      },
+      {
+        "subpath": "./runtime/claude-code",
+        "types": "./dist/runtime/claude-code/index.d.ts",
+        "importPath": "./dist/runtime/claude-code/index.js"
+      },
+      {
+        "subpath": "./runtime/codex",
+        "types": "./dist/runtime/codex/index.d.ts",
+        "importPath": "./dist/runtime/codex/index.js"
+      },
+      {
+        "subpath": "./runtime/cursor",
+        "types": "./dist/runtime/cursor/index.d.ts",
+        "importPath": "./dist/runtime/cursor/index.js"
+      },
+      {
+        "subpath": "./runtime/mcp",
+        "types": "./dist/runtime/mcp/index.d.ts",
+        "importPath": "./dist/runtime/mcp/index.js"
+      },
+      {
+        "subpath": "./runtime/n8n",
+        "types": "./dist/runtime/n8n/index.d.ts",
+        "importPath": "./dist/runtime/n8n/index.js"
+      },
+      {
+        "subpath": "./governance",
+        "types": "./dist/governance/index.d.ts",
+        "importPath": "./dist/governance/index.js"
+      },
+      {
+        "subpath": "./agent-trace",
+        "types": "./dist/agent-trace/index.d.ts",
+        "importPath": "./dist/agent-trace/index.js"
+      },
+      {
+        "subpath": "./logging",
+        "types": "./dist/logging/index.d.ts",
+        "importPath": "./dist/logging/index.js"
+      },
+      {
+        "subpath": "./session",
+        "types": "./dist/session/index.d.ts",
+        "importPath": "./dist/session/index.js"
+      },
+      {
+        "subpath": "./install",
+        "types": "./dist/install/index.d.ts",
+        "importPath": "./dist/install/index.js"
+      },
+      {
+        "subpath": "./config",
+        "types": "./dist/config/index.d.ts",
+        "importPath": "./dist/config/index.js"
+      },
+      {
+        "subpath": "./copilotkit",
+        "types": "./dist/copilotkit/index.d.ts",
+        "importPath": "./dist/copilotkit/index.js"
+      },
+      {
+        "subpath": "./copilotkit/react",
+        "types": "./dist/copilotkit/react.d.ts",
+        "importPath": "./dist/copilotkit/react.js"
+      },
+      {
+        "subpath": "./openai-agents-sdk",
+        "types": "./dist/openai-agents-sdk/index.d.ts",
+        "importPath": "./dist/openai-agents-sdk/index.js"
+      }
+    ]
+  },
   "cleanArtifacts": {
     "paths": [
       "dist",

@@ -14,6 +14,19 @@ interface SdkTargetsFixture {
       suffixes: string[];
     }>;
   };
+  packageSurface: {
+    packageName: string;
+    bin: Array<{
+      name: string;
+      path: string;
+    }>;
+    files: string[];
+    exports: Array<{
+      subpath: string;
+      types: string;
+      importPath: string;
+    }>;
+  };
   cleanArtifacts: {
     paths: string[];
     nestedNames: Array<{
@@ -123,6 +136,39 @@ describe('SDK target validation manifest', () => {
     expect(fixture.cleanArtifacts.filePatterns).toEqual([
       { root: 'apps/extension', prefix: 'openbox-', suffix: '.vsix' },
     ]);
+  });
+
+  test('declares the root package export surface', () => {
+    const fixture = readSdkTargetsFixture();
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      name: string;
+      bin: Record<string, string>;
+      files: string[];
+      exports: Record<string, { types: string; import: string }>;
+    };
+    const expectedExports = Object.fromEntries(
+      fixture.packageSurface.exports.map((entry) => [
+        entry.subpath,
+        { types: entry.types, import: entry.importPath },
+      ]),
+    );
+
+    expect(packageJson.name).toBe(fixture.packageSurface.packageName);
+    expect(packageJson.bin).toEqual(
+      Object.fromEntries(fixture.packageSurface.bin.map((entry) => [entry.name, entry.path])),
+    );
+    expect(packageJson.files).toEqual(fixture.packageSurface.files);
+    expect(packageJson.exports).toEqual(expectedExports);
+    expect(fixture.packageSurface.exports.map((entry) => entry.subpath)).toEqual(
+      expect.arrayContaining([
+        './openai-agents-sdk',
+        './anthropic-agent-sdk',
+        './copilotkit',
+        './runtime/n8n',
+      ]),
+    );
   });
 
   test('declares security audit commands and annotated secret-scan excludes', () => {

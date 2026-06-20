@@ -14,7 +14,7 @@ package-local runners as they join the shared TypeSpec emitter.
 | `govern-protocol.json` | TypeSpec-emitted scripted lifecycle cases where `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fire in the same order with the same canonical `activity_type` strings |
 | `provider-capabilities.json` | TypeSpec-emitted provider capability, guard, MCP, plugin, public integration, and n8n conformance data used by SDK parity tests |
 | `sdk-manifests.json` | TypeSpec-emitted backend/core endpoint manifests and govern preset manifest used by SDK parity tests |
-| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, generated-artifact inventory, clean-artifact inventory, local CI pipeline, and security-audit manifest consumed by generic root check, drift, cleanup, CI, and audit runners |
+| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest, package export surface, generated-artifact inventory, clean-artifact inventory, local CI pipeline, and security-audit manifest consumed by generic root check, drift, cleanup, CI, and audit runners |
 
 ## How a target wires up
 
@@ -32,6 +32,9 @@ directly. Regenerate them with `npm run generate:sdks`.
 - TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.
 - Python: `python/tests/test_runtime.py` covers generated capability, SDK
   manifest, and SDK target manifest parity.
+- Package surface: root `package.json` name, bin, files, and export subpaths are
+  declared in `specs/typespec/sdk/main.tsp` and compared to the emitted
+  `sdk-targets.json` fixture.
 - Extension: `apps/extension` build/test commands and VS Code manifest surfaces
   are declared in `specs/typespec/sdk/main.tsp`; the extension consumes
   `src/generated/openbox-extension-spec.ts` and runs through the generic target
