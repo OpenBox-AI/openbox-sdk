@@ -1,8 +1,9 @@
 # Conformance fixtures
 
-Shared test inputs for SDK contract behavior. TypeScript and Python consume
-these fixtures today; additional language tracks should add package-local
-runners as they join the shared TypeSpec emitter.
+Shared test inputs for SDK contract behavior. TypeScript, Python, and the
+extension validation target consume these fixtures today; additional language
+tracks or spec-bound apps should add package-local runners as they join the
+shared TypeSpec emitter.
 
 ## Layout
 
@@ -13,11 +14,11 @@ runners as they join the shared TypeSpec emitter.
 | `govern-protocol.json` | TypeSpec-emitted scripted lifecycle cases where `WorkflowStarted`, `ActivityStarted`, and `ActivityCompleted` events fire in the same order with the same canonical `activity_type` strings |
 | `provider-capabilities.json` | TypeSpec-emitted provider capability, guard, MCP, plugin, public integration, and n8n conformance data used by SDK parity tests |
 | `sdk-manifests.json` | TypeSpec-emitted backend/core endpoint manifests and govern preset manifest used by SDK parity tests |
-| `sdk-targets.json` | TypeSpec-emitted SDK validation target manifest consumed by the generic root `check:sdks` runner |
+| `sdk-targets.json` | TypeSpec-emitted SDK/app validation target manifest consumed by the generic root `check:sdks` runner |
 
-## How a language wires up
+## How a target wires up
 
-Each language's test runner reads the fixture, drives its emitted
+Each target's test runner reads the fixture, drives its emitted or spec-bound
 code through the scenario, and asserts the recorded outputs match.
 Snapshots live in `codegen/snapshots/` for the emitter side. The
 runtime-behavior side is compared against the `expected*` fields in
@@ -31,3 +32,5 @@ directly. Regenerate them with `npm run generate:sdks`.
 - TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.
 - Python: `python/tests/test_runtime.py` covers generated capability and SDK
   manifest parity.
+- Extension: `apps/extension` build/test commands are declared in
+  `specs/typespec/sdk/main.tsp` and run through the generic target manifest.

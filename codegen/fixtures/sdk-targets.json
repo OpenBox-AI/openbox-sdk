@@ -6,6 +6,7 @@
     {
       "id": "typescript",
       "label": "TypeScript SDK",
+      "kind": "sdk",
       "workingDirectory": ".",
       "commands": [
         {
@@ -37,6 +38,7 @@
     {
       "id": "python",
       "label": "Python SDK",
+      "kind": "sdk",
       "workingDirectory": "python",
       "commands": [
         {
@@ -77,6 +79,28 @@
           "command": "uv",
           "args": [
             "build"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "extension",
+      "label": "VS Code Extension",
+      "kind": "app",
+      "workingDirectory": "apps/extension",
+      "commands": [
+        {
+          "command": "npm",
+          "args": [
+            "run",
+            "build"
+          ]
+        },
+        {
+          "command": "npm",
+          "args": [
+            "run",
+            "test"
           ]
         }
       ]

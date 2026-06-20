@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Generic SDK target validation runner.
+// Generic target-native validation runner.
 //
 // The command list comes from TypeSpec via codegen/fixtures/sdk-targets.json,
-// keeping root package scripts language-neutral as new SDK targets are added.
+// keeping root package scripts target-neutral as new SDK and app targets are
+// added.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -47,7 +48,10 @@ function validateCommand(target, command, index) {
 
 function validateTarget(target) {
   if (typeof target.id !== 'string' || target.id.length === 0) {
-    throw new Error('SDK target id must be a non-empty string');
+    throw new Error('target id must be a non-empty string');
+  }
+  if (target.kind !== undefined && !['sdk', 'app'].includes(target.kind)) {
+    throw new Error(`${target.id}.kind must be "sdk" or "app"`);
   }
   if (!Array.isArray(target.commands) || target.commands.length === 0) {
     throw new Error(`${target.id}.commands must be a non-empty array`);

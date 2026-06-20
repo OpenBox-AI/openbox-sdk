@@ -43,8 +43,8 @@ TypeSpec emitter.
 
 - Use `npm run generate:sdks` for all generated SDK/API artifacts.
 - Use `npm run check:sdks` for target-native validation across every language
-  SDK. Future targets join `specs/typespec/sdk/main.tsp`; they do not get
-  bespoke root commands.
+  SDK and spec-bound app surface. Future targets join
+  `specs/typespec/sdk/main.tsp`; they do not get bespoke root commands.
 - Add new language targets inside `codegen/emitters/typespec-emitter/` unless
   there is a documented reason to split the emitter.
 - Do not add language-specific generation commands such as
@@ -55,3 +55,6 @@ TypeSpec emitter.
 - Runtime behavior that is host-specific stays in hand-written runtime modules;
   shared public shapes, protocol metadata, and support matrices stay in
   TypeSpec.
+- `apps/extension/` is validated through the same TypeSpec-emitted target
+  manifest as the SDKs; do not add one-off extension CI scripts outside that
+  manifest.

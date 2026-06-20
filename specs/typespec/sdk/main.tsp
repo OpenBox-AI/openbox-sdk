@@ -1,6 +1,6 @@
-// specs/typespec/sdk/main.tsp; canonical SDK validation targets.
+// specs/typespec/sdk/main.tsp; canonical target-native validation surfaces.
 //
-// Root package scripts stay language-neutral. Per-target native
+// Root package scripts stay target-neutral. Per-target native
 // lint/type/test/build commands live here and are emitted into
 // `codegen/fixtures/sdk-targets.json` for the generic check runner.
 
@@ -13,6 +13,7 @@ using OpenBox.Workflow;
     #{
       id: "typescript",
       label: "TypeScript SDK",
+      kind: "sdk",
       workingDirectory: ".",
       commands: #[
         #{ command: "npm", args: #["run", "lint"] },
@@ -27,6 +28,7 @@ using OpenBox.Workflow;
     #{
       id: "python",
       label: "Python SDK",
+      kind: "sdk",
       workingDirectory: "python",
       commands: #[
         #{ command: "uv", args: #["run", "--locked", "--extra", "dev", "ruff", "check", "."] },
@@ -36,6 +38,16 @@ using OpenBox.Workflow;
         },
         #{ command: "uv", args: #["run", "--locked", "--extra", "dev", "pytest"] },
         #{ command: "uv", args: #["build"] },
+      ],
+    },
+    #{
+      id: "extension",
+      label: "VS Code Extension",
+      kind: "app",
+      workingDirectory: "apps/extension",
+      commands: #[
+        #{ command: "npm", args: #["run", "build"] },
+        #{ command: "npm", args: #["run", "test"] },
       ],
     },
   ],

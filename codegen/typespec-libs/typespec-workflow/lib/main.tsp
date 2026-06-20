@@ -361,10 +361,10 @@ extern dec backendPermissions(target: Namespace, permissions: valueof Record<unk
 extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown>);
 
 /**
- * Cross-language SDK validation target manifest. The root `check:sdks`
- * command reads the emitted fixture and runs each target's native
- * validation commands; new language ports should add a TypeSpec target
- * here instead of adding root-level language-specific scripts.
+ * Target-native validation manifest. The root `check:sdks` command reads the
+ * emitted fixture and runs each target's native validation commands; new
+ * language SDK ports and spec-bound apps should add a TypeSpec target here
+ * instead of adding root-level target-specific scripts.
  *
  * Shape:
  *   #{

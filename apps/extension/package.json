@@ -477,9 +477,9 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify --define:process.env.EXTENSION_DEBUG_BUILD=\\\"false\\\"",
-    "build:dev": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --define:process.env.EXTENSION_DEBUG_BUILD=\\\"true\\\"",
-    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch --define:process.env.EXTENSION_DEBUG_BUILD=\\\"true\\\"",
+    "build": "node esbuild.mjs",
+    "build:dev": "node esbuild.mjs --dev",
+    "watch": "node esbuild.mjs --dev --watch",
     "package": "npx @vscode/vsce package --no-dependencies",
     "package:dev": "npm run build:dev && npx @vscode/vsce package --no-dependencies",
     "test": "cd ../.. && vitest run --project unit apps/extension/src"

@@ -858,9 +858,9 @@ export function getSdkMethodNames(
   return program.stateMap(stateKeys.sdkMethodNames).get(target);
 }
 
-// ─── SDK validation targets ─────────────────────────────────────────
-// The root check command is generic; language targets and their native
-// validation commands live in TypeSpec and are emitted as a fixture.
+// ─── Target-native validation surfaces ──────────────────────────────
+// The root check command is generic; language SDKs, spec-bound apps, and their
+// native validation commands live in TypeSpec and are emitted as a fixture.
 
 export type SdkTargetsBinding = Record<string, unknown>;
 

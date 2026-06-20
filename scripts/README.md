@@ -15,9 +15,9 @@ canonical TypeSpec contract.
   maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.
 - `check:sdks` is the generic target-native validation gate. It regenerates the
   TypeSpec-owned artifacts, then reads `codegen/fixtures/sdk-targets.json` and
-  runs each target's native lint/type/test/build commands. Future language
-  targets should join `specs/typespec/sdk/main.tsp` instead of adding root-level
-  `check:<language>` or
+  runs each target's native lint/type/test/build commands. Future language SDKs
+  and spec-bound app targets should join `specs/typespec/sdk/main.tsp` instead
+  of adding root-level `check:<language>`, `check:<app>`, or
   `generate:<language>` entry points.
 
 ## Local CI

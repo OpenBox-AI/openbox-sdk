@@ -43,8 +43,11 @@ interface CapturedResource {
 const captured: CapturedTool[] = [];
 const capturedPrompts: CapturedPrompt[] = [];
 const capturedResources: CapturedResource[] = [];
+const realFetch = globalThis.fetch;
 const mockState = vi.hoisted(() => ({
   clientName: 'mock-mcp-client',
+  httpHandled: 0,
+  httpClosed: 0,
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
@@ -99,11 +102,30 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
   };
 });
 
+vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
+  return {
+    StreamableHTTPServerTransport: class {
+      constructor(_options: any) {}
+      async handleRequest(req: any, res: any) {
+        mockState.httpHandled += 1;
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ok: true, method: req.method }));
+      }
+      async close() {
+        mockState.httpClosed += 1;
+      }
+    },
+  };
+});
+
 beforeEach(() => {
   captured.length = 0;
   capturedPrompts.length = 0;
   capturedResources.length = 0;
   mockState.clientName = 'mock-mcp-client';
+  mockState.httpHandled = 0;
+  mockState.httpClosed = 0;
   // Default fetch: return a generic JSON envelope; individual tool
   // tests override per-call as needed.
   vi.stubGlobal('fetch', async (url: string, _init?: RequestInit) => {
@@ -364,6 +386,52 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       expect(seenUrls.some((u) => u.includes('/agent/agent-1/policies/policy-1'))).toBe(true);
       expect(seenUrls.some((u) => u.includes('/agent/agent-1/behavior-rule/rule-1'))).toBe(true);
       expect(seenUrls.some((u) => u.includes('/agent/agent-1/approvals/pending'))).toBe(true);
+    });
+  });
+
+  it('serves the optional Streamable HTTP transport and closes on abort', async () => {
+    await withMcpEnv(async () => {
+      const abort = new AbortController();
+      const logs: string[] = [];
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+        logs.push(args.map(String).join(' '));
+      });
+
+      try {
+        const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+        await runMcpServer({
+          transport: 'http',
+          host: '127.0.0.1',
+          port: 0,
+          signal: abort.signal,
+        });
+
+        const listenLine = logs.find((line) =>
+          line.includes('OpenBox MCP Streamable HTTP listening at http://'));
+        expect(listenLine).toBeDefined();
+        const url = listenLine!.match(/http:\/\/.+$/)?.[0];
+        expect(url).toBeDefined();
+
+        vi.stubGlobal('fetch', realFetch);
+        const response = await fetch(url!, { method: 'POST' });
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({ ok: true, method: 'POST' });
+        expect(mockState.httpHandled).toBe(1);
+
+        const missing = await fetch(url!.replace('/mcp', '/missing'));
+        expect(missing.status).toBe(404);
+
+        const badMethod = await fetch(url!, { method: 'PUT' });
+        expect(badMethod.status).toBe(405);
+        expect(badMethod.headers.get('allow')).toBe('GET, POST, DELETE');
+
+        abort.abort();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(mockState.httpClosed).toBe(1);
+      } finally {
+        errorSpy.mockRestore();
+        abort.abort();
+      }
     });
   });
 

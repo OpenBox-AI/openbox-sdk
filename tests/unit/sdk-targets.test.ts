@@ -9,6 +9,7 @@ interface SdkTargetsFixture {
   targets: Array<{
     id: string;
     label: string;
+    kind?: string;
     workingDirectory: string;
     commands: Array<{
       command: string;
@@ -31,7 +32,8 @@ describe('SDK target validation manifest', () => {
     expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
     expect(fixture.source).toBe('specs/typespec/sdk/main.tsp');
     expect(fixture.regenerate).toBe('npm run specs:compile');
-    expect(fixture.targets.map((target) => target.id)).toEqual(['typescript', 'python']);
+    expect(fixture.targets.map((target) => target.id)).toEqual(['typescript', 'python', 'extension']);
+    expect(fixture.targets.map((target) => target.kind)).toEqual(['sdk', 'sdk', 'app']);
   });
 
   test('keeps root validation generic while target commands remain native', () => {
@@ -54,6 +56,12 @@ describe('SDK target validation manifest', () => {
       'uv',
       'uv',
       'uv',
+    ]);
+
+    expect(byTarget.extension?.workingDirectory).toBe('apps/extension');
+    expect(byTarget.extension?.commands).toEqual([
+      { command: 'npm', args: ['run', 'build'] },
+      { command: 'npm', args: ['run', 'test'] },
     ]);
   });
 });

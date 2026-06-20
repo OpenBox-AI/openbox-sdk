@@ -4,8 +4,9 @@
 // pipes it into the channel.
 
 import * as vscode from 'vscode';
-import { HOOK_LOG_PATH as LOG_PATH } from '@openbox-ai/openbox-sdk/runtime/cursor';
-import { tailHookLog, type HookLogLine, type TailHandle } from '@openbox-ai/openbox-sdk/logging';
+import { makeHookLog, tailHookLog, type HookLogLine, type TailHandle } from '@openbox-ai/openbox-sdk/logging';
+
+const LOG_PATH = makeHookLog('cursor').path;
 
 function format(line: HookLogLine, raw: string): string {
   if (!line.event) return raw;
