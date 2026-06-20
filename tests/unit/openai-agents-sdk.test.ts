@@ -644,6 +644,15 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         mcp_data: '{"server":"demo"}',
       },
     });
+    await processor.onSpanEnd({
+      spanId: 'mcp-tools-span',
+      traceId: 'trace-1',
+      spanData: {
+        type: 'mcp_tools',
+        server: 'customer-crm',
+        result: ['lookup_contact', 'create_ticket'],
+      },
+    });
     await processor.onTraceEnd(trace);
 
     const goalSignal = mock.events.find(
@@ -697,6 +706,26 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
           activity_id: 'tool-span',
           activity_type: 'HTTPRequest',
           tool_name: 'MCPFetch',
+        }),
+        expect.objectContaining({
+          activity_id: 'mcp-tools-span',
+          event_type: 'ActivityStarted',
+          activity_type: 'MCPToolCall',
+          tool_name: 'MCPListTools',
+          tool_type: 'mcp',
+          activity_input: expect.arrayContaining([
+            expect.objectContaining({
+              tool_input: { server: 'customer-crm' },
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          activity_id: 'mcp-tools-span',
+          event_type: 'ActivityCompleted',
+          activity_type: 'ToolCompleted',
+          tool_name: 'MCPListTools',
+          tool_type: 'mcp',
+          activity_output: { tools: ['lookup_contact', 'create_ticket'] },
         }),
         expect.objectContaining({
           event_type: 'ActivityCompleted',
