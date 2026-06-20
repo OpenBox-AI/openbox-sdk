@@ -10,13 +10,13 @@ under `specs/generated/openapi3/`.
 
 | Path | Contents |
 |---|---|
-| `typespec-libs/typespec-workflow/` | Decorator library: `@verdict`, `@preset`, `@maps_to`, `@adapter`, `@hookEvent`, `@verdictShape`, `@activityRouting`, `@backendPermissions` |
+| `typespec-libs/typespec-workflow/` | Decorator library: `@verdict`, `@preset`, `@maps_to`, `@adapter`, `@hookEvent`, `@verdictShape`, `@activityRouting`, `@backendPermissions`, `@sdkMethodNames` |
 | `typespec-libs/typespec-cli/` | Decorator library: `@cli_command`, `@cli_flag`, etc. Drives CLI binding emit |
 | `typespec-libs/typespec-env/` | Decorator library: `@env_var`, `@token_format`, `@os_path` |
 | `emitters/typespec-emitter/` | OpenBox TypeSpec emitter. Walks the program, writes TypeScript and Python generated SDK artifacts |
 | `fixtures/` | Conformance test inputs in JSON. Future SDK target branches should replay the same fixtures |
 | `method-permissions.json` | TypeSpec-emitted backend `@Permissions` mirror, keyed by `operationId` to required perms. Source: `specs/typespec/backend/permissions.tsp` |
-| `method-names.json` | OpenAPI `operationId` to CLI method name mapping. Used by the wrapper-method emitter |
+| `method-names.json` | TypeSpec-emitted OpenAPI `operationId` to public SDK method name mapping. Source: `specs/typespec/backend/method-names.tsp` |
 
 ## How a code change flows
 
@@ -75,6 +75,7 @@ The line is: spec the contract, hand-code the data extraction.
 | Adapter transport, verdict shapes, tool routing tables | Test fixtures, mock state |
 | Env var names, OS path semantics | UI and display formatting |
 | CLI command structure: args, flags, permissions | CLI command bodies, the action callbacks |
+| Public SDK method names | Target-specific casing projection, such as Python snake_case |
 | Backend operation permission maps | Backend implementation of the controller decorators |
 
 Litmus test: would another SDK target want this? Yes -> spec.

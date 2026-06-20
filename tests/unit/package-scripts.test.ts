@@ -7,9 +7,10 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json
 };
 
 describe('package scripts', () => {
-  test('generated cleanup covers TypeSpec-emitted conformance fixtures', () => {
+  test('generated cleanup covers TypeSpec-emitted contract metadata', () => {
     const cleanGenerated = packageJson.scripts['clean:generated'];
 
+    expect(cleanGenerated).toContain('codegen/method-names.json');
     expect(cleanGenerated).toContain('codegen/method-permissions.json');
     expect(cleanGenerated).toContain('codegen/fixtures/provider-capabilities.json');
     expect(cleanGenerated).toContain('codegen/fixtures/sdk-manifests.json');

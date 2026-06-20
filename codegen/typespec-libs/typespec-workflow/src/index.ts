@@ -20,12 +20,14 @@ import {
   $hookEventLabel,
   $providerCapabilities,
   $backendPermissions,
+  $sdkMethodNames,
 } from './decorators.js';
 export {
   getActivityType,
   getBackendPermissions,
   getHookEventLabel,
   getProviderCapabilities,
+  getSdkMethodNames,
 } from './decorators.js';
 
 export { $lib } from './lib.js';
@@ -50,5 +52,6 @@ export const $decorators = {
     hookEventLabel: $hookEventLabel,
     providerCapabilities: $providerCapabilities,
     backendPermissions: $backendPermissions,
+    sdkMethodNames: $sdkMethodNames,
   },
 };

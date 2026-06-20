@@ -108,6 +108,22 @@ function expectedPathPermissionRules(): Array<{
 }
 
 describe('OpenBoxClient permission pre-flight', () => {
+  test('TypeSpec-emitted method name map only references backend endpoints', () => {
+    const operationIds = new Set(
+      (BACKEND_ENDPOINT_MANIFEST as readonly BackendEndpointEntry[]).map(
+        (entry) => entry.operationId,
+      ),
+    );
+    const missingOperations = Object.keys(METHOD_NAMES).filter(
+      (operationId) => !operationIds.has(operationId),
+    );
+
+    expect(
+      missingOperations,
+      'method-names.json keys missing from TypeSpec backend endpoints',
+    ).toEqual([]);
+  });
+
   test('TypeSpec-emitted permission map matches generated TypeScript permission surfaces', () => {
     expect(METHOD_PERMISSIONS).toEqual(expectedMethodPermissions());
     expect(

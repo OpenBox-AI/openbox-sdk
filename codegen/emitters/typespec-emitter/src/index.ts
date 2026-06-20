@@ -52,6 +52,7 @@ import {
   getHookEventLabel,
   getProviderCapabilities,
   getBackendPermissions,
+  getSdkMethodNames,
   type CanonicalEventType,
   type VerdictShape,
   type PayloadShapeBinding,
@@ -78,6 +79,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
+  emitBackendMethodNameFixture(program, repoRoot);
   emitBackendPermissionFixture(program, repoRoot);
   emitPythonSdk(program, repoRoot);
   emitAdapters(program, project, repoRoot);
@@ -211,10 +213,11 @@ function emitWrapperMethods(
   const requiredPermissions = opts.emitPermissions
     ? getBackendPermissions(program, ns) ?? {}
     : {};
+  const methodNames = getSdkMethodNames(program, ns) ?? {};
   const methods: WrapperMethodSpec[] = [];
   const seen = new Set<string>();
   for (const op of ops) {
-    const spec = wrapperMethodFor(op, requiredPermissions);
+    const spec = wrapperMethodFor(op, requiredPermissions, methodNames);
     if (!spec) continue;
     // Dedup by method name in case operationIds collide after stripping
     // the controller prefix.
@@ -233,36 +236,20 @@ function emitWrapperMethods(
 
 type HttpOp = ReturnType<typeof listHttpOperationsIn>[0][number];
 
-// Curated operationId to methodName map. Avoids collisions when
-// multiple controllers share a verb. AgentController_list,
-// ApiKeyController_list, WebhookController_list, and
-// MemberController_list each map to a unique `listAgents`,
-// `listApiKeys`, `listWebhooks`, or `getMembers`. Lives in
-// codegen/method-names.json as a hand-curated artifact so consumers
-// across languages can converge on the same names.
-let CURATED_METHOD_NAMES: Record<string, string> = {};
-try {
-  const raw = readFileSync(resolvePath(process.cwd(), 'codegen/method-names.json'), 'utf8');
-  CURATED_METHOD_NAMES = JSON.parse(raw);
-} catch {
-  // First-run before the file exists; emitter falls back to the bare
-  // operationId-stripping heuristic below.
-}
-
 function wrapperMethodFor(
   op: HttpOp,
   requiredPermissions: Record<string, string[]>,
+  methodNames: Record<string, string>,
 ): WrapperMethodSpec | null {
   const opId = op.operation.name;
   let methodName: string;
-  if (CURATED_METHOD_NAMES[opId]) {
-    methodName = CURATED_METHOD_NAMES[opId];
+  if (methodNames[opId]) {
+    methodName = methodNames[opId];
   } else {
     // Fallback heuristic: strip the `<Tag>Controller_` prefix. Used
-    // only for new ops that haven't been added to method-names.json
+    // only for new ops that haven't been added to @sdkMethodNames
     // yet. They get the bare verb, such as `list`, and may collide.
-    // The next manual run of `node /tmp/build-name-map.mjs` or a
-    // hand-edit curates a name.
+    // Add a public method name in specs/typespec/backend/method-names.tsp.
     methodName = opId;
     const m = opId.match(/^([A-Z][a-zA-Z]*Controller)_(.+)$/);
     if (m) methodName = m[2];
@@ -1444,6 +1431,12 @@ function writeJsonFixture(repoRoot: string, relPath: string, payload: unknown): 
   const file = resolvePath(repoRoot, relPath);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function emitBackendMethodNameFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxBackend');
+  const methodNames = ns ? getSdkMethodNames(program, ns) ?? {} : {};
+  writeJsonFixture(repoRoot, 'codegen/method-names.json', methodNames);
 }
 
 function emitBackendPermissionFixture(program: Program, repoRoot: string): void {
