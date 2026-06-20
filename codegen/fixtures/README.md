@@ -30,8 +30,8 @@ each fixture case.
 directly. Regenerate them with `npm run generate:sdks`.
 
 - TS: `tests/unit/fixtures.test.ts` covers fixture shape and loading.
-- Python: `python/tests/test_runtime.py` covers generated capability and SDK
-  manifest parity.
+- Python: `python/tests/test_runtime.py` covers generated capability, SDK
+  manifest, and SDK target manifest parity.
 - Extension: `apps/extension` build/test commands and VS Code manifest surfaces
   are declared in `specs/typespec/sdk/main.tsp`; the extension consumes
   `src/generated/openbox-extension-spec.ts` and runs through the generic target

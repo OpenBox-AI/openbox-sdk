@@ -28,6 +28,7 @@ under `specs/generated/openapi3/`.
    "I forgot to regen and commit".
 4. Run `npm run check:sdks`. The generic root runner reads the TypeSpec-emitted
    SDK target manifest, then runs TypeScript and Python target-native checks.
+   Python also receives a generated copy of that manifest for parity tests.
    Vitest snapshot tests catch unintended emitter output drift.
 5. Commit the spec change and the regenerated files in the same
    commit.

@@ -132,6 +132,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'permissions.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'schemas.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
+    resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'sdk_targets.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'govern.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'runtime_contract.py'),
     resolvePath(repoRoot, 'apps', 'extension', 'src', 'generated', 'openbox-extension-spec.ts'),

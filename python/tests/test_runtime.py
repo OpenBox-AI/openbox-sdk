@@ -59,6 +59,12 @@ from openbox_sdk.generated.capability_matrix import (
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
 from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
+from openbox_sdk.generated.sdk_targets import (
+    GENERATED_ARTIFACTS,
+    SDK_TARGET_IDS,
+    SDK_TARGET_MANIFEST,
+    SDK_TARGETS,
+)
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
 from openbox_sdk.integrations.langgraph import (
     OpenBoxLangGraphMiddleware,
@@ -108,6 +114,13 @@ def _provider_capability_fixture() -> dict[str, Any]:
 def _sdk_manifest_fixture() -> dict[str, Any]:
     repo = Path(__file__).parents[2]
     fixture = json.loads((repo / "codegen/fixtures/sdk-manifests.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
+def _sdk_targets_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/sdk-targets.json").read_text())
     assert isinstance(fixture, dict)
     return cast(dict[str, Any], fixture)
 
@@ -433,6 +446,20 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
     assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]
     assert N8N_INTEGRATION_SURFACE == fixture["n8nIntegrationSurface"]
+
+
+def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
+    fixture = _sdk_targets_fixture()
+
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert fixture["source"] == "specs/typespec/sdk/main.tsp"
+    assert SDK_TARGET_MANIFEST == {
+        "generatedArtifacts": fixture["generatedArtifacts"],
+        "targets": fixture["targets"],
+    }
+    assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
+    assert SDK_TARGETS == fixture["targets"]
+    assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]
 
 
 def test_generated_python_permission_rules_match_backend_permission_map() -> None:

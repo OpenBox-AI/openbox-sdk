@@ -15,7 +15,9 @@ async def run() -> dict:
 ```
 
 Generated files live under `openbox_sdk/generated/` and are emitted directly by
-the monorepo TypeSpec emitter. Regenerate them from the repo root with:
+the monorepo TypeSpec emitter. They include backend/core clients, governance
+runtime contracts, provider capability metadata, and the shared SDK target
+manifest used by generic validation. Regenerate them from the repo root with:
 
 ```bash
 npm run generate:sdks

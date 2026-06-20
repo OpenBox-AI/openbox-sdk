@@ -18,7 +18,7 @@ TypeSpec emitter.
 | Path | Role |
 |---|---|
 | `ts/src/**/generated/` | Generated TypeScript SDK artifacts; do not hand-edit |
-| `python/openbox_sdk/generated/` | Generated Python SDK artifacts; do not hand-edit |
+| `python/openbox_sdk/generated/` | Generated Python SDK artifacts, including capability and SDK target manifests; do not hand-edit |
 | `apps/extension/src/generated/` | Generated extension app target and VS Code manifest surfaces; do not hand-edit |
 | `ts/src/**` outside `generated/` | Hand-written TypeScript runtime implementations that consume the spec contract |
 | `python/openbox_sdk/**` outside `generated/` | Hand-written Python runtime implementations that consume the spec contract |
