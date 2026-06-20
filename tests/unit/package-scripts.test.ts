@@ -39,16 +39,15 @@ describe('package scripts', () => {
     const pluginProviders = PROVIDER_PLUGIN_COMPONENTS.map((entry) => entry.provider);
     expect(pluginProviders).toEqual(['codex', 'cursor', 'claude-code']);
 
-    const expectedExports: Record<(typeof pluginProviders)[number], string> = {
-      codex: 'exportCodexPlugin',
-      cursor: 'exportCursorPlugin',
-      'claude-code': 'exportClaudeCodePlugin',
-    };
-
+    expect(syncRuntimeAssets).toContain("await import('../dist/governance/index.js')");
+    expect(syncRuntimeAssets).toContain('PROVIDER_PLUGIN_COMPONENTS');
+    expect(syncRuntimeAssets).toContain('`export${pascalProvider(provider)}Plugin`');
+    expect(syncRuntimeAssets).not.toContain('exportCursorPlugin');
+    expect(syncRuntimeAssets).not.toContain('exportClaudeCodePlugin');
+    expect(syncRuntimeAssets).not.toContain('exportCodexPlugin');
     for (const provider of pluginProviders) {
-      expect(syncRuntimeAssets, `${provider} exporter`).toContain(expectedExports[provider]);
       expect(syncRuntimeAssets, `${provider} dist plugin bundle`).toContain(
-        `dist/runtime/${provider}/plugin/openbox`,
+        "resolve(root, 'dist/runtime', provider, 'plugin/openbox')",
       );
     }
   });
