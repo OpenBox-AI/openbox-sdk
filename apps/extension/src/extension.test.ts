@@ -11,6 +11,7 @@
 // integration boundary instead of re-testing the gate's internal state.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PollingService } from './polling';
+import { OPENBOX_EXTENSION_MANIFEST } from './generated/openbox-extension-spec';
 
 // ─── vscode mock ───────────────────────────────────────────────────────────
 type CmdHandler = (...args: unknown[]) => unknown;
@@ -395,6 +396,24 @@ afterEach(() => {
 });
 
 // ─── tests ─────────────────────────────────────────────────────────────────
+describe('extension wiring: generated manifest contract', () => {
+  it('registers every command contributed by the TypeSpec-emitted extension manifest', async () => {
+    await bootExtension();
+
+    for (const command of OPENBOX_EXTENSION_MANIFEST.commands) {
+      expect(registeredCommands.has(command), `${command} is registered`).toBe(true);
+    }
+
+    const contributed = new Set(OPENBOX_EXTENSION_MANIFEST.commands);
+    const nonDiagnosticExtras = [...registeredCommands.keys()].filter(
+      (command) => command.startsWith('openbox.') &&
+        !command.startsWith('openbox.__diag.') &&
+        !contributed.has(command),
+    );
+    expect(nonDiagnosticExtras).toEqual([]);
+  });
+});
+
 describe('extension wiring: preWriteGate', () => {
   it('records a deny when an approval has verdict=4 and the URI is open', async () => {
     const target = '/workspace/dirty.ts';
