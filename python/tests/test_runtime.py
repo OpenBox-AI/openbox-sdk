@@ -475,23 +475,12 @@ def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
 
     assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
     assert fixture["source"] == "specs/typespec/sdk/main.tsp"
-    assert SDK_TARGET_MANIFEST == {
-        "bundleBuild": fixture["bundleBuild"],
-        "cleanArtifacts": fixture["cleanArtifacts"],
-        "codegenBuild": fixture["codegenBuild"],
-        "generatedArtifacts": fixture["generatedArtifacts"],
-        "generatedChecks": fixture["generatedChecks"],
-        "localCi": fixture["localCi"],
-        "packageScripts": fixture["packageScripts"],
-        "packageSurface": fixture["packageSurface"],
-        "qualityCommands": fixture["qualityCommands"],
-        "rootPipelines": fixture["rootPipelines"],
-        "securityAudit": fixture["securityAudit"],
-        "sdkGeneration": fixture["sdkGeneration"],
-        "specCommands": fixture["specCommands"],
-        "targets": fixture["targets"],
-        "testSuites": fixture["testSuites"],
+    expected_manifest = {
+        key: value
+        for key, value in fixture.items()
+        if key not in {"generatedBy", "source", "regenerate"}
     }
+    assert SDK_TARGET_MANIFEST == expected_manifest
     assert BUNDLE_BUILD == fixture["bundleBuild"]
     assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
     assert CODEGEN_BUILD == fixture["codegenBuild"]

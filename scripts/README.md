@@ -4,6 +4,11 @@ Generation is TypeSpec-owned. `tsp compile specs/typespec` runs the OpenBox
 emitter and writes TypeScript and Python generated SDK artifacts from the same
 canonical TypeSpec contract.
 
+Every file under `scripts/` is cataloged in the TypeSpec-emitted
+`scriptInventory` section of `codegen/fixtures/sdk-targets.json`. Adding a new
+script requires adding a canonical record in `specs/typespec/sdk/main.tsp`; the
+unit suite compares that inventory against the repository tree.
+
 ## Emitter-Owned
 
 - `generate:sdks` is the generic SDK artifact generation command. It builds
@@ -67,6 +72,9 @@ canonical TypeSpec contract.
 - `ci:local` reads the TypeSpec-emitted `localCi.steps` pipeline and executes
   those commands in order. Add or reorder local CI gates in
   `specs/typespec/sdk/main.tsp`, not in `package.json`.
+- `spec-drift.ts` is declared in the TypeSpec-emitted `serviceDrift` section.
+  Its service/tier matrix and output path templates are canonical metadata even
+  though the script remains a report-only operational comparator.
 - Spec-bound apps currently include the VS Code extension and n8n custom-node
   package. The VS Code extension declares its package manifest surface in
   `specs/typespec/sdk/main.tsp`, and `check:sdks` compares that spec to

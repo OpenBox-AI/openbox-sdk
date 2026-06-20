@@ -407,6 +407,9 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     packageScripts: #{
  *       scripts: #[#{ name, command, kind }, ...],
  *     },
+ *     scriptInventory: #{
+ *       entries: #[#{ path, category, canonicalSurface, role }, ...],
+ *     },
  *     codegenBuild: #{
  *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
  *     },
@@ -415,6 +418,14 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     },
  *     specCommands: #{
  *       commands: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *     },
+ *     serviceDrift: #{
+ *       script: "scripts/spec-drift.ts",
+ *       services: #[...],
+ *       tiers: #[...],
+ *       commands: #[#{ id, label, command, args, workingDirectory, outputPathTemplate, behavior }, ...],
+ *       upstreamSources: #[#{ service, tier, source }, ...],
+ *       policy: "...",
  *     },
  *     rootPipelines: #{
  *       pipelines: #[#{ id, label, steps }, ...],

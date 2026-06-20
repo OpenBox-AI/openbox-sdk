@@ -1340,6 +1340,108 @@ function validateSpecCommandsRecord(
   return validateCommandStepArray(context, target, 'specCommands.commands', specCommands.commands);
 }
 
+function validateServiceDriftRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawServiceDrift: unknown,
+): boolean {
+  if (!rawServiceDrift || typeof rawServiceDrift !== 'object' || Array.isArray(rawServiceDrift)) {
+    reportInvalidSdkTargets(context, target, 'serviceDrift must be a record');
+    return false;
+  }
+
+  const serviceDrift = rawServiceDrift as Record<string, unknown>;
+  if (
+    !isNonEmptyString(serviceDrift.script) ||
+    !isStringArray(serviceDrift.services) ||
+    serviceDrift.services.length === 0 ||
+    !isStringArray(serviceDrift.tiers) ||
+    serviceDrift.tiers.length === 0 ||
+    !isNonEmptyString(serviceDrift.policy)
+  ) {
+    reportInvalidSdkTargets(
+      context,
+      target,
+      'serviceDrift requires script, non-empty services/tiers, and policy',
+    );
+    return false;
+  }
+
+  if (!Array.isArray(serviceDrift.commands) || serviceDrift.commands.length === 0) {
+    reportInvalidSdkTargets(context, target, 'serviceDrift.commands must be a non-empty array');
+    return false;
+  }
+
+  const commandIds = new Set<string>();
+  for (const [index, rawCommand] of serviceDrift.commands.entries()) {
+    if (!rawCommand || typeof rawCommand !== 'object' || Array.isArray(rawCommand)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.commands ${index} must be a record`);
+      return false;
+    }
+    const command = rawCommand as Record<string, unknown>;
+    for (const field of ['id', 'label', 'command', 'workingDirectory', 'outputPathTemplate', 'behavior']) {
+      if (!isNonEmptyString(command[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `serviceDrift.commands ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (commandIds.has(command.id as string)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.commands duplicate id ${command.id}`);
+      return false;
+    }
+    commandIds.add(command.id as string);
+    if (command.args !== undefined && !isStringArray(command.args)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.commands ${index}.args must be a string array`);
+      return false;
+    }
+  }
+
+  if (!Array.isArray(serviceDrift.upstreamSources) || serviceDrift.upstreamSources.length === 0) {
+    reportInvalidSdkTargets(context, target, 'serviceDrift.upstreamSources must be a non-empty array');
+    return false;
+  }
+
+  const sourcePairs = new Set<string>();
+  for (const [index, rawSource] of serviceDrift.upstreamSources.entries()) {
+    if (!rawSource || typeof rawSource !== 'object' || Array.isArray(rawSource)) {
+      reportInvalidSdkTargets(context, target, `serviceDrift.upstreamSources ${index} must be a record`);
+      return false;
+    }
+    const source = rawSource as Record<string, unknown>;
+    for (const field of ['service', 'tier', 'source']) {
+      if (!isNonEmptyString(source[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `serviceDrift.upstreamSources ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    sourcePairs.add(`${source.service}:${source.tier}`);
+  }
+
+  for (const service of serviceDrift.services) {
+    for (const tier of serviceDrift.tiers) {
+      const pair = `${service}:${tier}`;
+      if (!sourcePairs.has(pair)) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `serviceDrift.upstreamSources is missing ${pair}`,
+        );
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function validateRootPipelinesRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1547,6 +1649,49 @@ function validatePackageScriptsRecord(
   return true;
 }
 
+function validateScriptInventoryRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawScriptInventory: unknown,
+): boolean {
+  if (!rawScriptInventory || typeof rawScriptInventory !== 'object' || Array.isArray(rawScriptInventory)) {
+    reportInvalidSdkTargets(context, target, 'scriptInventory must be a record');
+    return false;
+  }
+
+  const scriptInventory = rawScriptInventory as Record<string, unknown>;
+  if (!Array.isArray(scriptInventory.entries) || scriptInventory.entries.length === 0) {
+    reportInvalidSdkTargets(context, target, 'scriptInventory.entries must be a non-empty array');
+    return false;
+  }
+
+  const paths = new Set<string>();
+  for (const [index, rawEntry] of scriptInventory.entries.entries()) {
+    if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) {
+      reportInvalidSdkTargets(context, target, `scriptInventory.entries ${index} must be a record`);
+      return false;
+    }
+    const entry = rawEntry as Record<string, unknown>;
+    for (const field of ['path', 'category', 'canonicalSurface', 'role']) {
+      if (!isNonEmptyString(entry[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `scriptInventory.entries ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    if (paths.has(entry.path as string)) {
+      reportInvalidSdkTargets(context, target, `scriptInventory.entries duplicate path ${entry.path}`);
+      return false;
+    }
+    paths.add(entry.path as string);
+  }
+
+  return true;
+}
+
 function validateCleanArtifactsRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1666,6 +1811,12 @@ export function $sdkTargets(
     }
   }
 
+  if (record.scriptInventory !== undefined) {
+    if (!validateScriptInventoryRecord(context, target, record.scriptInventory)) {
+      return;
+    }
+  }
+
   if (record.codegenBuild !== undefined) {
     if (!validateCodegenBuildRecord(context, target, record.codegenBuild)) {
       return;
@@ -1680,6 +1831,12 @@ export function $sdkTargets(
 
   if (record.specCommands !== undefined) {
     if (!validateSpecCommandsRecord(context, target, record.specCommands)) {
+      return;
+    }
+  }
+
+  if (record.serviceDrift !== undefined) {
+    if (!validateServiceDriftRecord(context, target, record.serviceDrift)) {
       return;
     }
   }

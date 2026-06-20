@@ -1,5 +1,5 @@
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { readdirSync, readFileSync, statSync } from 'fs';
+import { join, resolve } from 'path';
 import { describe, expect, test } from 'vitest';
 
 interface SdkTargetsFixture {
@@ -43,6 +43,26 @@ interface SdkTargetsFixture {
       workingDirectory: string;
       env?: Record<string, string>;
     }>;
+  };
+  serviceDrift: {
+    script: string;
+    services: string[];
+    tiers: string[];
+    commands: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args?: string[];
+      workingDirectory: string;
+      outputPathTemplate: string;
+      behavior: string;
+    }>;
+    upstreamSources: Array<{
+      service: string;
+      tier: string;
+      source: string;
+    }>;
+    policy: string;
   };
   rootPipelines: {
     pipelines: Array<{
@@ -119,6 +139,14 @@ interface SdkTargetsFixture {
       kind: string;
     }>;
   };
+  scriptInventory: {
+    entries: Array<{
+      path: string;
+      category: string;
+      canonicalSurface: string;
+      role: string;
+    }>;
+  };
   cleanArtifacts: {
     paths: string[];
     nestedNames: Array<{
@@ -172,6 +200,20 @@ function readSdkTargetsFixture(): SdkTargetsFixture {
   return JSON.parse(
     readFileSync(resolve(process.cwd(), 'codegen/fixtures/sdk-targets.json'), 'utf8'),
   ) as SdkTargetsFixture;
+}
+
+function listFilesRecursive(root: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(root).sort()) {
+    const path = join(root, entry);
+    const stat = statSync(path);
+    if (stat.isDirectory()) {
+      out.push(...listFilesRecursive(path));
+    } else if (stat.isFile()) {
+      out.push(path);
+    }
+  }
+  return out;
 }
 
 describe('SDK target validation manifest', () => {
@@ -311,6 +353,70 @@ describe('SDK target validation manifest', () => {
         workingDirectory: '.',
       },
     ]);
+  });
+
+  test('declares service drift as a TypeSpec-owned operational script', () => {
+    const fixture = readSdkTargetsFixture();
+
+    expect(fixture.serviceDrift.script).toBe('scripts/spec-drift.ts');
+    expect(fixture.serviceDrift.services).toEqual(['backend', 'core']);
+    expect(fixture.serviceDrift.tiers).toEqual(['prod', 'staging', 'develop', 'main']);
+    expect(fixture.serviceDrift.commands.map((command) => command.id)).toEqual([
+      'fetch',
+      'diff',
+    ]);
+    expect(fixture.serviceDrift.commands).toEqual([
+      {
+        id: 'fetch',
+        label: 'Fetch upstream service contract',
+        command: 'node',
+        args: [
+          '--experimental-strip-types',
+          'scripts/spec-drift.ts',
+          'fetch',
+          '--service',
+          '<service>',
+          '--tier',
+          '<tier>',
+        ],
+        workingDirectory: '.',
+        outputPathTemplate: '/tmp/upstream-<service>-<tier>.json',
+        behavior:
+          'Resolve deployed OpenAPI or upstream route inventory for the requested service/tier pair. Unsupported pairs write an explicit skip marker.',
+      },
+      {
+        id: 'diff',
+        label: 'Diff emitted TypeSpec contract against upstream',
+        command: 'node',
+        args: [
+          '--experimental-strip-types',
+          'scripts/spec-drift.ts',
+          'diff',
+          '--service',
+          '<service>',
+          '--tier',
+          '<tier>',
+        ],
+        workingDirectory: '.',
+        outputPathTemplate: '/tmp/spec-drift-<service>-<tier>.md',
+        behavior:
+          'Compare specs/generated/openapi3 against the fetched upstream snapshot and report drift without failing the process.',
+      },
+    ]);
+    expect(
+      fixture.serviceDrift.upstreamSources.map((entry) => `${entry.service}:${entry.tier}`),
+    ).toEqual([
+      'backend:prod',
+      'backend:staging',
+      'backend:develop',
+      'backend:main',
+      'core:prod',
+      'core:staging',
+      'core:develop',
+      'core:main',
+    ]);
+    expect(fixture.serviceDrift.policy).toContain('report-only operational check');
+    expect(fixture.serviceDrift.policy).toContain('must not author SDK artifacts');
   });
 
   test('declares root build and check pipelines outside package scripts', () => {
@@ -569,6 +675,33 @@ describe('SDK target validation manifest', () => {
         /:(python|py|typescript|ts|js)$/.test(script),
       ),
     ).toEqual([]);
+  });
+
+  test('declares every repository script in the TypeSpec-emitted script inventory', () => {
+    const fixture = readSdkTargetsFixture();
+    const scriptPaths = listFilesRecursive('scripts').sort();
+    const inventory = fixture.scriptInventory.entries;
+    const inventoryPaths = inventory.map((entry) => entry.path).sort();
+
+    expect(inventoryPaths).toEqual(scriptPaths);
+    expect(new Set(inventoryPaths).size).toBe(inventoryPaths.length);
+    for (const entry of inventory) {
+      expect(entry.category.length).toBeGreaterThan(3);
+      expect(entry.canonicalSurface.length).toBeGreaterThan(3);
+      expect(entry.role.length).toBeGreaterThan(40);
+    }
+
+    expect(inventory.find((entry) => entry.path === 'scripts/spec-drift.ts')).toMatchObject({
+      category: 'service-drift',
+      canonicalSurface: 'serviceDrift',
+    });
+    expect(inventory.find((entry) => entry.path === 'scripts/openbox-cli-dev.mjs')).toMatchObject({
+      category: 'developer-launcher',
+    });
+    expect(inventory.find((entry) => entry.path === 'scripts/lib/spec-steps.mjs')).toMatchObject({
+      category: 'runner-framework',
+      canonicalSurface: 'codegen/fixtures/sdk-targets.json',
+    });
   });
 
   test('declares security audit commands and annotated secret-scan excludes', () => {
