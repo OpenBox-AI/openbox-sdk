@@ -435,13 +435,6 @@ model GuardrailsResult {
    */
   redacted_input?: unknown;
 
-  /**
-   * Redacted or transformed output payload. Newer guardrail paths use this
-   * for activity-output constraints; older paths may still place the same
-   * payload in redacted_input.
-   */
-  redacted_output?: unknown;
-
   /** Raw guardrail-service output, retained for debugging. */
   raw_logs?: Record<unknown>;
 

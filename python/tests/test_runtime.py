@@ -838,7 +838,9 @@ async def test_govern_runtime_edge_paths() -> None:
                 "results": [
                     {
                         "guardrail_type": "pii",
-                        "results": [{"field": "cmd", "status": "block", "reason": "token"}],
+                        "results": [
+                            {"field": "cmd", "order": 0, "status": "block", "reason": "token"}
+                        ],
                     }
                 ],
             },
@@ -854,7 +856,13 @@ async def test_govern_runtime_edge_paths() -> None:
     assert alias_verdict["guardrailsResult"]["rawLogs"] == {}
     assert alias_verdict["guardrailsResult"]["fieldResults"] == [
         {"field": "direct_cmd", "status": "transformed", "reason": "direct row"},
-        {"field": "cmd", "status": "blocked", "reason": "token"},
+        {
+            "field": "cmd",
+            "status": "blocked",
+            "reason": "token",
+            "guardrailType": "pii",
+            "order": 0,
+        },
     ]
     output_guardrail = map_verdict(
         {

@@ -431,12 +431,6 @@ export interface components {
              *     structured payloads such as tool args.
              */
             redacted_input?: unknown;
-            /**
-             * @description Redacted or transformed output payload. Newer guardrail paths use this
-             *     for activity-output constraints; older paths may still place the same
-             *     payload in redacted_input.
-             */
-            redacted_output?: unknown;
             /** @description Raw guardrail-service output, retained for debugging. */
             raw_logs?: {
                 [key: string]: unknown;

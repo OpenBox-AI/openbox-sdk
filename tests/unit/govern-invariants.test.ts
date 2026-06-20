@@ -2215,7 +2215,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     expect(v.guardrailsResult?.reasons[0].type).toBe('pii');
     expect(v.guardrailsResult?.fieldResults).toEqual([
       { field: 'direct_cmd', status: 'transformed', reason: 'direct row' },
-      { field: 'cmd', status: 'redacted', reason: 'token' },
+      { field: 'cmd', guardrailType: 'pii', order: 0, status: 'redacted', reason: 'token' },
     ]);
   });
 

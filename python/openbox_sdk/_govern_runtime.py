@@ -8,7 +8,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, TypeAlias, TypeVar
+from typing import Any, Literal, TypeAlias, TypeVar, cast
 
 from ._utils import maybe_await, utc_now
 from .generated.runtime_contract import (
@@ -20,10 +20,12 @@ from .generated.runtime_contract import (
     DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE,
     DEFAULT_SDK_SOURCE,
     GOVERNED_PAYLOAD_FIELD_ALIASES,
+    GUARDRAIL_FIELD_RESULT_FIELD_ALIASES,
     GUARDRAIL_FIELD_STATUSES,
     GUARDRAIL_INPUT_TYPES,
     GUARDRAIL_OUTPUT_TYPE,
     GUARDRAILS_RESULT_FIELD_ALIASES,
+    GUARDRAILS_RESULT_GROUP_FIELD_ALIASES,
     GUARDRAILS_RESULT_RESPONSE_ALIASES,
     HANDOFF_EVENT_TYPE,
     SIGNAL_RECEIVED_EVENT_TYPE,
@@ -229,7 +231,7 @@ class BaseGovernedSession:
                     DEFAULT_HOOK_SPAN_PARENT_EVENT_TYPE,
                 )
                 return await self.run_activity(
-                    ACTIVITY_COMPLETED_EVENT_TYPE,
+                    cast(EventType, ACTIVITY_COMPLETED_EVENT_TYPE),
                     completion_activity_type or activity_type,
                     next_payload,
                 )
@@ -812,11 +814,7 @@ def _map_guardrail_field_results(raw: Mapping[str, Any]) -> list[JsonDict]:
     mapped: list[JsonDict] = []
     if isinstance(direct, list):
         mapped.extend(
-            {
-                "field": str(item.get("field") or ""),
-                "status": _normalize_guardrail_field_status(item.get("status")),
-                "reason": item.get("reason"),
-            }
+            _map_guardrail_field_result(item)
             for item in direct
             if isinstance(item, Mapping)
         )
@@ -829,13 +827,35 @@ def _map_guardrail_field_results(raw: Mapping[str, Any]) -> list[JsonDict]:
         for field_result in group["results"]:
             if not isinstance(field_result, Mapping):
                 continue
-            mapped.append(
-                {
-                    "field": str(field_result.get("field") or ""),
-                    "status": _normalize_guardrail_field_status(field_result.get("status")),
-                    "reason": field_result.get("reason"),
-                }
-            )
+            mapped.append(_map_guardrail_field_result(field_result, group))
+    return mapped
+
+
+def _map_guardrail_field_result(
+    field_result: Mapping[str, Any], group: Mapping[str, Any] | None = None
+) -> JsonDict:
+    mapped: JsonDict = {
+        "field": str(
+            _pick_alias(field_result, GUARDRAIL_FIELD_RESULT_FIELD_ALIASES["field"]) or ""
+        ),
+        "status": _normalize_guardrail_field_status(
+            _pick_alias(field_result, GUARDRAIL_FIELD_RESULT_FIELD_ALIASES["status"])
+        ),
+        "reason": _pick_alias(field_result, GUARDRAIL_FIELD_RESULT_FIELD_ALIASES["reason"]),
+    }
+    guardrail_type = (
+        _pick_alias(field_result, GUARDRAIL_FIELD_RESULT_FIELD_ALIASES["guardrailType"])
+        or (
+            _pick_alias(group, GUARDRAILS_RESULT_GROUP_FIELD_ALIASES["guardrailType"])
+            if group
+            else None
+        )
+    )
+    if isinstance(guardrail_type, str) and guardrail_type:
+        mapped["guardrailType"] = guardrail_type
+    order = _pick_alias(field_result, GUARDRAIL_FIELD_RESULT_FIELD_ALIASES["order"])
+    if isinstance(order, int) and not isinstance(order, bool):
+        mapped["order"] = order
     return mapped
 
 

@@ -162,8 +162,8 @@ GUARDRAILS_RESULT_FIELD_ALIASES = {
     "redactedInput"
   ],
   "redactedOutput": [
-    "redacted_output",
-    "redactedOutput"
+    "redactedOutput",
+    "redacted_output"
   ],
   "validationPassed": [
     "validation_passed",
@@ -179,6 +179,33 @@ GUARDRAILS_RESULT_FIELD_ALIASES = {
   "fieldResults": [
     "field_results",
     "fieldResults"
+  ]
+}
+GUARDRAIL_FIELD_RESULT_FIELD_ALIASES = {
+  "field": [
+    "field"
+  ],
+  "guardrailType": [
+    "guardrailType",
+    "guardrail_type"
+  ],
+  "order": [
+    "order"
+  ],
+  "status": [
+    "status"
+  ],
+  "reason": [
+    "reason"
+  ]
+}
+GUARDRAILS_RESULT_GROUP_FIELD_ALIASES = {
+  "guardrailType": [
+    "guardrail_type",
+    "guardrailType"
+  ],
+  "results": [
+    "results"
   ]
 }
 APPROVAL_STATUS_FIELD_ALIASES = {

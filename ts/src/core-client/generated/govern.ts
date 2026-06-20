@@ -5,6 +5,8 @@ export type ActivityStage = "pre" | "post";
 export type VerdictArm = "allow" | "constrain" | "require_approval" | "block" | "halt";
 export interface GuardrailFieldVerdict {
   field: string;
+  guardrailType?: string;
+  order?: number;
   status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
@@ -3651,35 +3653,68 @@ function cleanGuardrailReason(reason: string): string {
   return withoutQuestion.trimEnd();
 }
 
-function mapGuardrailsResult(
-  raw: GovernanceVerdictResponse['guardrails_result'],
+export function mapGuardrailsResult(
+  rawValue: GovernanceVerdictResponse['guardrails_result'] | unknown,
 ): GuardrailsVerdict | undefined {
-  if (!raw) return undefined;
-  if (Object.keys(raw as unknown as Record<string, unknown>).length === 0) return undefined;
+  if (!rawValue || typeof rawValue !== 'object') return undefined;
+  if (Object.keys(rawValue as Record<string, unknown>).length === 0) return undefined;
+  const raw = rawValue as GovernanceVerdictResponse['guardrails_result'] & {
+    inputType?: string;
+    redactedInput?: unknown;
+    redactedOutput?: unknown;
+    validationPassed?: boolean;
+    rawLogs?: Record<string, unknown>;
+    fieldResults?: RawGuardrailFieldResult[];
+  };
   return {
-    inputType: normalizeGuardrailsInputType(raw.input_type),
-    redactedInput: raw.redacted_input,
+    inputType: normalizeGuardrailsInputType(raw.input_type ?? raw.inputType),
+    redactedInput: raw.redacted_input ?? raw.redactedInput,
     redactedOutput: (raw as typeof raw & { redacted_output?: unknown; redactedOutput?: unknown }).redacted_output
       ?? (raw as typeof raw & { redacted_output?: unknown; redactedOutput?: unknown }).redactedOutput,
-    validationPassed: raw.validation_passed !== false,
-    rawLogs: raw.raw_logs,
+    validationPassed: (raw.validation_passed ?? raw.validationPassed) !== false,
+    rawLogs: raw.raw_logs ?? raw.rawLogs,
     reasons: ((raw.reasons ?? []) as Array<{ type?: string; field?: string; reason?: string }>).map((r) => ({
       type: String(r.type ?? ''),
-      field: r.field,
+      field: typeof r.field === 'string' ? r.field : undefined,
       reason: String(r.reason ?? ''),
     })),
     fieldResults: [
-      ...(((raw as typeof raw & { field_results?: Array<{ field?: string; status?: string; reason?: string }>; fieldResults?: Array<{ field?: string; status?: string; reason?: string }> }).field_results
-        ?? (raw as typeof raw & { field_results?: Array<{ field?: string; status?: string; reason?: string }>; fieldResults?: Array<{ field?: string; status?: string; reason?: string }> }).fieldResults
-        ?? []) as Array<{ field?: string; status?: string; reason?: string }>),
-      ...((raw.results ?? []) as Array<{ results?: Array<{ field?: string; status?: string; reason?: string }> }>)
-        .flatMap((g) => g.results ?? []),
-    ].map((fr) => ({
-        field: String(fr.field ?? ''),
-        status: normalizeGuardrailFieldStatus(fr.status),
-        reason: fr.reason,
-      })),
+      ...(((raw as typeof raw & { fieldResults?: RawGuardrailFieldResult[] }).fieldResults ?? []) as RawGuardrailFieldResult[])
+        .map((fr) => mapGuardrailFieldResult(fr)),
+      ...(((raw as typeof raw & { field_results?: RawGuardrailFieldResult[] }).field_results ?? []) as RawGuardrailFieldResult[])
+        .map((fr) => mapGuardrailFieldResult(fr)),
+      ...((raw.results ?? []) as Array<{ guardrail_type?: string; guardrailType?: string; results?: RawGuardrailFieldResult[] }>)
+        .flatMap((g) => (g.results ?? []).map((fr) => mapGuardrailFieldResult(fr, g.guardrail_type ?? g.guardrailType))),
+    ],
   };
+}
+
+type RawGuardrailFieldResult = {
+  field?: string;
+  guardrail_type?: string;
+  guardrailType?: string;
+  order?: number;
+  status?: string;
+  reason?: string;
+};
+
+function mapGuardrailFieldResult(
+  fr: RawGuardrailFieldResult,
+  guardrailType?: string,
+): GuardrailFieldVerdict {
+  const mapped: GuardrailFieldVerdict = {
+    field: String(fr.field ?? ''),
+    status: normalizeGuardrailFieldStatus(fr.status),
+    reason: fr.reason,
+  };
+  const resultGuardrailType = fr.guardrail_type ?? fr.guardrailType ?? guardrailType;
+  if (typeof resultGuardrailType === 'string' && resultGuardrailType.length > 0) {
+    mapped.guardrailType = resultGuardrailType;
+  }
+  if (typeof fr.order === 'number' && Number.isFinite(fr.order)) {
+    mapped.order = fr.order;
+  }
+  return mapped;
 }
 
 function normalizeGuardrailsInputType(value: string | undefined): GuardrailsVerdict['inputType'] {
