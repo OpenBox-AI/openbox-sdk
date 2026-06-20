@@ -15,10 +15,14 @@
 // marker) are never touched.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ProjectedRule, RulesProjection } from '../../governance/rules-projection.js';
+import type {
+  ProjectedRule,
+  RulesProjection,
+} from '../../governance/rules-projection.js';
 
 const FILE_PREFIX = 'openbox-';
-const HEADER_MARKER = '<!-- openbox-managed: do-not-edit -->';
+export const OPENBOX_CURSOR_RULE_HEADER_MARKER =
+  '<!-- openbox-managed: do-not-edit -->';
 
 function escapeYaml(s: string): string {
   // Keep it simple: wrap in quotes if the string contains anything
@@ -63,7 +67,13 @@ function fileNameFor(rule: ProjectedRule): string {
 }
 
 function renderRuleFile(rule: ProjectedRule): string {
-  return [HEADER_MARKER, frontmatter(rule), '', rule.body, ''].join('\n');
+  return [
+    OPENBOX_CURSOR_RULE_HEADER_MARKER,
+    frontmatter(rule),
+    '',
+    rule.body,
+    '',
+  ].join('\n');
 }
 
 function isOpenBoxManaged(file: string): boolean {
@@ -74,6 +84,8 @@ function isOpenBoxManaged(file: string): boolean {
 export interface RenderOpts {
   /** Workspace root; rules land at `<workspace>/.cursor/rules/`. */
   workspace?: string;
+  /** Explicit rules directory. Used by plugin packaging where rules land at `rules/`. */
+  rulesDir?: string;
   /** Skip stale-file deletion (useful for previewing). */
   noPrune?: boolean;
 }
@@ -89,7 +101,7 @@ export function renderRulesProjection(
   opts: RenderOpts = {},
 ): RenderResult {
   const workspace = opts.workspace ?? process.cwd();
-  const rulesDir = path.join(workspace, '.cursor', 'rules');
+  const rulesDir = opts.rulesDir ?? path.join(workspace, '.cursor', 'rules');
   fs.mkdirSync(rulesDir, { recursive: true });
 
   const wantedFiles = new Set<string>();
@@ -122,7 +134,7 @@ export function renderRulesProjection(
       const full = path.join(rulesDir, f);
       try {
         const content = fs.readFileSync(full, 'utf-8');
-        if (!content.startsWith(HEADER_MARKER)) continue;
+        if (!content.startsWith(OPENBOX_CURSOR_RULE_HEADER_MARKER)) continue;
       } catch {
         continue;
       }
