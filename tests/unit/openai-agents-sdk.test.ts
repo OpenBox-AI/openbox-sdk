@@ -5,7 +5,9 @@ import {
   createOpenBoxTracingProcessor,
   createOpenBoxAgentsTool,
   openBoxInputGuardrail,
+  openBoxOutputGuardrail,
   openBoxToolInputGuardrail,
+  openBoxToolOutputGuardrail,
   runWithOpenBox,
 } from '@openbox-ai/openbox-sdk/openai-agents-sdk';
 import type {
@@ -770,6 +772,49 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     });
   });
 
+  it('maps OpenBox output guardrail verdicts through the generated guardrail activity', async () => {
+    const mock = createMockCore((payload) =>
+      payload.activity_type === 'GuardrailEvaluation'
+        ? verdict('halt', {
+            reason: 'unsafe output',
+          })
+        : verdict('allow'),
+    );
+    const outputGuardrail = openBoxOutputGuardrail({
+      core: mock.core,
+      sessionId: 'output-guardrail-session',
+    });
+
+    const result = await outputGuardrail.execute({ agentOutput: 'unsafe answer' });
+    expect(result).toMatchObject({
+      tripwireTriggered: true,
+      outputInfo: {
+        openbox: {
+          arm: 'halt',
+          reason: 'unsafe output',
+        },
+      },
+    });
+
+    const guardrailEvent = mock.events.find(
+      (event) => event.activity_type === 'GuardrailEvaluation',
+    );
+    expect(guardrailEvent).toMatchObject({
+      event_type: 'ActivityStarted',
+      session_id: 'output-guardrail-session',
+    });
+    const activityInput = guardrailEvent?.activity_input as
+      | Array<{ input?: { stage?: string; payload?: unknown }; _openbox_source?: string }>
+      | undefined;
+    expect(activityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      input: {
+        stage: 'output',
+        payload: 'unsafe answer',
+      },
+    });
+  });
+
   it('maps OpenBox tool guardrail verdicts to fail-closed tool behavior', async () => {
     const mock = createMockCore(() =>
       verdict('require_approval', {
@@ -793,6 +838,54 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         openbox: {
           arm: 'require_approval',
           reason: 'needs review',
+        },
+      },
+    });
+  });
+
+  it('maps OpenBox tool output guardrail verdicts to fail-closed tool behavior', async () => {
+    const mock = createMockCore((payload) =>
+      payload.activity_type === 'GuardrailEvaluation'
+        ? verdict('constrain', {
+            reason: 'redacted tool output',
+          })
+        : verdict('allow'),
+    );
+    const guardrail = openBoxToolOutputGuardrail({
+      core: mock.core,
+      sessionId: 'tool-output-guardrail-session',
+    });
+
+    const result = await guardrail.run({
+      toolCall: { name: 'Lookup' },
+      output: { secret: 'token' },
+    });
+    expect(result).toMatchObject({
+      behavior: {
+        type: 'rejectContent',
+        message: '[OpenBox] redacted tool output',
+      },
+      outputInfo: {
+        openbox: {
+          arm: 'constrain',
+          reason: 'redacted tool output',
+        },
+      },
+    });
+
+    const guardrailEvent = mock.events.find(
+      (event) => event.activity_type === 'GuardrailEvaluation',
+    );
+    const activityInput = guardrailEvent?.activity_input as
+      | Array<{ input?: { stage?: string; payload?: Record<string, unknown> }; _openbox_source?: string }>
+      | undefined;
+    expect(activityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      input: {
+        stage: 'tool_output',
+        payload: {
+          toolCall: { name: 'Lookup' },
+          output: { secret: 'token' },
         },
       },
     });
