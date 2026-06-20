@@ -25,12 +25,18 @@ import type {
 } from '@typespec/compiler';
 import { resolvePath, getDoc } from '@typespec/compiler';
 import { listHttpOperationsIn } from '@typespec/http';
-import { getEnvVar, getTokenFormat, isOsPath } from 'typespec-env/decorators';
+import {
+  getEnvVar,
+  getTokenFormat,
+  isOsPath,
+  getEnvConformance,
+} from 'typespec-env/decorators';
 import {
   getCommand,
   getFlag,
   getMaturity,
   getFeatureFlag,
+  getCliConformance,
   type Maturity,
 } from 'typespec-cli/decorators';
 import {
@@ -79,6 +85,8 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitNamespaceTypes(program, project, repoRoot, 'OpenboxCore', 'ts/src/core-client/generated/core-types.ts');
   emitGovernProtocol(program, project, repoRoot);
   emitProviderCapabilities(program, project, repoRoot);
+  emitEnvConformanceFixture(program, repoRoot);
+  emitCliConformanceFixture(program, repoRoot);
   emitGovernProtocolConformanceFixture(program, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
   emitBackendMethodNameFixture(program, repoRoot);
@@ -1427,6 +1435,32 @@ function writeProviderCapabilityConformanceFixture(
   payload: ProviderCapabilityConformancePayload,
 ): void {
   writeJsonFixture(repoRoot, 'codegen/fixtures/provider-capabilities.json', payload);
+}
+
+function emitEnvConformanceFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxEnv');
+  const fixture = ns ? getEnvConformance(program, ns) : undefined;
+  if (!fixture) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/env-resolution.json', {
+    $schema: '../snapshots/env-resolution.schema.json',
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/env/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...fixture,
+  });
+}
+
+function emitCliConformanceFixture(program: Program, repoRoot: string): void {
+  const ns = findNamespace(program, 'OpenboxCli');
+  const fixture = ns ? getCliConformance(program, ns) : undefined;
+  if (!fixture) return;
+  writeJsonFixture(repoRoot, 'codegen/fixtures/cli-auth.json', {
+    $schema: '../snapshots/cli-auth.schema.json',
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    source: 'specs/typespec/cli/main.tsp',
+    regenerate: 'npm run specs:compile',
+    ...fixture,
+  });
 }
 
 function emitGovernProtocolConformanceFixture(program: Program, repoRoot: string): void {

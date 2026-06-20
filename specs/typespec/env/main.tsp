@@ -17,6 +17,69 @@ import "typespec-env";
 
 using OpenBox.Env;
 
+@env_conformance(#{
+  name: "env-resolution",
+  description: "resolveConnection() returns the same RuntimeConfig from explicit URLs and credentials in every language.",
+  cases: #[
+    #{
+      name: "explicit-urls",
+      env: #{
+        OPENBOX_API_URL: "https://api.example.test/ob",
+        OPENBOX_CORE_URL: "https://core.example.test/ob",
+        OPENBOX_PLATFORM_URL: "https://platform.example.test",
+      },
+      tokenStore: null,
+      expected: #{
+        apiUrl: "https://api.example.test/ob",
+        coreUrl: "https://core.example.test/ob",
+        platformUrl: "https://platform.example.test",
+      },
+    },
+    #{
+      name: "token-format-rejects-malformed",
+      env: #{ OPENBOX_API_KEY: "sk-not-an-openbox-key" },
+      tokenStore: null,
+      expected: #{
+        error: "OPENBOX_API_KEY must match obx_(live|test)_<48hex>",
+      },
+    },
+    #{
+      name: "token-format-accepts-live",
+      env: #{
+        OPENBOX_API_KEY: "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+      tokenStore: null,
+      expected: #{
+        error: "OPENBOX_API_URL is required. Set explicit OpenBox service URLs.",
+      },
+    },
+    #{
+      name: "token-format-accepts-live-with-explicit-urls",
+      env: #{
+        OPENBOX_API_URL: "https://api.example.test/ob",
+        OPENBOX_CORE_URL: "https://core.example.test/ob",
+        OPENBOX_API_KEY: "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+      tokenStore: null,
+      expected: #{
+        apiUrl: "https://api.example.test/ob",
+        coreUrl: "https://core.example.test/ob",
+        apiKey: "obx_live_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+    },
+    #{
+      name: "token-format-accepts-test",
+      env: #{
+        OPENBOX_API_KEY: "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+      tokenStore: null,
+      expected: #{
+        error: "OPENBOX_API_URL is required. Set explicit OpenBox service URLs.",
+        apiKey: "obx_test_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+    },
+  ],
+})
 namespace OpenboxEnv;
 
 /**

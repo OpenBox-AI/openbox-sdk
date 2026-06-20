@@ -8,4 +8,64 @@
 //
 // Do not reintroduce generated CRUD/admin command trees here.
 
+import "typespec-cli";
+
+using OpenBox.Cli;
+
+@cli_conformance(#{
+  name: "cli-auth",
+  description: "The `openbox auth` command tree behaves identically across language ports: same flags, same output shape, same rejection of malformed input.",
+  cases: #[
+    #{
+      name: "set-api-key-accepts-valid",
+      argv: #[
+        "auth",
+        "set-api-key",
+        "--key",
+        "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      ],
+      expectedExitCode: 0,
+      expectedSideEffect: "tokenStore.apiKey set",
+    },
+    #{
+      name: "set-api-key-rejects-malformed",
+      argv: #["auth", "set-api-key", "--key", "sk-not-an-openbox-key"],
+      expectedExitCode: 3,
+      expectedStderrContains: "obx_key_<48 hex>",
+    },
+    #{
+      name: "set-api-key-non-interactive-without-key-fails",
+      argv: #["auth", "set-api-key"],
+      env: #{ OPENBOX_NONINTERACTIVE: "1" },
+      expectedExitCode: 2,
+      expectedStderrContains: "auth set-api-key needs --key <value>",
+    },
+    #{
+      name: "clear-api-key-removes-entry",
+      argv: #["auth", "clear-api-key"],
+      tokenStore: #{
+        apiKey: "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+      expectedExitCode: 0,
+      expectedSideEffect: "tokenStore.apiKey removed",
+    },
+    #{
+      name: "status-prints-flat-token-state",
+      argv: #["auth", "status"],
+      env: #{},
+      tokenStore: #{
+        apiKey: "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011",
+      },
+      expectedExitCode: 0,
+      expectedStdoutContains: #["connected"],
+    },
+    #{
+      name: "core-api-key-validator-rejects-malformed",
+      argv: #["doctor"],
+      env: #{ OPENBOX_API_KEY: "sk-not-an-openbox-key" },
+      expectedExitCode: 1,
+      expectedStderrContains: "obx_(live|test)_",
+    },
+  ],
+})
 namespace OpenboxCli {}

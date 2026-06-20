@@ -15,11 +15,13 @@ let program: Program;
 let getEnvVar: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getEnvVar;
 let getTokenFormat: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getTokenFormat;
 let isOsPath: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').isOsPath;
+let getEnvConformance: typeof import('../../codegen/typespec-libs/typespec-env/src/decorators.ts').getEnvConformance;
 let $cli_command: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').$cli_command;
 let $cli_validator: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').$cli_validator;
 let getCommand: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getCommand;
 let getFlag: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getFlag;
 let getValidator: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getValidator;
+let getCliConformance: typeof import('../../codegen/typespec-libs/typespec-cli/src/decorators.ts').getCliConformance;
 let getMapsTo: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getMapsTo;
 let getPreset: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getPreset;
 let getVerdictModel: typeof import('../../codegen/typespec-libs/typespec-workflow/src/decorators.ts').getVerdictModel;
@@ -37,13 +39,14 @@ beforeAll(async () => {
   const workflowDecorators = await import(
     '../../codegen/typespec-libs/typespec-workflow/dist/decorators.js'
   );
-  ({ getEnvVar, getTokenFormat, isOsPath } = envDecorators);
+  ({ getEnvVar, getTokenFormat, isOsPath, getEnvConformance } = envDecorators);
   ({
     $cli_command,
     $cli_validator,
     getCommand,
     getFlag,
     getValidator,
+    getCliConformance,
   } = cliDecorators);
   ({ getMapsTo, getPreset, getVerdictModel, getGovernProtocol } = workflowDecorators);
   const main = resolvePath(root, 'specs', 'typespec', 'main.tsp');
@@ -166,6 +169,14 @@ describe('typespec-env', () => {
     expect(isOsPath(program, prop(creds, 'path'))).toBe(true);
     expect(isOsPath(program, prop(creds, 'apiKey'))).toBe(false);
   });
+
+  test('@env_conformance attaches the shared env-resolution fixture', () => {
+    const env = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxEnv');
+    expect(env).toBeDefined();
+    const fixture = getEnvConformance(program, env!);
+    expect(fixture?.name).toBe('env-resolution');
+    expect((fixture?.cases as unknown[] | undefined)?.length).toBe(5);
+  });
 });
 
 describe('typespec-cli', () => {
@@ -183,6 +194,14 @@ describe('typespec-cli', () => {
     const apiKey = { name: 'apiKey' } as ModelProperty;
     $cli_validator({ program } as never, apiKey, 'validateApiKeyFormat');
     expect(getValidator(program, apiKey)).toBe('validateApiKeyFormat');
+  });
+
+  test('@cli_conformance attaches the shared auth fixture', () => {
+    const cli = [...walkNamespaces(program)].find((ns) => ns.name === 'OpenboxCli');
+    expect(cli).toBeDefined();
+    const fixture = getCliConformance(program, cli!);
+    expect(fixture?.name).toBe('cli-auth');
+    expect((fixture?.cases as unknown[] | undefined)?.length).toBe(6);
   });
 });
 

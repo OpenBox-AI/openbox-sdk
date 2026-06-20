@@ -8,13 +8,14 @@ import { mkdtempSync } from 'node:fs';
 const steps = [
   ['npm', ['audit'], { label: 'root npm audit' }],
   ['npm', ['--prefix', 'example/n8n/custom-node', 'audit'], { label: 'n8n npm audit' }],
-  ['infisical', ['scan', 'git-changes', '--redact', '--no-color'], { label: 'infisical redacted secret scan for local changes' }],
 ];
 
-const trackedScanExcludes = new Set([
-  // Parser fixtures intentionally contain non-secret obx_* examples.
+const secretScanExcludes = new Set([
+  // Parser/spec fixtures intentionally contain non-secret obx_* examples.
   'codegen/fixtures/cli-auth.json',
   'codegen/fixtures/env-resolution.json',
+  'specs/typespec/cli/main.tsp',
+  'specs/typespec/env/main.tsp',
   'tests/e2e/core-client.test.ts',
   'tests/unit/core-client.test.ts',
   'tests/unit/cursor-mcp-install-coverage.test.ts',
@@ -48,8 +49,11 @@ for (const [command, args, opts] of steps) {
   run(command, args, opts);
 }
 
-function runTrackedSourceScan() {
-  const listed = spawnSync('git', ['ls-files', '-z'], {
+runLocalChangeScan();
+runTrackedSourceScan();
+
+function gitFiles(args) {
+  const listed = spawnSync('git', args, {
     cwd: process.cwd(),
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -57,18 +61,40 @@ function runTrackedSourceScan() {
   if (listed.status !== 0) {
     if (listed.stderr) process.stderr.write(listed.stderr);
     process.exitCode = 1;
-    return;
+    return [];
   }
+  return listed.stdout.split('\0').filter(Boolean);
+}
 
-  const tmp = mkdtempSync(join(tmpdir(), 'openbox-sdk-secret-scan-'));
+function copyFilesToTemp(files, prefix) {
+  const tmp = mkdtempSync(join(tmpdir(), prefix));
+  for (const file of files) {
+    if (secretScanExcludes.has(file)) continue;
+    if (!existsSync(file)) continue;
+    const target = join(tmp, file);
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(file, target);
+  }
+  return tmp;
+}
+
+function runLocalChangeScan() {
+  const changed = gitFiles(['diff', '--name-only', '--diff-filter=ACMRTUXB', '-z', 'HEAD', '--']);
+  const untracked = gitFiles(['ls-files', '-o', '--exclude-standard', '-z']);
+  const files = [...new Set([...changed, ...untracked])];
+  const tmp = copyFilesToTemp(files, 'openbox-sdk-secret-scan-local-');
   try {
-    for (const file of listed.stdout.split('\0').filter(Boolean)) {
-      if (trackedScanExcludes.has(file)) continue;
-      if (!existsSync(file)) continue;
-      const target = join(tmp, file);
-      mkdirSync(dirname(target), { recursive: true });
-      cpSync(file, target);
-    }
+    run('infisical', ['scan', '--source', tmp, '--no-git', '--redact', '--no-color'], {
+      label: 'infisical redacted secret scan for local changes',
+    });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+function runTrackedSourceScan() {
+  const tmp = copyFilesToTemp(gitFiles(['ls-files', '-z']), 'openbox-sdk-secret-scan-');
+  try {
     run('infisical', ['scan', '--source', tmp, '--no-git', '--redact', '--no-color'], {
       label: 'infisical tracked-source scan',
     });
@@ -76,5 +102,3 @@ function runTrackedSourceScan() {
     rmSync(tmp, { recursive: true, force: true });
   }
 }
-
-runTrackedSourceScan();

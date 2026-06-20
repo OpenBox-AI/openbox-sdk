@@ -6,14 +6,16 @@
 //
 // Emitters and tests should import from './decorators.js' instead.
 
-import { $env_var, $token_format, $os_path } from './decorators.js';
+import { $env_var, $token_format, $os_path, $env_conformance } from './decorators.js';
 
 export { $lib } from './lib.js';
+export { getEnvConformance } from './decorators.js';
 
 export const $decorators = {
   'OpenBox.Env': {
     env_var: $env_var,
     token_format: $token_format,
     os_path: $os_path,
+    env_conformance: $env_conformance,
   },
 };

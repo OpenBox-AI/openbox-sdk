@@ -16,6 +16,8 @@ const GENERATED_ROOTS = ['specs/generated', 'python/openbox_sdk/generated'];
 const GENERATED_FILES = [
   'codegen/method-names.json',
   'codegen/method-permissions.json',
+  'codegen/fixtures/cli-auth.json',
+  'codegen/fixtures/env-resolution.json',
   'codegen/fixtures/govern-protocol.json',
   'codegen/fixtures/provider-capabilities.json',
   'codegen/fixtures/sdk-manifests.json',

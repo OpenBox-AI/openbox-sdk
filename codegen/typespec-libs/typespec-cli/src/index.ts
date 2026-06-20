@@ -27,9 +27,10 @@ import {
   $cli_dto_defaults,
   $cli_post_validate,
   $cli_recipe,
+  $cli_conformance,
 } from './decorators.js';
 export type { RecipeStep } from './decorators.js';
-export { getRecipe } from './decorators.js';
+export { getRecipe, getCliConformance } from './decorators.js';
 
 export { $lib } from './lib.js';
 
@@ -60,5 +61,6 @@ export const $decorators = {
     cli_dto_defaults: $cli_dto_defaults,
     cli_post_validate: $cli_post_validate,
     cli_recipe: $cli_recipe,
+    cli_conformance: $cli_conformance,
   },
 };

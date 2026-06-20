@@ -1,5 +1,8 @@
 {
   "$schema": "../snapshots/cli-auth.schema.json",
+  "generatedBy": "codegen/emitters/typespec-emitter",
+  "source": "specs/typespec/cli/main.tsp",
+  "regenerate": "npm run specs:compile",
   "name": "cli-auth",
   "description": "The `openbox auth` command tree behaves identically across language ports: same flags, same output shape, same rejection of malformed input.",
   "cases": [
@@ -16,20 +19,33 @@
     },
     {
       "name": "set-api-key-rejects-malformed",
-      "argv": ["auth", "set-api-key", "--key", "sk-not-an-openbox-key"],
+      "argv": [
+        "auth",
+        "set-api-key",
+        "--key",
+        "sk-not-an-openbox-key"
+      ],
       "expectedExitCode": 3,
       "expectedStderrContains": "obx_key_<48 hex>"
     },
     {
       "name": "set-api-key-non-interactive-without-key-fails",
-      "argv": ["auth", "set-api-key"],
-      "env": { "OPENBOX_NONINTERACTIVE": "1" },
+      "argv": [
+        "auth",
+        "set-api-key"
+      ],
+      "env": {
+        "OPENBOX_NONINTERACTIVE": "1"
+      },
       "expectedExitCode": 2,
       "expectedStderrContains": "auth set-api-key needs --key <value>"
     },
     {
       "name": "clear-api-key-removes-entry",
-      "argv": ["auth", "clear-api-key"],
+      "argv": [
+        "auth",
+        "clear-api-key"
+      ],
       "tokenStore": {
         "apiKey": "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011"
       },
@@ -38,18 +54,27 @@
     },
     {
       "name": "status-prints-flat-token-state",
-      "argv": ["auth", "status"],
+      "argv": [
+        "auth",
+        "status"
+      ],
       "env": {},
       "tokenStore": {
         "apiKey": "obx_key_aabbccddeeff00112233445566778899aabbccddeeff0011"
       },
       "expectedExitCode": 0,
-      "expectedStdoutContains": ["connected"]
+      "expectedStdoutContains": [
+        "connected"
+      ]
     },
     {
       "name": "core-api-key-validator-rejects-malformed",
-      "argv": ["doctor"],
-      "env": { "OPENBOX_API_KEY": "sk-not-an-openbox-key" },
+      "argv": [
+        "doctor"
+      ],
+      "env": {
+        "OPENBOX_API_KEY": "sk-not-an-openbox-key"
+      },
       "expectedExitCode": 1,
       "expectedStderrContains": "obx_(live|test)_"
     }
