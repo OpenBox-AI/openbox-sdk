@@ -771,3 +771,50 @@ export function getBackendPermissions(
 ): BackendPermissionsBinding | undefined {
   return program.stateMap(stateKeys.backendPermissions).get(target);
 }
+
+// ─── SDK method names ────────────────────────────────────────────────
+// Public SDK method names are shared across language targets. The map is
+// keyed by OpenAPI operationId and values are lower-camel method names;
+// target emitters can project those to native casing when needed.
+
+export type SdkMethodNamesBinding = Record<string, string>;
+
+const SDK_METHOD_NAME_PATTERN = /^[a-z][A-Za-z0-9]*$/;
+
+export function $sdkMethodNames(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-sdk-method-names',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+
+  const methodNames: SdkMethodNamesBinding = {};
+  for (const [operationId, methodName] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof methodName !== 'string' || !SDK_METHOD_NAME_PATTERN.test(methodName)) {
+      reportDiagnostic(context.program, {
+        code: 'invalid-sdk-method-names',
+        format: { reason: `${operationId} must map to a lower-camel method name` },
+        target,
+      });
+      return;
+    }
+    methodNames[operationId] = methodName;
+  }
+
+  context.program.stateMap(stateKeys.sdkMethodNames).set(target, methodNames);
+}
+
+export function getSdkMethodNames(
+  program: Program,
+  target: Namespace,
+): SdkMethodNamesBinding | undefined {
+  return program.stateMap(stateKeys.sdkMethodNames).get(target);
+}

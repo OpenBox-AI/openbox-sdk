@@ -330,3 +330,17 @@ extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknow
  *   }
  */
 extern dec backendPermissions(target: Namespace, permissions: valueof Record<unknown>);
+
+/**
+ * Backend operationId → public SDK method name. This is cross-language
+ * metadata: TypeScript uses the value directly and Python projects it
+ * to snake_case for its native surface. Emitters also materialize the
+ * tracked JSON fixture at `codegen/method-names.json`.
+ *
+ * Shape:
+ *   #{
+ *     AgentController_getAgents: "listAgents",
+ *     AgentController_createAgent: "createAgent",
+ *   }
+ */
+extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown>);

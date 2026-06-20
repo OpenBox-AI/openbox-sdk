@@ -93,6 +93,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @backendPermissions: ${'reason'}`,
       },
     },
+    'invalid-sdk-method-names': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @sdkMethodNames: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -114,6 +120,9 @@ export const $lib = createTypeSpecLibrary({
     providerCapabilities: { description: 'provider capability/support-tier matrix attached to a namespace' },
     backendPermissions: {
       description: 'backend operationId → required RBAC permissions table attached to a namespace',
+    },
+    sdkMethodNames: {
+      description: 'backend operationId → public SDK method name table attached to a namespace',
     },
   },
 });
