@@ -10,6 +10,7 @@ import {
   DEFAULT_OPENAI_AGENTS_WORKFLOW_TYPE,
   OpenBoxAgentsSDKError,
   createOpenBoxAgentsRuntimeContext,
+  verifyOpenBoxAgentsSDKConfig,
 } from './config.js';
 import { OpenBoxAgentsSessionManager } from './session-manager.js';
 import type {
@@ -32,6 +33,7 @@ import {
   runTelemetryFields,
 } from './payloads.js';
 import { normalizeOpenBoxUsage } from '../governance/usage.js';
+import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
 
 export {
   DEFAULT_OPENAI_AGENTS_TASK_QUEUE,
@@ -39,6 +41,11 @@ export {
   OpenBoxAgentsSDKError,
   createOpenBoxAgentsRuntimeContext,
   resolveProjectConfigDir,
+  verifyOpenBoxAgentsSDKConfig,
+} from './config.js';
+export type {
+  OpenBoxAgentsSDKDiagnosticCheck,
+  OpenBoxAgentsSDKDiagnosticStatus,
 } from './config.js';
 export type {
   AgentsRunFunction,
@@ -547,9 +554,12 @@ function spanIdFrom(span: unknown): string {
 function generationTelemetry(
   spanData: Record<string, unknown>,
 ): ReturnType<typeof runTelemetryFields> {
-  const usage = normalizeOpenBoxUsage(spanData.usage);
+  const usage = normalizeOpenBoxUsage(spanData);
   return {
-    llmModel: firstString(spanData.model),
+    llmModel: firstStringForFields(
+      spanData,
+      USAGE_NORMALIZATION_SURFACE.providerModelFields,
+    ),
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
@@ -557,7 +567,10 @@ function generationTelemetry(
       const itemType = firstString(objectRecord(item).type)?.toLowerCase();
       return itemType === 'function_call' || itemType?.includes('tool') === true;
     }),
-    finishReason: firstString(spanData.finish_reason, spanData.finishReason),
+    finishReason: firstStringForFields(
+      spanData,
+      USAGE_NORMALIZATION_SURFACE.providerFinishReasonFields,
+    ),
   };
 }
 
@@ -613,6 +626,27 @@ function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function firstStringForFields(
+  record: Record<string, unknown>,
+  fields: readonly string[],
+): string | undefined {
+  return firstString(...fields.map((field) => valueAtPath(record, field)));
+}
+
+function valueAtPath(record: Record<string, unknown>, path: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(record, path)) return record[path];
+  if (!path.includes('.')) return record[path];
+  let current: unknown = record;
+  for (const part of path.split('.')) {
+    const currentRecord = objectRecord(current);
+    if (!Object.prototype.hasOwnProperty.call(currentRecord, part)) {
+      return undefined;
+    }
+    current = currentRecord[part];
+  }
+  return current;
 }
 
 function arrayFrom(value: unknown): unknown[] {

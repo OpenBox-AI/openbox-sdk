@@ -26,6 +26,14 @@ export type OpenBoxN8nNodeDescriptor = OpenBoxN8nIntegrationSurface['nodes'][num
 export type OpenBoxN8nWorkflowTemplateDescriptor =
   OpenBoxN8nIntegrationSurface['workflowTemplates'][number];
 export type OpenBoxN8nExampleDescriptor = OpenBoxN8nIntegrationSurface['examples'][number];
+export type OpenBoxN8nIntegrationDiagnosticStatus = 'pass' | 'fail';
+
+export interface OpenBoxN8nIntegrationDiagnosticCheck {
+  name: string;
+  status: OpenBoxN8nIntegrationDiagnosticStatus;
+  detail: string;
+  remediation?: string;
+}
 
 export interface N8nUserPromptSignalOptions {
   nodeName?: string;
@@ -126,6 +134,51 @@ export function getOpenBoxN8nExample(id: string): OpenBoxN8nExampleDescriptor | 
   return descriptorById(OPENBOX_N8N_INTEGRATION.examples, id);
 }
 
+export function verifyOpenBoxN8nIntegrationSurface(
+  surface: OpenBoxN8nIntegrationSurface = OPENBOX_N8N_INTEGRATION,
+): OpenBoxN8nIntegrationDiagnosticCheck[] {
+  const nodeIds = new Set(surface.nodes.map((node) => String(node.id)));
+  const packageNodeIds = arrayOfStrings(
+    recordFrom(surface.packageManifest).openboxSpecNodeIds,
+  );
+  return [
+    descriptorListCheck('credentials', surface.credentials, 'OpenBox credential descriptor'),
+    descriptorListCheck('nodes', surface.nodes, 'OpenBox n8n node descriptor'),
+    descriptorListCheck('workflow-templates', surface.workflowTemplates, 'OpenBox workflow template'),
+    descriptorListCheck('examples', surface.examples, 'OpenBox example workflow'),
+    {
+      name: 'package-node-ids',
+      status:
+        packageNodeIds.length > 0 &&
+        packageNodeIds.every((nodeId) => nodeIds.has(nodeId))
+          ? 'pass'
+          : 'fail',
+      detail: `package manifest references ${packageNodeIds.length} OpenBox node ids.`,
+      remediation: 'Regenerate the n8n package manifest from the TypeSpec integration surface.',
+    },
+    {
+      name: 'workflow-template-content',
+      status: surface.workflowTemplates.every((template) =>
+        arrayFrom(recordFrom(template.workflow).nodes).length > 0)
+        ? 'pass'
+        : 'fail',
+      detail: 'Workflow templates include executable n8n nodes.',
+      remediation: 'Regenerate workflow templates so each template carries at least one node.',
+    },
+    {
+      name: 'showcase-workflows',
+      status: surface.showcaseWorkflows.length > 0 &&
+        surface.showcaseWorkflows.every((workflow) =>
+          workflow.requiredOpenBoxNodeTypes.length > 0 &&
+          workflow.requiredCheckpoints.length > 0)
+        ? 'pass'
+        : 'fail',
+      detail: `Found ${surface.showcaseWorkflows.length} showcase workflow specifications.`,
+      remediation: 'Regenerate showcase workflow specifications from TypeSpec.',
+    },
+  ];
+}
+
 const N8N_NODE_TOOL_TYPE = 'n8n_node';
 const defaultActivity = PRESET_ACTIVITY_TYPES.default;
 const n8nActivity = PRESET_ACTIVITY_TYPES.n8n;
@@ -182,6 +235,33 @@ function recordFrom(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function arrayFrom(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function arrayOfStrings(value: unknown): string[] {
+  return arrayFrom(value).filter(
+    (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0,
+  );
+}
+
+function descriptorListCheck(
+  name: string,
+  items: readonly Record<string, unknown>[],
+  label: string,
+): OpenBoxN8nIntegrationDiagnosticCheck {
+  const missingIds = items.filter((item) => typeof item.id !== 'string' || item.id.trim() === '');
+  return {
+    name,
+    status: items.length > 0 && missingIds.length === 0 ? 'pass' : 'fail',
+    detail: `${items.length} ${label}${items.length === 1 ? '' : 's'} declared.`,
+    remediation:
+      items.length > 0 && missingIds.length === 0
+        ? undefined
+        : `Regenerate ${label} entries from the TypeSpec n8n integration surface.`,
+  };
 }
 
 function errorDescription(value: unknown): string | undefined {
