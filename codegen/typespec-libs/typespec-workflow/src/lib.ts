@@ -87,6 +87,12 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @providerCapabilities: ${'reason'}`,
       },
     },
+    'invalid-backend-permissions': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @backendPermissions: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -106,6 +112,9 @@ export const $lib = createTypeSpecLibrary({
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
     hookEventLabel: { description: 'human-readable label attached to an adapter @hookEvent operation' },
     providerCapabilities: { description: 'provider capability/support-tier matrix attached to a namespace' },
+    backendPermissions: {
+      description: 'backend operationId → required RBAC permissions table attached to a namespace',
+    },
   },
 });
 

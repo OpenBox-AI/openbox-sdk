@@ -108,7 +108,7 @@ function expectedPathPermissionRules(): Array<{
 }
 
 describe('OpenBoxClient permission pre-flight', () => {
-  test('checked-in permission map matches generated TypeScript permission surfaces', () => {
+  test('TypeSpec-emitted permission map matches generated TypeScript permission surfaces', () => {
     expect(METHOD_PERMISSIONS).toEqual(expectedMethodPermissions());
     expect(
       PATH_PERMISSION_RULES.map((rule) => ({

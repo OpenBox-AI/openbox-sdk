@@ -10,6 +10,7 @@ describe('package scripts', () => {
   test('generated cleanup covers TypeSpec-emitted conformance fixtures', () => {
     const cleanGenerated = packageJson.scripts['clean:generated'];
 
+    expect(cleanGenerated).toContain('codegen/method-permissions.json');
     expect(cleanGenerated).toContain('codegen/fixtures/provider-capabilities.json');
     expect(cleanGenerated).toContain('codegen/fixtures/sdk-manifests.json');
   });

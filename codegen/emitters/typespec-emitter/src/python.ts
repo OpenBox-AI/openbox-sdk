@@ -4,6 +4,7 @@ import type { Model, Namespace, Program, Type } from '@typespec/compiler';
 import { resolvePath } from '@typespec/compiler';
 import { listHttpOperationsIn } from '@typespec/http';
 import {
+  getBackendPermissions,
   getMapsTo,
   getPreset,
   getProviderCapabilities,
@@ -77,10 +78,10 @@ export function emitPythonSdk(program: Program, repoRoot: string): void {
     resolvePath(repoRoot, 'codegen/method-names.json'),
     {},
   );
-  const methodPermissions = readJsonFile<Record<string, string[]>>(
-    resolvePath(repoRoot, 'codegen/method-permissions.json'),
-    {},
-  );
+  const backendNamespace = findNamespace(program, 'OpenboxBackend');
+  const methodPermissions = backendNamespace
+    ? getBackendPermissions(program, backendNamespace) ?? {}
+    : {};
 
   const backendManifest = collectEndpointManifest(program, 'OpenboxBackend', methodNames);
   const coreManifest = collectEndpointManifest(program, 'OpenboxCore', methodNames);

@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 
 const GENERATED_ROOTS = ['specs/generated', 'python/openbox_sdk/generated'];
 const GENERATED_FILES = [
+  'codegen/method-permissions.json',
   'codegen/fixtures/provider-capabilities.json',
   'codegen/fixtures/sdk-manifests.json',
 ];
