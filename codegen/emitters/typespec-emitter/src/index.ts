@@ -1200,6 +1200,8 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `}`,
     '',
     `export interface UsageNormalizationSurface {`,
+    `  minimumValue: number;`,
+    `  tokenValuesRequireIntegers: boolean;`,
     `  canonicalFields: readonly string[];`,
     `  inputTokenAliases: readonly string[];`,
     `  outputTokenAliases: readonly string[];`,

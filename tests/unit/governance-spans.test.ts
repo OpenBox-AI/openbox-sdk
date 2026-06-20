@@ -36,6 +36,8 @@ function extractAssistantContentLikeCore(spans: SpanData[]): string {
 
 describe('LLM completion spans', () => {
   test('normalizes token, cache, web-search, and cost usage through the shared facade', () => {
+    expect(USAGE_NORMALIZATION_SURFACE.minimumValue).toBe(0);
+    expect(USAGE_NORMALIZATION_SURFACE.tokenValuesRequireIntegers).toBe(true);
     expect(
       normalizeOpenBoxUsage({
         prompt_tokens: 3,
@@ -76,6 +78,26 @@ describe('LLM completion spans', () => {
       costUsd: 0.30000000000000004,
     });
     expect(
+      normalizeOpenBoxUsage({
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        web_search_requests: 0,
+        cost_usd: 0,
+      }),
+    ).toMatchObject({
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: 0,
+      webSearchRequests: 0,
+      costUsd: 0,
+    });
+    expect(normalizeOpenBoxUsage({ input_tokens: -1, cost_usd: -0.01 })).toBeUndefined();
+    expect(normalizeOpenBoxUsage({ input_tokens: 1.5 })).toBeUndefined();
+    expect(
       combineOpenBoxUsage(
         { input_tokens: 1, output_tokens: 2, total_tokens: 1 },
         { promptTokens: 3, completionTokens: 4 },
@@ -85,6 +107,50 @@ describe('LLM completion spans', () => {
       outputTokens: 6,
       totalTokens: 10,
     });
+  });
+
+  test('preserves explicit zero usage in completed and generic LLM spans', () => {
+    const usage = {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      web_search_requests: 0,
+      cost_usd: 0,
+    };
+    const completed = buildLLMCompletionSpan({
+      content: 'No billable usage.',
+      model: 'gpt-4o-mini',
+      usage,
+    });
+    const generic = buildSpan('mcp', 'llm', {
+      response: 'No billable usage.',
+      model: 'gpt-4o-mini',
+      usage,
+    });
+
+    for (const span of [completed, generic]) {
+      expect(span).toMatchObject({
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        web_search_requests: 0,
+        cost_usd: 0,
+        attributes: expect.objectContaining({
+          'gen_ai.usage.input_tokens': 0,
+          'gen_ai.usage.output_tokens': 0,
+          'gen_ai.usage.total_tokens': 0,
+          'gen_ai.usage.cache_read_input_tokens': 0,
+          'gen_ai.usage.cache_creation_input_tokens': 0,
+          'gen_ai.usage.web_search_requests': 0,
+          'openbox.usage.cost_usd': 0,
+        }),
+      });
+      expect(JSON.parse(String(span.response_body)).usage).toMatchObject(usage);
+    }
   });
 
   test('response body matches Core goal-alignment assistant extraction', () => {

@@ -83,6 +83,8 @@ export interface UsageCostCapabilityGuardEntry {
 }
 
 export interface UsageNormalizationSurface {
+  minimumValue: number;
+  tokenValuesRequireIntegers: boolean;
   canonicalFields: readonly string[];
   inputTokenAliases: readonly string[];
   outputTokenAliases: readonly string[];
@@ -1594,6 +1596,8 @@ export const USAGE_COST_CAPABILITY_GUARDS = [
   }
 ] as const satisfies readonly UsageCostCapabilityGuardEntry[];
 export const USAGE_NORMALIZATION_SURFACE = {
+  "minimumValue": 0,
+  "tokenValuesRequireIntegers": true,
   "canonicalFields": [
     "input_tokens",
     "output_tokens",

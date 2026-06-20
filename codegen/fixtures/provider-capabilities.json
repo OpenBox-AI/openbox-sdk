@@ -1299,6 +1299,8 @@
     }
   ],
   "usageNormalizationSurface": {
+    "minimumValue": 0,
+    "tokenValuesRequireIntegers": true,
     "canonicalFields": [
       "input_tokens",
       "output_tokens",

@@ -94,6 +94,8 @@ namespace OpenboxGovern.Capabilities {
   }
 
   model UsageNormalizationSurface {
+    minimumValue: float64;
+    tokenValuesRequireIntegers: boolean;
     canonicalFields: string[];
     inputTokenAliases: string[];
     outputTokenAliases: string[];
@@ -492,6 +494,8 @@ namespace OpenboxGovern.Capabilities {
     #{ provider: "n8n", tier: "native", usageSurface: "emitN8nLlmCompletion and packaged OpenBox governed AI Agent workflow telemetry", normalizedFields: "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present", sharedNormalizer: "n8n helpers route LLM completion usage through assistantOutputTelemetryFields and buildAssistantOutputSpan.", costPolicyBoundary: "OpenBox Core remains the source of truth for usage/cost policy; n8n nodes only normalize telemetry.", guardTest: "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans" },
   ],
   usageNormalization: #{
+    minimumValue: 0,
+    tokenValuesRequireIntegers: true,
     canonicalFields: #["input_tokens", "output_tokens", "total_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "web_search_requests", "cost_usd"],
     inputTokenAliases: #["inputTokens", "promptTokens", "input_tokens", "prompt_tokens", "inputTokenCount", "promptTokenCount", "input_token_count", "prompt_token_count"],
     outputTokenAliases: #["outputTokens", "completionTokens", "output_tokens", "completion_tokens", "outputTokenCount", "candidatesTokenCount", "responseTokenCount", "output_token_count", "candidates_token_count", "response_token_count"],

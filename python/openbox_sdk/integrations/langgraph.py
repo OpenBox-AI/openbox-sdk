@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import math
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, TypeVar, overload
@@ -464,14 +465,32 @@ def _usage_aliases(key: str) -> list[str]:
     return [alias for alias in aliases if isinstance(alias, str)]
 
 
+def _usage_minimum_value() -> float:
+    value = USAGE_NORMALIZATION_SURFACE.get("minimumValue", 0)
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return 0
+    return float(value)
+
+
 def _token_value(source: Mapping[str, Any] | None, keys: list[str]) -> int | None:
     if source is None:
         return None
+    minimum = _usage_minimum_value()
     for key in keys:
         value = source.get(key)
-        if isinstance(value, int) and value >= 0:
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int) and value >= minimum:
             return value
-        if isinstance(value, float) and value >= 0 and value.is_integer():
+        if (
+            isinstance(value, float)
+            and math.isfinite(value)
+            and value >= minimum
+            and (
+                not USAGE_NORMALIZATION_SURFACE.get("tokenValuesRequireIntegers", True)
+                or value.is_integer()
+            )
+        ):
             return int(value)
     return None
 
@@ -479,9 +498,15 @@ def _token_value(source: Mapping[str, Any] | None, keys: list[str]) -> int | Non
 def _number_value(source: Mapping[str, Any] | None, keys: list[str]) -> float | None:
     if source is None:
         return None
+    minimum = _usage_minimum_value()
     for key in keys:
         value = source.get(key)
-        if isinstance(value, int | float) and value >= 0:
+        if (
+            not isinstance(value, bool)
+            and isinstance(value, int | float)
+            and math.isfinite(value)
+            and value >= minimum
+        ):
             return float(value)
     return None
 

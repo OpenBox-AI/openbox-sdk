@@ -1300,6 +1300,8 @@ USAGE_COST_CAPABILITY_GUARDS = [
   }
 ]
 USAGE_NORMALIZATION_SURFACE = {
+  "minimumValue": 0,
+  "tokenValuesRequireIntegers": True,
   "canonicalFields": [
     "input_tokens",
     "output_tokens",

@@ -951,6 +951,37 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     assert model_completed["finish_reason"] == "stop"
     assert model_completed["completion"] == "answer"
 
+    zero_usage_payload = {
+        "content": "cached answer",
+        "usage_metadata": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "total_cost_usd": 0,
+        },
+    }
+    zero_usage_request: Mapping[str, Any] = {
+        "run_id": "model-zero",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "use cache"}],
+    }
+    await middleware.wrap_model_call(
+        zero_usage_request,
+        lambda _req: zero_usage_payload,
+    )
+    zero_usage_completed = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "model-zero"
+        and event["event_type"] == "ActivityCompleted"
+    )
+    assert USAGE_NORMALIZATION_SURFACE["minimumValue"] == 0
+    assert USAGE_NORMALIZATION_SURFACE["tokenValuesRequireIntegers"] is True
+    assert zero_usage_completed["input_tokens"] == 0
+    assert zero_usage_completed["output_tokens"] == 0
+    assert zero_usage_completed["total_tokens"] == 0
+    assert zero_usage_completed["cost_usd"] == 0
+
     approval_core = FakeCore(
         evals=[
             {"verdict": "allow"},
