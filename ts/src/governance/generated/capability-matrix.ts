@@ -227,7 +227,16 @@ export interface McpSkillReferenceSurfaceEntry {
   description: string;
 }
 
+export interface N8nPackageManifestSurface {
+  n8nNodesApiVersion: number;
+  credentials: readonly string[];
+  nodes: readonly string[];
+  openboxSpecSource: string;
+  openboxSpecNodeIds: readonly string[];
+}
+
 export interface N8nIntegrationSurface {
+  packageManifest: N8nPackageManifestSurface;
   credentials: readonly Record<string, unknown>[];
   nodes: readonly Record<string, unknown>[];
   workflowTemplates: readonly Record<string, unknown>[];
@@ -2633,6 +2642,26 @@ export const MCP_SKILL_REFERENCE_SURFACES = [
   }
 ] as const satisfies readonly McpSkillReferenceSurfaceEntry[];
 export const N8N_INTEGRATION_SURFACE = {
+  "packageManifest": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/OpenBoxCredentials.credentials.js"
+    ],
+    "nodes": [
+      "dist/OpenboxLlm.node.js",
+      "dist/OpenBoxGovernance.node.js",
+      "dist/OpenBoxGuardrails.node.js",
+      "dist/OpenBoxApproval.node.js",
+      "dist/OpenBoxGovernedAiAgent.node.js"
+    ],
+    "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
+    "openboxSpecNodeIds": [
+      "openboxGovernance",
+      "openboxGuardrails",
+      "openboxApproval",
+      "openboxGovernedAiAgent"
+    ]
+  },
   "credentials": [
     {
       "name": "OpenBox Credentials",

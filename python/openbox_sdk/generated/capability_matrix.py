@@ -2434,6 +2434,26 @@ MCP_SKILL_REFERENCE_SURFACES = [
   }
 ]
 N8N_INTEGRATION_SURFACE = {
+  "packageManifest": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/OpenBoxCredentials.credentials.js"
+    ],
+    "nodes": [
+      "dist/OpenboxLlm.node.js",
+      "dist/OpenBoxGovernance.node.js",
+      "dist/OpenBoxGuardrails.node.js",
+      "dist/OpenBoxApproval.node.js",
+      "dist/OpenBoxGovernedAiAgent.node.js"
+    ],
+    "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
+    "openboxSpecNodeIds": [
+      "openboxGovernance",
+      "openboxGuardrails",
+      "openboxApproval",
+      "openboxGovernedAiAgent"
+    ]
+  },
   "credentials": [
     {
       "name": "OpenBox Credentials",

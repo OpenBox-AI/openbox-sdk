@@ -239,6 +239,7 @@ namespace OpenboxGovern.Capabilities {
   }
 
   model N8nIntegrationSurface {
+    packageManifest: Record<unknown>;
     credentials: Record<unknown>[];
     nodes: Record<unknown>[];
     workflowTemplates: Record<unknown>[];
@@ -594,6 +595,13 @@ namespace OpenboxGovern.Capabilities {
     #{ name: "existing-sdks", path: "references/existing-sdks.md", description: "Available SDKs and installation" },
   ],
   n8nIntegration: #{
+    packageManifest: #{
+      n8nNodesApiVersion: 1,
+      credentials: #["dist/OpenBoxCredentials.credentials.js"],
+      nodes: #["dist/OpenboxLlm.node.js", "dist/OpenBoxGovernance.node.js", "dist/OpenBoxGuardrails.node.js", "dist/OpenBoxApproval.node.js", "dist/OpenBoxGovernedAiAgent.node.js"],
+      openboxSpecSource: "specs/typespec/govern/capabilities.tsp",
+      openboxSpecNodeIds: #["openboxGovernance", "openboxGuardrails", "openboxApproval", "openboxGovernedAiAgent"],
+    },
     credentials: #[
       #{ name: "OpenBox Credentials", id: "openboxCredentials", properties: #["coreUrl", "apiKey", "apiUrl", "backendApiKey", "agentId"], reason: "Core governance requires a runtime API key; backend approval decisions optionally use backend credentials." },
     ],

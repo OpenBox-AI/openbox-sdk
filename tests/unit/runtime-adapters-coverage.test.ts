@@ -94,7 +94,9 @@ describe('runtime/n8n integration descriptor', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'example/n8n/custom-node/package.json'), 'utf8'),
     ) as {
+      scripts: Record<string, string>;
       n8n?: {
+        n8nNodesApiVersion?: number;
         credentials?: string[];
         nodes?: string[];
         openboxSpecNodeIds?: string[];
@@ -115,6 +117,9 @@ describe('runtime/n8n integration descriptor', () => {
     const customNodeSpec = await import('../../example/n8n/custom-node/src/generated/openbox-n8n-spec');
 
     expect(customNodeSpec.OPENBOX_N8N_INTEGRATION).toEqual(OPENBOX_N8N_INTEGRATION);
+    expect(customNodeSpec.OPENBOX_N8N_PACKAGE_MANIFEST).toEqual(
+      OPENBOX_N8N_INTEGRATION.packageManifest,
+    );
     expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
     expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
       expect.arrayContaining([
@@ -137,19 +142,9 @@ describe('runtime/n8n integration descriptor', () => {
     expect(getOpenBoxN8nExample('mcp-client-tool')?.name).toBe('MCP Client Tool');
     expect(getOpenBoxN8nNode('unknown-node')).toBeUndefined();
 
-    expect(packageJson.n8n?.openboxSpecSource).toBe('specs/typespec/govern/capabilities.tsp');
-    expect(packageJson.n8n?.credentials).toEqual(['dist/OpenBoxCredentials.credentials.js']);
-    expect(packageJson.n8n?.openboxSpecNodeIds).toEqual(
-      OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id),
-    );
-    expect(packageJson.n8n?.nodes).toEqual(
-      expect.arrayContaining([
-        'dist/OpenBoxGovernance.node.js',
-        'dist/OpenBoxGuardrails.node.js',
-        'dist/OpenBoxApproval.node.js',
-        'dist/OpenBoxGovernedAiAgent.node.js',
-      ]),
-    );
+    expect(packageJson.n8n).toEqual(OPENBOX_N8N_INTEGRATION.packageManifest);
+    expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_PACKAGE_MANIFEST');
+    expect(packageJson.scripts['smoke:load']).not.toContain('OpenBoxGovernance.node');
   });
 });
 

@@ -27,7 +27,16 @@ export interface OpenBoxN8nExampleSpec {
   description: string;
 }
 
+export interface OpenBoxN8nPackageManifestSpec {
+  n8nNodesApiVersion: number;
+  credentials: readonly string[];
+  nodes: readonly string[];
+  openboxSpecSource: string;
+  openboxSpecNodeIds: readonly string[];
+}
+
 export interface OpenBoxN8nIntegrationSpec {
+  packageManifest: OpenBoxN8nPackageManifestSpec;
   credentials: readonly OpenBoxN8nCredentialSpec[];
   nodes: readonly OpenBoxN8nNodeSpec[];
   workflowTemplates: readonly OpenBoxN8nWorkflowTemplateSpec[];
@@ -35,6 +44,26 @@ export interface OpenBoxN8nIntegrationSpec {
 }
 
 export const OPENBOX_N8N_INTEGRATION = {
+  "packageManifest": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/OpenBoxCredentials.credentials.js"
+    ],
+    "nodes": [
+      "dist/OpenboxLlm.node.js",
+      "dist/OpenBoxGovernance.node.js",
+      "dist/OpenBoxGuardrails.node.js",
+      "dist/OpenBoxApproval.node.js",
+      "dist/OpenBoxGovernedAiAgent.node.js"
+    ],
+    "openboxSpecSource": "specs/typespec/govern/capabilities.tsp",
+    "openboxSpecNodeIds": [
+      "openboxGovernance",
+      "openboxGuardrails",
+      "openboxApproval",
+      "openboxGovernedAiAgent"
+    ]
+  },
   "credentials": [
     {
       "name": "OpenBox Credentials",
@@ -111,6 +140,7 @@ export const OPENBOX_N8N_INTEGRATION = {
     }
   ]
 } as const satisfies OpenBoxN8nIntegrationSpec;
+export const OPENBOX_N8N_PACKAGE_MANIFEST = OPENBOX_N8N_INTEGRATION.packageManifest;
 export function getOpenBoxN8nCredentialSpec(id: string): OpenBoxN8nCredentialSpec | undefined {
   return OPENBOX_N8N_INTEGRATION.credentials.find((entry) => entry.id === id);
 }
