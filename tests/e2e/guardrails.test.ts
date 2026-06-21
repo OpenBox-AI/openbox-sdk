@@ -41,6 +41,10 @@ function operationPath(path: string, params: Record<string, string>) {
   });
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe('Guardrails', () => {
   const client = getBackendClient();
   let agentId: string;
@@ -57,6 +61,19 @@ describe('Guardrails', () => {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
     });
+  }
+
+  async function guardrailRunTestWithThrottleRetry(
+    request: () => ReturnType<typeof client.post>,
+  ) {
+    const throttleWaitMs = Number(process.env.OPENBOX_E2E_THROTTLE_WAIT_MS ?? 65_000);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await request();
+      const result = fullResponse(response);
+      if (result.status !== 429) return result;
+      await sleep(throttleWaitMs);
+    }
+    return fullResponse(await request());
   }
 
   beforeAll(async () => {
@@ -299,8 +316,9 @@ describe('Guardrails', () => {
     // CONFORMANCE_PROOF: generated guardrail scenario paths drive allow,
     // blocked, and redacted run-test outcomes through the real backend route.
     for (const testCase of makeGuardrailRunTestConformanceCases()) {
-      const response = await client.post('/guardrails/run-test', testCase.request);
-      const body = fullResponse(response);
+      const body = await guardrailRunTestWithThrottleRetry(() =>
+        client.post('/guardrails/run-test', testCase.request),
+      );
 
       expect(body.status).toBe(200);
       expect(body.data).toHaveProperty('validation_passed', testCase.expected.validationPassed);
@@ -353,11 +371,12 @@ describe('Guardrails', () => {
       observedGuardrailTypeStatuses.set(guardrailType, observedTypeStatuses);
 
       for (const testCase of guardrailRunTestCases) {
-        const response = await client.post('/guardrails/run-test', {
-          ...testCase.request,
-          guardrail_type: guardrailType,
-        });
-        const body = fullResponse(response);
+        const body = await guardrailRunTestWithThrottleRetry(() =>
+          client.post('/guardrails/run-test', {
+            ...testCase.request,
+            guardrail_type: guardrailType,
+          }),
+        );
 
         expect(body.status, `${guardrailType}:${testCase.name}`).toBe(200);
         expect(body.data).toHaveProperty('validation_passed', testCase.expected.validationPassed);
@@ -402,22 +421,24 @@ describe('Guardrails', () => {
     const operation = backendOperation('GuardrailController_runTest');
     expect(operation.verb).toBe('post');
     const payload = makeJsonObjectValueClassPayload();
-    const response = await client.post(operation.path, {
-      guardrail_type: 'custom_open_type',
-      params: {
-        ...payload,
-        threshold: 1,
-      },
-      settings: {
-        ...payload,
-        enabled: true,
-      },
-      logs: {
-        ...payload,
-        text: 'safe json value classes',
-      },
-    });
-    const body = fullResponse(response);
+    expect(operation.path).toBe('/guardrails/run-test');
+    const body = await guardrailRunTestWithThrottleRetry(() =>
+      client.post('/guardrails/run-test', {
+        guardrail_type: 'custom_open_type',
+        params: {
+          ...payload,
+          threshold: 1,
+        },
+        settings: {
+          ...payload,
+          enabled: true,
+        },
+        logs: {
+          ...payload,
+          text: 'safe json value classes',
+        },
+      }),
+    );
 
     expect(body.status).toBe(200);
     expect(body.data).toMatchObject({
@@ -584,8 +605,9 @@ describe('Guardrails', () => {
 
     await closeGuardrailProviderStub();
 
-    const response = await client.post('/guardrails/run-test', testCase.request);
-    const body = fullResponse(response);
+    const body = await guardrailRunTestWithThrottleRetry(() =>
+      client.post('/guardrails/run-test', testCase.request),
+    );
 
     expect(body.status).toBe(testCase.expected.status);
     expect(JSON.stringify(body)).toContain(testCase.expected.messageIncludes);

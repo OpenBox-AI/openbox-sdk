@@ -149,6 +149,38 @@ describe('local-stack conformance matrix', () => {
       'backend-tracing-observability',
       'core-governance-verdicts',
     ]);
+    expect(matrix.summary.providerExceptions).toEqual({
+      total: matrix.exceptions.length,
+      observeOnly: matrix.exceptions.filter((entry) => entry.tier === 'observe-only').length,
+      outOfScope: matrix.exceptions.filter((entry) => entry.tier === 'out-of-scope').length,
+      diagnoseOnly: matrix.exceptions.filter((entry) => entry.tier === 'diagnose-only').length,
+      capabilityIds: [...new Set(matrix.exceptions.map((entry) => entry.capability))].sort(),
+      providerIds: [...new Set(matrix.exceptions.map((entry) => entry.provider))].sort(),
+    });
+    expect(matrix.summary.providerExceptions).toEqual({
+      total: 26,
+      observeOnly: 13,
+      outOfScope: 9,
+      diagnoseOnly: 4,
+      capabilityIds: [
+        'hooks',
+        'install-doctor',
+        'mcp',
+        'plugins',
+        'skills',
+        'subagents-agents',
+        'usage-cost',
+      ],
+      providerIds: [
+        'anthropic-agent-sdk',
+        'codex',
+        'copilotkit',
+        'cursor',
+        'mcp',
+        'n8n',
+        'openai-agents-sdk',
+      ],
+    });
     expect(matrix.summary.requestConstraints).toEqual({
       total: requestConstraints.summary.totalConstraints,
       localStackE2e: requestConstraints.summary.byDisposition['local-stack-e2e'],

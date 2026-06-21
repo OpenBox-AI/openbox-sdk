@@ -451,6 +451,14 @@ export interface LocalStackConformanceMatrix {
       incomplete: number;
       incompleteOutcomeIds: string[];
     };
+    providerExceptions: {
+      total: number;
+      observeOnly: number;
+      outOfScope: number;
+      diagnoseOnly: number;
+      capabilityIds: string[];
+      providerIds: string[];
+    };
     requestConstraints: {
       total: number;
       localStackE2e: number;
@@ -985,6 +993,14 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
           .filter((entry) => entry.status === 'incomplete')
           .map((entry) => entry.id)
           .sort((left, right) => left.localeCompare(right)),
+      },
+      providerExceptions: {
+        total: exceptions.length,
+        observeOnly: exceptions.filter((entry) => entry.tier === 'observe-only').length,
+        outOfScope: exceptions.filter((entry) => entry.tier === 'out-of-scope').length,
+        diagnoseOnly: exceptions.filter((entry) => entry.tier === 'diagnose-only').length,
+        capabilityIds: uniqueSorted(exceptions.map((entry) => entry.capability)),
+        providerIds: uniqueSorted(exceptions.map((entry) => entry.provider)),
       },
       requestConstraints: {
         total: requestConstraints.summary.totalConstraints,
