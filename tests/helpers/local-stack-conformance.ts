@@ -323,6 +323,9 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   invalidBackendCoreGapRemediationRefRefs: string[];
   serviceMismatchBackendCoreGapRemediationRefRefs: string[];
   duplicateBackendCoreGapRemediationRefRefs: string[];
+  missingBackendCoreGapRemediationFileRefs: string[];
+  invalidBackendCoreGapRemediationLineRefs: string[];
+  remediationRepositoryStatuses: BackendCoreGapRemediationRepositoryStatus[];
   missingBackendCoreGapRemediationTargetIds: string[];
   unexpectedBackendCoreGapRemediationTargetIds: string[];
   duplicateOperationIdRefs: string[];
@@ -457,6 +460,20 @@ export interface BackendCoreGapRemediationRefRefs {
   invalidBackendCoreGapRemediationRefRefs: string[];
   serviceMismatchBackendCoreGapRemediationRefRefs: string[];
   duplicateBackendCoreGapRemediationRefRefs: string[];
+  missingBackendCoreGapRemediationFileRefs: string[];
+  invalidBackendCoreGapRemediationLineRefs: string[];
+  remediationRepositoryStatuses: BackendCoreGapRemediationRepositoryStatus[];
+}
+
+export interface BackendCoreGapRemediationRepositoryStatus {
+  service: 'backend' | 'core';
+  repositoryRoot: string;
+  status: 'available' | 'missing';
+}
+
+interface BackendCoreGapRemediationRepositoryRoots {
+  backend?: string;
+  core?: string;
 }
 
 export interface LocalStackConformanceMatrix {
@@ -524,6 +541,9 @@ export interface LocalStackConformanceMatrix {
       invalidRemediationRefRefs: string[];
       serviceMismatchRemediationRefRefs: string[];
       duplicateRemediationRefRefs: string[];
+      missingRemediationFileRefs: string[];
+      invalidRemediationLineRefs: string[];
+      remediationRepositoryStatuses: BackendCoreGapRemediationRepositoryStatus[];
       missingRawProofConstraintKeyRefs: string[];
     };
     scenarioPaths: {
@@ -992,6 +1012,14 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
         duplicateRemediationRefRefs: [
           ...scenarioMatrix.duplicateBackendCoreGapRemediationRefRefs,
         ],
+        missingRemediationFileRefs: [
+          ...scenarioMatrix.missingBackendCoreGapRemediationFileRefs,
+        ],
+        invalidRemediationLineRefs: [
+          ...scenarioMatrix.invalidBackendCoreGapRemediationLineRefs,
+        ],
+        remediationRepositoryStatuses:
+          scenarioMatrix.remediationRepositoryStatuses.map((entry) => ({ ...entry })),
         missingRawProofConstraintKeyRefs: [...scenarioMatrix.missingRawProofConstraintKeyRefs],
       },
       scenarioPaths: {
@@ -1178,20 +1206,25 @@ export function backendCoreGapRemediationRefRefsForTesting(
   targets: ReadonlyArray<
     Pick<BackendCoreGapRemediationTarget, 'gapId' | 'services' | 'remediationRefs'>
   >,
+  repositoryRoots?: BackendCoreGapRemediationRepositoryRoots,
 ): BackendCoreGapRemediationRefRefs {
-  return summarizeBackendCoreGapRemediationRefRefs(targets);
+  return summarizeBackendCoreGapRemediationRefRefs(targets, repositoryRoots);
 }
 
 function summarizeBackendCoreGapRemediationRefRefs(
   targets: ReadonlyArray<
     Pick<BackendCoreGapRemediationTarget, 'gapId' | 'services' | 'remediationRefs'>
   >,
+  repositoryRoots: BackendCoreGapRemediationRepositoryRoots = defaultBackendCoreRepositoryRoots(),
 ): BackendCoreGapRemediationRefRefs {
-  const validRefPattern = /^openbox-(backend|core):[^:\s]+:\d+$/;
+  const validRefPattern = /^openbox-(backend|core):([^:\s]+):(\d+)$/;
+  const remediationRepositoryStatuses = remediationRepositoryStatusesFor(repositoryRoots);
   const missingBackendCoreGapRemediationRefRefs: string[] = [];
   const invalidBackendCoreGapRemediationRefRefs: string[] = [];
   const serviceMismatchBackendCoreGapRemediationRefRefs: string[] = [];
   const duplicateBackendCoreGapRemediationRefRefs: string[] = [];
+  const missingBackendCoreGapRemediationFileRefs: string[] = [];
+  const invalidBackendCoreGapRemediationLineRefs: string[] = [];
 
   for (const target of targets) {
     if (target.remediationRefs.length === 0) {
@@ -1208,8 +1241,26 @@ function summarizeBackendCoreGapRemediationRefRefs(
         continue;
       }
       const service = match[1] as 'backend' | 'core';
+      const relPath = match[2];
+      const lineNumber = Number(match[3]);
       if (!target.services.includes(service)) {
         serviceMismatchBackendCoreGapRemediationRefRefs.push(`${target.gapId}:${ref}`);
+      }
+      const repositoryRoot = repositoryRoots[service];
+      if (!repositoryRoot || !repositoryRootAvailable(repositoryRoot)) continue;
+      const resolvedRepositoryRoot = resolve(repositoryRoot);
+      const filePath = resolve(resolvedRepositoryRoot, relPath);
+      if (relative(resolvedRepositoryRoot, filePath).startsWith('..')) {
+        invalidBackendCoreGapRemediationRefRefs.push(`${target.gapId}:${ref}`);
+        continue;
+      }
+      if (!fileExists(filePath)) {
+        missingBackendCoreGapRemediationFileRefs.push(`${target.gapId}:${ref}`);
+        continue;
+      }
+      const lineCount = readFileSync(filePath, 'utf8').split(/\r?\n/).length;
+      if (!Number.isInteger(lineNumber) || lineNumber < 1 || lineNumber > lineCount) {
+        invalidBackendCoreGapRemediationLineRefs.push(`${target.gapId}:${ref}`);
       }
     }
   }
@@ -1227,7 +1278,57 @@ function summarizeBackendCoreGapRemediationRefRefs(
     duplicateBackendCoreGapRemediationRefRefs: uniqueSorted(
       duplicateBackendCoreGapRemediationRefRefs,
     ),
+    missingBackendCoreGapRemediationFileRefs: uniqueSorted(
+      missingBackendCoreGapRemediationFileRefs,
+    ),
+    invalidBackendCoreGapRemediationLineRefs: uniqueSorted(
+      invalidBackendCoreGapRemediationLineRefs,
+    ),
+    remediationRepositoryStatuses,
   };
+}
+
+function defaultBackendCoreRepositoryRoots(): BackendCoreGapRemediationRepositoryRoots {
+  return {
+    backend:
+      process.env.OPENBOX_BACKEND_REPO ??
+      resolve(process.cwd(), '../openbox-repos/openbox-backend'),
+    core:
+      process.env.OPENBOX_CORE_REPO ??
+      resolve(process.cwd(), '../openbox-repos/openbox-core'),
+  };
+}
+
+function remediationRepositoryStatusesFor(
+  repositoryRoots: BackendCoreGapRemediationRepositoryRoots,
+): BackendCoreGapRemediationRepositoryStatus[] {
+  return (['backend', 'core'] as const).map((service) => {
+    const repositoryRoot = repositoryRoots[service] ?? '';
+    return {
+      service,
+      repositoryRoot,
+      status:
+        repositoryRoot && repositoryRootAvailable(repositoryRoot)
+          ? 'available'
+          : 'missing',
+    };
+  });
+}
+
+function repositoryRootAvailable(repositoryRoot: string): boolean {
+  try {
+    return statSync(repositoryRoot).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function fileExists(filePath: string): boolean {
+  try {
+    return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
 }
 
 function summarizeSdkSemanticGapClosures(
@@ -3615,6 +3716,8 @@ function summarizeScenarioMatrixContract(
     backendCoreGapRemediationRefRefs.invalidBackendCoreGapRemediationRefRefs,
     backendCoreGapRemediationRefRefs.serviceMismatchBackendCoreGapRemediationRefRefs,
     backendCoreGapRemediationRefRefs.duplicateBackendCoreGapRemediationRefRefs,
+    backendCoreGapRemediationRefRefs.missingBackendCoreGapRemediationFileRefs,
+    backendCoreGapRemediationRefRefs.invalidBackendCoreGapRemediationLineRefs,
     missingRawProofConstraintKeyRefs,
     unclassifiedRequestConstraintRefs,
     sdkGeneratedPreflightOnlyConstraintRefs,

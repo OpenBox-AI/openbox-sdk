@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildLocalStackConformanceMatrix,
@@ -233,6 +234,12 @@ describe('local-stack conformance matrix', () => {
         matrix.scenarioMatrix.serviceMismatchBackendCoreGapRemediationRefRefs,
       duplicateRemediationRefRefs:
         matrix.scenarioMatrix.duplicateBackendCoreGapRemediationRefRefs,
+      missingRemediationFileRefs:
+        matrix.scenarioMatrix.missingBackendCoreGapRemediationFileRefs,
+      invalidRemediationLineRefs:
+        matrix.scenarioMatrix.invalidBackendCoreGapRemediationLineRefs,
+      remediationRepositoryStatuses:
+        matrix.scenarioMatrix.remediationRepositoryStatuses,
       missingRawProofConstraintKeyRefs: matrix.scenarioMatrix.missingRawProofConstraintKeyRefs,
     });
     expect(matrix.summary.backendCoreGaps).toMatchObject({
@@ -896,34 +903,40 @@ describe('local-stack conformance matrix', () => {
 
   it('fails backend/Core remediation refs outside canonical service-owned file refs', () => {
     expect(
-      backendCoreGapRemediationRefRefsForTesting([
+      backendCoreGapRemediationRefRefsForTesting(
+        [
+          {
+            gapId: 'missing-ref-gap',
+            services: ['backend'],
+            remediationRefs: [],
+          },
+          {
+            gapId: 'invalid-ref-gap',
+            services: ['backend'],
+            remediationRefs: [
+              'openbox-api:src/modules/agent/controller.ts:1',
+              'openbox-backend:src/modules/agent/controller.ts',
+            ],
+          },
+          {
+            gapId: 'service-mismatch-gap',
+            services: ['core'],
+            remediationRefs: ['openbox-backend:src/modules/agent/controller.ts:277'],
+          },
+          {
+            gapId: 'duplicate-ref-gap',
+            services: ['backend'],
+            remediationRefs: [
+              'openbox-backend:src/modules/agent/controller.ts:277',
+              'openbox-backend:src/modules/agent/controller.ts:277',
+            ],
+          },
+        ],
         {
-          gapId: 'missing-ref-gap',
-          services: ['backend'],
-          remediationRefs: [],
+          backend: '/tmp/openbox-missing-backend',
+          core: '/tmp/openbox-missing-core',
         },
-        {
-          gapId: 'invalid-ref-gap',
-          services: ['backend'],
-          remediationRefs: [
-            'openbox-api:src/modules/agent/controller.ts:1',
-            'openbox-backend:src/modules/agent/controller.ts',
-          ],
-        },
-        {
-          gapId: 'service-mismatch-gap',
-          services: ['core'],
-          remediationRefs: ['openbox-backend:src/modules/agent/controller.ts:277'],
-        },
-        {
-          gapId: 'duplicate-ref-gap',
-          services: ['backend'],
-          remediationRefs: [
-            'openbox-backend:src/modules/agent/controller.ts:277',
-            'openbox-backend:src/modules/agent/controller.ts:277',
-          ],
-        },
-      ]),
+      ),
     ).toEqual({
       missingBackendCoreGapRemediationRefRefs: ['missing-ref-gap'],
       invalidBackendCoreGapRemediationRefRefs: [
@@ -935,6 +948,77 @@ describe('local-stack conformance matrix', () => {
       ],
       duplicateBackendCoreGapRemediationRefRefs: [
         'duplicate-ref-gap:openbox-backend:src/modules/agent/controller.ts:277',
+      ],
+      missingBackendCoreGapRemediationFileRefs: [],
+      invalidBackendCoreGapRemediationLineRefs: [],
+      remediationRepositoryStatuses: [
+        {
+          service: 'backend',
+          repositoryRoot: '/tmp/openbox-missing-backend',
+          status: 'missing',
+        },
+        {
+          service: 'core',
+          repositoryRoot: '/tmp/openbox-missing-core',
+          status: 'missing',
+        },
+      ],
+    });
+  });
+
+  it('validates backend/Core remediation refs against available local repositories', () => {
+    const root = mkdtempSync(join(tmpdir(), 'openbox-remediation-refs-'));
+    const backendRoot = join(root, 'openbox-backend');
+    const coreRoot = join(root, 'openbox-core');
+    mkdirSync(join(backendRoot, 'src/modules/agent'), { recursive: true });
+    mkdirSync(join(coreRoot, 'internal/api'), { recursive: true });
+    writeFileSync(
+      join(backendRoot, 'src/modules/agent/controller.ts'),
+      ['line 1', 'line 2', 'line 3'].join('\n'),
+    );
+    writeFileSync(
+      join(coreRoot, 'internal/api/governance.go'),
+      ['line 1', 'line 2'].join('\n'),
+    );
+
+    expect(
+      backendCoreGapRemediationRefRefsForTesting(
+        [
+          {
+            gapId: 'valid-gap',
+            services: ['backend'],
+            remediationRefs: ['openbox-backend:src/modules/agent/controller.ts:2'],
+          },
+          {
+            gapId: 'missing-file-gap',
+            services: ['backend'],
+            remediationRefs: ['openbox-backend:src/modules/agent/missing.ts:1'],
+          },
+          {
+            gapId: 'invalid-line-gap',
+            services: ['core'],
+            remediationRefs: ['openbox-core:internal/api/governance.go:3'],
+          },
+        ],
+        {
+          backend: backendRoot,
+          core: coreRoot,
+        },
+      ),
+    ).toMatchObject({
+      missingBackendCoreGapRemediationRefRefs: [],
+      invalidBackendCoreGapRemediationRefRefs: [],
+      serviceMismatchBackendCoreGapRemediationRefRefs: [],
+      duplicateBackendCoreGapRemediationRefRefs: [],
+      missingBackendCoreGapRemediationFileRefs: [
+        'missing-file-gap:openbox-backend:src/modules/agent/missing.ts:1',
+      ],
+      invalidBackendCoreGapRemediationLineRefs: [
+        'invalid-line-gap:openbox-core:internal/api/governance.go:3',
+      ],
+      remediationRepositoryStatuses: [
+        { service: 'backend', repositoryRoot: backendRoot, status: 'available' },
+        { service: 'core', repositoryRoot: coreRoot, status: 'available' },
       ],
     });
   });
@@ -1929,6 +2013,8 @@ describe('local-stack conformance matrix', () => {
       invalidBackendCoreGapRemediationRefRefs: [],
       serviceMismatchBackendCoreGapRemediationRefRefs: [],
       duplicateBackendCoreGapRemediationRefRefs: [],
+      missingBackendCoreGapRemediationFileRefs: [],
+      invalidBackendCoreGapRemediationLineRefs: [],
       missingRawProofConstraintKeyRefs: [],
       unclassifiedRequestConstraintRefs: [],
       sdkGeneratedPreflightOnlyConstraintRefs: [],
@@ -2003,6 +2089,8 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.missingGeneratedBackendCoreGapIds).toEqual([]);
     expect(matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds).toEqual([]);
     expect(matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.missingBackendCoreGapRemediationFileRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.invalidBackendCoreGapRemediationLineRefs).toEqual([]);
     expect(matrix.scenarioMatrix.missingRawProofConstraintKeyRefs).toEqual([]);
     expect(matrix.scenarioMatrix.unclassifiedRequestConstraintRefs).toEqual([]);
     expect(matrix.scenarioMatrix.sdkGeneratedPreflightOnlyConstraintRefs).toEqual([]);
