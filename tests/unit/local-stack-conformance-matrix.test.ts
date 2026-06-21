@@ -937,18 +937,28 @@ describe('local-stack conformance matrix', () => {
   });
 
   it('proves every raw semantic gap has TypeScript and Python SDK preflight closure evidence', () => {
+    const requestConstraintKeysByGap = new Map(
+      matrix.backendCoreGapRemediationTargets.map((entry) => [
+        entry.gapId,
+        entry.requestConstraintKeys,
+      ]),
+    );
+
     expect(matrix.sdkSemanticGapClosures).toHaveLength(matrix.semanticGaps.length * 2);
     expect(matrix.sdkSemanticGapClosures.every((entry) => entry.status === 'proven')).toBe(true);
     expect(matrix.sdkSemanticGapClosures.flatMap((entry) => entry.missingOperationIds)).toEqual([]);
     expect(matrix.sdkSemanticGapClosures.flatMap((entry) => entry.missingEvidencePatterns)).toEqual([]);
 
     for (const gap of matrix.semanticGaps) {
+      const requestConstraintKeys = requestConstraintKeysByGap.get(gap.id) ?? [];
+      expect(requestConstraintKeys.length, gap.id).toBeGreaterThan(0);
       expect(matrix.sdkSemanticGapClosures).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             semanticGapId: gap.id,
             sdkTarget: 'typescript',
             operationIds: gap.operationIds,
+            requestConstraintKeys,
             proofFiles: expect.arrayContaining([
               'tests/helpers/request-constraint-conformance.ts',
               'tests/unit/request-constraint-conformance.test.ts',
@@ -959,6 +969,7 @@ describe('local-stack conformance matrix', () => {
             semanticGapId: gap.id,
             sdkTarget: 'python',
             operationIds: gap.operationIds,
+            requestConstraintKeys,
             proofFiles: expect.arrayContaining([
               'python/openbox_sdk/generated/request_preflight.py',
               'python/tests/test_request_preflight.py',
@@ -1487,6 +1498,17 @@ describe('local-stack conformance matrix', () => {
       expect(target.requiredRawRejection, target.gapId).toContain('4xx validation response');
       expect(target.requestConstraintKeys.length, target.gapId).toBeGreaterThan(0);
       expect(target.sdkClosureTargets, target.gapId).toEqual(['typescript', 'python']);
+      const sdkClosures = matrix.sdkSemanticGapClosures.filter(
+        (entry) => entry.semanticGapId === target.gapId,
+      );
+      expect(sdkClosures.map((entry) => entry.sdkTarget), target.gapId).toEqual(
+        target.sdkClosureTargets,
+      );
+      for (const closure of sdkClosures) {
+        expect(closure.requestConstraintKeys, `${target.gapId}:${closure.sdkTarget}`).toEqual(
+          target.requestConstraintKeys,
+        );
+      }
     }
 
     const byGap = new Map(

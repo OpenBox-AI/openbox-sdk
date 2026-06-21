@@ -22,26 +22,26 @@ describe('generated request constraint conformance ledger', () => {
   });
 
   it('keeps raw backend/core gaps separate from SDK preflight closures', () => {
+    const expectedRawSemanticGapConstraintKeys = [
+      'backend:AgentController_getAgentEvaluations:query.page:minimum',
+      'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
+      'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
+      'backend:AgentController_getApprovalHistory:query.status:enum',
+      'backend:AgentController_getPendingApprovals:query.status:enum',
+      'backend:OrganizationController_getApprovals:query.status:enum',
+      'core:evaluateGovernance:body.attempt:minimum',
+      'core:evaluateGovernance:body.cost_usd:format',
+      'core:evaluateGovernance:body.cost_usd:type',
+      'core:evaluateGovernance:body.timestamp:format',
+    ];
+
     expect(ledger.summary.provenRawSemanticGapClosures).toEqual(
       ledger.summary.knownRawSemanticGaps,
     );
     expect(ledger.summary.missingRawSemanticGapClosures).toEqual([]);
     expect(ledger.constraints.filter(
       (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
-    ).map((entry) => entry.key)).toEqual(
-      expect.arrayContaining([
-        'backend:AgentController_getApprovalHistory:query.status:enum',
-        'backend:AgentController_getPendingApprovals:query.status:enum',
-        'backend:OrganizationController_getApprovals:query.status:enum',
-        'backend:AgentController_getAgentEvaluations:query.page:minimum',
-        'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
-        'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
-        'core:evaluateGovernance:body.attempt:minimum',
-        'core:evaluateGovernance:body.cost_usd:format',
-        'core:evaluateGovernance:body.cost_usd:type',
-        'core:evaluateGovernance:body.timestamp:format',
-      ]),
-    );
+    ).map((entry) => entry.key)).toEqual(expectedRawSemanticGapConstraintKeys);
   });
 
   it('distinguishes raw local-stack evidence, transport gates, and SDK-only preflight', () => {

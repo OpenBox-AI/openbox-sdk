@@ -340,6 +340,7 @@ export interface SdkSemanticGapClosure {
   semanticGapId: string;
   sdkTarget: 'typescript' | 'python';
   operationIds: string[];
+  requestConstraintKeys: string[];
   proofFiles: string[];
   evidencePatterns: string[];
   missingOperationIds: string[];
@@ -1013,6 +1014,7 @@ function sdkClosureForGap(opts: {
     semanticGapId: opts.gap.id,
     sdkTarget: opts.sdkTarget,
     operationIds: [...opts.gap.operationIds].sort(),
+    requestConstraintKeys: opts.requestConstraintKeys,
     proofFiles: opts.proofFiles,
     evidencePatterns,
     missingOperationIds,
