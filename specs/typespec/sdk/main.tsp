@@ -27,6 +27,9 @@ using OpenBox.Workflow;
       "codegen/fixtures/sdk-manifests.json",
       "codegen/fixtures/sdk-targets.json",
     ],
+    driftCheckFiles: #[
+      "package.json",
+    ],
     nestedGeneratedFiles: #[
       #{ root: "ts/src", suffixes: #[".ts", ".d.ts"] },
     ],
@@ -43,6 +46,7 @@ using OpenBox.Workflow;
     steps: #[
       #{ id: "build-codegen", label: "Codegen package build", command: "npm", args: #["run", "build:codegen"], workingDirectory: "." },
       #{ id: "specs-compile", label: "TypeSpec contract compile", command: "npm", args: #["run", "specs:compile"], workingDirectory: "." },
+      #{ id: "sync-package-scripts", label: "Sync package scripts", command: "node", args: #["scripts/sync-package-scripts.mjs"], workingDirectory: "." },
     ],
   },
   specCommands: #{
@@ -105,14 +109,24 @@ using OpenBox.Workflow;
           #{ id: "validate-targets", label: "Validate SDK targets", command: "node", args: #["scripts/check-sdks.mjs"], workingDirectory: "." },
         ],
       },
+      #{
+        id: "local-stack",
+        label: "Local stack CI",
+        steps: #[
+          #{ id: "ci-local", label: "Deterministic local CI", command: "npm", args: #["run", "ci:local"], workingDirectory: "." },
+          #{ id: "live-e2e", label: "Live local-stack e2e", command: "npm", args: #["run", "test:e2e"], workingDirectory: "." },
+        ],
+      },
     ],
   },
   testSuites: #{
-    defaultSuites: #["unit", "contract", "hook-integration"],
+    defaultSuites: #["unit", "openapi-mock", "contract", "hook-integration"],
     suites: #[
       #{ id: "unit", label: "Unit tests", command: "npx", args: #["vitest", "run", "--project", "unit"], workingDirectory: "." },
+      #{ id: "openapi-mock", label: "OpenAPI mock contract tests", command: "npx", args: #["vitest", "run", "--project", "openapi-mock"], workingDirectory: "." },
       #{ id: "contract", label: "Contract tests", command: "npx", args: #["vitest", "run", "--project", "contract"], workingDirectory: "." },
       #{ id: "hook-integration", label: "Hook integration tests", command: "npx", args: #["vitest", "run", "--project", "hook-integration"], workingDirectory: "." },
+      #{ id: "e2e", label: "Live local-stack e2e tests", command: "npx", args: #["vitest", "run", "--project", "e2e"], workingDirectory: "." },
     ],
   },
   bundleBuild: #{
@@ -183,11 +197,14 @@ using OpenBox.Workflow;
       #{ name: "format", command: "node scripts/run-quality.mjs format", kind: "spec-runner" },
       #{ name: "test", command: "node scripts/run-tests.mjs", kind: "spec-runner" },
       #{ name: "test:unit", command: "node scripts/run-tests.mjs unit", kind: "spec-runner" },
+      #{ name: "test:openapi-mock", command: "node scripts/run-tests.mjs openapi-mock", kind: "spec-runner" },
       #{ name: "test:contract", command: "node scripts/run-tests.mjs contract", kind: "spec-runner" },
       #{ name: "test:hook-integration", command: "node scripts/run-tests.mjs hook-integration", kind: "spec-runner" },
+      #{ name: "test:e2e", command: "node scripts/run-tests.mjs e2e", kind: "spec-runner" },
       #{ name: "generate:sdks", command: "node scripts/run-sdk-generation.mjs", kind: "spec-runner" },
       #{ name: "check:sdks", command: "node scripts/run-root-pipeline.mjs check-sdks", kind: "spec-runner" },
       #{ name: "ci:local", command: "node scripts/run-local-ci.mjs", kind: "spec-runner" },
+      #{ name: "ci:local-stack", command: "node scripts/run-root-pipeline.mjs local-stack", kind: "spec-runner" },
       #{ name: "specs:compile", command: "node scripts/run-spec-command.mjs compile", kind: "spec-runner" },
       #{ name: "specs:all", command: "npm run generate:sdks", kind: "compatibility-alias" },
       #{ name: "specs:watch", command: "node scripts/run-spec-command.mjs watch", kind: "spec-runner" },
@@ -201,6 +218,7 @@ using OpenBox.Workflow;
       #{ path: "scripts/lib/spec-steps.mjs", category: "runner-framework", canonicalSurface: "codegen/fixtures/sdk-targets.json", role: "Shared executor for TypeSpec-emitted command steps used by root script routers." },
       #{ path: "scripts/build-codegen.mjs", category: "spec-runner", canonicalSurface: "codegenBuild.steps", role: "Runs the TypeSpec-emitted codegen workspace build pipeline with a bootstrap fallback only for regenerating the manifest." },
       #{ path: "scripts/run-sdk-generation.mjs", category: "spec-runner", canonicalSurface: "sdkGeneration.steps", role: "Generic SDK/API generation router for every language and app target." },
+      #{ path: "scripts/sync-package-scripts.mjs", category: "spec-runner", canonicalSurface: "packageScripts.scripts", role: "Synchronizes root package.json scripts from the TypeSpec-emitted package script manifest during SDK generation." },
       #{ path: "scripts/run-spec-command.mjs", category: "spec-runner", canonicalSurface: "specCommands.commands", role: "Executes low-level TypeSpec compile/watch commands declared in the SDK target manifest." },
       #{ path: "scripts/run-root-pipeline.mjs", category: "spec-runner", canonicalSurface: "rootPipelines.pipelines", role: "Executes root build and check pipelines declared in the SDK target manifest." },
       #{ path: "scripts/run-bundle-build.mjs", category: "spec-runner", canonicalSurface: "bundleBuild.steps", role: "Executes the bundle build stages declared in the SDK target manifest." },
@@ -250,17 +268,17 @@ using OpenBox.Workflow;
   },
   localCi: #{
     steps: #[
+      #{ id: "generated-drift", label: "Generated drift", command: "npm", args: #["run", "check:generated-drift"], workingDirectory: "." },
       #{ id: "check-sdks", label: "SDK target validation", command: "npm", args: #["run", "check:sdks"], workingDirectory: "." },
       #{
         id: "coverage",
         label: "Vitest coverage",
         command: "npx",
-        args: #["vitest", "run", "--coverage", "--project", "unit", "--project", "contract", "--project", "hook-integration", "--coverage.reporter=lcov"],
+        args: #["vitest", "run", "--coverage", "--project", "unit", "--project", "openapi-mock", "--project", "contract", "--project", "hook-integration", "--coverage.reporter=lcov"],
         workingDirectory: ".",
         env: #{ OPENBOX_CLI: "./scripts/openbox-cli-dev.mjs" },
       },
       #{ id: "build", label: "Bundle build", command: "npm", args: #["run", "build"], workingDirectory: ".", env: #{ NODE_OPTIONS: "--max-old-space-size=4096" } },
-      #{ id: "generated-drift", label: "Generated drift", command: "npm", args: #["run", "check:generated-drift"], workingDirectory: "." },
       #{ id: "generated-banners", label: "Generated banners", command: "npm", args: #["run", "lint:generated-banners"], workingDirectory: "." },
       #{ id: "openapi-lint", label: "OpenAPI lint", command: "npx", args: #["--yes", "@stoplight/spectral-cli", "lint", "specs/generated/openapi3/*.json"], workingDirectory: "." },
       #{ id: "npm-audit", label: "Root npm audit", command: "npm", args: #["audit", "--audit-level=high"], workingDirectory: "." },

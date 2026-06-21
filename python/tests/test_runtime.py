@@ -36,6 +36,8 @@ from openbox_sdk.generated.capability_matrix import (
     HITL_CAPABILITY_GUARDS,
     HOOK_CAPABILITY_GUARDS,
     INSTALL_DOCTOR_CAPABILITY_GUARDS,
+    LOCAL_STACK_SCENARIO_MATRIX,
+    LOCAL_STACK_SCENARIO_PATHS,
     MCP_CAPABILITY_GUARDS,
     MCP_PROMPT_SURFACES,
     MCP_RESOURCE_TEMPLATE_SURFACES,
@@ -469,6 +471,8 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert SKILL_CAPABILITY_GUARDS == fixture["skillCapabilityGuards"]
     assert MCP_CAPABILITY_GUARDS == fixture["mcpCapabilityGuards"]
     assert INSTALL_DOCTOR_CAPABILITY_GUARDS == fixture["installDoctorCapabilityGuards"]
+    assert LOCAL_STACK_SCENARIO_PATHS == fixture["localStackScenarioPaths"]
+    assert LOCAL_STACK_SCENARIO_MATRIX == fixture["localStackScenarioMatrix"]
     assert MCP_TOOL_SURFACES == fixture["mcpToolSurfaces"]
     assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
     assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]

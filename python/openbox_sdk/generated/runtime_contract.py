@@ -375,8 +375,4 @@ SPAN_RUNTIME_HINT_FIELDS = [
   "ensure_hook_span_parent",
   "ensureHookSpanParent"
 ]
-SPAN_STATUS_CODES = [
-  "OK",
-  "ERROR",
-  "UNSET"
-]
+SPAN_STATUS_CODES = []

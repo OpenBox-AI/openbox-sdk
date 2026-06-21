@@ -10,6 +10,7 @@ import {
   signAgentIdentityRequest,
   validateAgentIdentityConfig,
 } from '../../ts/src/core-client/core-client.js';
+import { RequestPreflightError } from '../../ts/src/core-client/generated/request-preflight.js';
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
@@ -316,6 +317,71 @@ describe('OpenBoxCoreClient', () => {
         sdk_version: expect.stringMatching(/^\d+\.\d+\.\d+/),
       });
       expect(result.verdict).toBe('ALLOW');
+    });
+
+    it('rejects known Core request semantic gaps before fetch', async () => {
+      const client = createClient();
+
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        attempt: 0,
+      })).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'evaluateGovernance',
+        location: 'body.attempt',
+      });
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        attempt: 0.5,
+      })).rejects.toBeInstanceOf(RequestPreflightError);
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: 'not-a-date-time',
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+      })).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'evaluateGovernance',
+        location: 'body.timestamp',
+      });
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        cost_usd: 'not-a-number',
+      } as any)).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'evaluateGovernance',
+        location: 'body.cost_usd',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('preserves an explicit SDK version payload value', async () => {

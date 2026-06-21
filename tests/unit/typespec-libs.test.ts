@@ -267,6 +267,15 @@ describe('typespec-workflow', () => {
             filePatterns: Array<{ root: string; prefix: string; suffix: string }>;
           }
         | undefined;
+    const generatedArtifacts =
+      fixture?.generatedArtifacts as
+        | {
+            generatedRoots: string[];
+            generatedFiles: string[];
+            driftCheckFiles?: string[];
+            nestedGeneratedFiles: Array<{ root: string; suffixes: string[] }>;
+          }
+        | undefined;
     const packageSurface =
       fixture?.packageSurface as
         | {
@@ -376,6 +385,9 @@ describe('typespec-workflow', () => {
     expect(extension?.extensionManifest?.views).toContain('openbox.approvals');
     expect(extension?.extensionManifest?.commands).toContain('openbox.approve');
     expect(extension?.extensionManifest?.configurationKeys).toContain('openbox.agentId');
+    expect(generatedArtifacts?.generatedFiles).toContain('codegen/fixtures/sdk-targets.json');
+    expect(generatedArtifacts?.driftCheckFiles).toEqual(['package.json']);
+    expect(generatedArtifacts?.nestedGeneratedFiles).toEqual([{ root: 'ts/src', suffixes: ['.ts', '.d.ts'] }]);
     expect(cleanArtifacts?.paths).toEqual(['dist', 'dist-pack', 'apps/extension/dist']);
     expect(cleanArtifacts?.nestedNames).toEqual([
       { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
@@ -399,22 +411,36 @@ describe('typespec-workflow', () => {
     expect(sdkGeneration?.steps.map((entry) => entry.id)).toEqual([
       'build-codegen',
       'specs-compile',
+      'sync-package-scripts',
     ]);
-    expect(sdkGeneration?.steps.every((entry) => entry.command === 'npm')).toBe(true);
+    expect(sdkGeneration?.steps.map((entry) => entry.command)).toEqual(['npm', 'npm', 'node']);
     expect(specCommands?.commands.map((entry) => entry.id)).toEqual(['compile', 'watch']);
     expect(specCommands?.commands.every((entry) => entry.command === 'npx')).toBe(true);
-    expect(rootPipelines?.pipelines.map((entry) => entry.id)).toEqual(['build', 'check-sdks']);
+    expect(rootPipelines?.pipelines.map((entry) => entry.id)).toEqual(['build', 'check-sdks', 'local-stack']);
     expect(rootPipelines?.pipelines.find((entry) => entry.id === 'build')?.steps.map((entry) => entry.id)).toEqual([
       'generate-sdks',
       'bundle-build',
     ]);
-    expect(testSuites?.defaultSuites).toEqual(['unit', 'contract', 'hook-integration']);
-    expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
+    expect(testSuites?.defaultSuites).toEqual([
       'unit',
+      'openapi-mock',
       'contract',
       'hook-integration',
     ]);
-    expect(testSuites?.suites.every((entry) => entry.command === 'npx')).toBe(true);
+    expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
+      'unit',
+      'openapi-mock',
+      'contract',
+      'hook-integration',
+      'e2e',
+    ]);
+    expect(testSuites?.suites.map((entry) => entry.command)).toEqual([
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+    ]);
     expect(bundleBuild?.steps.map((entry) => entry.id)).toEqual(['tsup', 'runtime-assets']);
     expect(bundleBuild?.steps.map((entry) => entry.command)).toEqual(['npx', 'node']);
     expect(qualityCommands?.commands.map((entry) => entry.id)).toEqual(['lint', 'format']);
@@ -431,10 +457,10 @@ describe('typespec-workflow', () => {
     ]);
     expect(securityAudit?.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
     expect(localCi?.steps.map((entry) => entry.id)).toEqual([
+      'generated-drift',
       'check-sdks',
       'coverage',
       'build',
-      'generated-drift',
       'generated-banners',
       'openapi-lint',
       'npm-audit',

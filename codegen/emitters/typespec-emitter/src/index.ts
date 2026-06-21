@@ -98,6 +98,18 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitPythonSdk(program, repoRoot);
   emitAdapters(program, project, repoRoot);
   await emitOpenApiWireTypes(repoRoot);
+  emitOpenApiRequestPreflight(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxBackend.json',
+    'ts/src/client/generated/request-preflight.ts',
+    'validateBackendRequest',
+  );
+  emitOpenApiRequestPreflight(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxCore.json',
+    'ts/src/core-client/generated/request-preflight.ts',
+    'validateCoreRequest',
+  );
   emitWrapperMethods(program, project, repoRoot, {
     namespaceName: 'OpenboxBackend',
     outRel: 'ts/src/client/generated/wrapper-methods.ts',
@@ -122,16 +134,19 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'capability-matrix.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'rules-projection.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'request-preflight.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'cursor.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'types', 'generated', 'backend.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'types', 'generated', 'core.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'client', 'generated', 'request-preflight.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', '__init__.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'backend_client.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'core_client.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'permissions.py'),
+    resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'request_preflight.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'schemas.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'sdk_targets.py'),
@@ -176,6 +191,401 @@ async function emitOpenApiWireType(
     cwd: repoRoot,
   });
   writeFileSync(resolvePath(repoRoot, outRel), `${BANNER}${astToString(ast).trimEnd()}\n`);
+}
+
+interface OpenApiDocument {
+  paths?: Record<string, Record<string, OpenApiOperation>>;
+  components?: {
+    schemas?: Record<string, OpenApiSchema>;
+  };
+}
+
+interface OpenApiOperation {
+  operationId?: string;
+  parameters?: OpenApiParameter[];
+  requestBody?: {
+    content?: Record<string, { schema?: OpenApiSchema }>;
+  };
+}
+
+interface OpenApiParameter {
+  name?: string;
+  in?: string;
+  schema?: OpenApiSchema;
+}
+
+interface OpenApiSchema {
+  $ref?: string;
+  type?: string;
+  format?: string;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  maxLength?: number;
+  properties?: Record<string, OpenApiSchema>;
+  items?: OpenApiSchema;
+  allOf?: OpenApiSchema[];
+  oneOf?: OpenApiSchema[];
+  anyOf?: OpenApiSchema[];
+}
+
+interface RequestPreflightRule {
+  operationId: string;
+  method: string;
+  path: string;
+  pathPattern: string;
+  query?: QueryPreflightRule[];
+  body?: BodyPreflightRule[];
+}
+
+interface QueryPreflightRule {
+  name: string;
+  type?: string;
+  format?: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  maxLength?: number;
+  integer?: boolean;
+}
+
+interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
+  path: string[];
+  minItems?: number;
+  maxItems?: number;
+}
+
+function emitOpenApiRequestPreflight(
+  repoRoot: string,
+  openApiRel: string,
+  outRel: string,
+  functionName: string,
+): void {
+  const openApi = JSON.parse(
+    readFileSync(resolvePath(repoRoot, openApiRel), 'utf8'),
+  ) as OpenApiDocument;
+  const rules = collectRequestPreflightRules(openApi);
+  const source = [
+    BANNER.trimEnd(),
+    '',
+    emitRequestPreflightRuntime(functionName, rules),
+  ].join('\n');
+  writeFileSync(resolvePath(repoRoot, outRel), `${source.trimEnd()}\n`);
+}
+
+function collectRequestPreflightRules(openApi: OpenApiDocument): RequestPreflightRule[] {
+  const out: RequestPreflightRule[] = [];
+  const methods = new Set(['get', 'post', 'put', 'patch', 'delete']);
+  for (const [path, item] of Object.entries(openApi.paths ?? {})) {
+    for (const [method, operation] of Object.entries(item)) {
+      if (!methods.has(method) || !operation?.operationId) continue;
+      const query = collectQueryPreflightRules(operation.parameters ?? [], openApi);
+      const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+      const body = bodySchema
+        ? collectBodyPreflightRules(resolveOpenApiSchema(bodySchema, openApi), openApi, [])
+        : [];
+      if (query.length === 0 && body.length === 0) continue;
+      out.push({
+        operationId: operation.operationId,
+        method: method.toUpperCase(),
+        path,
+        pathPattern: openApiPathRegexSource(path),
+        query: query.length > 0 ? query : undefined,
+        body: body.length > 0 ? body : undefined,
+      });
+    }
+  }
+  return out.sort((left, right) => {
+    const byOperation = left.operationId.localeCompare(right.operationId);
+    return byOperation !== 0 ? byOperation : left.method.localeCompare(right.method);
+  });
+}
+
+function collectQueryPreflightRules(
+  parameters: OpenApiParameter[],
+  openApi: OpenApiDocument,
+): QueryPreflightRule[] {
+  return parameters
+    .filter((parameter) => parameter.in === 'query' && parameter.name && parameter.schema)
+    .map((parameter) => {
+      const schema = resolveOpenApiSchema(parameter.schema!, openApi);
+      return queryRuleFromSchema(parameter.name!, schema);
+    })
+    .filter((rule): rule is QueryPreflightRule => Boolean(rule))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function collectBodyPreflightRules(
+  schema: OpenApiSchema | undefined,
+  openApi: OpenApiDocument,
+  path: string[],
+  seenRefs = new Set<string>(),
+): BodyPreflightRule[] {
+  if (!schema) return [];
+  const resolved = resolveOpenApiSchema(schema, openApi, seenRefs);
+  const out: BodyPreflightRule[] = [];
+  const current = bodyRuleFromSchema(path, resolved);
+  if (current) out.push(current);
+
+  for (const branch of [
+    ...(resolved.allOf ?? []),
+    ...(resolved.oneOf ?? []),
+    ...(resolved.anyOf ?? []),
+  ]) {
+    out.push(...collectBodyPreflightRules(branch, openApi, path, new Set(seenRefs)));
+  }
+
+  for (const [key, property] of Object.entries(resolved.properties ?? {})) {
+    out.push(...collectBodyPreflightRules(property, openApi, [...path, key], new Set(seenRefs)));
+  }
+
+  if (resolved.items && path.length > 0) {
+    out.push(...collectBodyPreflightRules(resolved.items, openApi, [...path, '*'], new Set(seenRefs)));
+  }
+
+  return out;
+}
+
+function queryRuleFromSchema(name: string, schema: OpenApiSchema): QueryPreflightRule | null {
+  const base = constraintRuleFromSchema(schema);
+  return base ? { name, ...base } : null;
+}
+
+function bodyRuleFromSchema(path: string[], schema: OpenApiSchema): BodyPreflightRule | null {
+  if (path.length === 0) return null;
+  const base = constraintRuleFromSchema(schema);
+  return base ? { path, ...base } : null;
+}
+
+function constraintRuleFromSchema(
+  schema: OpenApiSchema,
+): Omit<QueryPreflightRule, 'name'> | null {
+  const enumValues = (schema.enum ?? [])
+    .filter((value): value is string => typeof value === 'string');
+  const rule: Omit<QueryPreflightRule, 'name'> & {
+    minItems?: number;
+    maxItems?: number;
+  } = {};
+  const hasConstraint =
+    Boolean(schema.format) ||
+    enumValues.length > 0 ||
+    typeof schema.minimum === 'number' ||
+    typeof schema.maximum === 'number' ||
+    typeof schema.maxLength === 'number' ||
+    typeof schema.minItems === 'number' ||
+    typeof schema.maxItems === 'number' ||
+    schema.type === 'integer';
+  if (!hasConstraint) return null;
+  if (schema.type) rule.type = schema.type;
+  if (schema.format) rule.format = schema.format;
+  if (enumValues.length > 0) rule.enum = enumValues;
+  if (typeof schema.minimum === 'number') rule.minimum = schema.minimum;
+  if (typeof schema.maximum === 'number') rule.maximum = schema.maximum;
+  if (typeof schema.maxLength === 'number') rule.maxLength = schema.maxLength;
+  if (typeof schema.minItems === 'number') rule.minItems = schema.minItems;
+  if (typeof schema.maxItems === 'number') rule.maxItems = schema.maxItems;
+  if (schema.type === 'integer') rule.integer = true;
+  return rule;
+}
+
+function resolveOpenApiSchema(
+  schema: OpenApiSchema,
+  openApi: OpenApiDocument,
+  seenRefs = new Set<string>(),
+): OpenApiSchema {
+  if (!schema.$ref) return schema;
+  if (seenRefs.has(schema.$ref)) return schema;
+  seenRefs.add(schema.$ref);
+  const prefix = '#/components/schemas/';
+  if (!schema.$ref.startsWith(prefix)) return schema;
+  const name = schema.$ref.slice(prefix.length);
+  const resolved = openApi.components?.schemas?.[name];
+  return resolved ? resolveOpenApiSchema(resolved, openApi, seenRefs) : schema;
+}
+
+function openApiPathRegexSource(path: string): string {
+  const escaped = path
+    .split(/(\{[^}]+\})/g)
+    .map((part) =>
+      part.startsWith('{') && part.endsWith('}')
+        ? '[^/]+'
+        : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    )
+    .join('');
+  return `^${escaped}$`;
+}
+
+function emitRequestPreflightRuntime(functionName: string, rules: RequestPreflightRule[]): string {
+  return `interface QueryPreflightRule {
+  readonly name: string;
+  readonly type?: string;
+  readonly format?: string;
+  readonly enum?: readonly string[];
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly maxLength?: number;
+  readonly integer?: boolean;
+}
+
+interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
+  readonly path: readonly string[];
+  readonly minItems?: number;
+  readonly maxItems?: number;
+}
+
+interface RequestPreflightRule {
+  readonly operationId: string;
+  readonly method: string;
+  readonly path: string;
+  readonly pathPattern: string;
+  readonly query?: readonly QueryPreflightRule[];
+  readonly body?: readonly BodyPreflightRule[];
+}
+
+export class RequestPreflightError extends Error {
+  constructor(
+    public readonly operationId: string,
+    public readonly location: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RequestPreflightError';
+  }
+}
+
+export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = ${JSON.stringify(rules, null, 2)};
+
+export function ${functionName}(
+  method: string,
+  path: string,
+  query?: Record<string, unknown>,
+  body?: unknown,
+): void {
+  const normalizedPath = path.split('?')[0];
+  const upperMethod = method.toUpperCase();
+  const rule = REQUEST_PREFLIGHT_RULES.find(
+    (entry) =>
+      entry.method === upperMethod &&
+      new RegExp(entry.pathPattern).test(normalizedPath),
+  );
+  if (!rule) return;
+  for (const queryRule of rule.query ?? []) {
+    const value = query?.[queryRule.name];
+    if (value === undefined || value === null) continue;
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) validateScalar(rule, \`query.\${queryRule.name}\`, item, queryRule);
+  }
+  for (const bodyRule of rule.body ?? []) {
+    const values = valuesAtBodyPath(body, bodyRule.path);
+    if (values.length === 0) continue;
+    for (const value of values) validateBodyValue(rule, \`body.\${bodyRule.path.join('.')}\`, value, bodyRule);
+  }
+}
+
+function validateBodyValue(
+  operation: RequestPreflightRule,
+  location: string,
+  value: unknown,
+  rule: BodyPreflightRule,
+): void {
+  if (rule.type === 'array' || rule.minItems !== undefined || rule.maxItems !== undefined) {
+    if (!Array.isArray(value)) {
+      fail(operation, location, 'must be an array', value);
+    }
+    if (rule.minItems !== undefined && value.length < rule.minItems) {
+      fail(operation, location, \`must contain at least \${rule.minItems} item(s)\`, value);
+    }
+    if (rule.maxItems !== undefined && value.length > rule.maxItems) {
+      fail(operation, location, \`must contain at most \${rule.maxItems} item(s)\`, value);
+    }
+  }
+  validateScalar(operation, location, value, rule);
+}
+
+function validateScalar(
+  operation: RequestPreflightRule,
+  location: string,
+  value: unknown,
+  rule: Omit<QueryPreflightRule, 'name'>,
+): void {
+  const isBody = location.startsWith('body.');
+  if (isBody && rule.type === 'string' && typeof value !== 'string') {
+    fail(operation, location, 'must be a string', value);
+  }
+  if (rule.enum && !rule.enum.includes(String(value))) {
+    fail(operation, location, \`must be one of: \${rule.enum.join(', ')}\`, value);
+  }
+  if (rule.maxLength !== undefined && String(value).length > rule.maxLength) {
+    fail(operation, location, \`must be at most \${rule.maxLength} characters\`, value);
+  }
+  if (rule.format === 'uuid' && (typeof value !== 'string' || !UUID_RE.test(value))) {
+    fail(operation, location, 'must be a valid UUID', value);
+  }
+  if (rule.format === 'date-time' && (typeof value !== 'string' || Number.isNaN(Date.parse(value)))) {
+    fail(operation, location, 'must be a valid date-time', value);
+  }
+  const requiresNumeric =
+    rule.type === 'number' ||
+    rule.type === 'integer' ||
+    rule.minimum !== undefined ||
+    rule.maximum !== undefined ||
+    rule.integer;
+  if (requiresNumeric) {
+    if (isBody && (rule.type === 'number' || rule.type === 'integer') && typeof value !== 'number') {
+      fail(operation, location, 'must be numeric', value);
+    }
+    const numberValue = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numberValue)) {
+      fail(operation, location, 'must be numeric', value);
+    }
+    if (rule.integer && !Number.isInteger(numberValue)) {
+      fail(operation, location, 'must be an integer', value);
+    }
+    if (rule.minimum !== undefined && numberValue < rule.minimum) {
+      fail(operation, location, \`must be >= \${rule.minimum}\`, value);
+    }
+    if (rule.maximum !== undefined && numberValue > rule.maximum) {
+      fail(operation, location, \`must be <= \${rule.maximum}\`, value);
+    }
+  }
+}
+
+function valuesAtBodyPath(body: unknown, path: readonly string[]): unknown[] {
+  let current: unknown[] = [body];
+  for (const segment of path) {
+    const next: unknown[] = [];
+    for (const value of current) {
+      if (segment === '*') {
+        if (Array.isArray(value)) next.push(...value);
+        continue;
+      }
+      if (value && typeof value === 'object' && segment in value) {
+        next.push((value as Record<string, unknown>)[segment]);
+      }
+    }
+    current = next;
+    if (current.length === 0) break;
+  }
+  return current.filter((value) => value !== undefined && value !== null);
+}
+
+function fail(
+  operation: RequestPreflightRule,
+  location: string,
+  expected: string,
+  value: unknown,
+): never {
+  throw new RequestPreflightError(
+    operation.operationId,
+    location,
+    \`\${operation.operationId} \${location} \${expected}. Got: \${JSON.stringify(value)}\`,
+  );
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1117,6 +1527,8 @@ interface ProviderCapabilityConformancePayload {
   skillCapabilityGuards: unknown;
   mcpCapabilityGuards: unknown;
   installDoctorCapabilityGuards: unknown;
+  localStackScenarioPaths: unknown;
+  localStackScenarioMatrix: unknown;
   mcpToolSurfaces: unknown;
   mcpPromptSurfaces: unknown;
   mcpResourceTemplateSurfaces: unknown;
@@ -1364,6 +1776,61 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  guardTest: string;`,
     `}`,
     '',
+    `export interface LocalStackScenarioPathSpec {`,
+    `  id: string;`,
+    `  category: string;`,
+    `  capability: OpenBoxCapabilityId;`,
+    `  label: string;`,
+    `  axes: readonly string[];`,
+    `  requiredProofLevel: string;`,
+    `  localStackRequired: boolean;`,
+    `  operationIds: readonly string[];`,
+    `  evidencePatterns: readonly string[];`,
+    `  operationEvidencePatterns?: readonly LocalStackOperationEvidenceSpec[];`,
+    `  requiredBehavior: string;`,
+    `}`,
+    '',
+    `export interface LocalStackOperationEvidenceSpec {`,
+    `  operationId: string;`,
+    `  evidencePatterns: readonly string[];`,
+    `}`,
+    '',
+    `export interface LocalStackCategoryAxisSpec {`,
+    `  category: string;`,
+    `  axes: readonly string[];`,
+    `}`,
+    '',
+    `export interface LocalStackOutcomeSpec {`,
+    `  id: string;`,
+    `  label: string;`,
+    `  source: string;`,
+    `  minimumProofLevel: string;`,
+    `  operationIds: readonly string[];`,
+    `  providerGuardCapabilities: readonly string[];`,
+    `  exceptionCapabilities: readonly string[];`,
+    `}`,
+    '',
+    `export interface LocalStackScenarioMatrixContract {`,
+    `  id: string;`,
+    `  description: string;`,
+    `  requiredCapabilities: readonly OpenBoxCapabilityId[];`,
+    `  requiredCategories: readonly string[];`,
+    `  requiredAxes: readonly string[];`,
+    `  requiredLocalStackAxes: readonly string[];`,
+    `  requiredCategoryAxes: readonly LocalStackCategoryAxisSpec[];`,
+    `  localStackScenarioIds: readonly string[];`,
+    `  providerOwnedScenarioIds: readonly string[];`,
+    `  requiredOutcomeIds: readonly string[];`,
+    `  requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];`,
+    `  requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];`,
+    `  requiredSdkSemanticGapClosureTargets: readonly string[];`,
+    `  providerGuardSharedProofPolicy: string;`,
+    `  localStackAxisPolicy: string;`,
+    `  rawSemanticGapPolicy: string;`,
+    `  backendCoreGapStatusPolicy: string;`,
+    `  backendCoreGapRemediationPolicy: string;`,
+    `}`,
+    '',
     `export interface McpToolSurfaceEntry {`,
     `  name: string;`,
     `  title: string;`,
@@ -1524,6 +1991,10 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const MCP_CAPABILITY_GUARDS = ${literalTs(conformance.mcpCapabilityGuards)} as const satisfies readonly McpCapabilityGuardEntry[];`,
     '',
     `export const INSTALL_DOCTOR_CAPABILITY_GUARDS = ${literalTs(conformance.installDoctorCapabilityGuards)} as const satisfies readonly InstallDoctorCapabilityGuardEntry[];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_PATHS = ${literalTs(conformance.localStackScenarioPaths)} as const satisfies readonly LocalStackScenarioPathSpec[];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_MATRIX = ${literalTs(conformance.localStackScenarioMatrix)} as const satisfies LocalStackScenarioMatrixContract;`,
     '',
     `export const MCP_TOOL_SURFACES = ${literalTs(conformance.mcpToolSurfaces)} as const satisfies readonly McpToolSurfaceEntry[];`,
     '',
@@ -1736,6 +2207,8 @@ function providerCapabilityConformancePayload(
     skillCapabilityGuards: matrix.skillCapabilityGuards,
     mcpCapabilityGuards: matrix.mcpCapabilityGuards,
     installDoctorCapabilityGuards: matrix.installDoctorCapabilityGuards,
+    localStackScenarioPaths: matrix.localStackScenarioPaths,
+    localStackScenarioMatrix: matrix.localStackScenarioMatrix,
     mcpToolSurfaces: matrix.mcpTools,
     mcpPromptSurfaces: matrix.mcpPrompts,
     mcpResourceTemplateSurfaces: matrix.mcpResourceTemplates,

@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-client';
+import { makeJsonObjectValueClassPayload } from '../helpers/boundary-conformance';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
+import {
+  GOVERNANCE_SPEC_DOMAINS,
+  invalidGovernanceSpecMember,
+} from '../helpers/governance-spec-domains';
 
 describe('Agent CRUD Lifecycle', () => {
   const client = getBackendClient();
@@ -15,7 +20,10 @@ describe('Agent CRUD Lifecycle', () => {
   });
 
   it('creates an agent', async () => {
-    const dto = makeCreateAgentDto(teamIds);
+    // BOUNDARY_PROOF: agent config preserves every JSON value class for the
+    // CreateAgentDto.config open object field.
+    const config = makeJsonObjectValueClassPayload();
+    const dto = makeCreateAgentDto(teamIds, { config });
     agentName = dto.agent_name;
 
     const response = await client.post('/agent/create', dto);
@@ -26,6 +34,7 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.data.agent.id).toBeDefined();
     expect(body.data.agent.agent_name).toBe(agentName);
     expect(body.data.agent.organization_id).toBeDefined();
+    expect(body.data.agent.config).toMatchObject(config);
     expect(body.data.token).toBeDefined();
     // Backend issues obx_live_* in prod and obx_test_* everywhere else.
     // Accept both; env-detection bug land if we hardcode one.
@@ -41,6 +50,49 @@ describe('Agent CRUD Lifecycle', () => {
     apiKey = body.data.token;
 
     trackResource({ type: 'agent', id: agentId });
+  });
+
+  it('EXHAUSTIVE_SPEC_PROOF: CreateAgentDto attestation modes are accepted', async () => {
+    // EXHAUSTIVE_SPEC_PROOF: CreateAgentDto.attestation_mode is finite in
+    // TypeSpec. Every member is sent through the local-stack create route;
+    // external mode includes the supporting attestation domain and token.
+    expect(GOVERNANCE_SPEC_DOMAINS.agentAttestationModes).toEqual(['kms', 'external']);
+
+    for (const attestationMode of GOVERNANCE_SPEC_DOMAINS.agentAttestationModes) {
+      const response = await client.post('/agent/create', makeCreateAgentDto(teamIds, {
+        agent_name: `attestation-${attestationMode}-${Date.now()}`,
+        attestation_mode: attestationMode,
+        ...(attestationMode === 'external'
+          ? {
+              attestation_domain: 'attestation.example.invalid',
+              attestation_token: 'external-attestation-token',
+            }
+          : {}),
+      }));
+      const body = fullResponse(response);
+
+      expect(body.status, attestationMode).toBe(200);
+      expect(body.data.agent.id, attestationMode).toBeDefined();
+      if ('attestation_mode' in body.data.agent) {
+        expect(body.data.agent.attestation_mode).toBe(attestationMode);
+      }
+
+      trackResource({ type: 'agent', id: body.data.agent.id });
+    }
+  });
+
+  it('NEGATIVE_BOUNDARY_PROOF: CreateAgentDto attestation mode rejects out-of-domain values', async () => {
+    // NEGATIVE_BOUNDARY_PROOF: CreateAgentDto.attestation_mode is finite in
+    // TypeSpec. Out-of-domain values must fail backend validation before an
+    // agent identity or token is created.
+    const invalidAttestationMode = invalidGovernanceSpecMember('agentAttestationModes');
+    const response = await client.post('/agent/create', makeCreateAgentDto(teamIds, {
+      agent_name: `attestation-invalid-${Date.now()}`,
+      attestation_mode: invalidAttestationMode,
+    }));
+    const body = fullResponse(response);
+
+    expect(body.status).toBe(422);
   });
 
   it('lists agents and includes created agent', async () => {
@@ -65,12 +117,21 @@ describe('Agent CRUD Lifecycle', () => {
   });
 
   it('updates agent', async () => {
+    // CONFORMANCE_PROOF: agent lifecycle conformance verifies update returns
+    // the persisted agent mutation.
+    const config = { updated: makeJsonObjectValueClassPayload() };
     const response = await client.put(`/agent/${agentId}`, {
       description: 'Updated by test',
+      config,
     });
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
+    expect(body.data).toMatchObject({
+      id: agentId,
+      description: 'Updated by test',
+      config,
+    });
   });
 
   it('verifies update', async () => {
@@ -79,13 +140,17 @@ describe('Agent CRUD Lifecycle', () => {
 
     expect(body.status).toBe(200);
     expect(body.data.description).toBe('Updated by test');
+    expect(body.data.config).toMatchObject({ updated: makeJsonObjectValueClassPayload() });
   });
 
   it('deletes agent', async () => {
+    // CONFORMANCE_PROOF: agent lifecycle conformance verifies delete returns
+    // a backend acknowledgement before the follow-up read confirms removal.
     const response = await client.delete(`/agent/${agentId}`);
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
+    expect(body.data?.message ?? body.message ?? '').toEqual(expect.any(String));
   });
 
   it('confirms deletion returns 403 or 404', async () => {

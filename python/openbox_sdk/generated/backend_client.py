@@ -23,13 +23,6 @@ BACKEND_ENDPOINT_MANIFEST = [
     "path_pattern": "/auth/profile"
   },
   {
-    "operation_id": "AuthController_getCsrf",
-    "method_name": "get_csrf_token",
-    "verb": "get",
-    "path": "/auth/csrf",
-    "path_pattern": "/auth/csrf"
-  },
-  {
     "operation_id": "AuthController_login",
     "method_name": "login",
     "verb": "post",
@@ -1013,10 +1006,6 @@ class BackendOperationsMixin:
     async def get_profile(self, *, path_params: JsonMapping | None = None, query: JsonMapping | None = None, data: Any = None) -> Any:
         path = render_path("/auth/profile", path_params)
         return await self._request("get", path, params=query, data=data, operation="AuthController_getProfile")
-
-    async def get_csrf_token(self, *, path_params: JsonMapping | None = None, query: JsonMapping | None = None, data: Any = None) -> Any:
-        path = render_path("/auth/csrf", path_params)
-        return await self._request("get", path, params=query, data=data, operation="AuthController_getCsrf")
 
     async def login(self, *, path_params: JsonMapping | None = None, query: JsonMapping | None = None, data: Any = None) -> Any:
         path = render_path("/auth/login", path_params)

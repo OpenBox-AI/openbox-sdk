@@ -3,6 +3,7 @@ import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
 import { normalizeServiceUrl } from '../env/connection.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
+import { validateCoreRequest } from './generated/request-preflight.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -214,6 +215,7 @@ export class OpenBoxCoreClient {
     if (path !== '/') {
       validateCoreRuntimeApiKey(this.config.apiKey);
     }
+    validateCoreRequest(method, path, undefined, options?.data);
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
     }

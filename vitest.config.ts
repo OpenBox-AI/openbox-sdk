@@ -123,6 +123,24 @@ export default defineConfig({
         plugins: [sdkSelfReferencePlugin()],
         resolve: { alias: sdkAliases },
         test: {
+          // OpenAPI mock contract: starts an in-process mock backend/core
+          // from specs/generated/openapi3 and drives every generated SDK
+          // endpoint against deterministic 2xx responses. This is CI-safe
+          // Stoplight/Prism-style response coverage without requiring the
+          // real local stack.
+          name: 'openapi-mock',
+          alias: sdkAliases,
+          include: ['tests/openapi-mock/**/*.test.ts'],
+          setupFiles: ['./tests/setup.ts'],
+          testTimeout: 30000,
+          sequence: { concurrent: false },
+          fileParallelism: false,
+        },
+      },
+      {
+        plugins: [sdkSelfReferencePlugin()],
+        resolve: { alias: sdkAliases },
+        test: {
           // Spec-driven wire-shape conformance.Drives
           // every spec op through the SDK against an in-process HTTP
           // capture server; no backend required. Catches SDK<->spec

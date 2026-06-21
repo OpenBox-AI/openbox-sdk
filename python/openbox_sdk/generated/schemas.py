@@ -128,14 +128,6 @@ class BehaviorRule(OpenBoxGeneratedModel):
     pass
 
 
-class BehaviorRuleMatchCondition(OpenBoxGeneratedModel):
-    pass
-
-
-class BehaviorRuleStateCondition(OpenBoxGeneratedModel):
-    pass
-
-
 class ChangeBehaviorRuleStatusDto(OpenBoxGeneratedModel):
     pass
 
@@ -563,8 +555,6 @@ __all__ = [
   "AuditLog",
   "BaseSecurityDto",
   "BehaviorRule",
-  "BehaviorRuleMatchCondition",
-  "BehaviorRuleStateCondition",
   "ChangeBehaviorRuleStatusDto",
   "ChangePasswordDto",
   "ConfigureOidcDto",

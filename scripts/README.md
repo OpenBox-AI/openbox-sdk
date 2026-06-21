@@ -16,6 +16,9 @@ unit suite compares that inventory against the repository tree.
   OpenAPI, JSON Schema, and future language targets must all hang off this
   command. If generated fixtures were cleaned, it falls back to the bootstrap
   generation sequence long enough to regenerate the canonical manifest.
+  Package script synchronization also runs from this pipeline so
+  `package.json` command entries are materialized from TypeSpec, not edited as
+  a parallel source of truth.
 - `specs:compile` and `specs:watch` read the TypeSpec-emitted `specCommands`
   table. These low-level TypeSpec commands keep a bootstrap fallback because
   SDK generation may need them before the emitted fixture exists.
@@ -32,7 +35,8 @@ unit suite compares that inventory against the repository tree.
   `package.json`.
 - `check:generated-drift` reruns `npm run generate:sdks`, then checks generated
   TypeScript, Python, OpenAPI, JSON Schema, TypeSpec-emitted contract metadata
-  maps, CLI/env/lifecycle fixtures, and conformance fixture artifacts for drift.
+  maps, CLI/env/lifecycle fixtures, conformance fixture artifacts, and
+  generated-adjacent synced files such as root `package.json` scripts for drift.
   The artifact inventory comes from the TypeSpec-emitted
   `codegen/fixtures/sdk-targets.json` manifest, not from a script-local target
   list.
@@ -57,9 +61,10 @@ unit suite compares that inventory against the repository tree.
   `packageScripts` table. The package script test compares `package.json`
   exactly against that table so new root entrypoints must be intentional
   spec-owned routers or explicit npm lifecycle/compatibility aliases.
-- `test`, `test:unit`, `test:contract`, and `test:hook-integration` read the
-  TypeSpec-emitted `testSuites` routing table and execute the declared suite
-  commands. Add, remove, or rename root test suites in
+- `test`, `test:unit`, `test:openapi-mock`, `test:contract`,
+  `test:hook-integration`, and `test:e2e` read the TypeSpec-emitted
+  `testSuites` routing table and execute the declared suite commands. Add,
+  remove, or rename root test suites in
   `specs/typespec/sdk/main.tsp`, not in `package.json`.
 - `lint` and `format` read the TypeSpec-emitted `qualityCommands` table. Add
   quality command path or tool changes in `specs/typespec/sdk/main.tsp`, not in
@@ -72,6 +77,10 @@ unit suite compares that inventory against the repository tree.
 - `ci:local` reads the TypeSpec-emitted `localCi.steps` pipeline and executes
   those commands in order. Add or reorder local CI gates in
   `specs/typespec/sdk/main.tsp`, not in `package.json`.
+- `ci:local-stack` reads the TypeSpec-emitted `rootPipelines` table and runs
+  the deterministic local CI gate plus the live local-stack e2e suite. This is
+  the canonical full local-stack verification command and requires backend/core
+  services plus local test credentials.
 - `spec-drift.ts` is declared in the TypeSpec-emitted `serviceDrift` section.
   Its service/tier matrix and output path templates are canonical metadata even
   though the script remains a report-only operational comparator.
@@ -84,8 +93,10 @@ unit suite compares that inventory against the repository tree.
 ## Local CI
 
 - `ci:local` composes the full local PR/release gate declared in the SDK target
-  manifest: `check:sdks`, coverage, bundle build, generated drift, generated
+  manifest: generated drift, `check:sdks`, coverage, bundle build, generated
   banners, OpenAPI lint, npm audit, and the repository security audit.
+- `ci:local-stack` composes `ci:local` with the live `test:e2e` project for
+  backend/core runtime verification against a running local stack.
 
 ## Operational Scripts
 
@@ -99,6 +110,8 @@ unit suite compares that inventory against the repository tree.
   scanning.
 - `spec-drift.ts` compares emitted OpenAPI against deployed/upstream services.
 - `check-generated-banners.ts` enforces generated-file provenance.
+- `sync-package-scripts.mjs` rewrites root `package.json` scripts from the
+  TypeSpec-emitted `packageScripts.scripts` table.
 
 Rule of thumb: scripts may check, copy, launch, or compare. Anything that
 authors SDK/API contract artifacts belongs in the shared TypeSpec emitter and

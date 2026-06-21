@@ -9,6 +9,7 @@ interface SdkTargetsFixture {
   generatedArtifacts: {
     generatedRoots: string[];
     generatedFiles: string[];
+    driftCheckFiles?: string[];
     nestedGeneratedFiles: Array<{
       root: string;
       suffixes: string[];
@@ -251,6 +252,7 @@ describe('SDK target validation manifest', () => {
       'codegen/fixtures/sdk-manifests.json',
       'codegen/fixtures/sdk-targets.json',
     ]);
+    expect(fixture.generatedArtifacts.driftCheckFiles).toEqual(['package.json']);
     expect(fixture.generatedArtifacts.nestedGeneratedFiles).toEqual([
       { root: 'ts/src', suffixes: ['.ts', '.d.ts'] },
     ]);
@@ -320,6 +322,13 @@ describe('SDK target validation manifest', () => {
         label: 'TypeSpec contract compile',
         command: 'npm',
         args: ['run', 'specs:compile'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'sync-package-scripts',
+        label: 'Sync package scripts',
+        command: 'node',
+        args: ['scripts/sync-package-scripts.mjs'],
         workingDirectory: '.',
       },
     ]);
@@ -419,7 +428,7 @@ describe('SDK target validation manifest', () => {
     expect(fixture.serviceDrift.policy).toContain('must not author SDK artifacts');
   });
 
-  test('declares root build and check pipelines outside package scripts', () => {
+  test('declares root build, check, and local-stack pipelines outside package scripts', () => {
     const fixture = readSdkTargetsFixture();
     const packageJson = JSON.parse(
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
@@ -434,9 +443,13 @@ describe('SDK target validation manifest', () => {
     expect(packageJson.scripts['check:sdks']).toBe(
       'node scripts/run-root-pipeline.mjs check-sdks',
     );
+    expect(packageJson.scripts['ci:local-stack']).toBe(
+      'node scripts/run-root-pipeline.mjs local-stack',
+    );
     expect(fixture.rootPipelines.pipelines.map((pipeline) => pipeline.id)).toEqual([
       'build',
       'check-sdks',
+      'local-stack',
     ]);
     expect(pipelines.build?.steps.map((step) => step.id)).toEqual([
       'generate-sdks',
@@ -446,6 +459,17 @@ describe('SDK target validation manifest', () => {
       'generate-sdks',
       'validate-targets',
     ]);
+    expect(pipelines['local-stack']?.steps.map((step) => step.id)).toEqual([
+      'ci-local',
+      'live-e2e',
+    ]);
+    expect(pipelines['local-stack']?.steps.at(-1)).toEqual({
+      id: 'live-e2e',
+      label: 'Live local-stack e2e',
+      command: 'npm',
+      args: ['run', 'test:e2e'],
+      workingDirectory: '.',
+    });
     expect(pipelines['check-sdks']?.steps.at(-1)).toEqual({
       id: 'validate-targets',
       label: 'Validate SDK targets',
@@ -465,12 +489,19 @@ describe('SDK target validation manifest', () => {
 
     expect(packageJson.scripts.test).toBe('node scripts/run-tests.mjs');
     expect(packageJson.scripts['test:unit']).toBe('node scripts/run-tests.mjs unit');
+    expect(packageJson.scripts['test:openapi-mock']).toBe(
+      'node scripts/run-tests.mjs openapi-mock',
+    );
+    expect(packageJson.scripts['test:specmatic']).toBeUndefined();
+    expect(packageJson.scripts['test:karate']).toBeUndefined();
     expect(packageJson.scripts['test:contract']).toBe('node scripts/run-tests.mjs contract');
     expect(packageJson.scripts['test:hook-integration']).toBe(
       'node scripts/run-tests.mjs hook-integration',
     );
+    expect(packageJson.scripts['test:e2e']).toBe('node scripts/run-tests.mjs e2e');
     expect(fixture.testSuites.defaultSuites).toEqual([
       'unit',
+      'openapi-mock',
       'contract',
       'hook-integration',
     ]);
@@ -480,6 +511,13 @@ describe('SDK target validation manifest', () => {
         label: 'Unit tests',
         command: 'npx',
         args: ['vitest', 'run', '--project', 'unit'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'openapi-mock',
+        label: 'OpenAPI mock contract tests',
+        command: 'npx',
+        args: ['vitest', 'run', '--project', 'openapi-mock'],
         workingDirectory: '.',
       },
       {
@@ -494,6 +532,13 @@ describe('SDK target validation manifest', () => {
         label: 'Hook integration tests',
         command: 'npx',
         args: ['vitest', 'run', '--project', 'hook-integration'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'e2e',
+        label: 'Live local-stack e2e tests',
+        command: 'npx',
+        args: ['vitest', 'run', '--project', 'e2e'],
         workingDirectory: '.',
       },
     ]);
@@ -665,6 +710,9 @@ describe('SDK target validation manifest', () => {
       'spec-runner',
       'spec-runner',
       'spec-runner',
+      'spec-runner',
+      'spec-runner',
+      'spec-runner',
       'compatibility-alias',
       'spec-runner',
       'spec-runner',
@@ -738,10 +786,10 @@ describe('SDK target validation manifest', () => {
     const fixture = readSdkTargetsFixture();
 
     expect(fixture.localCi.steps.map((step) => step.id)).toEqual([
+      'generated-drift',
       'check-sdks',
       'coverage',
       'build',
-      'generated-drift',
       'generated-banners',
       'openapi-lint',
       'npm-audit',
@@ -750,6 +798,9 @@ describe('SDK target validation manifest', () => {
     expect(fixture.localCi.steps.find((step) => step.id === 'coverage')?.env).toEqual({
       OPENBOX_CLI: './scripts/openbox-cli-dev.mjs',
     });
+    expect(fixture.localCi.steps.find((step) => step.id === 'coverage')?.args).toContain(
+      'openapi-mock',
+    );
     expect(fixture.localCi.steps.find((step) => step.id === 'build')?.env).toEqual({
       NODE_OPTIONS: '--max-old-space-size=4096',
     });

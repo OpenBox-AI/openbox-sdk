@@ -21,6 +21,9 @@ SDK_TARGET_MANIFEST = {
       "codegen/fixtures/sdk-manifests.json",
       "codegen/fixtures/sdk-targets.json"
     ],
+    "driftCheckFiles": [
+      "package.json"
+    ],
     "nestedGeneratedFiles": [
       {
         "root": "ts/src",
@@ -102,6 +105,15 @@ SDK_TARGET_MANIFEST = {
         "args": [
           "run",
           "specs:compile"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "sync-package-scripts",
+        "label": "Sync package scripts",
+        "command": "node",
+        "args": [
+          "scripts/sync-package-scripts.mjs"
         ],
         "workingDirectory": "."
       }
@@ -278,12 +290,39 @@ SDK_TARGET_MANIFEST = {
             "workingDirectory": "."
           }
         ]
+      },
+      {
+        "id": "local-stack",
+        "label": "Local stack CI",
+        "steps": [
+          {
+            "id": "ci-local",
+            "label": "Deterministic local CI",
+            "command": "npm",
+            "args": [
+              "run",
+              "ci:local"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "live-e2e",
+            "label": "Live local-stack e2e",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:e2e"
+            ],
+            "workingDirectory": "."
+          }
+        ]
       }
     ]
   },
   "testSuites": {
     "defaultSuites": [
       "unit",
+      "openapi-mock",
       "contract",
       "hook-integration"
     ],
@@ -297,6 +336,18 @@ SDK_TARGET_MANIFEST = {
           "run",
           "--project",
           "unit"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "openapi-mock",
+        "label": "OpenAPI mock contract tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "openapi-mock"
         ],
         "workingDirectory": "."
       },
@@ -321,6 +372,18 @@ SDK_TARGET_MANIFEST = {
           "run",
           "--project",
           "hook-integration"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "e2e",
+        "label": "Live local-stack e2e tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "e2e"
         ],
         "workingDirectory": "."
       }
@@ -611,6 +674,11 @@ SDK_TARGET_MANIFEST = {
         "kind": "spec-runner"
       },
       {
+        "name": "test:openapi-mock",
+        "command": "node scripts/run-tests.mjs openapi-mock",
+        "kind": "spec-runner"
+      },
+      {
         "name": "test:contract",
         "command": "node scripts/run-tests.mjs contract",
         "kind": "spec-runner"
@@ -618,6 +686,11 @@ SDK_TARGET_MANIFEST = {
       {
         "name": "test:hook-integration",
         "command": "node scripts/run-tests.mjs hook-integration",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e",
+        "command": "node scripts/run-tests.mjs e2e",
         "kind": "spec-runner"
       },
       {
@@ -633,6 +706,11 @@ SDK_TARGET_MANIFEST = {
       {
         "name": "ci:local",
         "command": "node scripts/run-local-ci.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "ci:local-stack",
+        "command": "node scripts/run-root-pipeline.mjs local-stack",
         "kind": "spec-runner"
       },
       {
@@ -687,6 +765,12 @@ SDK_TARGET_MANIFEST = {
         "category": "spec-runner",
         "canonicalSurface": "sdkGeneration.steps",
         "role": "Generic SDK/API generation router for every language and app target."
+      },
+      {
+        "path": "scripts/sync-package-scripts.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "packageScripts.scripts",
+        "role": "Synchronizes root package.json scripts from the TypeSpec-emitted package script manifest during SDK generation."
       },
       {
         "path": "scripts/run-spec-command.mjs",
@@ -868,6 +952,16 @@ SDK_TARGET_MANIFEST = {
   "localCi": {
     "steps": [
       {
+        "id": "generated-drift",
+        "label": "Generated drift",
+        "command": "npm",
+        "args": [
+          "run",
+          "check:generated-drift"
+        ],
+        "workingDirectory": "."
+      },
+      {
         "id": "check-sdks",
         "label": "SDK target validation",
         "command": "npm",
@@ -887,6 +981,8 @@ SDK_TARGET_MANIFEST = {
           "--coverage",
           "--project",
           "unit",
+          "--project",
+          "openapi-mock",
           "--project",
           "contract",
           "--project",
@@ -910,16 +1006,6 @@ SDK_TARGET_MANIFEST = {
         "env": {
           "NODE_OPTIONS": "--max-old-space-size=4096"
         }
-      },
-      {
-        "id": "generated-drift",
-        "label": "Generated drift",
-        "command": "npm",
-        "args": [
-          "run",
-          "check:generated-drift"
-        ],
-        "workingDirectory": "."
       },
       {
         "id": "generated-banners",

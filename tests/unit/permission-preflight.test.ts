@@ -4,8 +4,8 @@
 //   2. Method with required perms + missing → throws
 //      MissingPermissionError BEFORE any network call, so we can
 //      trust no fetch happened.
-//   3. Method with no `@Permissions` decorator, such as login or
-//      csrf, never throws regardless of cached permissions.
+//   3. Method with no `@Permissions` decorator, such as login,
+//      never throws regardless of cached permissions.
 //   4. Permissions undefined → check skipped entirely. Legacy
 //      behavior.
 //   5. `setPermissions()` updates the cache mid-session.

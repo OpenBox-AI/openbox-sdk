@@ -151,10 +151,9 @@ function projectBehaviorRule(rule: BackendBehaviorRule): ProjectedRule | null {
     description: rule.description ?? rule.rule_name,
     body: renderBehaviorRuleBody(rule),
     trigger: 'always',
-    severity: severityFromBehaviorRule(rule),
+      severity: severityFromBehaviorRule(rule),
     rendererHints: {
       trigger: rule.trigger,
-      triggerMatch: rule.trigger_match,
       states: rule.states,
       priority: rule.priority,
       verdict: rule.verdict,
@@ -196,9 +195,6 @@ function renderBehaviorRuleBody(rule: BackendBehaviorRule): string {
     rule.description ?? '_No description provided._',
   ];
   if (rule.trigger) lines.push('', `Trigger: \`${rule.trigger}\``);
-  if (rule.trigger_match && rule.trigger_match.length > 0) {
-    lines.push(`Trigger match: ${renderMatchConditions(rule.trigger_match)}`);
-  }
   if (rule.states && rule.states.length > 0) {
     lines.push(`States: ${rule.states.map(renderBehaviorState).join(', ')}`);
   }
@@ -208,25 +204,7 @@ function renderBehaviorRuleBody(rule: BackendBehaviorRule): string {
 }
 
 function renderBehaviorState(state: BehaviorRuleState): string {
-  if (typeof state === 'string') return `\`${state}\``;
-  const semanticType = state.semantic_type;
-  const match =
-    state.match && state.match.length > 0
-      ? ` where ${renderMatchConditions(state.match)}`
-      : '';
-  return `\`${semanticType}\`${match}`;
-}
-
-function renderMatchConditions(
-  conditions: components['schemas']['BehaviorRuleMatchCondition'][],
-): string {
-  return conditions
-    .map((condition) => {
-      const value =
-        condition.value === undefined ? '' : ` ${JSON.stringify(condition.value)}`;
-      return `\`${condition.field} ${condition.op}${value}\``;
-    })
-    .join(', ');
+  return `\`${state}\``;
 }
 
 export interface FetchProjectionOpts {

@@ -250,11 +250,8 @@ export interface components {
             sdk_version?: string;
             /** @description Set on `WorkflowStarted` for child workflows. */
             parent_workflow_id?: string;
-            /**
-             * @description Set on `WorkflowCompleted`/`WorkflowFailed`.
-             * @enum {string}
-             */
-            status?: "completed" | "failed" | "cancelled" | "terminated";
+            /** @description Set on `WorkflowCompleted`/`WorkflowFailed`; Core accepts free-form status strings. */
+            status?: string;
             /** @description Set on Activity* and SignalReceived events. */
             activity_id?: string;
             /**
@@ -270,9 +267,8 @@ export interface components {
              */
             attempt?: number;
             /**
-             * @description Activity input payload. The Go server accepts any JSON value
-             *     but the SDKs always wrap as an array (`[{...}]`); passing a
-             *     bare object yields a 422 from the validation layer.
+             * @description Activity input payload. The Core server accepts array-wrapped SDK
+             *     inputs (`[{...}]`) and legacy bare object payloads.
              */
             activity_input?: unknown[] | Record<string, never>;
             /** @description Activity output payload, set on `ActivityCompleted`. */
@@ -424,7 +420,7 @@ export interface components {
         /** @description SDK-facing guardrail report; one entry per guardrail type that ran. */
         GuardrailsResult: {
             /** @enum {string} */
-            input_type: "activity_input" | "activity_output" | "signal_args";
+            input_type: "activity_input" | "activity_output";
             /**
              * @description Redacted or transformed payload as decided by the guardrail
              *     service. Free-form: string for text content, object for
@@ -500,17 +496,14 @@ export interface components {
              */
             semantic_type?: string;
             /**
+             * @description SDKs conventionally emit `started` or `completed`; Core accepts free-form stage strings.
              * @default completed
-             * @enum {string}
              */
-            stage: "started" | "completed";
+            stage: string;
             /** @description Free-form payload. Map for attestation; string for file ops. */
             data?: unknown;
-            /**
-             * @description SDK v2 hook source.
-             * @enum {string}
-             */
-            hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";
+            /** @description SDK v2 hook source. Core accepts free-form hook type strings. */
+            hook_type?: string;
             /** @description Per-span dedup keys. */
             attribute_key_identifiers?: string[];
             /** @description Per-span error string (separate from envelope `error`). */
@@ -556,8 +549,8 @@ export interface components {
             };
         };
         SpanStatus: {
-            /** @enum {string} */
-            code: "OK" | "ERROR" | "UNSET";
+            /** @description SDKs conventionally emit OTel-like OK/ERROR/UNSET; Core accepts free-form status codes. */
+            code: string;
             description?: string;
         };
         /**

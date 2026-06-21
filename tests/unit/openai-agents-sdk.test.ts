@@ -333,9 +333,12 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       },
     ) as { execute: (input: unknown) => Promise<unknown> };
 
-    await expect(
-      wrapped.execute({ command: 'cat secret.txt' }),
-    ).rejects.toThrow(OpenBoxAgentsSDKError);
+    const blockedExecution = wrapped.execute({ command: 'cat secret.txt' });
+    await expect(blockedExecution).rejects.toMatchObject({
+      name: 'OpenBoxAgentsSDKError',
+      message: '[OpenBox] redacted',
+    });
+    await expect(blockedExecution).rejects.toThrow(OpenBoxAgentsSDKError);
     expect(execute).not.toHaveBeenCalled();
   });
 

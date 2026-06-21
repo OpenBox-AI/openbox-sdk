@@ -21,6 +21,7 @@ const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runt
 const runSpecCommandScript = readFileSync(resolve(process.cwd(), 'scripts/run-spec-command.mjs'), 'utf8');
 const runRootPipelineScript = readFileSync(resolve(process.cwd(), 'scripts/run-root-pipeline.mjs'), 'utf8');
 const runSdkGenerationScript = readFileSync(resolve(process.cwd(), 'scripts/run-sdk-generation.mjs'), 'utf8');
+const syncPackageScriptsScript = readFileSync(resolve(process.cwd(), 'scripts/sync-package-scripts.mjs'), 'utf8');
 const buildCodegenScript = readFileSync(resolve(process.cwd(), 'scripts/build-codegen.mjs'), 'utf8');
 const runBundleBuildScript = readFileSync(resolve(process.cwd(), 'scripts/run-bundle-build.mjs'), 'utf8');
 const cleanScript = readFileSync(resolve(process.cwd(), 'scripts/clean.mjs'), 'utf8');
@@ -55,6 +56,8 @@ describe('package scripts', () => {
     expect(runSdkGenerationScript).toContain('sdkGeneration.steps');
     expect(runSdkGenerationScript).toContain('bootstrapSteps');
     expect(runSdkGenerationScript).toContain("from './lib/spec-steps.mjs'");
+    expect(syncPackageScriptsScript).toContain('packageScripts');
+    expect(syncPackageScriptsScript).toContain('package.json');
   });
 
   test('root build and SDK check read TypeSpec-emitted pipelines', () => {
@@ -62,8 +65,12 @@ describe('package scripts', () => {
     expect(packageJson.scripts['check:sdks']).toBe(
       'node scripts/run-root-pipeline.mjs check-sdks',
     );
+    expect(packageJson.scripts['ci:local-stack']).toBe(
+      'node scripts/run-root-pipeline.mjs local-stack',
+    );
     expect(packageJson.scripts.build).not.toContain('generate:sdks');
     expect(packageJson.scripts['check:sdks']).not.toContain('check-sdks.mjs');
+    expect(packageJson.scripts['ci:local-stack']).not.toContain('test:e2e');
     expect(runRootPipelineScript).toContain('rootPipelines');
     expect(runRootPipelineScript).toContain('fallbackPipelines');
     expect(runRootPipelineScript).toContain("from './lib/spec-steps.mjs'");
@@ -123,7 +130,9 @@ describe('package scripts', () => {
     );
     expect(cleanGeneratedScript).toContain('generatedArtifacts');
     expect(cleanGeneratedScript).toContain('codegen/fixtures/sdk-targets.json');
+    expect(cleanGeneratedScript).not.toContain('driftCheckFiles');
     expect(generatedDriftScript).toContain('generatedArtifacts');
+    expect(generatedDriftScript).toContain('driftCheckFiles');
     expect(generatedDriftScript).toContain('codegen/fixtures/sdk-targets.json');
     expect(runGeneratedCheckScript).toContain('generatedChecks.commands');
     expect(runGeneratedCheckScript).toContain("from './lib/spec-steps.mjs'");
@@ -155,11 +164,24 @@ describe('package scripts', () => {
   test('root test scripts read the TypeSpec-emitted suite routing table', () => {
     expect(packageJson.scripts.test).toBe('node scripts/run-tests.mjs');
     expect(packageJson.scripts['test:unit']).toBe('node scripts/run-tests.mjs unit');
+    expect(packageJson.scripts['test:openapi-mock']).toBe(
+      'node scripts/run-tests.mjs openapi-mock',
+    );
+    expect(packageJson.scripts['test:specmatic']).toBeUndefined();
+    expect(packageJson.scripts['test:karate']).toBeUndefined();
     expect(packageJson.scripts['test:contract']).toBe('node scripts/run-tests.mjs contract');
     expect(packageJson.scripts['test:hook-integration']).toBe(
       'node scripts/run-tests.mjs hook-integration',
     );
-    for (const name of ['test', 'test:unit', 'test:contract', 'test:hook-integration']) {
+    expect(packageJson.scripts['test:e2e']).toBe('node scripts/run-tests.mjs e2e');
+    for (const name of [
+      'test',
+      'test:unit',
+      'test:openapi-mock',
+      'test:contract',
+      'test:hook-integration',
+      'test:e2e',
+    ]) {
       expect(packageJson.scripts[name]).not.toContain('vitest');
     }
     expect(runTestsScript).toContain('testSuites');

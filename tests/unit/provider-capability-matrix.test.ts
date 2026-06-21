@@ -15,6 +15,8 @@ import {
   HITL_CAPABILITY_GUARDS,
   HOOK_CAPABILITY_GUARDS,
   INSTALL_DOCTOR_CAPABILITY_GUARDS,
+  LOCAL_STACK_SCENARIO_PATHS,
+  LOCAL_STACK_SCENARIO_MATRIX,
   MCP_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
   POLICY_EVALUATION_GUARDS,
@@ -77,16 +79,126 @@ function normalizeGuardProofText(value: string): string {
     .toLowerCase();
 }
 
+function stripCodeComments(source: string): string {
+  let out = '';
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let index = 0; index < source.length; index++) {
+    const ch = source[index];
+    const next = source[index + 1];
+    if (quote) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      while (index < source.length && source[index] !== '\n') index++;
+      out += '\n';
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      index += 2;
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) {
+        index++;
+      }
+      index++;
+      out += ' ';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function extractEnabledTestBlocks(source: string): Array<{ title: string; source: string }> {
+  const out: Array<{ title: string; source: string }> = [];
+  const skippedRanges = findSkippedDescribeRanges(source);
+  const testRe = /\b(?:it|test)\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  for (const match of source.matchAll(testRe)) {
+    const start = match.index ?? 0;
+    if (skippedRanges.some((range) => start >= range.start && start < range.end)) continue;
+    const arrowIndex = source.indexOf('=>', start);
+    if (arrowIndex === -1) continue;
+    const bodyStart = source.indexOf('{', arrowIndex);
+    if (bodyStart === -1) continue;
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd === -1) continue;
+    out.push({ title: match[2], source: source.slice(start, bodyEnd + 1) });
+  }
+  return out;
+}
+
+function findSkippedDescribeRanges(source: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const describeSkipRe = /\bdescribe\.skip\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  for (const match of source.matchAll(describeSkipRe)) {
+    const start = match.index ?? 0;
+    const arrowIndex = source.indexOf('=>', start);
+    if (arrowIndex === -1) continue;
+    const bodyStart = source.indexOf('{', arrowIndex);
+    if (bodyStart === -1) continue;
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd !== -1) ranges.push({ start, end: bodyEnd + 1 });
+  }
+  return ranges;
+}
+
+function findMatchingBrace(source: string, start: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let index = start; index < source.length; index++) {
+    const ch = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
 function expectGuardTestResolves(label: string, guardTest: string): void {
   const [file, anchor] = guardTest.split('#');
   expect(file, `${label} guardTest file`).toMatch(/^tests\/.+\.test\.ts$/);
   expect(anchor, `${label} guardTest anchor`).toBeTruthy();
 
   const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+  const normalizedAnchor = normalizeGuardProofText(anchor);
+  const matchingBlock = extractEnabledTestBlocks(source).find((block) => {
+    const normalizedTitle = normalizeGuardProofText(block.title);
+    return normalizedTitle.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedTitle);
+  });
+  expect(matchingBlock, `${label} guardTest enabled test block ${guardTest}`).toBeDefined();
   expect(
-    normalizeGuardProofText(source),
-    `${label} guardTest anchor ${guardTest}`,
-  ).toContain(normalizeGuardProofText(anchor));
+    stripCodeComments(matchingBlock?.source ?? ''),
+    `${label} guardTest executable assertions ${guardTest}`,
+  ).toMatch(/\bexpect(?:\.|\()/);
 }
 
 describe('provider capability matrix', () => {
@@ -124,6 +236,8 @@ describe('provider capability matrix', () => {
     expect(SKILL_CAPABILITY_GUARDS).toEqual(fixture.skillCapabilityGuards);
     expect(MCP_CAPABILITY_GUARDS).toEqual(fixture.mcpCapabilityGuards);
     expect(INSTALL_DOCTOR_CAPABILITY_GUARDS).toEqual(fixture.installDoctorCapabilityGuards);
+    expect(LOCAL_STACK_SCENARIO_PATHS).toEqual(fixture.localStackScenarioPaths);
+    expect(LOCAL_STACK_SCENARIO_MATRIX).toEqual(fixture.localStackScenarioMatrix);
     expect(MCP_TOOL_SURFACES).toEqual(fixture.mcpToolSurfaces);
     expect(MCP_PROMPT_SURFACES).toEqual(fixture.mcpPromptSurfaces);
     expect(MCP_RESOURCE_TEMPLATE_SURFACES).toEqual(fixture.mcpResourceTemplateSurfaces);
@@ -140,6 +254,33 @@ describe('provider capability matrix', () => {
       for (const entry of entries) {
         expect(entry.rationale.length, `${provider}/${entry.capability} rationale`).toBeGreaterThan(20);
       }
+    }
+  });
+
+  it('keeps provider capability rows rectangular, unique, and domain-valid', () => {
+    const expectedKeys = PROVIDERS.flatMap((provider) =>
+      OPENBOX_CAPABILITY_IDS.map((capability) => `${provider}/${capability}`),
+    ).sort();
+    const actualKeys = PROVIDER_CAPABILITY_MATRIX
+      .map((entry) => `${entry.provider}/${entry.capability}`)
+      .sort();
+
+    expect(PROVIDER_CAPABILITY_MATRIX.length).toBe(
+      OPENBOX_PROVIDER_IDS.length * OPENBOX_CAPABILITY_IDS.length,
+    );
+    expect(actualKeys).toEqual(expectedKeys);
+    expect([...new Set(actualKeys)]).toEqual(actualKeys);
+
+    for (const entry of PROVIDER_CAPABILITY_MATRIX) {
+      expect(OPENBOX_PROVIDER_IDS, `${entry.provider}/${entry.capability} provider`).toContain(
+        entry.provider,
+      );
+      expect(OPENBOX_CAPABILITY_IDS, `${entry.provider}/${entry.capability} capability`).toContain(
+        entry.capability,
+      );
+      expect(OPENBOX_SUPPORT_TIERS, `${entry.provider}/${entry.capability} tier`).toContain(
+        entry.tier,
+      );
     }
   });
 

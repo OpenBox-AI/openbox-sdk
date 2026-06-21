@@ -1,0 +1,3281 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+import ts from 'typescript';
+import {
+  BOUNDARY_CONFORMANCE_GAPS,
+  type BoundaryGap,
+} from './boundary-conformance';
+import {
+  FINITE_DOMAIN_GAPS,
+  type FiniteDomainGap,
+} from './finite-domain-conformance';
+import { GOVERNANCE_SPEC_DOMAINS } from './governance-spec-domains';
+import {
+  REQUEST_PREFLIGHT_RULES as TS_BACKEND_REQUEST_PREFLIGHT_RULES,
+} from '../../ts/src/client/generated/request-preflight.js';
+import {
+  REQUEST_PREFLIGHT_RULES as TS_CORE_REQUEST_PREFLIGHT_RULES,
+} from '../../ts/src/core-client/generated/request-preflight.js';
+import { buildRequestConstraintConformance } from './request-constraint-conformance';
+
+export type ProofLevel =
+  | 'none'
+  | 'smoke'
+  | 'negative-path'
+  | 'behavioral'
+  | 'conformance';
+
+export interface SpecOperation {
+  service: 'backend' | 'core';
+  operationId: string;
+  verb: string;
+  path: string;
+  pathPattern: string;
+  tag?: string;
+}
+
+export interface E2eOperationHit {
+  file: string;
+  testName: string;
+  proofLevel: Exclude<ProofLevel, 'none'>;
+  reasons: string[];
+  call: string;
+}
+
+export interface OperationCoverage {
+  operation: SpecOperation;
+  proofLevel: ProofLevel;
+  hits: E2eOperationHit[];
+}
+
+export interface ObjectiveCoverage {
+  id: string;
+  operationCount: number;
+  proofCounts: Record<ProofLevel, number>;
+  missingOperationIds: string[];
+  smokeOnlyOperationIds: string[];
+  behavioralOrBetterOperationIds: string[];
+}
+
+export interface ProviderGuardCoverage {
+  capability: string;
+  guardCount: number;
+  providers: string[];
+  matrixProviderTiers: Array<{
+    provider: string;
+    tier: string;
+  }>;
+  guardTestRefs: Array<{
+    provider: string;
+    guardTest: string;
+  }>;
+  matrixProviders: string[];
+  missingProviderCapabilityGuardProviders: string[];
+  unexpectedProviderCapabilityGuardProviders: string[];
+  providerTierMismatchRefs: string[];
+  duplicateProviderCapabilityGuardProviderRefs: string[];
+  sharedGuardTestRefs: Array<{
+    guardTest: string;
+    providers: string[];
+  }>;
+  guardTests: string[];
+  proofFiles: string[];
+  guardProofBlockKeys: string[];
+  missingGuardTestRefs: Array<{
+    provider: string;
+    guardTest: string;
+  }>;
+}
+
+export interface ConformanceException {
+  id: string;
+  capability: string;
+  provider: string;
+  tier: string;
+  reason: string;
+  source: string;
+}
+
+export interface CapabilityOutcomeCoverage {
+  id: string;
+  label: string;
+  source: 'local-stack-e2e' | 'provider-guard-fixture';
+  minimumProofLevel: ProofLevel;
+  operationIds: string[];
+  providerGuardCapabilities: string[];
+  exceptionCapabilities: string[];
+  providerGuardProofBlockKeys: string[];
+  missingProviderGuardCapabilities: string[];
+  missingProviderGuardTestRefs: Array<{
+    capability: string;
+    provider: string;
+    guardTest: string;
+  }>;
+  proofCounts: Record<ProofLevel, number>;
+  underProvenOperationIds: string[];
+  missingOperationIds: string[];
+  semanticGapIds: string[];
+  exceptionIds: string[];
+  status: 'proven' | 'incomplete';
+}
+
+export interface LocalStackScenarioPathSpec {
+  id: string;
+  category: string;
+  capability: string;
+  label: string;
+  axes: string[];
+  requiredProofLevel: ProofLevel;
+  localStackRequired: boolean;
+  operationIds: string[];
+  evidencePatterns: string[];
+  operationEvidencePatterns?: LocalStackOperationEvidenceSpec[];
+  requiredBehavior: string;
+}
+
+export interface LocalStackOperationEvidenceSpec {
+  operationId: string;
+  evidencePatterns: string[];
+}
+
+export interface LocalStackCategoryAxisSpec {
+  category: string;
+  axes: string[];
+}
+
+export interface LocalStackOutcomeSpec {
+  id: string;
+  label: string;
+  source: CapabilityOutcomeCoverage['source'];
+  minimumProofLevel: ProofLevel;
+  operationIds: string[];
+  providerGuardCapabilities: string[];
+  exceptionCapabilities: string[];
+}
+
+export interface LocalStackScenarioMatrixContract {
+  id: string;
+  description: string;
+  requiredCapabilities: string[];
+  requiredCategories: string[];
+  requiredAxes: string[];
+  requiredLocalStackAxes: string[];
+  requiredCategoryAxes: LocalStackCategoryAxisSpec[];
+  localStackScenarioIds: string[];
+  providerOwnedScenarioIds: string[];
+  requiredOutcomeIds: string[];
+  requiredOutcomeSpecs: LocalStackOutcomeSpec[];
+  requiredSharedProviderGuardProofCapabilities: string[];
+  requiredSdkSemanticGapClosureTargets: string[];
+  providerGuardSharedProofPolicy: string;
+  localStackAxisPolicy: string;
+  rawSemanticGapPolicy: string;
+  backendCoreGapStatusPolicy: string;
+  backendCoreGapRemediationPolicy: string;
+}
+
+export interface ScenarioOperationProof {
+  operationId: string;
+  proofLevel: ProofLevel;
+  requiredEvidencePatterns: string[];
+  proofBlockKeys: string[];
+  proofFiles: string[];
+  proofTestNames: string[];
+  matchedEvidencePatterns: string[];
+  missingEvidencePatterns: string[];
+  assertedEvidencePatterns: string[];
+  weakEvidencePatterns: string[];
+  assertedEvidencePatternBlockKeys: Array<{
+    pattern: string;
+    blockKeys: string[];
+  }>;
+  evidencePatternBlockKeys: Array<{
+    pattern: string;
+    blockKeys: string[];
+  }>;
+  generatedConformanceBlockKeys: string[];
+  missingProofBlock: boolean;
+  underProven: boolean;
+  missingEvidence: boolean;
+  missingAssertedEvidence: boolean;
+}
+
+export interface ScenarioPathCoverage extends LocalStackScenarioPathSpec {
+  proofLevel: ProofLevel;
+  operationProofLevel: ProofLevel;
+  proofSource: 'local-stack-e2e' | 'provider-guard-fixture' | 'contract-boundary';
+  proofFiles: string[];
+  proofTestNames: string[];
+  scenarioProofMarker: string;
+  scenarioProofMarkerBlockKeys: string[];
+  markerOnlyProofBlockKeys: string[];
+  missingScenarioProofMarker: boolean;
+  providerGuardTestRefs: ProviderGuardCoverage['guardTestRefs'];
+  providerGuardProofBlockKeys: string[];
+  missingProviderGuardTestRefs: ProviderGuardCoverage['guardTestRefs'];
+  proofBlockKeys: string[];
+  proofOperationIds: string[];
+  missingProofOperationIds: string[];
+  duplicateScenarioOperationIds: string[];
+  duplicateScenarioAxisIds: string[];
+  missingOperationEvidencePatternIds: string[];
+  unknownOperationEvidencePatternIds: string[];
+  duplicateOperationEvidencePatternIds: string[];
+  operationProofs: ScenarioOperationProof[];
+  missingOperationEvidenceIds: string[];
+  missingAssertedOperationEvidenceIds: string[];
+  matchedEvidencePatterns: string[];
+  assertedEvidencePatterns: string[];
+  weakEvidencePatterns: string[];
+  missingAssertedEvidence: boolean;
+  assertedEvidencePatternBlockKeys: Array<{
+    pattern: string;
+    blockKeys: string[];
+  }>;
+  evidencePatternBlockKeys: Array<{
+    pattern: string;
+    blockKeys: string[];
+  }>;
+  underProvenOperationIds: string[];
+  missingOperationIds: string[];
+  status: 'proven' | 'incomplete';
+  missingReason?: string;
+}
+
+export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract {
+  status: 'proven' | 'incomplete';
+  backendCoreGapStatus: 'gap-free' | 'known-gaps';
+  semanticGapIds: string[];
+  knownBackendCoreGapIds: string[];
+  backendCoreGapRemediationTargetIds: string[];
+  missingBackendCoreGapRemediationTargetIds: string[];
+  unexpectedBackendCoreGapRemediationTargetIds: string[];
+  duplicateOperationIdRefs: string[];
+  duplicateServiceOperationIdRefs: string[];
+  duplicateOperationRouteRefs: string[];
+  duplicateOperationPathPatternRefs: string[];
+  operationRouteResolutionMismatchRefs: string[];
+  ambiguousOperationRouteTieRefs: string[];
+  missingCapabilities: string[];
+  unexpectedCapabilities: string[];
+  missingCategories: string[];
+  unexpectedCategories: string[];
+  missingAxes: string[];
+  unexpectedAxes: string[];
+  missingLocalStackAxes: string[];
+  incompleteLocalStackAxes: string[];
+  outcomeSpecMismatchRefs: string[];
+  missingProviderCapabilityGuardProviderRefs: string[];
+  unexpectedProviderCapabilityGuardProviderRefs: string[];
+  providerGuardTierMismatchRefs: string[];
+  duplicateProviderCapabilityGuardProviderRefs: string[];
+  sharedProviderGuardProofCapabilities: string[];
+  missingSharedProviderGuardProofCapabilities: string[];
+  unexpectedSharedProviderGuardProofCapabilities: string[];
+  categoryAxisCoverage: Array<{
+    category: string;
+    requiredAxes: string[];
+    presentAxes: string[];
+    provenAxes: string[];
+    missingAxes: string[];
+    incompleteAxes: string[];
+  }>;
+  missingCategoryAxisRefs: string[];
+  incompleteCategoryAxisRefs: string[];
+  missingLocalStackScenarioIds: string[];
+  unexpectedLocalStackScenarioIds: string[];
+  missingProviderOwnedScenarioIds: string[];
+  unexpectedProviderOwnedScenarioIds: string[];
+  unknownScenarioProofMarkerRefs: string[];
+  duplicateScenarioPathRefs: string[];
+  duplicateOutcomeRefs: string[];
+  duplicateScenarioMatrixContractRefs: string[];
+  duplicateScenarioOperationRefs: string[];
+  duplicateScenarioAxisRefs: string[];
+  missingOperationEvidencePatternRefs: string[];
+  unknownOperationEvidencePatternRefs: string[];
+  duplicateOperationEvidencePatternRefs: string[];
+  incompleteScenarioIds: string[];
+  missingOutcomeIds: string[];
+  incompleteOutcomeIds: string[];
+  rawSemanticGapOutcomeIds: string[];
+  rawSemanticGapOutcomeRefs: Array<{
+    outcomeId: string;
+    semanticGapIds: string[];
+  }>;
+  unclosedSemanticGapIds: string[];
+}
+
+export interface SemanticGapCoverage {
+  id: string;
+  source: 'finite-domain-ledger' | 'boundary-ledger';
+  domainKeys: string[];
+  operationIds: string[];
+  proofFile: string;
+  evidencePattern: string;
+  observedBehavior: string;
+  requiredBehavior: string;
+}
+
+export interface SdkSemanticGapClosure {
+  semanticGapId: string;
+  sdkTarget: 'typescript' | 'python';
+  operationIds: string[];
+  proofFiles: string[];
+  evidencePatterns: string[];
+  missingOperationIds: string[];
+  missingEvidencePatterns: string[];
+  status: 'proven' | 'missing';
+}
+
+export interface BackendCoreGapRemediationTarget {
+  gapId: string;
+  services: Array<'backend' | 'core'>;
+  operationIds: string[];
+  requestConstraintKeys: string[];
+  requestLocations: string[];
+  constraintKinds: string[];
+  rawProofFile: string;
+  rawEvidencePattern: string;
+  observedBehavior: string;
+  requiredBehavior: string;
+  requiredRawRejection: string;
+  sdkClosureTargets: Array<'typescript' | 'python'>;
+}
+
+export interface LocalStackConformanceMatrix {
+  generatedBy: 'tests/helpers/local-stack-conformance.ts';
+  sources: string[];
+  operations: OperationCoverage[];
+  objectives: ObjectiveCoverage[];
+  outcomes: CapabilityOutcomeCoverage[];
+  scenarioPaths: ScenarioPathCoverage[];
+  scenarioMatrix: ScenarioMatrixCoverage;
+  semanticGaps: SemanticGapCoverage[];
+  sdkSemanticGapClosures: SdkSemanticGapClosure[];
+  backendCoreGapRemediationTargets: BackendCoreGapRemediationTarget[];
+  providerGuards: ProviderGuardCoverage[];
+  exceptions: ConformanceException[];
+  unknownHits: Array<{
+    file: string;
+    testName: string;
+    call: string;
+  }>;
+  summary: {
+    totalOperations: number;
+    operationsWithE2eHits: number;
+    operationsWithBehavioralOrBetterHits: number;
+    smokeOnlyOperations: number;
+    operationsWithoutE2eHits: number;
+    knownSemanticGaps: number;
+    sdkSemanticGapClosures: {
+      total: number;
+      proven: number;
+      missing: number;
+    };
+  };
+}
+
+interface ManifestEntry {
+  operationId: string;
+  path: string;
+  verb: string;
+  pathPattern: string;
+}
+
+interface SdkManifestFixture {
+  generatedBy: string;
+  sources: string[];
+  backendEndpointManifest: ManifestEntry[];
+  coreEndpointManifest: ManifestEntry[];
+}
+
+interface ProviderCapabilitiesFixture {
+  source: string;
+  providerCapabilityMatrix?: ProviderCapabilityMatrixEntry[];
+  hitlCapabilityGuards?: ProviderGuardEntry[];
+  guardrailCapabilityGuards?: ProviderGuardEntry[];
+  policyEvaluationGuards?: ProviderGuardEntry[];
+  tracingCapabilityGuards?: ProviderGuardEntry[];
+  usageCostCapabilityGuards?: ProviderGuardEntry[];
+  localStackScenarioPaths?: LocalStackScenarioPathSpec[];
+  localStackScenarioMatrix?: LocalStackScenarioMatrixContract;
+}
+
+interface ProviderGuardEntry {
+  provider: string;
+  tier: string;
+  guardTest: string;
+}
+
+interface ProviderCapabilityMatrixEntry {
+  provider: string;
+  capability: string;
+  tier: string;
+  rationale?: string;
+  status?: string;
+  closureDecision?: string;
+}
+
+interface TestBlock {
+  file: string;
+  name: string;
+  source: string;
+}
+
+interface ExtractedCall {
+  serviceHint?: 'backend' | 'core';
+  verb?: string;
+  rawPath?: string;
+  methodName?: string;
+  operationId?: string;
+  call: string;
+}
+
+interface NormalizedPreflightRule {
+  operationId: string;
+  query?: Array<{
+    name: string;
+    enum?: readonly string[];
+    minimum?: number;
+    maxLength?: number;
+  }>;
+  body?: Array<{
+    path: readonly string[];
+    type?: string;
+    format?: string;
+    minimum?: number;
+    integer?: boolean;
+    minItems?: number;
+    maxItems?: number;
+  }>;
+}
+
+const PROOF_ORDER: Record<ProofLevel, number> = {
+  none: 0,
+  smoke: 1,
+  'negative-path': 2,
+  behavioral: 3,
+  conformance: 4,
+};
+
+const OBJECTIVE_SELECTORS: Array<{
+  id: string;
+  select(operation: SpecOperation): boolean;
+}> = [
+  {
+    id: 'core-governance',
+    select: (operation) => operation.service === 'core' && /governance|auth\/validate|^\/$/i.test(operation.path),
+  },
+  {
+    id: 'backend-guardrails',
+    select: (operation) => /guardrail/i.test(`${operation.operationId} ${operation.path}`),
+  },
+  {
+    id: 'backend-policies',
+    select: (operation) => /polic/i.test(`${operation.operationId} ${operation.path}`),
+  },
+  {
+    id: 'backend-approvals-hitl',
+    select: (operation) => /approval/i.test(`${operation.operationId} ${operation.path}`),
+  },
+  {
+    id: 'backend-tracing-observability',
+    select: (operation) => /observability|logs|reasoning-trace|governance-feed|session/i.test(`${operation.operationId} ${operation.path}`),
+  },
+  {
+    id: 'backend-usage-cost-trust',
+    select: (operation) => /metrics|trust|aivss/i.test(`${operation.operationId} ${operation.path}`),
+  },
+];
+
+const OUTCOME_SPECS: Array<{
+  id: string;
+  label: string;
+  source: CapabilityOutcomeCoverage['source'];
+  minimumProofLevel: ProofLevel;
+  operationIds?: string[];
+  providerGuardCapabilities?: string[];
+  exceptionCapabilities?: string[];
+}> = [
+  {
+    id: 'core-governance-verdicts',
+    label: 'Core governance verdicts',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: ['validateApiKey', 'evaluateGovernance'],
+  },
+  {
+    id: 'core-approval-polling',
+    label: 'Core approval polling',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: ['pollApproval'],
+  },
+  {
+    id: 'backend-policy-evaluation',
+    label: 'Backend policy and OPA evaluation',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: [
+      'AgentController_createPolicy',
+      'AgentController_getPolicies',
+      'AgentController_getPolicy',
+      'PolicyController_evaluate',
+    ],
+    providerGuardCapabilities: ['opa-rules'],
+  },
+  {
+    id: 'backend-guardrail-enforcement',
+    label: 'Backend guardrail enforcement',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: [
+      'AgentController_createGuardrail',
+      'AgentController_getGuardrails',
+      'AgentController_getGuardrail',
+      'GuardrailController_runTest',
+    ],
+    providerGuardCapabilities: ['guardrails'],
+  },
+  {
+    id: 'backend-approvals-hitl',
+    label: 'Backend approvals and HITL',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: [
+      'AgentController_getPendingApprovals',
+      'AgentController_getApprovalHistory',
+      'AgentController_decideApproval',
+      'OrganizationController_getApprovals',
+    ],
+    providerGuardCapabilities: ['approvals-hitl'],
+  },
+  {
+    id: 'backend-organization-member-admin',
+    label: 'Backend organization member administration',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'conformance',
+    operationIds: [
+      'OrganizationController_getMembers',
+      'OrganizationController_removeMembers',
+      'OrganizationController_createUser',
+      'OrganizationController_sendWelcomeEmail',
+      'OrganizationController_inviteUser',
+      'OrganizationController_assignRoles',
+      'OrganizationController_removeRoles',
+      'OrganizationController_updateMember',
+    ],
+  },
+  {
+    id: 'backend-tracing-observability',
+    label: 'Backend tracing and observability',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: [
+      'AgentController_getAgentEvaluations',
+      'AgentController_getSessions',
+      'AgentController_getSession',
+      'AgentController_getSessionLogs',
+      'AgentController_getSessionReasoningTrace',
+      'AgentController_getObservability',
+      'OrganizationController_getGovernanceFeed',
+    ],
+    providerGuardCapabilities: ['tracing'],
+  },
+  {
+    id: 'backend-usage-cost-trust',
+    label: 'Backend usage, cost, and trust',
+    source: 'local-stack-e2e',
+    minimumProofLevel: 'behavioral',
+    operationIds: [
+      'AgentController_getAgentsMetrics',
+      'AgentController_updateAivssConfig',
+      'AgentController_recalculateTrustScore',
+      'AgentController_getTrustTierChanges',
+      'AgentController_getAgentTrustScoreEvents',
+      'OrganizationController_getTrustTierTrends',
+    ],
+    providerGuardCapabilities: ['usage-cost'],
+  },
+  {
+    id: 'provider-adapter-guardrails',
+    label: 'Provider adapter guardrails',
+    source: 'provider-guard-fixture',
+    minimumProofLevel: 'none',
+    providerGuardCapabilities: ['guardrails'],
+    exceptionCapabilities: ['guardrails'],
+  },
+  {
+    id: 'provider-adapter-approvals-hitl',
+    label: 'Provider adapter approvals and HITL',
+    source: 'provider-guard-fixture',
+    minimumProofLevel: 'none',
+    providerGuardCapabilities: ['approvals-hitl'],
+    exceptionCapabilities: ['approvals-hitl'],
+  },
+  {
+    id: 'provider-adapter-tracing',
+    label: 'Provider adapter tracing',
+    source: 'provider-guard-fixture',
+    minimumProofLevel: 'none',
+    providerGuardCapabilities: ['tracing'],
+    exceptionCapabilities: ['tracing'],
+  },
+  {
+    id: 'provider-adapter-usage-cost',
+    label: 'Provider adapter usage and cost',
+    source: 'provider-guard-fixture',
+    minimumProofLevel: 'none',
+    providerGuardCapabilities: ['usage-cost'],
+    exceptionCapabilities: ['usage-cost'],
+  },
+  {
+    id: 'provider-adapter-opa-rules',
+    label: 'Provider adapter OPA/rules boundary',
+    source: 'provider-guard-fixture',
+    minimumProofLevel: 'none',
+    providerGuardCapabilities: ['opa-rules'],
+    exceptionCapabilities: ['rules-instructions'],
+  },
+];
+
+export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): LocalStackConformanceMatrix {
+  const manifest = readJson<SdkManifestFixture>(
+    repoRoot,
+    'codegen/fixtures/sdk-manifests.json',
+  );
+  const providerCapabilities = readJson<ProviderCapabilitiesFixture>(
+    repoRoot,
+    'codegen/fixtures/provider-capabilities.json',
+  );
+
+  const operations = [
+    ...manifest.backendEndpointManifest.map((entry) => ({
+      ...entry,
+      service: 'backend' as const,
+      tag: tagFromOperation(entry),
+    })),
+    ...manifest.coreEndpointManifest.map((entry) => ({
+      ...entry,
+      service: 'core' as const,
+      tag: tagFromOperation(entry),
+    })),
+  ];
+  const operationManifestDuplicateRefs = summarizeOperationManifestDuplicates(operations);
+  const matcher = new OperationMatcher(operations);
+  const operationRouteResolutionRefs = summarizeOperationRouteResolution(operations, matcher);
+  const methodMap = buildGeneratedMethodMap(repoRoot, matcher);
+  const blocks = readE2eTestBlocks(repoRoot);
+  const allBlocks = readAllTestBlocks(repoRoot);
+  const hitsByOperationId = new Map<string, E2eOperationHit[]>();
+  const unknownHits: LocalStackConformanceMatrix['unknownHits'] = [];
+
+  for (const block of blocks) {
+    const proof = classifyTestBlock(block.source);
+    const calls = extractExecutableCalls(block.source, block.file);
+    for (const call of calls) {
+      const operation =
+        call.operationId
+          ? matcher.byOperationId(call.operationId)
+          : call.methodName
+            ? resolveMethodOperation(methodMap, call)
+            : matcher.match(call);
+
+      if (!operation) {
+        if (
+          (call.operationId && call.operationId !== 'NoSuchOperation') ||
+          (call.verb && call.rawPath)
+        ) {
+          unknownHits.push({
+            file: block.file,
+            testName: block.name,
+            call: call.call,
+          });
+        }
+        continue;
+      }
+
+      const hit: E2eOperationHit = {
+        file: block.file,
+        testName: block.name,
+        proofLevel: proof.proofLevel,
+        reasons: proof.reasons,
+        call: call.call,
+      };
+      const existing = hitsByOperationId.get(operation.operationId) ?? [];
+      existing.push(hit);
+      hitsByOperationId.set(operation.operationId, existing);
+    }
+  }
+
+  const coverage = operations.map((operation) => {
+    const hits = hitsByOperationId.get(operation.operationId) ?? [];
+    return {
+      operation,
+      proofLevel: maxProofLevel(hits.map((hit) => hit.proofLevel)),
+      hits,
+    };
+  });
+
+  const objectives = OBJECTIVE_SELECTORS.map(({ id, select }) =>
+    summarizeObjective(id, coverage.filter(({ operation }) => select(operation))),
+  );
+
+  const providerGuards = summarizeProviderGuards(providerCapabilities, allBlocks);
+  const exceptions = summarizeConformanceExceptions(providerCapabilities);
+  const unknownScenarioProofMarkerRefs = summarizeUnknownScenarioProofMarkers(
+    blocks,
+    providerCapabilities.localStackScenarioPaths ?? [],
+  );
+  const semanticGaps = summarizeSemanticGaps();
+  const sdkSemanticGapClosures = summarizeSdkSemanticGapClosures(repoRoot, semanticGaps);
+  const backendCoreGapRemediationTargets = summarizeBackendCoreGapRemediationTargets(semanticGaps);
+  const outcomes = summarizeCapabilityOutcomes(
+    coverage,
+    providerGuards,
+    exceptions,
+    semanticGaps,
+  );
+  const scenarioPaths = summarizeScenarioPaths(
+    providerCapabilities.localStackScenarioPaths ?? [],
+    blocks,
+    allBlocks,
+    coverage,
+    providerGuards,
+  );
+  const scenarioMatrix = summarizeScenarioMatrixContract(
+    providerCapabilities.localStackScenarioMatrix,
+    scenarioPaths,
+    outcomes,
+    providerGuards,
+    semanticGaps,
+    sdkSemanticGapClosures,
+    backendCoreGapRemediationTargets,
+    operationManifestDuplicateRefs,
+    operationRouteResolutionRefs,
+    unknownScenarioProofMarkerRefs,
+  );
+
+  return {
+    generatedBy: 'tests/helpers/local-stack-conformance.ts',
+    sources: [
+      ...manifest.sources,
+      providerCapabilities.source,
+      'tests/e2e/**/*.test.ts',
+      'tests/unit/request-preflight-conformance.test.ts',
+      'python/tests/test_request_preflight.py',
+      'python/openbox_sdk/generated/request_preflight.py',
+      'ts/src/*/generated/wrapper-methods.ts',
+      'tests/helpers/finite-domain-conformance.ts',
+      'tests/helpers/boundary-conformance.ts',
+      'tests/helpers/request-constraint-conformance.ts',
+    ],
+    operations: coverage,
+    objectives,
+    outcomes,
+    scenarioPaths,
+    scenarioMatrix,
+    semanticGaps,
+    sdkSemanticGapClosures,
+    backendCoreGapRemediationTargets,
+    providerGuards,
+    exceptions,
+    unknownHits,
+    summary: {
+      totalOperations: coverage.length,
+      operationsWithE2eHits: coverage.filter((entry) => entry.proofLevel !== 'none').length,
+      operationsWithBehavioralOrBetterHits: coverage.filter(
+        (entry) => PROOF_ORDER[entry.proofLevel] >= PROOF_ORDER.behavioral,
+      ).length,
+      smokeOnlyOperations: coverage.filter((entry) => entry.proofLevel === 'smoke').length,
+      operationsWithoutE2eHits: coverage.filter((entry) => entry.proofLevel === 'none').length,
+      knownSemanticGaps: semanticGaps.length,
+      sdkSemanticGapClosures: {
+        total: sdkSemanticGapClosures.length,
+        proven: sdkSemanticGapClosures.filter((entry) => entry.status === 'proven').length,
+        missing: sdkSemanticGapClosures.filter((entry) => entry.status !== 'proven').length,
+      },
+    },
+  };
+}
+
+function summarizeSemanticGaps(): SemanticGapCoverage[] {
+  return [
+    ...FINITE_DOMAIN_GAPS.map((gap) => finiteDomainGapToSemanticGap(gap)),
+    ...BOUNDARY_CONFORMANCE_GAPS.map((gap) => boundaryGapToSemanticGap(gap)),
+  ].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function summarizeBackendCoreGapRemediationTargets(
+  semanticGaps: SemanticGapCoverage[],
+): BackendCoreGapRemediationTarget[] {
+  const rawConstraints = buildRequestConstraintConformance().constraints.filter(
+    (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
+  );
+
+  return semanticGaps.map((gap) => {
+    const constraints = rawConstraints
+      .filter((entry) => entry.semanticGapIds.includes(gap.id))
+      .sort((left, right) => left.key.localeCompare(right.key));
+
+    return {
+      gapId: gap.id,
+      services: uniqueSorted(constraints.map((entry) => entry.service)) as Array<'backend' | 'core'>,
+      operationIds: [...gap.operationIds].sort(),
+      requestConstraintKeys: constraints.map((entry) => entry.key),
+      requestLocations: uniqueSorted(constraints.map((entry) => entry.location)),
+      constraintKinds: uniqueSorted(constraints.map((entry) => entry.kind)),
+      rawProofFile: gap.proofFile,
+      rawEvidencePattern: gap.evidencePattern,
+      observedBehavior: gap.observedBehavior,
+      requiredBehavior: gap.requiredBehavior,
+      requiredRawRejection: rawRejectionForSemanticGap(gap),
+      sdkClosureTargets: ['typescript', 'python'] as Array<'typescript' | 'python'>,
+    };
+  }).sort((left, right) => left.gapId.localeCompare(right.gapId));
+}
+
+function rawRejectionForSemanticGap(gap: SemanticGapCoverage): string {
+  if (gap.id === 'approval-status-invalid-query-not-rejected') {
+    return 'Backend approval status query validators should reject out-of-domain status values with a 4xx validation response before returning approval lists.';
+  }
+  if (gap.id === 'backend-agent-evaluations-query-boundaries-not-rejected') {
+    return 'Backend agent evaluation query validators should reject page, perPage, and pattern values outside generated OpenAPI bounds with a 4xx validation response.';
+  }
+  if (gap.id.startsWith('core-governance-')) {
+    return 'Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.';
+  }
+  return gap.requiredBehavior;
+}
+
+function summarizeSdkSemanticGapClosures(
+  repoRoot: string,
+  semanticGaps: SemanticGapCoverage[],
+): SdkSemanticGapClosure[] {
+  const tsRules = normalizeTsPreflightRules();
+  const tsOperationIds = new Set(tsRules.map((rule) => rule.operationId));
+  const pythonRules = readPythonGeneratedPreflightRules(repoRoot);
+  const pythonOperationIds = new Set(pythonRules.map((rule) => rule.operationId));
+  const tsProofSources = readCombinedSource(repoRoot, [
+    'tests/helpers/request-constraint-conformance.ts',
+    'tests/unit/request-constraint-conformance.test.ts',
+    'tests/unit/request-preflight-conformance.test.ts',
+    'tests/unit/client.test.ts',
+    'tests/unit/core-client.test.ts',
+    'tests/e2e/sdk-preflight-closures.test.ts',
+  ]);
+  const pythonProofSources = readCombinedSource(repoRoot, [
+    'python/openbox_sdk/generated/request_preflight.py',
+    'python/tests/test_request_preflight.py',
+  ]);
+
+  return semanticGaps.flatMap((gap) => [
+    sdkClosureForGap({
+      gap,
+      sdkTarget: 'typescript',
+      operationIds: tsOperationIds,
+      proofFiles: [
+        'tests/helpers/request-constraint-conformance.ts',
+        'tests/unit/request-constraint-conformance.test.ts',
+        'tests/unit/request-preflight-conformance.test.ts',
+        'tests/unit/client.test.ts',
+        'tests/unit/core-client.test.ts',
+        'tests/e2e/sdk-preflight-closures.test.ts',
+      ],
+      proofSource: tsProofSources,
+      generatedRuleClosure: gapClosedByPreflight(gap, tsRules),
+    }),
+    sdkClosureForGap({
+      gap,
+      sdkTarget: 'python',
+      operationIds: pythonOperationIds,
+      proofFiles: [
+        'python/openbox_sdk/generated/request_preflight.py',
+        'python/tests/test_request_preflight.py',
+      ],
+      proofSource: pythonProofSources,
+      generatedRuleClosure: gapClosedByPreflight(gap, pythonRules),
+    }),
+  ]);
+}
+
+function sdkClosureForGap(opts: {
+  gap: SemanticGapCoverage;
+  sdkTarget: SdkSemanticGapClosure['sdkTarget'];
+  operationIds: Set<string>;
+  proofFiles: string[];
+  proofSource: string;
+  generatedRuleClosure: boolean;
+}): SdkSemanticGapClosure {
+  const evidencePatterns = sdkGapEvidencePatterns(opts.gap);
+  const missingOperationIds = opts.gap.operationIds
+    .filter((operationId) => !opts.operationIds.has(operationId))
+    .sort();
+  const missingEvidencePatterns = evidencePatterns
+    .filter((pattern) => !opts.proofSource.includes(pattern))
+    .sort();
+  if (!opts.generatedRuleClosure) {
+    missingEvidencePatterns.push(`generated-rule-closure:${opts.gap.id}`);
+  }
+  return {
+    semanticGapId: opts.gap.id,
+    sdkTarget: opts.sdkTarget,
+    operationIds: [...opts.gap.operationIds].sort(),
+    proofFiles: opts.proofFiles,
+    evidencePatterns,
+    missingOperationIds,
+    missingEvidencePatterns,
+    status:
+      missingOperationIds.length === 0 && missingEvidencePatterns.length === 0
+        ? 'proven'
+        : 'missing',
+  };
+}
+
+function sdkGapEvidencePatterns(gap: SemanticGapCoverage): string[] {
+  return [
+    gap.id,
+    ...gap.operationIds,
+  ];
+}
+
+function normalizeTsPreflightRules(): NormalizedPreflightRule[] {
+  return [
+    ...TS_BACKEND_REQUEST_PREFLIGHT_RULES,
+    ...TS_CORE_REQUEST_PREFLIGHT_RULES,
+  ].map((rule) => ({
+    operationId: rule.operationId,
+    query: rule.query?.map((query) => ({
+      name: query.name,
+      enum: query.enum,
+      minimum: query.minimum,
+      maxLength: query.maxLength,
+    })),
+    body: rule.body?.map((body) => ({
+      path: body.path,
+      type: body.type,
+      format: body.format,
+      minimum: body.minimum,
+      integer: body.integer,
+      minItems: body.minItems,
+      maxItems: body.maxItems,
+    })),
+  }));
+}
+
+function gapClosedByPreflight(
+  gap: SemanticGapCoverage,
+  rules: NormalizedPreflightRule[],
+): boolean {
+  switch (gap.id) {
+    case 'approval-status-invalid-query-not-rejected':
+      return gap.operationIds.every((operationId) => {
+        const rule = rules.find((entry) => entry.operationId === operationId);
+        const status = rule?.query?.find((entry) => entry.name === 'status');
+        return arrayEquals(status?.enum ?? [], GOVERNANCE_SPEC_DOMAINS.approvalStatuses);
+      });
+    case 'core-governance-attempt-min-not-rejected': {
+      const rule = rules.find((entry) => entry.operationId === 'evaluateGovernance');
+      const attempt = rule?.body?.find((entry) => arrayEquals(entry.path, ['attempt']));
+      return attempt?.minimum === 1;
+    }
+    case 'core-governance-timestamp-format-not-rejected': {
+      const rule = rules.find((entry) => entry.operationId === 'evaluateGovernance');
+      const timestamp = rule?.body?.find((entry) => arrayEquals(entry.path, ['timestamp']));
+      return timestamp?.type === 'string' && timestamp.format === 'date-time';
+    }
+    case 'core-governance-cost-type-not-rejected': {
+      const rule = rules.find((entry) => entry.operationId === 'evaluateGovernance');
+      const cost = rule?.body?.find((entry) => arrayEquals(entry.path, ['cost_usd']));
+      return cost?.type === 'number' && cost.format === 'double';
+    }
+    case 'backend-agent-evaluations-query-boundaries-not-rejected': {
+      const rule = rules.find(
+        (entry) => entry.operationId === 'AgentController_getAgentEvaluations',
+      );
+      return (
+        rule?.query?.find((entry) => entry.name === 'page')?.minimum === 0 &&
+        rule.query.find((entry) => entry.name === 'perPage')?.minimum === 1 &&
+        rule.query.find((entry) => entry.name === 'pattern')?.maxLength === 255
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+function readPythonGeneratedPreflightRules(repoRoot: string): NormalizedPreflightRule[] {
+  const source = readFileSync(
+    resolve(repoRoot, 'python/openbox_sdk/generated/request_preflight.py'),
+    'utf8',
+  );
+  return [
+    ...parsePythonPreflightRuleList(source, 'BACKEND_REQUEST_PREFLIGHT_RULES'),
+    ...parsePythonPreflightRuleList(source, 'CORE_REQUEST_PREFLIGHT_RULES'),
+  ];
+}
+
+function parsePythonPreflightRuleList(
+  source: string,
+  variableName: string,
+): NormalizedPreflightRule[] {
+  const assignment = `${variableName}: list[RequestPreflightRule] = `;
+  const assignmentIndex = source.indexOf(assignment);
+  if (assignmentIndex === -1) {
+    throw new Error(`Missing generated Python preflight list ${variableName}`);
+  }
+  const listStart = source.indexOf('[', assignmentIndex + assignment.length);
+  if (listStart === -1) {
+    throw new Error(`Missing generated Python preflight list body for ${variableName}`);
+  }
+  const listEnd = findMatchingBracket(source, listStart, '[', ']');
+  if (listEnd === -1) {
+    throw new Error(`Unclosed generated Python preflight list ${variableName}`);
+  }
+  const literal = source
+    .slice(listStart, listEnd + 1)
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+    .replace(/\bNone\b/g, 'null');
+  const rules = JSON.parse(literal) as Array<{
+    operation_id: string;
+    query?: Array<{
+      name: string;
+      enum?: string[];
+      minimum?: number;
+      max_length?: number;
+    }>;
+    body?: Array<{
+      path: string[];
+      type?: string;
+      format?: string;
+      minimum?: number;
+      integer?: boolean;
+      min_items?: number;
+      max_items?: number;
+    }>;
+  }>;
+  return rules.map((rule) => ({
+    operationId: rule.operation_id,
+    query: rule.query?.map((query) => ({
+      name: query.name,
+      enum: query.enum,
+      minimum: query.minimum,
+      maxLength: query.max_length,
+    })),
+    body: rule.body?.map((body) => ({
+      path: body.path,
+      type: body.type,
+      format: body.format,
+      minimum: body.minimum,
+      integer: body.integer,
+      minItems: body.min_items,
+      maxItems: body.max_items,
+    })),
+  }));
+}
+
+function findMatchingBracket(
+  source: string,
+  start: number,
+  open: '[' | '{' | '(',
+  close: ']' | '}' | ')',
+): number {
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  for (let index = start; index < source.length; index++) {
+    const ch = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === open) depth++;
+    if (ch === close) {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function readCombinedSource(repoRoot: string, files: string[]): string {
+  return files.map((file) => readFileSync(resolve(repoRoot, file), 'utf8')).join('\n');
+}
+
+function arrayEquals(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function finiteDomainGapToSemanticGap(gap: FiniteDomainGap): SemanticGapCoverage {
+  return {
+    id: gap.id,
+    source: 'finite-domain-ledger',
+    domainKeys: gap.domainKeys.map(String).sort(),
+    operationIds: [...gap.operationIds].sort(),
+    proofFile: gap.proofFile,
+    evidencePattern: gap.evidencePattern,
+    observedBehavior: gap.observedBehavior,
+    requiredBehavior: gap.requiredBehavior,
+  };
+}
+
+function boundaryGapToSemanticGap(gap: BoundaryGap): SemanticGapCoverage {
+  return {
+    id: gap.id,
+    source: 'boundary-ledger',
+    domainKeys: gap.domainKeys.map(String).sort(),
+    operationIds: [...gap.operationIds].sort(),
+    proofFile: gap.proofFile,
+    evidencePattern: gap.evidencePattern,
+    observedBehavior: gap.observedBehavior,
+    requiredBehavior: gap.requiredBehavior,
+  };
+}
+
+function readJson<T>(repoRoot: string, relPath: string): T {
+  return JSON.parse(readFileSync(resolve(repoRoot, relPath), 'utf8')) as T;
+}
+
+function tagFromOperation(entry: ManifestEntry): string {
+  const prefix = entry.operationId.match(/^([A-Za-z]+)Controller_/)?.[1];
+  if (prefix) return prefix;
+  if (entry.operationId === 'healthCheck') return 'Health';
+  if (entry.operationId === 'validateApiKey') return 'Auth';
+  if (/governance|approval/i.test(entry.operationId)) return 'Governance';
+  return 'Unknown';
+}
+
+class OperationMatcher {
+  private readonly byId = new Map<string, SpecOperation>();
+  private readonly candidates: Array<{
+    operation: SpecOperation;
+    regex: RegExp;
+  }>;
+
+  constructor(operations: SpecOperation[]) {
+    this.candidates = operations
+      .map((operation) => ({
+        operation,
+        regex: pathPatternRegex(operation.pathPattern),
+      }))
+      .sort((left, right) =>
+        compareOperationRouteSpecificity(left.operation, right.operation) ||
+        left.operation.operationId.localeCompare(right.operation.operationId),
+      );
+    for (const operation of operations) {
+      this.byId.set(operation.operationId, operation);
+    }
+  }
+
+  byOperationId(operationId: string): SpecOperation | undefined {
+    return this.byId.get(operationId);
+  }
+
+  match(call: ExtractedCall): SpecOperation | undefined {
+    if (!call.verb || !call.rawPath) return undefined;
+    const path = normalizeConcretePath(call.rawPath);
+    const service = call.serviceHint ?? inferServiceFromPath(path);
+    const verb = call.verb.toLowerCase();
+    return this.candidates.find(
+      ({ operation, regex }) =>
+        operation.service === service &&
+        operation.verb === verb &&
+        regex.test(path),
+    )?.operation;
+  }
+
+  matchAll(call: ExtractedCall): SpecOperation[] {
+    if (!call.verb || !call.rawPath) return [];
+    const path = normalizeConcretePath(call.rawPath);
+    const service = call.serviceHint ?? inferServiceFromPath(path);
+    const verb = call.verb.toLowerCase();
+    return this.candidates
+      .filter(
+        ({ operation, regex }) =>
+          operation.service === service &&
+          operation.verb === verb &&
+          regex.test(path),
+      )
+      .map((entry) => entry.operation);
+  }
+}
+
+function buildGeneratedMethodMap(repoRoot: string, matcher: OperationMatcher): Map<string, SpecOperation> {
+  const methodMap = new Map<string, SpecOperation>();
+  const files: Array<{ service: 'backend' | 'core'; relPath: string }> = [
+    { service: 'backend', relPath: 'ts/src/client/generated/wrapper-methods.ts' },
+    { service: 'core', relPath: 'ts/src/core-client/generated/wrapper-methods.ts' },
+  ];
+
+  for (const { service, relPath } of files) {
+    const source = readFileSync(resolve(repoRoot, relPath), 'utf8');
+    const methodRe =
+      /async\s+([A-Za-z0-9_]+)\([^)]*\):\s+Promise<ResponseOf<"([^"]+)",\s*"([^"]+)">>/g;
+    for (const match of source.matchAll(methodRe)) {
+      const [, methodName, path, verb] = match;
+      const operation = matcher.match({ serviceHint: service, verb, rawPath: path, call: methodName });
+      if (operation) setMethodOperation(methodMap, service, methodName, operation);
+    }
+  }
+
+  addMethodAliases(repoRoot, methodMap, matcher);
+  return methodMap;
+}
+
+function methodKey(service: 'backend' | 'core', methodName: string): string {
+  return `${service}:${methodName}`;
+}
+
+function setMethodOperation(
+  methodMap: Map<string, SpecOperation>,
+  service: 'backend' | 'core',
+  methodName: string,
+  operation: SpecOperation,
+): void {
+  methodMap.set(methodKey(service, methodName), operation);
+  const existing = methodMap.get(methodName);
+  if (!existing) {
+    methodMap.set(methodName, operation);
+    return;
+  }
+  if (existing.service !== operation.service || existing.operationId !== operation.operationId) {
+    methodMap.delete(methodName);
+  }
+}
+
+function resolveMethodOperation(
+  methodMap: Map<string, SpecOperation>,
+  call: ExtractedCall,
+): SpecOperation | undefined {
+  if (!call.methodName) return undefined;
+  if (call.serviceHint) {
+    return methodMap.get(methodKey(call.serviceHint, call.methodName));
+  }
+  return methodMap.get(call.methodName);
+}
+
+function addMethodAliases(
+  repoRoot: string,
+  methodMap: Map<string, SpecOperation>,
+  matcher: OperationMatcher,
+): void {
+  const files: Array<{ service: 'backend' | 'core'; relPath: string }> = [
+    { service: 'backend', relPath: 'ts/src/client/client.ts' },
+    { service: 'core', relPath: 'ts/src/core-client/core-client.ts' },
+  ];
+  for (const { service, relPath } of files) {
+    const source = readFileSync(resolve(repoRoot, relPath), 'utf8');
+    const aliasRe = /async\s+([A-Za-z0-9_]+)\([^)]*\)[^{]*\{([\s\S]*?)^\s*\}/gm;
+    for (const match of source.matchAll(aliasRe)) {
+      const [, aliasName, body] = match;
+      const inner = body.match(/this\.([A-Za-z0-9_]+)\(/)?.[1];
+      const innerOperation = inner
+        ? methodMap.get(methodKey(service, inner)) ?? methodMap.get(inner)
+        : undefined;
+      if (innerOperation && !methodMap.has(methodKey(service, aliasName))) {
+        setMethodOperation(methodMap, service, aliasName, innerOperation);
+        continue;
+      }
+
+      const request = body.match(
+        /this\.request\(\s*(['"])(GET|POST|PUT|PATCH|DELETE)\1\s*,\s*(['"`])([^'"`]+)\3/i,
+      );
+      if (!request || methodMap.has(aliasName)) {
+        continue;
+      }
+      const operation = matcher.match({
+        serviceHint: service,
+        verb: request[2],
+        rawPath: request[4],
+        call: aliasName,
+      });
+      if (operation) {
+        setMethodOperation(methodMap, service, aliasName, operation);
+      }
+    }
+  }
+}
+
+function readE2eTestBlocks(repoRoot: string): TestBlock[] {
+  const out: TestBlock[] = [];
+  for (const filePath of walk(resolve(repoRoot, 'tests/e2e')).filter((file) => file.endsWith('.test.ts'))) {
+    const source = readFileSync(filePath, 'utf8');
+    const relFile = relative(repoRoot, filePath);
+    for (const block of extractTestBlocks(source)) {
+      out.push({ file: relFile, ...block });
+    }
+  }
+  return out;
+}
+
+function readAllTestBlocks(repoRoot: string): TestBlock[] {
+  const out: TestBlock[] = [];
+  for (const dir of ['tests/e2e', 'tests/unit', 'tests/contract', 'tests/hook-integration']) {
+    const absDir = resolve(repoRoot, dir);
+    if (!statSync(absDir, { throwIfNoEntry: false })) continue;
+    for (const filePath of walk(absDir).filter((file) => file.endsWith('.test.ts'))) {
+      const source = readFileSync(filePath, 'utf8');
+      const relFile = relative(repoRoot, filePath);
+      for (const block of extractTestBlocks(source)) {
+        out.push({ file: relFile, ...block });
+      }
+    }
+  }
+  return out;
+}
+
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push(...walk(full));
+    } else {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function extractTestBlocks(source: string): Array<{ name: string; source: string }> {
+  const out: Array<{ name: string; source: string }> = [];
+  const skippedRanges = findSkippedDescribeRanges(source);
+  const testRe = /\b(?:it|test)\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  for (const match of source.matchAll(testRe)) {
+    const start = match.index ?? 0;
+    if (isInsideRange(start, skippedRanges)) continue;
+    const arrowIndex = source.indexOf('=>', start);
+    if (arrowIndex === -1) continue;
+    const bodyStart = source.indexOf('{', arrowIndex);
+    if (bodyStart === -1) continue;
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd === -1) continue;
+    out.push({
+      name: match[2],
+      source: source.slice(start, bodyEnd + 1),
+    });
+  }
+  return out;
+}
+
+export function extractLocalStackTestBlocksForTesting(source: string): Array<{ name: string; source: string }> {
+  return extractTestBlocks(source);
+}
+
+function findSkippedDescribeRanges(source: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const describeSkipRe = /\bdescribe\.skip\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  for (const match of source.matchAll(describeSkipRe)) {
+    const start = match.index ?? 0;
+    const arrowIndex = source.indexOf('=>', start);
+    if (arrowIndex === -1) continue;
+    const bodyStart = source.indexOf('{', arrowIndex);
+    if (bodyStart === -1) continue;
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd === -1) continue;
+    ranges.push({ start, end: bodyEnd + 1 });
+  }
+  return ranges;
+}
+
+function isInsideRange(index: number, ranges: Array<{ start: number; end: number }>): boolean {
+  return ranges.some((range) => index >= range.start && index < range.end);
+}
+
+function findMatchingBrace(source: string, start: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function classifyTestBlock(source: string): {
+  proofLevel: Exclude<ProofLevel, 'none'>;
+  reasons: string[];
+} {
+  const executableSource = stripScenarioProofMarkerAssertions(stripCodeComments(source));
+  const normalized = executableSource.replace(/\s+/g, ' ');
+  const title = extractTestTitle(source);
+  const reasons: string[] = [];
+  const hasBehavioralAssertion = hasExecutableBehavioralAssertion(normalized);
+  const hasExecutableAssertion = hasBehavioralAssertion || hasExecutablePrimitiveAssertion(normalized);
+  const multiStatusOutcome = getMultiStatusAllowanceOutcome(normalized);
+  if (hasConditionalSkipPath(normalized)) {
+    reasons.push('conditional skip or early-return assertion path');
+    return { proofLevel: 'smoke', reasons };
+  }
+  if (multiStatusOutcome === 'negative') {
+    reasons.push('multi-status negative-path allowance');
+    return { proofLevel: 'negative-path', reasons };
+  }
+  if (multiStatusOutcome === 'mixed') {
+    reasons.push('multi-status mixed success/failure allowance');
+    return { proofLevel: 'smoke', reasons };
+  }
+  if (hasNegativeProofTitle(title)) {
+    if (hasExecutableContractBoundaryEvidence(normalized) && hasExecutableAssertion) {
+      reasons.push('executable local-stack contract-boundary evidence');
+      return { proofLevel: 'conformance', reasons };
+    }
+    reasons.push('test-title negative-path proof marker');
+    return { proofLevel: 'negative-path', reasons };
+  }
+  if (
+    hasConformanceProofTitle(title) &&
+    hasExecutableConformanceEvidence(normalized) &&
+    hasExecutableAssertion
+  ) {
+    reasons.push('test-title conformance proof marker with executable generated-spec or persisted-ledger evidence');
+    return { proofLevel: 'conformance', reasons };
+  }
+  if (hasExecutableConformanceEvidence(normalized) && hasExecutableAssertion) {
+    reasons.push('executable generated-spec or persisted-ledger conformance evidence');
+    return { proofLevel: 'conformance', reasons };
+  }
+  if (/may return 500|endpoint is reachable|not hang\/crash|status\)\.toBeDefined\(\)/i.test(normalized)) {
+    reasons.push('reachable/status-only assertion');
+    return { proofLevel: 'smoke', reasons };
+  }
+  if (/OpenBoxApiError|CoreApiError|Should have thrown|status\)\.not\.toBe\(0\)|toBe\(40[0-9]\)|toBe\(42[0-9]\)|toContain\(\(err as/i.test(normalized)) {
+    reasons.push('negative-path assertion');
+    return { proofLevel: 'negative-path', reasons };
+  }
+  if (hasBehavioralAssertion) {
+    reasons.push('response shape or persisted-state assertion');
+    return { proofLevel: 'behavioral', reasons };
+  }
+  reasons.push('status-only assertion');
+  return { proofLevel: 'smoke', reasons };
+}
+
+export function classifyLocalStackTestBlockForTesting(source: string): {
+  proofLevel: Exclude<ProofLevel, 'none'>;
+  reasons: string[];
+} {
+  return classifyTestBlock(source);
+}
+
+function stripScenarioProofMarkerAssertions(source: string): string {
+  const sourceFile = ts.createSourceFile(
+    'local-stack-proof-block.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const ranges: Array<[number, number]> = [];
+  const visit = (node: ts.Node) => {
+    const expressionText = ts.isExpressionStatement(node)
+      ? node.expression.getText(sourceFile).trim()
+      : '';
+    if (
+      ts.isExpressionStatement(node) &&
+      expressionText.startsWith('expect(') &&
+      node.getText(sourceFile).includes('SCENARIO_PROOF:')
+    ) {
+      ranges.push([node.getFullStart(), node.getEnd()]);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  if (ranges.length === 0) return source;
+
+  let out = source;
+  for (const [start, end] of ranges.sort((left, right) => right[0] - left[0])) {
+    out = `${out.slice(0, start)}${' '.repeat(end - start)}${out.slice(end)}`;
+  }
+  return out;
+}
+
+export function extractLocalStackCallsForTesting(source: string, file: string) {
+  return extractExecutableCalls(source, file);
+}
+
+export function localStackBlockIncludesEvidencePatternForTesting(
+  source: string,
+  pattern: string,
+): boolean {
+  return testSourceIncludesEvidencePattern(source, pattern);
+}
+
+export function localStackTestBlockIncludesEvidencePatternForTesting(
+  name: string,
+  source: string,
+  pattern: string,
+): boolean {
+  return blockIncludesPattern({ file: '__test__.ts', name, source }, pattern);
+}
+
+export function localStackBlockIncludesScenarioMarkerForTesting(
+  source: string,
+  marker: string,
+): boolean {
+  return blockIncludesMarker({ file: '__test__.ts', name: '__test__', source }, marker);
+}
+
+export function localStackBlockHasScenarioEvidenceForTesting(
+  source: string,
+  evidencePatterns: readonly string[],
+): boolean {
+  return blockHasScenarioEvidence(
+    { file: '__test__.ts', name: '__test__', source },
+    evidencePatterns,
+  );
+}
+
+export function providerGuardTestRefMatchesBlockForTesting(
+  guardTest: string,
+  block: TestBlock,
+): boolean {
+  return resolveProviderGuardTestRef({ provider: '__test__', guardTest }, [block]).length > 0;
+}
+
+function extractTestTitle(source: string): string {
+  const match = source.match(/\b(?:it|test)\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/);
+  return match?.[2] ?? '';
+}
+
+function hasNegativeProofTitle(title: string): boolean {
+  return /\bNEGATIVE(?::|_[A-Z_]*PROOF:)/.test(title);
+}
+
+function hasConformanceProofTitle(title: string): boolean {
+  return /\b(?:CONFORMANCE|CONTRACT_BOUNDARY|BOUNDARY_PROOF|EXHAUSTIVE|EXHAUSTIVE_SPEC_PROOF|EXHAUSTIVE_BOUNDARY_PROOF)(?::|_[A-Z_]*PROOF:)/.test(title);
+}
+
+function hasExecutableBehavioralAssertion(normalizedSource: string): boolean {
+  return /toHaveProperty|toEqual|arrayContaining|objectContaining|\.find\(|\.toMatch(?:Object)?\(|\.toBeGreaterThan|\.toBeGreaterThanOrEqual|\.toBeLessThan|\.toContain\(|(?:body|response)\.data(?:\?\.|\.)[A-Za-z_$]|(?:body|response)\.data\)\.toBe\(|result\.[A-Za-z_]|expectValidationOrThrottle\(/.test(normalizedSource);
+}
+
+function hasExecutablePrimitiveAssertion(normalizedSource: string): boolean {
+  return /\.toBe\(|\.toBeDefined\(|\.toBeTruthy\(|\.toBeFalsy\(|\.toHaveLength\(/.test(normalizedSource);
+}
+
+function hasExecutableConformanceEvidence(normalizedSource: string): boolean {
+  return /\bmake[A-Za-z0-9]+ConformanceCases?\(|\bGOVERNANCE_(?:SPEC|BOUNDARY)_DOMAINS\.|\brunLocalStackSql\(|\b(?:backendOperation|coreOperation)\(|\boperationPath\(|\bensure[A-Za-z0-9]+Ledger\b/.test(normalizedSource);
+}
+
+function hasConditionalSkipPath(normalizedSource: string): boolean {
+  return /console\.log\([^)]*skipp|skipping assertions|No [A-Za-z0-9_ -]+ found[^)]*skipping/i.test(normalizedSource);
+}
+
+function getMultiStatusAllowanceOutcome(
+  normalizedSource: string,
+): 'mixed' | 'negative' | undefined {
+  const match = normalizedSource.match(/expect\(\s*\[([^\]]+)\]\s*\)\.toContain\([^)]*(?:body|response)\.status/);
+  if (!match) return undefined;
+  const statuses = [...match[1].matchAll(/\b([1-5][0-9]{2})\b/g)]
+    .map((entry) => Number(entry[1]));
+  if (statuses.length < 2) return undefined;
+  const hasSuccess = statuses.some((status) => status >= 200 && status < 300);
+  const hasFailure = statuses.some((status) => status >= 400);
+  if (hasSuccess && hasFailure) return 'mixed';
+  if (hasFailure) return 'negative';
+  return undefined;
+}
+
+function hasExecutableContractBoundaryEvidence(normalizedSource: string): boolean {
+  return /requires JWT authentication|API keys are not accepted|not enabled|read:user|delete:user|create:user|invite:user|update:user|assign:role|remove:role|send-welcome-email|user_ids|webhooks/.test(normalizedSource);
+}
+
+function extractExecutableCalls(source: string, file: string): ExtractedCall[] {
+  return extractCalls(stripCodeComments(source), file);
+}
+
+function extractCalls(source: string, file: string): ExtractedCall[] {
+  const calls: ExtractedCall[] = [];
+  const operationVars = extractOperationVars(source);
+  const sourceFile = ts.createSourceFile(
+    `local-stack-conformance-${file.replace(/[^A-Za-z0-9_.-]/g, '-')}`,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node)) {
+      const cliCall = extractCliCall(node);
+      if (cliCall) {
+        calls.push(cliCall);
+      } else {
+        const propertyCall = extractPropertyCall(node, file, operationVars);
+        if (propertyCall) calls.push(propertyCall);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return calls;
+}
+
+const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
+const IGNORED_METHOD_TARGETS = new Set(['expect', 'JSON', 'Array', 'Math', 'Date', 'Promise']);
+
+function extractPropertyCall(
+  node: ts.CallExpression,
+  file: string,
+  operationVars: Map<string, string>,
+): ExtractedCall | undefined {
+  if (!ts.isPropertyAccessExpression(node.expression)) return undefined;
+  if (!ts.isIdentifier(node.expression.expression)) return undefined;
+
+  const target = node.expression.expression.text;
+  const methodName = node.expression.name.text;
+
+  if (HTTP_METHODS.has(methodName)) {
+    const firstArgument = node.arguments[0];
+    const operationVar = firstArgument
+      ? operationVarFromOperationPathArgument(firstArgument) ?? operationVarFromPathAccess(firstArgument)
+      : undefined;
+    if (operationVar) {
+      const operationId = operationVars.get(operationVar);
+      if (!operationId) return undefined;
+      return {
+        serviceHint: inferServiceFromCallTarget(target, file),
+        verb: methodName,
+        operationId,
+        call: operationVarFromOperationPathArgument(firstArgument)
+          ? `${target}.${methodName}(operationPath(${operationVar}.path))`
+          : `${target}.${methodName}(${operationVar}.path)`,
+      };
+    }
+
+    const rawPath = firstArgument ? literalPathText(firstArgument) : undefined;
+    if (!rawPath) return undefined;
+    return {
+      serviceHint: inferServiceFromCallTarget(target, file),
+      verb: methodName,
+      rawPath,
+      call: `${target}.${methodName}(${rawPath})`,
+    };
+  }
+
+  if (IGNORED_METHOD_TARGETS.has(target)) return undefined;
+  if (!isGeneratedSdkMethodTarget(target, file)) return undefined;
+  return {
+    serviceHint: inferServiceFromCallTarget(target, file),
+    methodName,
+    call: `${target}.${methodName}()`,
+  };
+}
+
+function isGeneratedSdkMethodTarget(target: string, file: string): boolean {
+  if (/openbox-client\.test\.ts$/.test(file)) return target === 'client';
+  if (/core-client\.test\.ts$/.test(file)) return target === 'client' || target === 'badClient';
+  return false;
+}
+
+function extractCliCall(node: ts.CallExpression): ExtractedCall | undefined {
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== 'runCli') return undefined;
+  const argv = node.arguments[0];
+  if (!argv || !ts.isArrayLiteralExpression(argv)) return undefined;
+
+  const args = argv.elements.map((element) => literalText(element));
+  if (args[0] !== 'api') return undefined;
+  if (args[1] !== 'backend' && args[1] !== 'core') return undefined;
+  if (!args[2]) return undefined;
+
+  return {
+    serviceHint: args[1],
+    operationId: args[2],
+    call: `openbox api ${args[1]} ${args[2]}`,
+  };
+}
+
+function operationVarFromOperationPathArgument(argument: ts.Expression): string | undefined {
+  if (
+    ts.isCallExpression(argument) &&
+    ts.isIdentifier(argument.expression) &&
+    argument.expression.text === 'operationPath'
+  ) {
+    return operationVarFromPathAccess(argument.arguments[0]);
+  }
+
+  if (ts.isTemplateExpression(argument)) {
+    for (const span of argument.templateSpans) {
+      const operationVar = operationVarFromOperationPathArgument(span.expression);
+      if (operationVar) return operationVar;
+    }
+  }
+
+  return undefined;
+}
+
+function operationVarFromPathAccess(node: ts.Node | undefined): string | undefined {
+  if (!node || !ts.isPropertyAccessExpression(node)) return undefined;
+  if (node.name.text !== 'path') return undefined;
+  return ts.isIdentifier(node.expression) ? node.expression.text : undefined;
+}
+
+function literalText(node: ts.Node): string | undefined {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  return undefined;
+}
+
+function literalPathText(node: ts.Node): string | undefined {
+  const direct = literalText(node);
+  if (direct) return direct;
+  if (!ts.isTemplateExpression(node)) return undefined;
+
+  let raw = node.head.text;
+  for (const span of node.templateSpans) {
+    raw += '${value}';
+    raw += span.literal.text;
+  }
+  return raw;
+}
+
+function extractOperationVars(source: string): Map<string, string> {
+  const conformanceCaseOperationIds = new Map<string, string>();
+  const regoConformanceCaseRe =
+    /\bconst\s+([A-Za-z0-9_]+)\s*=\s*makeEvaluateRegoConformanceCase\(\s*\)/g;
+  for (const match of source.matchAll(regoConformanceCaseRe)) {
+    conformanceCaseOperationIds.set(`${match[1]}.operationId`, 'PolicyController_evaluate');
+  }
+
+  const approvalConformanceCaseRe =
+    /\bconst\s+([A-Za-z0-9_]+)\s*=\s*(?:makeRequireApprovalPolicyConformanceCase|makeApprovalExpirationConformanceCase)\(\s*\)/g;
+  for (const match of source.matchAll(approvalConformanceCaseRe)) {
+    conformanceCaseOperationIds.set(`${match[1]}.createPolicyOperationId`, 'AgentController_createPolicy');
+    conformanceCaseOperationIds.set(`${match[1]}.pendingApprovalsOperationId`, 'AgentController_getPendingApprovals');
+    conformanceCaseOperationIds.set(`${match[1]}.organizationApprovalsOperationId`, 'OrganizationController_getApprovals');
+    conformanceCaseOperationIds.set(`${match[1]}.decideApprovalOperationId`, 'AgentController_decideApproval');
+    conformanceCaseOperationIds.set(`${match[1]}.approvalHistoryOperationId`, 'AgentController_getApprovalHistory');
+    conformanceCaseOperationIds.set(`${match[1]}.evaluateOperationId`, 'evaluateGovernance');
+    conformanceCaseOperationIds.set(`${match[1]}.pollOperationId`, 'pollApproval');
+  }
+
+  const opaConformanceCaseRe =
+    /\bconst\s+([A-Za-z0-9_]+)\s*=\s*(?:makeOpaVerdictMatrixConformanceCase|makeOpaAliasDecisionConformanceCase|makeOpaUnsupportedConstrainConformanceCase|makeOpaUnavailableFailClosedConformanceCase)\(\s*\)/g;
+  for (const match of source.matchAll(opaConformanceCaseRe)) {
+    conformanceCaseOperationIds.set(`${match[1]}.createPolicyOperationId`, 'AgentController_createPolicy');
+    conformanceCaseOperationIds.set(`${match[1]}.evaluateOperationId`, 'evaluateGovernance');
+  }
+
+  const goalSignalConformanceCaseRe =
+    /\bconst\s+([A-Za-z0-9_]+)\s*=\s*makeGoalSignalOrderConformanceCase\(\s*\)/g;
+  for (const match of source.matchAll(goalSignalConformanceCaseRe)) {
+    conformanceCaseOperationIds.set(`${match[1]}.evaluateOperationId`, 'evaluateGovernance');
+  }
+
+  const goalDriftConformanceCaseRe =
+    /\bconst\s+([A-Za-z0-9_]+)\s*=\s*makeGoalDriftDetectedConformanceCase\(\s*\)/g;
+  for (const match of source.matchAll(goalDriftConformanceCaseRe)) {
+    conformanceCaseOperationIds.set(`${match[1]}.recentDriftsOperationId`, 'AgentController_getRecentDriftEvents');
+    conformanceCaseOperationIds.set(`${match[1]}.driftLogsOperationId`, 'AgentController_getDriftEvents');
+    conformanceCaseOperationIds.set(`${match[1]}.trendOperationId`, 'AgentController_getGoalAlignmentTrend');
+    conformanceCaseOperationIds.set(`${match[1]}.sessionStatsOperationId`, 'AgentController_getSessionGoalAlignmentStats');
+  }
+
+  const operationVars = new Map<string, string>();
+  const operationRe =
+    /\bconst\s+([A-Za-z0-9_]+)\s*=\s*(?:backendOperation|coreOperation)\(\s*(?:(['"])([^'"]+)\2|([A-Za-z0-9_]+)\.([A-Za-z0-9_]+))\s*\)/g;
+  for (const match of source.matchAll(operationRe)) {
+    const [, variableName, , literalOperationId, caseVariableName, casePropertyName] = match;
+    const operationId =
+      literalOperationId ||
+      conformanceCaseOperationIds.get(`${caseVariableName}.${casePropertyName}`);
+    if (operationId) operationVars.set(variableName, operationId);
+  }
+  return operationVars;
+}
+
+function inferServiceFromCallTarget(
+  target: string,
+  file: string,
+): 'backend' | 'core' | undefined {
+  const lowerTarget = target.toLowerCase();
+  if (lowerTarget.includes('core')) return 'core';
+  if (lowerTarget.includes('backend')) return 'backend';
+  if (/core-(client|governance)\.test\.ts$/.test(file)) return 'core';
+  if (/openbox-client\.test\.ts$/.test(file)) return 'backend';
+  return undefined;
+}
+
+function inferServiceFromPath(path: string): 'backend' | 'core' {
+  return path === '/' || path.startsWith('/api/v1/') ? 'core' : 'backend';
+}
+
+function normalizeConcretePath(rawPath: string): string {
+  return rawPath
+    .replace(/\$\{[^}]+\}/g, 'value')
+    .replace(/\{x\}/g, 'value')
+    .split('?')[0];
+}
+
+function pathPatternRegex(pathPattern: string): RegExp {
+  const escaped = pathPattern
+    .split('{x}')
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('[^/]+');
+  return new RegExp(`^${escaped}$`);
+}
+
+function operationRouteSpecificity(operation: SpecOperation): {
+  literalSegments: number;
+  totalSegments: number;
+  literalCharacters: number;
+} {
+  const segments = operation.pathPattern.split('/').filter(Boolean);
+  const literalSegments = segments.filter((segment) => segment !== '{x}');
+  return {
+    literalSegments: literalSegments.length,
+    totalSegments: segments.length,
+    literalCharacters: literalSegments.join('/').length,
+  };
+}
+
+function compareOperationRouteSpecificity(left: SpecOperation, right: SpecOperation): number {
+  const leftScore = operationRouteSpecificity(left);
+  const rightScore = operationRouteSpecificity(right);
+  return (
+    rightScore.literalSegments - leftScore.literalSegments ||
+    rightScore.totalSegments - leftScore.totalSegments ||
+    rightScore.literalCharacters - leftScore.literalCharacters
+  );
+}
+
+function sameOperationRouteSpecificity(left: SpecOperation, right: SpecOperation): boolean {
+  return compareOperationRouteSpecificity(left, right) === 0;
+}
+
+function maxProofLevel(levels: ProofLevel[]): ProofLevel {
+  let best: ProofLevel = 'none';
+  for (const level of levels) {
+    if (PROOF_ORDER[level] > PROOF_ORDER[best]) best = level;
+  }
+  return best;
+}
+
+function summarizeObjective(id: string, coverage: OperationCoverage[]): ObjectiveCoverage {
+  const proofCounts: Record<ProofLevel, number> = {
+    none: 0,
+    smoke: 0,
+    'negative-path': 0,
+    behavioral: 0,
+    conformance: 0,
+  };
+  for (const entry of coverage) {
+    proofCounts[entry.proofLevel]++;
+  }
+  return {
+    id,
+    operationCount: coverage.length,
+    proofCounts,
+    missingOperationIds: coverage
+      .filter((entry) => entry.proofLevel === 'none')
+      .map((entry) => entry.operation.operationId)
+      .sort(),
+    smokeOnlyOperationIds: coverage
+      .filter((entry) => entry.proofLevel === 'smoke')
+      .map((entry) => entry.operation.operationId)
+      .sort(),
+    behavioralOrBetterOperationIds: coverage
+      .filter((entry) => PROOF_ORDER[entry.proofLevel] >= PROOF_ORDER.behavioral)
+      .map((entry) => entry.operation.operationId)
+      .sort(),
+  };
+}
+
+function summarizeOperationManifestDuplicates(operations: SpecOperation[]): Pick<
+  ScenarioMatrixCoverage,
+  | 'duplicateOperationIdRefs'
+  | 'duplicateServiceOperationIdRefs'
+  | 'duplicateOperationRouteRefs'
+  | 'duplicateOperationPathPatternRefs'
+> {
+  return {
+    duplicateOperationIdRefs: duplicateKeys(operations, (operation) => operation.operationId),
+    duplicateServiceOperationIdRefs: duplicateKeys(
+      operations,
+      (operation) => `${operation.service}:${operation.operationId}`,
+    ),
+    duplicateOperationRouteRefs: duplicateKeys(
+      operations,
+      (operation) =>
+        `${operation.service}:${operation.verb.toUpperCase()}:${operation.path}`,
+    ),
+    duplicateOperationPathPatternRefs: duplicateKeys(
+      operations,
+      (operation) =>
+        `${operation.service}:${operation.verb.toUpperCase()}:${operation.pathPattern}`,
+    ),
+  };
+}
+
+function summarizeOperationRouteResolution(
+  operations: SpecOperation[],
+  matcher: OperationMatcher,
+): Pick<
+  ScenarioMatrixCoverage,
+  'operationRouteResolutionMismatchRefs' | 'ambiguousOperationRouteTieRefs'
+> {
+  const operationRouteResolutionMismatchRefs: string[] = [];
+  const ambiguousOperationRouteTieRefs: string[] = [];
+
+  for (const operation of operations) {
+    const call = {
+      serviceHint: operation.service,
+      verb: operation.verb,
+      rawPath: operation.path,
+      call: operation.operationId,
+    } satisfies ExtractedCall;
+    const resolved = matcher.match(call);
+    if (resolved?.operationId !== operation.operationId) {
+      operationRouteResolutionMismatchRefs.push(
+        `${operation.service}:${operation.verb}:${operation.path}:${operation.operationId}->${resolved?.operationId ?? '__missing__'}`,
+      );
+    }
+
+    const matches = matcher.matchAll(call);
+    if (matches.length > 1 && sameOperationRouteSpecificity(matches[0], matches[1])) {
+      ambiguousOperationRouteTieRefs.push(
+        `${operation.service}:${operation.verb}:${operation.path}:${matches
+          .map((entry) => entry.operationId)
+          .join('|')}`,
+      );
+    }
+  }
+
+  return {
+    operationRouteResolutionMismatchRefs: uniqueSorted(operationRouteResolutionMismatchRefs),
+    ambiguousOperationRouteTieRefs: uniqueSorted(ambiguousOperationRouteTieRefs),
+  };
+}
+
+function summarizeProviderGuards(
+  fixture: ProviderCapabilitiesFixture,
+  allBlocks: TestBlock[],
+): ProviderGuardCoverage[] {
+  const groups: Array<[string, ProviderGuardEntry[] | undefined]> = [
+    ['approvals-hitl', fixture.hitlCapabilityGuards],
+    ['guardrails', fixture.guardrailCapabilityGuards],
+    ['opa-rules', fixture.policyEvaluationGuards],
+    ['tracing', fixture.tracingCapabilityGuards],
+    ['usage-cost', fixture.usageCostCapabilityGuards],
+  ];
+
+  return groups.map(([capability, guards]) => {
+    const matrixProviderTiers = (fixture.providerCapabilityMatrix ?? [])
+      .filter((entry) => entry.capability === capability)
+      .map((entry) => ({ provider: entry.provider, tier: entry.tier }))
+      .sort((left, right) => left.provider.localeCompare(right.provider));
+    const matrixTierByProvider = new Map(
+      matrixProviderTiers.map((entry) => [entry.provider, entry.tier]),
+    );
+    const matrixProviders = uniqueSorted(
+      matrixProviderTiers.map((entry) => entry.provider),
+    );
+    const guardTestRefs = (guards ?? [])
+      .map((guard) => ({ provider: guard.provider, guardTest: guard.guardTest }))
+      .sort((left, right) =>
+        `${left.provider}:${left.guardTest}`.localeCompare(`${right.provider}:${right.guardTest}`),
+      );
+    const guardProviders = uniqueSorted((guards ?? []).map((guard) => guard.provider));
+    const guardsByProvider = new Map<string, ProviderGuardEntry[]>();
+    for (const guard of guards ?? []) {
+      const providerGuards = guardsByProvider.get(guard.provider) ?? [];
+      providerGuards.push(guard);
+      guardsByProvider.set(guard.provider, providerGuards);
+    }
+    const providerTierMismatchRefs = uniqueSorted(
+      (guards ?? []).flatMap((guard) => {
+        const expectedTier = matrixTierByProvider.get(guard.provider) ?? '__missing__';
+        const actualTier = guard.tier ?? '__missing__';
+        return expectedTier === actualTier
+          ? []
+          : [`${capability}:${guard.provider}:${expectedTier}->${actualTier}`];
+      }),
+    );
+    const duplicateProviderCapabilityGuardProviderRefs = uniqueSorted(
+      [...guardsByProvider.entries()]
+        .filter(([, providerGuards]) => providerGuards.length > 1)
+        .map(([provider]) => `${capability}:${provider}`),
+    );
+    const providersByGuardTest = new Map<string, string[]>();
+    for (const ref of guardTestRefs) {
+      const providers = providersByGuardTest.get(ref.guardTest) ?? [];
+      providers.push(ref.provider);
+      providersByGuardTest.set(ref.guardTest, providers);
+    }
+    const sharedGuardTestRefs = [...providersByGuardTest.entries()]
+      .map(([guardTest, providers]) => ({
+        guardTest,
+        providers: [...new Set(providers)].sort((left, right) => left.localeCompare(right)),
+      }))
+      .filter((entry) => entry.providers.length > 1)
+      .sort((left, right) => left.guardTest.localeCompare(right.guardTest));
+    const proofBlocksByRef = guardTestRefs.map((ref) => ({
+      ref,
+      blocks: resolveProviderGuardTestRef(ref, allBlocks),
+    }));
+    const missingGuardTestRefs = proofBlocksByRef
+      .filter((entry) => entry.blocks.length === 0)
+      .map((entry) => entry.ref)
+      .sort((left, right) =>
+        `${left.provider}:${left.guardTest}`.localeCompare(`${right.provider}:${right.guardTest}`),
+      );
+    return {
+      capability,
+      guardCount: guards?.length ?? 0,
+      providers: guardProviders,
+      matrixProviderTiers,
+      matrixProviders,
+      missingProviderCapabilityGuardProviders: missing(matrixProviders, guardProviders),
+      unexpectedProviderCapabilityGuardProviders: unexpected(guardProviders, matrixProviders),
+      providerTierMismatchRefs,
+      duplicateProviderCapabilityGuardProviderRefs,
+      guardTestRefs,
+      sharedGuardTestRefs,
+      guardTests: [...new Set((guards ?? []).map((guard) => guard.guardTest))].sort(),
+      proofFiles: [...new Set((guards ?? []).map((guard) => guard.guardTest.split('#')[0]))].sort(),
+      guardProofBlockKeys: [
+        ...new Set(proofBlocksByRef.flatMap((entry) => entry.blocks.map(testBlockKey))),
+      ].sort(),
+      missingGuardTestRefs,
+    };
+  });
+}
+
+function summarizeUnknownScenarioProofMarkers(
+  e2eBlocks: TestBlock[],
+  specs: ReadonlyArray<Pick<LocalStackScenarioPathSpec, 'id'>>,
+): string[] {
+  const knownScenarioIds = new Set(specs.map((entry) => entry.id));
+  const refs: string[] = [];
+  for (const block of e2eBlocks) {
+    const source = stripCodeComments(block.source);
+    const markerRe = /SCENARIO_PROOF:\s*([A-Za-z0-9_.-]+)/gi;
+    for (const match of source.matchAll(markerRe)) {
+      const scenarioId = match[1];
+      if (knownScenarioIds.has(scenarioId)) continue;
+      refs.push(`${scenarioId}:${block.file}#${block.name}`);
+    }
+  }
+  return uniqueSorted(refs);
+}
+
+export function unknownScenarioProofMarkerRefsForTesting(
+  source: string,
+  knownScenarioIds: readonly string[],
+): string[] {
+  return summarizeUnknownScenarioProofMarkers(
+    [{ file: '__test__.ts', name: '__test__', source }],
+    knownScenarioIds.map((id) => ({ id })),
+  );
+}
+
+function summarizeConformanceExceptions(
+  fixture: ProviderCapabilitiesFixture,
+): ConformanceException[] {
+  const exceptionTiers = new Set(['observe-only', 'out-of-scope', 'diagnose-only']);
+  return (fixture.providerCapabilityMatrix ?? [])
+    .filter((entry) => exceptionTiers.has(entry.tier))
+    .map((entry) => ({
+      id: `${entry.provider}:${entry.capability}:${entry.tier}`,
+      capability: entry.capability,
+      provider: entry.provider,
+      tier: entry.tier,
+      reason:
+        entry.closureDecision ??
+        entry.status ??
+        entry.rationale ??
+        `${entry.provider} ${entry.capability} is ${entry.tier} in the generated provider capability matrix.`,
+      source: 'codegen/fixtures/provider-capabilities.json',
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function summarizeCapabilityOutcomes(
+  coverage: OperationCoverage[],
+  providerGuards: ProviderGuardCoverage[],
+  exceptions: ConformanceException[],
+  semanticGaps: SemanticGapCoverage[],
+): CapabilityOutcomeCoverage[] {
+  const coverageByOperationId = new Map(
+    coverage.map((entry) => [entry.operation.operationId, entry]),
+  );
+  const guardsByCapability = new Map(
+    providerGuards.map((entry) => [entry.capability, entry]),
+  );
+
+  return OUTCOME_SPECS.map((spec) => {
+    const operationIds = spec.operationIds ?? [];
+    const providerGuardCapabilities = spec.providerGuardCapabilities ?? [];
+    const entries = operationIds
+      .map((operationId) => coverageByOperationId.get(operationId))
+      .filter((entry): entry is OperationCoverage => Boolean(entry));
+    const missingOperationIds = operationIds.filter(
+      (operationId) => !coverageByOperationId.has(operationId),
+    );
+    const underProvenOperationIds = entries
+      .filter((entry) =>
+        PROOF_ORDER[entry.proofLevel] < PROOF_ORDER[spec.minimumProofLevel],
+      )
+      .map((entry) => entry.operation.operationId)
+      .sort();
+    const proofCounts = countProofLevels(entries);
+    const providerGuardEntries = providerGuardCapabilities
+      .map((capability) => guardsByCapability.get(capability))
+      .filter((entry): entry is ProviderGuardCoverage => Boolean(entry));
+    const missingProviderGuardCapabilities = providerGuardCapabilities.filter((capability) => {
+      const guard = guardsByCapability.get(capability);
+      return (
+        !guard ||
+        guard.guardCount === 0 ||
+        guard.proofFiles.length === 0 ||
+        guard.guardProofBlockKeys.length !== guard.guardTests.length ||
+        guard.missingGuardTestRefs.length > 0
+      );
+    });
+    const missingProviderGuardTestRefs = providerGuardEntries
+      .flatMap((guard) =>
+        guard.missingGuardTestRefs.map((ref) => ({
+          capability: guard.capability,
+          provider: ref.provider,
+          guardTest: ref.guardTest,
+        })),
+      )
+      .sort((left, right) =>
+        `${left.capability}:${left.provider}:${left.guardTest}`.localeCompare(
+          `${right.capability}:${right.provider}:${right.guardTest}`,
+        ),
+      );
+    const providerGuardProofBlockKeys = [
+      ...new Set(providerGuardEntries.flatMap((guard) => guard.guardProofBlockKeys)),
+    ].sort();
+    const exceptionIds = exceptions
+      .filter((entry) => (spec.exceptionCapabilities ?? []).includes(entry.capability))
+      .map((entry) => entry.id)
+      .sort();
+    const semanticGapIds = semanticGaps
+      .filter((gap) =>
+        gap.operationIds.some((operationId) => operationIds.includes(operationId)),
+      )
+      .map((gap) => gap.id)
+      .sort();
+
+    return {
+      id: spec.id,
+      label: spec.label,
+      source: spec.source,
+      minimumProofLevel: spec.minimumProofLevel,
+      operationIds,
+      providerGuardCapabilities,
+      exceptionCapabilities: spec.exceptionCapabilities ?? [],
+      providerGuardProofBlockKeys,
+      missingProviderGuardCapabilities,
+      missingProviderGuardTestRefs,
+      proofCounts,
+      underProvenOperationIds,
+      missingOperationIds,
+      semanticGapIds,
+      exceptionIds,
+      status:
+        underProvenOperationIds.length === 0 &&
+        missingOperationIds.length === 0 &&
+        missingProviderGuardCapabilities.length === 0 &&
+        missingProviderGuardTestRefs.length === 0 &&
+        semanticGapIds.length === 0
+          ? 'proven'
+          : 'incomplete',
+    };
+  });
+}
+
+function summarizeScenarioPaths(
+  specs: LocalStackScenarioPathSpec[],
+  e2eBlocks: TestBlock[],
+  allBlocks: TestBlock[],
+  coverage: OperationCoverage[],
+  providerGuards: ProviderGuardCoverage[],
+): ScenarioPathCoverage[] {
+  const coverageByOperationId = new Map(
+    coverage.map((entry) => [entry.operation.operationId, entry]),
+  );
+  const providerGuardsByCapability = new Map(
+    providerGuards.map((entry) => [entry.capability, entry]),
+  );
+
+  return specs.map((spec) => {
+    const requiredProofLevel = normalizeProofLevel(spec.requiredProofLevel);
+    const operationEntries = spec.operationIds
+      .map((operationId) => coverageByOperationId.get(operationId))
+      .filter((entry): entry is OperationCoverage => Boolean(entry));
+    const missingOperationIds = spec.operationIds.filter(
+      (operationId) => !coverageByOperationId.has(operationId),
+    );
+    const duplicateScenarioOperationIds = spec.localStackRequired
+      ? duplicates(spec.operationIds)
+      : [];
+    const duplicateScenarioAxisIds = duplicates(spec.axes);
+    const operationEvidencePatternIds = (spec.operationEvidencePatterns ?? [])
+      .map((entry) => entry.operationId);
+    const missingOperationEvidencePatternIds = spec.localStackRequired
+      ? missing(spec.operationIds, operationEvidencePatternIds)
+      : [];
+    const unknownOperationEvidencePatternIds = spec.localStackRequired
+      ? unexpected(operationEvidencePatternIds, spec.operationIds)
+      : [];
+    const duplicateOperationEvidencePatternIds = spec.localStackRequired
+      ? duplicates(operationEvidencePatternIds)
+      : [];
+    const underProvenOperationIds = operationEntries
+      .filter((entry) =>
+        PROOF_ORDER[entry.proofLevel] < PROOF_ORDER[requiredProofLevel],
+      )
+      .map((entry) => entry.operation.operationId)
+      .sort();
+    const evidenceBlocks = spec.localStackRequired ? e2eBlocks : allBlocks;
+    const requiredOperationBlockKeys = new Set(
+      operationEntries.flatMap((entry) => entry.hits.map(operationHitBlockKey)),
+    );
+    const operationBackedEvidenceBlocks =
+      spec.localStackRequired && spec.operationIds.length > 0
+        ? evidenceBlocks.filter((block) => requiredOperationBlockKeys.has(testBlockKey(block)))
+        : evidenceBlocks;
+    const markerPattern = `SCENARIO_PROOF: ${spec.id}`;
+    const markerBlocks = operationBackedEvidenceBlocks.filter((block) =>
+      blockIncludesMarker(block, markerPattern),
+    );
+    const scenarioProofMarkerBlockKeys = [...new Set(markerBlocks.map(testBlockKey))].sort();
+    const markerEvidenceBlocks = markerBlocks.filter((block) =>
+      blockHasScenarioEvidence(block, spec.evidencePatterns),
+    );
+    const markerOnlyProofBlockKeys = [
+      ...new Set(
+        markerBlocks
+          .filter((block) => !blockHasScenarioEvidence(block, spec.evidencePatterns))
+          .map(testBlockKey),
+      ),
+    ].sort();
+    const requiresScenarioProofMarker = spec.localStackRequired;
+    const missingScenarioProofMarker =
+      requiresScenarioProofMarker && scenarioProofMarkerBlockKeys.length === 0;
+    const fullEvidenceBlocks = operationBackedEvidenceBlocks.filter((block) =>
+      spec.evidencePatterns.every((pattern) => blockIncludesPattern(block, pattern)),
+    );
+    const matchingBlocks = markerBlocks.length > 0 ? markerEvidenceBlocks : fullEvidenceBlocks;
+    const hasAllEvidencePatterns = spec.evidencePatterns.every((pattern) =>
+      matchingBlocks.some((block) => blockIncludesPattern(block, pattern)),
+    );
+    const proofLevel = maxProofLevel(
+      hasAllEvidencePatterns
+        ? matchingBlocks.map((block) => classifyTestBlock(block.source).proofLevel)
+        : [],
+    );
+    const operationProofLevel = maxProofLevel(
+      operationEntries.map((entry) => entry.proofLevel),
+    );
+    const matchedEvidencePatterns = [
+      markerPattern,
+      ...spec.evidencePatterns,
+    ]
+      .filter((pattern) => matchingBlocks.some((block) => blockIncludesPattern(block, pattern)))
+      .sort();
+    const assertedEvidencePatternBlockKeys = spec.evidencePatterns.map((pattern) => ({
+      pattern,
+      blockKeys: [
+        ...new Set(
+          matchingBlocks
+            .filter((block) => blockHasAssertedEvidencePattern(block, pattern))
+            .map(testBlockKey),
+        ),
+      ].sort(),
+    }));
+    const assertedEvidencePatterns = assertedEvidencePatternBlockKeys
+      .filter((entry) => entry.blockKeys.length > 0)
+      .map((entry) => entry.pattern)
+      .sort();
+    const assertedEvidencePatternSet = new Set(assertedEvidencePatterns);
+    const weakEvidencePatterns = spec.evidencePatterns
+      .filter(
+        (pattern) =>
+          matchingBlocks.some((block) => blockIncludesPattern(block, pattern)) &&
+          !assertedEvidencePatternSet.has(pattern),
+      )
+      .sort();
+    const missingAssertedEvidence =
+      spec.localStackRequired &&
+      spec.evidencePatterns.some((pattern) => !assertedEvidencePatternSet.has(pattern));
+    const proofFiles = [...new Set(matchingBlocks.map((block) => block.file))].sort();
+    const proofTestNames = [...new Set(matchingBlocks.map((block) => block.name))].sort();
+    const proofBlockKeys = [...new Set(matchingBlocks.map(testBlockKey))].sort();
+    const evidencePatternBlockKeys = spec.evidencePatterns.map((pattern) => ({
+      pattern,
+      blockKeys: [
+        ...new Set(
+          matchingBlocks
+            .filter((block) => blockIncludesPattern(block, pattern))
+            .map(testBlockKey),
+        ),
+      ].sort(),
+    }));
+    const proofBlockKeySet = new Set(proofBlockKeys);
+    const matchingBlocksByKey = new Map(
+      matchingBlocks.map((block) => [testBlockKey(block), block]),
+    );
+    const operationProofs = operationEntries.map((entry) => {
+      const requiredOperationEvidencePatterns = operationEvidencePatternsFor(
+        spec,
+        entry.operation.operationId,
+      );
+      const countedHits = entry.hits.filter(
+        (hit) =>
+          proofBlockKeySet.has(operationHitBlockKey(hit)) &&
+          PROOF_ORDER[hit.proofLevel] >= PROOF_ORDER[requiredProofLevel],
+      );
+      const operationBlockKeys = uniqueSorted(countedHits.map(operationHitBlockKey));
+      const operationBlocks = operationBlockKeys
+        .map((blockKey) => matchingBlocksByKey.get(blockKey))
+        .filter((block): block is TestBlock => Boolean(block));
+      const operationEvidencePatternBlockKeys = requiredOperationEvidencePatterns.map((pattern) => ({
+        pattern,
+        blockKeys: uniqueSorted(
+          operationBlocks
+            .filter((block) => blockIncludesPattern(block, pattern))
+            .map(testBlockKey),
+        ),
+      }));
+      const assertedEvidencePatternBlockKeys = requiredOperationEvidencePatterns.map((pattern) => ({
+        pattern,
+        blockKeys: uniqueSorted(
+          operationBlocks
+            .filter((block) => blockHasAssertedEvidencePattern(block, pattern))
+            .map(testBlockKey),
+        ),
+      }));
+      const matchedOperationEvidencePatterns = operationEvidencePatternBlockKeys
+        .filter((entry) => entry.blockKeys.length > 0)
+        .map((entry) => entry.pattern)
+        .sort();
+      const missingOperationEvidencePatterns = operationEvidencePatternBlockKeys
+        .filter((entry) => entry.blockKeys.length === 0)
+        .map((entry) => entry.pattern)
+        .sort();
+      const assertedOperationEvidencePatterns = assertedEvidencePatternBlockKeys
+        .filter((entry) => entry.blockKeys.length > 0)
+        .map((entry) => entry.pattern)
+        .sort();
+      const assertedOperationEvidencePatternSet = new Set(assertedOperationEvidencePatterns);
+      const missingAssertedOperationEvidencePatterns = requiredOperationEvidencePatterns
+        .filter((pattern) => !assertedOperationEvidencePatternSet.has(pattern))
+        .sort();
+      const weakOperationEvidencePatterns = matchedOperationEvidencePatterns
+        .filter((pattern) => !assertedOperationEvidencePatternSet.has(pattern))
+        .sort();
+      const generatedConformanceBlockKeys = uniqueSorted(
+        operationBlocks
+          .filter(blockHasGeneratedScenarioConformanceEvidence)
+          .map(testBlockKey),
+      );
+      const operationProofLevel = maxProofLevel(countedHits.map((hit) => hit.proofLevel));
+      return {
+        operationId: entry.operation.operationId,
+        proofLevel: operationProofLevel,
+        requiredEvidencePatterns: requiredOperationEvidencePatterns,
+        proofBlockKeys: operationBlockKeys,
+        proofFiles: uniqueSorted(operationBlocks.map((block) => block.file)),
+        proofTestNames: uniqueSorted(operationBlocks.map((block) => block.name)),
+        matchedEvidencePatterns: matchedOperationEvidencePatterns,
+        missingEvidencePatterns: missingOperationEvidencePatterns,
+        assertedEvidencePatterns: assertedOperationEvidencePatterns,
+        weakEvidencePatterns: weakOperationEvidencePatterns,
+        assertedEvidencePatternBlockKeys,
+        evidencePatternBlockKeys: operationEvidencePatternBlockKeys,
+        generatedConformanceBlockKeys,
+        missingProofBlock: operationBlockKeys.length === 0,
+        underProven: PROOF_ORDER[operationProofLevel] < PROOF_ORDER[requiredProofLevel],
+        missingEvidence: missingOperationEvidencePatterns.length > 0,
+        missingAssertedEvidence: missingAssertedOperationEvidencePatterns.length > 0,
+      };
+    });
+    const proofOperationIds = operationEntries
+      .filter((entry) =>
+        entry.hits.some(
+          (hit) =>
+            proofBlockKeySet.has(operationHitBlockKey(hit)) &&
+            PROOF_ORDER[hit.proofLevel] >= PROOF_ORDER[requiredProofLevel],
+        ),
+      )
+      .map((entry) => entry.operation.operationId)
+      .sort();
+    const missingProofOperationIds = spec.localStackRequired
+      ? spec.operationIds.filter((operationId) => !proofOperationIds.includes(operationId)).sort()
+      : [];
+    const missingOperationEvidenceIds = spec.localStackRequired
+      ? operationProofs
+          .filter((entry) => entry.missingEvidence)
+          .map((entry) => entry.operationId)
+          .sort()
+      : [];
+    const missingAssertedOperationEvidenceIds = spec.localStackRequired
+      ? operationProofs
+          .filter((entry) => entry.missingAssertedEvidence)
+          .map((entry) => entry.operationId)
+          .sort()
+      : [];
+    const providerGuard = providerGuardsByCapability.get(spec.capability);
+    const providerGuardTestRefs = providerGuard?.guardTestRefs ?? [];
+    const providerGuardProofBlocksByRef = providerGuardTestRefs.map((ref) => ({
+      ref,
+      blocks: resolveProviderGuardTestRef(ref, allBlocks),
+    }));
+    const missingProviderGuardTestRefs = providerGuardProofBlocksByRef
+      .filter((entry) => entry.blocks.length === 0)
+      .map((entry) => entry.ref)
+      .sort((left, right) =>
+        `${left.provider}:${left.guardTest}`.localeCompare(`${right.provider}:${right.guardTest}`),
+      );
+    const providerGuardProofBlockKeys = [
+      ...new Set(
+        providerGuardProofBlocksByRef.flatMap((entry) => entry.blocks.map(testBlockKey)),
+      ),
+    ].sort();
+    const requiresProviderGuardProof =
+      !spec.localStackRequired && Boolean(providerGuard && providerGuard.guardTestRefs.length > 0);
+    const providerProofAvailable =
+      requiresProviderGuardProof &&
+      hasAllEvidencePatterns &&
+      PROOF_ORDER[proofLevel] >= PROOF_ORDER[requiredProofLevel] &&
+      Boolean(providerGuard && providerGuard.guardTestRefs.length > 0 && providerGuard.proofFiles.length > 0) &&
+      missingProviderGuardTestRefs.length === 0;
+    const contractBoundaryProofAvailable =
+      !spec.localStackRequired &&
+      !requiresProviderGuardProof &&
+      !providerProofAvailable &&
+      PROOF_ORDER[proofLevel] >= PROOF_ORDER[requiredProofLevel];
+    const effectiveProofLevel = providerProofAvailable
+      ? maxProofLevel([proofLevel, requiredProofLevel])
+      : proofLevel;
+    const effectiveProofFiles = providerProofAvailable
+      ? [...new Set([...proofFiles, ...(providerGuard?.proofFiles ?? [])])].sort()
+      : proofFiles;
+    const effectiveUnderProvenOperationIds = spec.localStackRequired
+      ? underProvenOperationIds
+      : [];
+    const effectiveMissingOperationIds = spec.localStackRequired
+      ? missingOperationIds
+      : [];
+    const status =
+      PROOF_ORDER[effectiveProofLevel] >= PROOF_ORDER[requiredProofLevel] &&
+      effectiveMissingOperationIds.length === 0 &&
+      effectiveUnderProvenOperationIds.length === 0 &&
+      missingProofOperationIds.length === 0 &&
+      duplicateScenarioOperationIds.length === 0 &&
+      missingOperationEvidencePatternIds.length === 0 &&
+      unknownOperationEvidencePatternIds.length === 0 &&
+      duplicateOperationEvidencePatternIds.length === 0 &&
+      missingOperationEvidenceIds.length === 0 &&
+      missingAssertedOperationEvidenceIds.length === 0 &&
+      !missingAssertedEvidence &&
+      !missingScenarioProofMarker &&
+      (!requiresProviderGuardProof || providerProofAvailable)
+        ? 'proven'
+        : 'incomplete';
+    const proofSource = spec.localStackRequired
+      ? 'local-stack-e2e'
+      : requiresProviderGuardProof
+        ? 'provider-guard-fixture'
+      : contractBoundaryProofAvailable
+        ? 'contract-boundary'
+        : 'contract-boundary';
+
+    return {
+      ...spec,
+      requiredProofLevel,
+      proofLevel: effectiveProofLevel,
+      operationProofLevel,
+      proofSource,
+      proofFiles: effectiveProofFiles,
+      proofTestNames,
+      scenarioProofMarker: markerPattern,
+      scenarioProofMarkerBlockKeys,
+      markerOnlyProofBlockKeys,
+      missingScenarioProofMarker,
+      providerGuardTestRefs: providerProofAvailable ? providerGuardTestRefs : [],
+      providerGuardProofBlockKeys: providerProofAvailable ? providerGuardProofBlockKeys : [],
+      missingProviderGuardTestRefs,
+      proofBlockKeys,
+      proofOperationIds,
+      missingProofOperationIds,
+      duplicateScenarioOperationIds,
+      duplicateScenarioAxisIds,
+      missingOperationEvidencePatternIds,
+      unknownOperationEvidencePatternIds,
+      duplicateOperationEvidencePatternIds,
+      operationProofs,
+      missingOperationEvidenceIds,
+      missingAssertedOperationEvidenceIds,
+      matchedEvidencePatterns,
+      assertedEvidencePatterns,
+      weakEvidencePatterns,
+      missingAssertedEvidence,
+      assertedEvidencePatternBlockKeys,
+      evidencePatternBlockKeys,
+      underProvenOperationIds: effectiveUnderProvenOperationIds,
+      missingOperationIds: effectiveMissingOperationIds,
+      status,
+      missingReason:
+        status === 'proven'
+          ? undefined
+          : scenarioMissingReason(
+              spec,
+              requiredProofLevel,
+              proofLevel,
+              missingOperationIds,
+              underProvenOperationIds,
+              missingProofOperationIds,
+              duplicateScenarioOperationIds,
+              missingOperationEvidencePatternIds,
+              unknownOperationEvidencePatternIds,
+              duplicateOperationEvidencePatternIds,
+              missingOperationEvidenceIds,
+              missingAssertedOperationEvidenceIds,
+              missingAssertedEvidence,
+              missingScenarioProofMarker,
+              missingProviderGuardTestRefs,
+            ),
+    };
+  });
+}
+
+function summarizeScenarioMatrixContract(
+  contract: LocalStackScenarioMatrixContract | undefined,
+  scenarioPaths: ScenarioPathCoverage[],
+  outcomes: CapabilityOutcomeCoverage[],
+  providerGuards: ProviderGuardCoverage[],
+  semanticGaps: SemanticGapCoverage[],
+  sdkSemanticGapClosures: SdkSemanticGapClosure[],
+  backendCoreGapRemediationTargets: BackendCoreGapRemediationTarget[],
+  operationManifestDuplicateRefs: Pick<
+    ScenarioMatrixCoverage,
+    | 'duplicateOperationIdRefs'
+    | 'duplicateServiceOperationIdRefs'
+    | 'duplicateOperationRouteRefs'
+    | 'duplicateOperationPathPatternRefs'
+  >,
+  operationRouteResolutionRefs: Pick<
+    ScenarioMatrixCoverage,
+    'operationRouteResolutionMismatchRefs' | 'ambiguousOperationRouteTieRefs'
+  >,
+  unknownScenarioProofMarkerRefs: string[],
+): ScenarioMatrixCoverage {
+  const resolvedContract = contract ?? {
+    id: '__missing_local_stack_scenario_matrix__',
+    description: 'Missing generated local-stack scenario matrix contract.',
+    requiredCapabilities: [],
+    requiredCategories: [],
+    requiredAxes: [],
+    requiredLocalStackAxes: [],
+    requiredCategoryAxes: [],
+    localStackScenarioIds: [],
+    providerOwnedScenarioIds: [],
+    requiredOutcomeIds: [],
+    requiredOutcomeSpecs: [],
+    requiredSharedProviderGuardProofCapabilities: [],
+    requiredSdkSemanticGapClosureTargets: [],
+    providerGuardSharedProofPolicy: 'missing generated contract',
+    localStackAxisPolicy: 'missing generated contract',
+    rawSemanticGapPolicy: 'missing generated contract',
+    backendCoreGapStatusPolicy: 'missing generated contract',
+    backendCoreGapRemediationPolicy: 'missing generated contract',
+  };
+  const actualCapabilities = uniqueSorted(scenarioPaths.map((entry) => entry.capability));
+  const actualCategories = uniqueSorted(scenarioPaths.map((entry) => entry.category));
+  const actualAxes = uniqueSorted(scenarioPaths.flatMap((entry) => entry.axes));
+  const actualLocalStackAxes = uniqueSorted(
+    scenarioPaths
+      .filter((entry) => entry.localStackRequired)
+      .flatMap((entry) => entry.axes),
+  );
+  const provenLocalStackAxes = uniqueSorted(
+    scenarioPaths
+      .filter((entry) => entry.localStackRequired && entry.status === 'proven')
+      .flatMap((entry) => entry.axes),
+  );
+  const actualLocalStackScenarioIds = uniqueSorted(
+    scenarioPaths.filter((entry) => entry.localStackRequired).map((entry) => entry.id),
+  );
+  const actualProviderOwnedScenarioIds = uniqueSorted(
+    scenarioPaths.filter((entry) => !entry.localStackRequired).map((entry) => entry.id),
+  );
+  const sharedProviderGuardProofCapabilities = uniqueSorted(
+    providerGuards
+      .filter((entry) => entry.sharedGuardTestRefs.length > 0)
+      .map((entry) => entry.capability),
+  );
+  const missingProviderCapabilityGuardProviderRefs = uniqueSorted(
+    providerGuards.flatMap((entry) =>
+      entry.missingProviderCapabilityGuardProviders.map(
+        (provider) => `${entry.capability}:${provider}`,
+      ),
+    ),
+  );
+  const unexpectedProviderCapabilityGuardProviderRefs = uniqueSorted(
+    providerGuards.flatMap((entry) =>
+      entry.unexpectedProviderCapabilityGuardProviders.map(
+        (provider) => `${entry.capability}:${provider}`,
+      ),
+    ),
+  );
+  const providerGuardTierMismatchRefs = uniqueSorted(
+    providerGuards.flatMap((entry) => entry.providerTierMismatchRefs),
+  );
+  const duplicateProviderCapabilityGuardProviderRefs = uniqueSorted(
+    providerGuards.flatMap((entry) => entry.duplicateProviderCapabilityGuardProviderRefs),
+  );
+  const missingSharedProviderGuardProofCapabilities = missing(
+    resolvedContract.requiredSharedProviderGuardProofCapabilities,
+    sharedProviderGuardProofCapabilities,
+  );
+  const unexpectedSharedProviderGuardProofCapabilities = unexpected(
+    sharedProviderGuardProofCapabilities,
+    resolvedContract.requiredSharedProviderGuardProofCapabilities,
+  );
+  const outcomeIds = new Set(outcomes.map((entry) => entry.id));
+  const outcomeById = new Map(outcomes.map((entry) => [entry.id, entry]));
+  const requiredOutcomeIds = new Set(resolvedContract.requiredOutcomeIds);
+  const incompleteScenarioIds = scenarioPaths
+    .filter((entry) => entry.status !== 'proven')
+    .map((entry) => entry.id)
+    .sort();
+  const missingOutcomeIds = resolvedContract.requiredOutcomeIds
+    .filter((id) => !outcomeIds.has(id))
+    .sort();
+  const requiredOutcomeSpecIds = resolvedContract.requiredOutcomeSpecs
+    .map((entry) => entry.id)
+    .sort((left, right) => left.localeCompare(right));
+  const outcomeSpecMismatchRefs = [
+    ...missing(resolvedContract.requiredOutcomeIds, requiredOutcomeSpecIds).map(
+      (id) => `${id}:missing-generated-outcome-spec`,
+    ),
+    ...unexpected(requiredOutcomeSpecIds, resolvedContract.requiredOutcomeIds).map(
+      (id) => `${id}:unexpected-generated-outcome-spec`,
+    ),
+    ...resolvedContract.requiredOutcomeSpecs.flatMap((spec) => {
+      const outcome = outcomeById.get(spec.id);
+      if (!outcome) return [`${spec.id}:missing-outcome-coverage`];
+      return [
+        spec.label === outcome.label ? undefined : `${spec.id}:label`,
+        spec.source === outcome.source ? undefined : `${spec.id}:source`,
+        spec.minimumProofLevel === outcome.minimumProofLevel
+          ? undefined
+          : `${spec.id}:minimumProofLevel`,
+        sortedEqual(spec.operationIds, outcome.operationIds) ? undefined : `${spec.id}:operationIds`,
+        sortedEqual(spec.providerGuardCapabilities, outcome.providerGuardCapabilities)
+          ? undefined
+          : `${spec.id}:providerGuardCapabilities`,
+        sortedEqual(spec.exceptionCapabilities, outcome.exceptionCapabilities)
+          ? undefined
+          : `${spec.id}:exceptionCapabilities`,
+      ].filter((entry): entry is string => Boolean(entry));
+    }),
+  ].sort((left, right) => left.localeCompare(right));
+  const incompleteOutcomeIds = outcomes
+    .filter((entry) => requiredOutcomeIds.has(entry.id))
+    .filter((entry) => entry.status !== 'proven' && entry.semanticGapIds.length === 0)
+    .map((entry) => entry.id)
+    .sort();
+  const rawSemanticGapOutcomeRefs = outcomes
+    .filter((entry) => requiredOutcomeIds.has(entry.id))
+    .filter((entry) => entry.status !== 'proven' && entry.semanticGapIds.length > 0)
+    .map((entry) => ({
+      outcomeId: entry.id,
+      semanticGapIds: [...entry.semanticGapIds].sort(),
+    }))
+    .sort((left, right) => left.outcomeId.localeCompare(right.outcomeId));
+  const rawSemanticGapOutcomeIds = rawSemanticGapOutcomeRefs
+    .map((entry) => entry.outcomeId)
+    .sort();
+  const unclosedSemanticGapIds = semanticGaps
+    .filter((gap) =>
+      resolvedContract.requiredSdkSemanticGapClosureTargets.some((target) =>
+        !sdkSemanticGapClosures.some((closure) =>
+          closure.semanticGapId === gap.id &&
+          closure.sdkTarget === target &&
+          closure.status === 'proven',
+        ),
+      ),
+    )
+    .map((gap) => gap.id)
+    .sort();
+  const semanticGapIds = semanticGaps.map((entry) => entry.id).sort();
+  const backendCoreGapRemediationTargetIds = backendCoreGapRemediationTargets
+    .map((entry) => entry.gapId)
+    .sort();
+  const missingBackendCoreGapRemediationTargetIds = missing(
+    semanticGapIds,
+    backendCoreGapRemediationTargetIds,
+  );
+  const unexpectedBackendCoreGapRemediationTargetIds = unexpected(
+    backendCoreGapRemediationTargetIds,
+    semanticGapIds,
+  );
+  const missingCapabilities = missing(resolvedContract.requiredCapabilities, actualCapabilities);
+  const unexpectedCapabilities = unexpected(actualCapabilities, resolvedContract.requiredCapabilities);
+  const missingCategories = missing(resolvedContract.requiredCategories, actualCategories);
+  const unexpectedCategories = unexpected(actualCategories, resolvedContract.requiredCategories);
+  const missingAxes = missing(resolvedContract.requiredAxes, actualAxes);
+  const unexpectedAxes = unexpected(actualAxes, resolvedContract.requiredAxes);
+  const missingLocalStackAxes = missing(resolvedContract.requiredLocalStackAxes, actualLocalStackAxes);
+  const incompleteLocalStackAxes = missing(resolvedContract.requiredLocalStackAxes, provenLocalStackAxes);
+  const categoryAxisCoverage = resolvedContract.requiredCategoryAxes
+    .map((requiredCategory) => {
+      const categoryScenarioPaths = scenarioPaths.filter(
+        (entry) => entry.localStackRequired && entry.category === requiredCategory.category,
+      );
+      const presentAxes = uniqueSorted(categoryScenarioPaths.flatMap((entry) => entry.axes));
+      const provenAxes = uniqueSorted(
+        categoryScenarioPaths
+          .filter((entry) => entry.status === 'proven')
+          .flatMap((entry) => entry.axes),
+      );
+      return {
+        category: requiredCategory.category,
+        requiredAxes: [...requiredCategory.axes].sort((left, right) => left.localeCompare(right)),
+        presentAxes,
+        provenAxes,
+        missingAxes: missing(requiredCategory.axes, presentAxes),
+        incompleteAxes: missing(requiredCategory.axes, provenAxes),
+      };
+    })
+    .sort((left, right) => left.category.localeCompare(right.category));
+  const missingCategoryAxisRefs = uniqueSorted(
+    categoryAxisCoverage.flatMap((entry) =>
+      entry.missingAxes.map((axis) => `${entry.category}:${axis}`),
+    ),
+  );
+  const incompleteCategoryAxisRefs = uniqueSorted(
+    categoryAxisCoverage.flatMap((entry) =>
+      entry.incompleteAxes.map((axis) => `${entry.category}:${axis}`),
+    ),
+  );
+  const missingLocalStackScenarioIds = missing(
+    resolvedContract.localStackScenarioIds,
+    actualLocalStackScenarioIds,
+  );
+  const unexpectedLocalStackScenarioIds = unexpected(
+    actualLocalStackScenarioIds,
+    resolvedContract.localStackScenarioIds,
+  );
+  const missingProviderOwnedScenarioIds = missing(
+    resolvedContract.providerOwnedScenarioIds,
+    actualProviderOwnedScenarioIds,
+  );
+  const unexpectedProviderOwnedScenarioIds = unexpected(
+    actualProviderOwnedScenarioIds,
+    resolvedContract.providerOwnedScenarioIds,
+  );
+  const duplicateScenarioPathRefs = duplicates(scenarioPaths.map((entry) => entry.id));
+  const duplicateOutcomeRefs = duplicates(outcomes.map((entry) => entry.id));
+  const duplicateScenarioMatrixContractRefs = uniqueSorted([
+    ...duplicates(resolvedContract.requiredCapabilities).map((id) => `requiredCapabilities:${id}`),
+    ...duplicates(resolvedContract.requiredCategories).map((id) => `requiredCategories:${id}`),
+    ...duplicates(resolvedContract.requiredAxes).map((id) => `requiredAxes:${id}`),
+    ...duplicates(resolvedContract.requiredLocalStackAxes).map(
+      (id) => `requiredLocalStackAxes:${id}`,
+    ),
+    ...duplicates(resolvedContract.localStackScenarioIds).map(
+      (id) => `localStackScenarioIds:${id}`,
+    ),
+    ...duplicates(resolvedContract.providerOwnedScenarioIds).map(
+      (id) => `providerOwnedScenarioIds:${id}`,
+    ),
+    ...duplicates(resolvedContract.requiredOutcomeIds).map((id) => `requiredOutcomeIds:${id}`),
+    ...duplicates(resolvedContract.requiredOutcomeSpecs.map((entry) => entry.id)).map(
+      (id) => `requiredOutcomeSpecs:${id}`,
+    ),
+    ...duplicates(resolvedContract.requiredSharedProviderGuardProofCapabilities).map(
+      (id) => `requiredSharedProviderGuardProofCapabilities:${id}`,
+    ),
+    ...duplicates(resolvedContract.requiredSdkSemanticGapClosureTargets).map(
+      (id) => `requiredSdkSemanticGapClosureTargets:${id}`,
+    ),
+    ...duplicates(resolvedContract.requiredCategoryAxes.map((entry) => entry.category)).map(
+      (id) => `requiredCategoryAxes:${id}`,
+    ),
+    ...resolvedContract.requiredCategoryAxes.flatMap((entry) =>
+      duplicates(entry.axes).map((axis) => `requiredCategoryAxes:${entry.category}:${axis}`),
+    ),
+  ]);
+  const duplicateScenarioOperationRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.duplicateScenarioOperationIds.map((operationId) => `${entry.id}:${operationId}`),
+    ),
+  );
+  const duplicateScenarioAxisRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.duplicateScenarioAxisIds.map((axis) => `${entry.id}:${axis}`),
+    ),
+  );
+  const missingOperationEvidencePatternRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.missingOperationEvidencePatternIds.map((operationId) => `${entry.id}:${operationId}`),
+    ),
+  );
+  const unknownOperationEvidencePatternRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.unknownOperationEvidencePatternIds.map((operationId) => `${entry.id}:${operationId}`),
+    ),
+  );
+  const duplicateOperationEvidencePatternRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.duplicateOperationEvidencePatternIds.map((operationId) => `${entry.id}:${operationId}`),
+    ),
+  );
+  const blockers = [
+    operationManifestDuplicateRefs.duplicateOperationIdRefs,
+    operationManifestDuplicateRefs.duplicateServiceOperationIdRefs,
+    operationManifestDuplicateRefs.duplicateOperationRouteRefs,
+    operationManifestDuplicateRefs.duplicateOperationPathPatternRefs,
+    operationRouteResolutionRefs.operationRouteResolutionMismatchRefs,
+    operationRouteResolutionRefs.ambiguousOperationRouteTieRefs,
+    missingCapabilities,
+    unexpectedCapabilities,
+    missingCategories,
+    unexpectedCategories,
+    missingAxes,
+    unexpectedAxes,
+    missingLocalStackAxes,
+    incompleteLocalStackAxes,
+    outcomeSpecMismatchRefs,
+    missingProviderCapabilityGuardProviderRefs,
+    unexpectedProviderCapabilityGuardProviderRefs,
+    providerGuardTierMismatchRefs,
+    duplicateProviderCapabilityGuardProviderRefs,
+    missingSharedProviderGuardProofCapabilities,
+    unexpectedSharedProviderGuardProofCapabilities,
+    missingCategoryAxisRefs,
+    incompleteCategoryAxisRefs,
+    missingLocalStackScenarioIds,
+    unexpectedLocalStackScenarioIds,
+    missingProviderOwnedScenarioIds,
+    unexpectedProviderOwnedScenarioIds,
+    unknownScenarioProofMarkerRefs,
+    duplicateScenarioPathRefs,
+    duplicateOutcomeRefs,
+    duplicateScenarioMatrixContractRefs,
+    duplicateScenarioOperationRefs,
+    duplicateScenarioAxisRefs,
+    missingOperationEvidencePatternRefs,
+    unknownOperationEvidencePatternRefs,
+    duplicateOperationEvidencePatternRefs,
+    incompleteScenarioIds,
+    missingOutcomeIds,
+    incompleteOutcomeIds,
+    unclosedSemanticGapIds,
+    missingBackendCoreGapRemediationTargetIds,
+    unexpectedBackendCoreGapRemediationTargetIds,
+  ];
+
+  return {
+    ...resolvedContract,
+    status: blockers.every((entries) => entries.length === 0) ? 'proven' : 'incomplete',
+    semanticGapIds,
+    backendCoreGapStatus: semanticGaps.length === 0 ? 'gap-free' : 'known-gaps',
+    knownBackendCoreGapIds: semanticGapIds,
+    backendCoreGapRemediationTargetIds,
+    missingBackendCoreGapRemediationTargetIds,
+    unexpectedBackendCoreGapRemediationTargetIds,
+    ...operationManifestDuplicateRefs,
+    ...operationRouteResolutionRefs,
+    missingCapabilities,
+    unexpectedCapabilities,
+    missingCategories,
+    unexpectedCategories,
+    missingAxes,
+    unexpectedAxes,
+    missingLocalStackAxes,
+    incompleteLocalStackAxes,
+    outcomeSpecMismatchRefs,
+    missingProviderCapabilityGuardProviderRefs,
+    unexpectedProviderCapabilityGuardProviderRefs,
+    providerGuardTierMismatchRefs,
+    duplicateProviderCapabilityGuardProviderRefs,
+    sharedProviderGuardProofCapabilities,
+    missingSharedProviderGuardProofCapabilities,
+    unexpectedSharedProviderGuardProofCapabilities,
+    categoryAxisCoverage,
+    missingCategoryAxisRefs,
+    incompleteCategoryAxisRefs,
+    missingLocalStackScenarioIds,
+    unexpectedLocalStackScenarioIds,
+    missingProviderOwnedScenarioIds,
+    unexpectedProviderOwnedScenarioIds,
+    unknownScenarioProofMarkerRefs,
+    duplicateScenarioPathRefs,
+    duplicateOutcomeRefs,
+    duplicateScenarioMatrixContractRefs,
+    duplicateScenarioOperationRefs,
+    duplicateScenarioAxisRefs,
+    missingOperationEvidencePatternRefs,
+    unknownOperationEvidencePatternRefs,
+    duplicateOperationEvidencePatternRefs,
+    incompleteScenarioIds,
+    missingOutcomeIds,
+    incompleteOutcomeIds,
+    rawSemanticGapOutcomeIds,
+    rawSemanticGapOutcomeRefs,
+    unclosedSemanticGapIds,
+  };
+}
+
+function uniqueSorted(values: Iterable<string>): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function missing(required: readonly string[], actual: readonly string[]): string[] {
+  const actualSet = new Set(actual);
+  return uniqueSorted(required.filter((entry) => !actualSet.has(entry)));
+}
+
+function unexpected(actual: readonly string[], required: readonly string[]): string[] {
+  const requiredSet = new Set(required);
+  return uniqueSorted(actual.filter((entry) => !requiredSet.has(entry)));
+}
+
+function duplicates(values: readonly string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return uniqueSorted(
+    [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([value]) => value),
+  );
+}
+
+function duplicateKeys<T>(values: readonly T[], keyFor: (value: T) => string): string[] {
+  return duplicates(values.map(keyFor));
+}
+
+function sortedEqual(left: readonly string[], right: readonly string[]): boolean {
+  const sortedLeft = uniqueSorted(left);
+  const sortedRight = uniqueSorted(right);
+  return (
+    sortedLeft.length === sortedRight.length &&
+    sortedLeft.every((entry, index) => entry === sortedRight[index])
+  );
+}
+
+function normalizeProofLevel(level: string): ProofLevel {
+  return level in PROOF_ORDER ? level as ProofLevel : 'conformance';
+}
+
+function blockIncludesPattern(block: TestBlock, pattern: string): boolean {
+  const haystack = stripProofMetadata(block.source).toLowerCase();
+  return haystack.includes(pattern.toLowerCase());
+}
+
+function blockHasAssertedEvidencePattern(block: TestBlock, pattern: string): boolean {
+  const patternText = pattern.toLowerCase();
+  const source = stripCodeComments(block.source);
+  const sourceFile = ts.createSourceFile(
+    'local-stack-proof-block.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let found = false;
+  const visit = (node: ts.Node) => {
+    if (found) return;
+    if (ts.isExpressionStatement(node)) {
+      const text = node.getText(sourceFile);
+      if (
+        text.includes('expect(') &&
+        !text.includes('SCENARIO_PROOF:') &&
+        text.toLowerCase().includes(patternText)
+      ) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function blockHasScenarioEvidence(
+  block: TestBlock,
+  evidencePatterns: readonly string[],
+): boolean {
+  if (evidencePatterns.some((pattern) => blockIncludesPattern(block, pattern))) {
+    return true;
+  }
+
+  return blockHasGeneratedScenarioConformanceEvidence(block);
+}
+
+function blockHasGeneratedScenarioConformanceEvidence(block: TestBlock): boolean {
+  const normalized = stripScenarioProofMarkerAssertions(stripCodeComments(block.source)).replace(
+    /\s+/g,
+    ' ',
+  );
+  return (
+    hasExecutableConformanceEvidence(normalized) &&
+    hasExecutablePrimitiveAssertion(normalized)
+  );
+}
+
+function operationEvidencePatternsFor(
+  spec: LocalStackScenarioPathSpec,
+  operationId: string,
+): string[] {
+  const operationEvidence = spec.operationEvidencePatterns?.find(
+    (entry) => entry.operationId === operationId,
+  );
+  return operationEvidence?.evidencePatterns.length
+    ? [...operationEvidence.evidencePatterns]
+    : [];
+}
+
+function blockIncludesMarker(block: TestBlock, pattern: string): boolean {
+  return exactMarkerPattern(pattern).test(stripCodeComments(block.source));
+}
+
+function exactMarkerPattern(pattern: string): RegExp {
+  return new RegExp(`(?:^|[^A-Za-z0-9_-])${escapeRegex(pattern)}(?:$|[^A-Za-z0-9_-])`, 'i');
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function testSourceIncludesEvidencePattern(source: string, pattern: string): boolean {
+  return stripProofMetadata(source).toLowerCase().includes(pattern.toLowerCase());
+}
+
+function stripProofMetadata(source: string): string {
+  return stripTestTitles(stripScenarioProofMarkerAssertions(stripCodeComments(source)));
+}
+
+function stripTestTitles(source: string): string {
+  const sourceFile = ts.createSourceFile(
+    'local-stack-proof-block.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const ranges: Array<[number, number]> = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      isTestCallExpression(node.expression) &&
+      node.arguments.length > 0
+    ) {
+      const title = node.arguments[0];
+      if (ts.isStringLiteralLike(title) || ts.isNoSubstitutionTemplateLiteral(title)) {
+        ranges.push([title.getStart(sourceFile), title.getEnd()]);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  if (ranges.length === 0) return source;
+
+  let out = source;
+  for (const [start, end] of ranges.sort((left, right) => right[0] - left[0])) {
+    out = `${out.slice(0, start)}${' '.repeat(end - start)}${out.slice(end)}`;
+  }
+  return out;
+}
+
+function isTestCallExpression(expression: ts.Expression): boolean {
+  return ts.isIdentifier(expression) && (expression.text === 'it' || expression.text === 'test');
+}
+
+function testBlockKey(block: TestBlock): string {
+  return `${block.file}\0${block.name}`;
+}
+
+function resolveProviderGuardTestRef(
+  ref: ProviderGuardCoverage['guardTestRefs'][number],
+  blocks: TestBlock[],
+): TestBlock[] {
+  const [file, title] = ref.guardTest.split('#');
+  if (!file || !title) return [];
+  return blocks.filter(
+    (block) =>
+      block.file === file &&
+      block.name === title &&
+      PROOF_ORDER[classifyTestBlock(block.source).proofLevel] >= PROOF_ORDER.behavioral,
+  );
+}
+
+function operationHitBlockKey(hit: E2eOperationHit): string {
+  return `${hit.file}\0${hit.testName}`;
+}
+
+function stripCodeComments(source: string): string {
+  let out = '';
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    const next = source[i + 1];
+    if (quote) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      while (i < source.length && source[i] !== '\n') i++;
+      out += '\n';
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i++;
+      i++;
+      out += ' ';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function scenarioMissingReason(
+  spec: LocalStackScenarioPathSpec,
+  requiredProofLevel: ProofLevel,
+  proofLevel: ProofLevel,
+  missingOperationIds: string[],
+  underProvenOperationIds: string[],
+  missingProofOperationIds: string[],
+  duplicateScenarioOperationIds: string[],
+  missingOperationEvidencePatternIds: string[],
+  unknownOperationEvidencePatternIds: string[],
+  duplicateOperationEvidencePatternIds: string[],
+  missingOperationEvidenceIds: string[],
+  missingAssertedOperationEvidenceIds: string[],
+  missingAssertedEvidence = false,
+  missingScenarioProofMarker = false,
+  missingProviderGuardTestRefs: ProviderGuardCoverage['guardTestRefs'] = [],
+): string {
+  const reasons: string[] = [];
+  if (PROOF_ORDER[proofLevel] < PROOF_ORDER[requiredProofLevel]) {
+    reasons.push(
+      `missing ${requiredProofLevel} e2e evidence matching ${spec.evidencePatterns.join(' | ')}`,
+    );
+  }
+  if (missingOperationIds.length > 0) {
+    reasons.push(`missing generated operations: ${missingOperationIds.join(', ')}`);
+  }
+  if (underProvenOperationIds.length > 0) {
+    reasons.push(`under-proven generated operations: ${underProvenOperationIds.join(', ')}`);
+  }
+  if (missingProofOperationIds.length > 0) {
+    reasons.push(
+      `missing scenario proof blocks for generated operations: ${missingProofOperationIds.join(', ')}`,
+    );
+  }
+  if (duplicateScenarioOperationIds.length > 0) {
+    reasons.push(`duplicate generated scenario operations: ${duplicateScenarioOperationIds.join(', ')}`);
+  }
+  if (missingOperationEvidencePatternIds.length > 0) {
+    reasons.push(
+      `missing generated operation evidence metadata: ${missingOperationEvidencePatternIds.join(', ')}`,
+    );
+  }
+  if (unknownOperationEvidencePatternIds.length > 0) {
+    reasons.push(
+      `unknown generated operation evidence metadata: ${unknownOperationEvidencePatternIds.join(', ')}`,
+    );
+  }
+  if (duplicateOperationEvidencePatternIds.length > 0) {
+    reasons.push(
+      `duplicate generated operation evidence metadata: ${duplicateOperationEvidencePatternIds.join(', ')}`,
+    );
+  }
+  if (missingOperationEvidenceIds.length > 0) {
+    reasons.push(
+      `missing scenario evidence in proof blocks for generated operations: ${missingOperationEvidenceIds.join(', ')}`,
+    );
+  }
+  if (missingAssertedOperationEvidenceIds.length > 0) {
+    reasons.push(
+      `missing asserted scenario evidence for generated operations: ${missingAssertedOperationEvidenceIds.join(', ')}`,
+    );
+  }
+  if (missingAssertedEvidence) {
+    reasons.push('missing asserted scenario-level evidence patterns');
+  }
+  if (missingScenarioProofMarker) {
+    reasons.push(`missing executable scenario proof marker: SCENARIO_PROOF: ${spec.id}`);
+  }
+  if (missingProviderGuardTestRefs.length > 0) {
+    reasons.push(
+      `missing executable provider guard refs: ${missingProviderGuardTestRefs
+        .map((ref) => `${ref.provider}:${ref.guardTest}`)
+        .join(', ')}`,
+    );
+  }
+  return reasons.join('; ');
+}
+
+function countProofLevels(entries: OperationCoverage[]): Record<ProofLevel, number> {
+  const proofCounts: Record<ProofLevel, number> = {
+    none: 0,
+    smoke: 0,
+    'negative-path': 0,
+    behavioral: 0,
+    conformance: 0,
+  };
+  for (const entry of entries) {
+    proofCounts[entry.proofLevel]++;
+  }
+  return proofCounts;
+}
