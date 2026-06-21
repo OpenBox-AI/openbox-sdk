@@ -993,6 +993,12 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     proofFile: 'tests/e2e/core-governance.test.ts',
     evidencePattern: 'CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE fallback',
     executablePatterns: [
+      'conformanceCase.goalSignalEvent.workflow_id',
+      'conformanceCase.firstGovernedEvent.workflow_id',
+      "conformanceCase.goalSignalEvent.signal_name).toBe('openbox_goal')",
+      'conformanceCase.goalSignalEvent.activity_input',
+      'conformanceCase.goalSignalEvent.signal_args',
+      'expect(observedOrder).toEqual',
       'actionResponse.data.age_result',
       'age_result.trust_score.trust_tier',
       'expectRange(',

@@ -1487,6 +1487,16 @@ describe('Core Governance API', () => {
 
     expect(evaluateOperation.verb).toBe('post');
     expect(conformanceCase.goalSignalEvent.event_type).toBe(conformanceCase.expected.firstEventType);
+    expect(conformanceCase.goalSignalEvent.workflow_id).toBe(
+      conformanceCase.firstGovernedEvent.workflow_id,
+    );
+    expect(conformanceCase.goalSignalEvent.run_id).toBe(
+      conformanceCase.firstGovernedEvent.run_id,
+    );
+    expect(conformanceCase.goalSignalEvent.signal_name).toBe('openbox_goal');
+    expect(conformanceCase.goalSignalEvent.activity_input).toEqual(
+      conformanceCase.goalSignalEvent.signal_args,
+    );
     expect(conformanceCase.firstGovernedEvent.activity_type).toBe(
       conformanceCase.expected.firstGovernedSurface,
     );
@@ -1504,7 +1514,10 @@ describe('Core Governance API', () => {
 
     expect(signalResponse.status).toBe(200);
     expect(signalResponse.data).toHaveProperty('verdict');
-    expect(signalResponse.data.age_result).toHaveProperty('goal_alignment_checked');
+    expect(signalResponse.data.age_result).toMatchObject({
+      goal_alignment_checked: expect.any(Boolean),
+      fallback_used: conformanceCase.expected.fallbackUsed,
+    });
     expect(signalResponse.data.age_result).toHaveProperty(
       'fallback_used',
       conformanceCase.expected.fallbackUsed,
@@ -1540,6 +1553,10 @@ describe('Core Governance API', () => {
         'age_result.trust_score.trust_tier',
       );
     }
+    expect(observedOrder).toEqual([
+      conformanceCase.expected.firstEventType,
+      conformanceCase.expected.firstGovernedSurface,
+    ]);
     expect(observedOrder.indexOf(conformanceCase.expected.firstEventType)).toBeLessThan(
       observedOrder.indexOf(firstGovernedSurface),
     );

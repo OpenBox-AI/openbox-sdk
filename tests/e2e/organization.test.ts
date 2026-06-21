@@ -8,6 +8,9 @@ import {
 import { GOVERNANCE_BOUNDARY_DOMAINS } from '../helpers/boundary-conformance';
 import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
 
+const LOCAL_STACK_THROTTLE_WINDOW_MS = 65_000;
+const ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS = LOCAL_STACK_THROTTLE_WINDOW_MS * 3 + 60_000;
+
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
   expect(operation, operationId).toBeDefined();
@@ -61,6 +64,21 @@ async function withTemporaryApiKeyPermissions<T>(
         and deleted_at is null;
     `);
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function afterLocalStackThrottleWindow<T>(
+  body: T & { status: number; message?: string },
+  retry: () => Promise<T>,
+) {
+  if (body.status !== 429) return body;
+
+  expect(body.message).toContain('Too Many Requests');
+  await sleep(LOCAL_STACK_THROTTLE_WINDOW_MS);
+  return retry();
 }
 
 describe('Organization', () => {
@@ -380,22 +398,36 @@ describe('Organization', () => {
   it('GET /organization/{orgId}/dashboard/governance-feed returns 200 with feed data', async () => {
     // SCENARIO_PROOF: trace-logs
     expect('SCENARIO_PROOF: trace-logs').toContain('trace-logs');
-    const response = await client.get(`/organization/${orgId}/dashboard/governance-feed`);
-    const body = fullResponse(response);
+    const operation = backendOperation('OrganizationController_getGovernanceFeed');
+    expect(operation.verb).toBe('get');
+    let body = fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId })));
+    body = await afterLocalStackThrottleWindow(
+      body,
+      async () => fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId }))),
+    );
 
     expect(body.status).toBe(200);
     expect(body.data).toBeDefined();
     expect(Array.isArray(body.data) || Array.isArray(body.data.data)).toBe(true);
-  });
+  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
 
   it('GET /organization/{orgId}/dashboard/trust-drift-lanes returns lane series', async () => {
     // CONFORMANCE_PROOF: trust drift dashboard conformance verifies lane
     // series fields used by the governance dashboard.
-    const response = await client.get(`/organization/${orgId}/dashboard/trust-drift-lanes?limit=3`);
-    const body = fullResponse(response);
-    const lanes = Array.isArray(body.data) ? body.data : body.data.data;
+    const operation = backendOperation('OrganizationController_getTrustDriftLanes');
+    expect(operation.verb).toBe('get');
+    let body = fullResponse(await client.get(
+      `${operationPath(operation.path, { organizationId: orgId })}?limit=3`,
+    ));
+    body = await afterLocalStackThrottleWindow(
+      body,
+      async () => fullResponse(await client.get(
+        `${operationPath(operation.path, { organizationId: orgId })}?limit=3`,
+      )),
+    );
 
     expect(body.status).toBe(200);
+    const lanes = Array.isArray(body.data) ? body.data : body.data.data;
     expect(Array.isArray(lanes)).toBe(true);
     expect(lanes.length).toBeGreaterThan(0);
     expect(lanes[0]).toEqual(
@@ -410,7 +442,7 @@ describe('Organization', () => {
     );
     expect(lanes[0].series30d.length).toBeGreaterThan(0);
     expect(lanes[0].tiers30d.length).toBe(lanes[0].series30d.length);
-  });
+  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
 
   it('BOUNDARY_PROOF: organization query numeric/date boundaries are enforced', async () => {
     // BOUNDARY_PROOF: organization query numeric/date boundaries cover
@@ -420,21 +452,35 @@ describe('Organization', () => {
     const driftOperation = backendOperation('OrganizationController_getTrustDriftLanes');
     const auditOperation = backendOperation('OrganizationController_getAuditLogs');
     expect([feedOperation.verb, driftOperation.verb, auditOperation.verb]).toEqual(['get', 'get', 'get']);
-    const feedOne = await client.get(`${operationPath(feedOperation.path, { organizationId: orgId })}?limit=1`);
-    const feedOneBody = fullResponse(feedOne);
-    const feedRows = Array.isArray(feedOneBody.data) ? feedOneBody.data : feedOneBody.data.data;
+    let feedOneBody = fullResponse(await client.get(
+      `${operationPath(feedOperation.path, { organizationId: orgId })}?limit=1`,
+    ));
+    feedOneBody = await afterLocalStackThrottleWindow(
+      feedOneBody,
+      async () => fullResponse(await client.get(
+        `${operationPath(feedOperation.path, { organizationId: orgId })}?limit=1`,
+      )),
+    );
 
     expect(feedOneBody.status).toBe(200);
+    const feedRows = Array.isArray(feedOneBody.data) ? feedOneBody.data : feedOneBody.data.data;
     expect(feedRows.length).toBeLessThanOrEqual(1);
 
     const feedZero = await client.get(`${operationPath(feedOperation.path, { organizationId: orgId })}?limit=0`);
     expect(feedZero.data.status).toBe(422);
 
-    const driftOne = await client.get(`${operationPath(driftOperation.path, { organizationId: orgId })}?limit=1`);
-    const driftOneBody = fullResponse(driftOne);
-    const driftRows = Array.isArray(driftOneBody.data) ? driftOneBody.data : driftOneBody.data.data;
+    let driftOneBody = fullResponse(await client.get(
+      `${operationPath(driftOperation.path, { organizationId: orgId })}?limit=1`,
+    ));
+    driftOneBody = await afterLocalStackThrottleWindow(
+      driftOneBody,
+      async () => fullResponse(await client.get(
+        `${operationPath(driftOperation.path, { organizationId: orgId })}?limit=1`,
+      )),
+    );
 
     expect(driftOneBody.status).toBe(200);
+    const driftRows = Array.isArray(driftOneBody.data) ? driftOneBody.data : driftOneBody.data.data;
     expect(driftRows.length).toBeLessThanOrEqual(1);
 
     const driftZero = await client.get(`${operationPath(driftOperation.path, { organizationId: orgId })}?limit=0`);
@@ -453,7 +499,7 @@ describe('Organization', () => {
     );
 
     expect(invalidAuditDates.data.status).toBe(500);
-  });
+  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
 
   it('GET /organization/{orgId}/dashboard/governance-slo returns SLO counters', async () => {
     // CONFORMANCE_PROOF: governance SLO dashboard conformance verifies
