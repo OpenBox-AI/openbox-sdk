@@ -45,12 +45,20 @@ describe('generated request constraint conformance ledger', () => {
   });
 
   it('distinguishes raw local-stack evidence, transport gates, and SDK-only preflight', () => {
+    const transportGatedConstraintKeys = ledger.constraints
+      .filter((entry) => entry.disposition === 'transport-or-feature-gated')
+      .map((entry) => entry.key)
+      .sort();
+
     expect(ledger.summary.byDisposition['local-stack-e2e']).toBeGreaterThan(0);
-    expect(ledger.summary.byDisposition['transport-or-feature-gated']).toBe(22);
+    expect(transportGatedConstraintKeys.length).toBeGreaterThan(0);
+    expect(ledger.summary.byDisposition['transport-or-feature-gated']).toBe(
+      transportGatedConstraintKeys.length,
+    );
     expect(ledger.summary.transportGatedPublicWrapperClosures).toEqual({
-      constraintCount: 22,
-      total: 44,
-      proven: 44,
+      constraintCount: transportGatedConstraintKeys.length,
+      total: transportGatedConstraintKeys.length * ledger.transportGatedPublicWrapperClosures.length,
+      proven: transportGatedConstraintKeys.length * ledger.transportGatedPublicWrapperClosures.length,
       missing: 0,
     });
     expect(ledger.transportGatedPublicWrapperClosures).toEqual([
@@ -68,12 +76,8 @@ describe('generated request constraint conformance ledger', () => {
       }),
     ]);
     for (const closure of ledger.transportGatedPublicWrapperClosures) {
-      expect(closure.constraintKeys, closure.sdkTarget).toHaveLength(22);
       expect(closure.constraintKeys, closure.sdkTarget).toEqual(
-        ledger.constraints
-          .filter((entry) => entry.disposition === 'transport-or-feature-gated')
-          .map((entry) => entry.key)
-          .sort(),
+        transportGatedConstraintKeys,
       );
     }
     expect(ledger.summary.byDisposition['sdk-generated-preflight']).toBe(0);

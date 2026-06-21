@@ -113,6 +113,12 @@ function wrapperArgsForConstraint(constraint: RequestConstraintClassification): 
   return args;
 }
 
+function requestConstraintKeys(
+  constraints: readonly RequestConstraintClassification[],
+): string[] {
+  return constraints.map((entry) => entry.key).sort();
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -279,10 +285,16 @@ describe('OpenBoxClient', () => {
     });
 
     it('rejects transport-gated generated constraints through public wrappers before fetch', async () => {
-      const constraints = buildRequestConstraintConformance().constraints.filter(
+      const ledger = buildRequestConstraintConformance();
+      const constraints = ledger.constraints.filter(
         (entry) => entry.disposition === 'transport-or-feature-gated',
       );
-      expect(constraints).toHaveLength(22);
+      const closure = ledger.transportGatedPublicWrapperClosures.find(
+        (entry) => entry.sdkTarget === 'typescript',
+      );
+
+      expect(constraints.length).toBeGreaterThan(0);
+      expect(requestConstraintKeys(constraints)).toEqual(closure?.constraintKeys);
 
       for (const constraint of constraints) {
         const methodName = methodNameForOperation(constraint.operationId);

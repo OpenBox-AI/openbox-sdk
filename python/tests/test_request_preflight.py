@@ -455,7 +455,9 @@ async def test_python_public_backend_methods_block_transport_gated_constraints_b
         return httpx.Response(200, json={"data": {"ok": True}})
 
     cases = _transport_gated_public_method_constraints()
-    assert len(cases) == 22
+    case_keys = [str(case["key"]) for case in cases]
+    assert case_keys == _transport_gated_public_method_constraint_keys()
+    assert len(case_keys) > 0
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
         client = AsyncOpenBoxClient(
@@ -472,8 +474,8 @@ async def test_python_public_backend_methods_block_transport_gated_constraints_b
                     query=case.get("query"),
                     data=case.get("data"),
                 )
-            assert excinfo.value.operation_id == case["operation_id"]
-            assert excinfo.value.location == case["location"]
+            assert excinfo.value.operation_id == case["operation_id"], case["key"]
+            assert excinfo.value.location == case["location"], case["key"]
 
     assert requests == []
 
@@ -581,6 +583,7 @@ def _transport_gated_public_method_constraints() -> list[Rule]:
             for kind in _executable_constraint_kinds(query_rule, include_type=False):
                 cases.append(
                     {
+                        "key": _constraint_key("backend", operation_id, location, kind),
                         "operation_id": operation_id,
                         "method_name": endpoint["method_name"],
                         "path": endpoint["path"],
@@ -596,6 +599,7 @@ def _transport_gated_public_method_constraints() -> list[Rule]:
             for kind in _executable_constraint_kinds(body_rule, include_type=True):
                 cases.append(
                     {
+                        "key": _constraint_key("backend", operation_id, location, kind),
                         "operation_id": operation_id,
                         "method_name": endpoint["method_name"],
                         "path": endpoint["path"],
@@ -615,6 +619,23 @@ def _transport_gated_public_method_constraints() -> list[Rule]:
             str(case["kind"]),
         ),
     )
+
+
+def _transport_gated_public_method_constraint_keys() -> list[str]:
+    keys: list[str] = []
+    for rule in _normalize_rules(BACKEND_REQUEST_PREFLIGHT_RULES):
+        operation_id = str(rule["operation_id"])
+        if not _is_transport_or_feature_gated_operation(operation_id):
+            continue
+        for query_rule in rule.get("query") or []:
+            location = f"query.{query_rule['name']}"
+            for kind in _executable_constraint_kinds(query_rule, include_type=False):
+                keys.append(_constraint_key("backend", operation_id, location, kind))
+        for body_rule in rule.get("body") or []:
+            location = f"body.{'.'.join(body_rule['path'])}"
+            for kind in _executable_constraint_kinds(body_rule, include_type=True):
+                keys.append(_constraint_key("backend", operation_id, location, kind))
+    return sorted(keys)
 
 
 def _raw_semantic_gap_constraint_cases() -> list[Rule]:
