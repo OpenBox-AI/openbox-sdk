@@ -11,6 +11,7 @@ import { makeCreateAgentDto, makeUpdateAivssConfigDto } from '../helpers/fixture
 
 const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && hasOrgId();
 const describeOrSkip = CAN_RUN ? describe : describe.skip;
+const AIVSS_BOUNDARY_PACE_MS = 750;
 
 function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
@@ -29,6 +30,10 @@ function operationPath(path: string, params: Record<string, string>) {
     expect(params[key], key).toBeDefined();
     return encodeURIComponent(params[key]);
   });
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describeOrSkip('AIVSS Assessment', () => {
@@ -99,6 +104,7 @@ describeOrSkip('AIVSS Assessment', () => {
     expect(cases).toHaveLength(58);
 
     for (const testCase of cases) {
+      await sleep(AIVSS_BOUNDARY_PACE_MS);
       const response = await client.post(operation.path, testCase.config);
       const body = fullResponse(response);
 
@@ -110,7 +116,7 @@ describeOrSkip('AIVSS Assessment', () => {
         trust_tier: expect.any(Number),
       });
     }
-  });
+  }, 90_000);
 
   it('NEGATIVE_BOUNDARY_PROOF: AIVSS numeric rubric fields reject outside and fractional values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: the same TypeSpec-derived rubric fields reject
@@ -120,12 +126,13 @@ describeOrSkip('AIVSS Assessment', () => {
     expect(cases).toHaveLength(42);
 
     for (const testCase of cases) {
+      await sleep(AIVSS_BOUNDARY_PACE_MS);
       const response = await client.post('/agent/aivss', testCase.config);
       const body = fullResponse(response);
 
       expect(body.status, testCase.id).toBe(422);
     }
-  });
+  }, 75_000);
 
   it('PUT /agent/{agentId}/aivss updates AIVSS config', async () => {
     // SCENARIO_PROOF: trust-aivss-ledger

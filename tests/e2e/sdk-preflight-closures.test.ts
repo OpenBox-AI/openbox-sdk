@@ -1,10 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OpenBoxClient } from '../../ts/src/client';
 import {
+  BACKEND_ENDPOINT_MANIFEST,
+  type BackendEndpointManifestEntry,
+} from '../../ts/src/client/generated/endpoint-manifest.js';
+import {
   REQUEST_PREFLIGHT_RULES as BACKEND_REQUEST_PREFLIGHT_RULES,
 } from '../../ts/src/client/generated/request-preflight.js';
 import { OpenBoxCoreClient } from '../../ts/src/core-client';
+import {
+  CORE_ENDPOINT_MANIFEST,
+  type CoreEndpointManifestEntry,
+} from '../../ts/src/core-client/generated/endpoint-manifest.js';
 import { invalidGovernanceSpecMember } from '../helpers/governance-spec-domains';
+import {
+  buildRequestConstraintConformance,
+  type RequestConstraintClassification,
+} from '../helpers/request-constraint-conformance';
 
 function backendClient(): OpenBoxClient {
   expect(process.env.OPENBOX_API_URL).toBeTruthy();
@@ -39,6 +51,85 @@ function baseGovernancePayload() {
     activity_id: 'sdk-preflight-closure-activity',
     activity_type: 'tool_call',
   } as const;
+}
+
+type EndpointEntry = BackendEndpointManifestEntry | CoreEndpointManifestEntry;
+
+function rawSemanticGapConstraints(): RequestConstraintClassification[] {
+  const ledger = buildRequestConstraintConformance();
+  const constraints = ledger.constraints.filter(
+    (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
+  );
+
+  expect(ledger.summary.missingRawSemanticGapClosures).toEqual([]);
+  expect([...new Set(constraints.flatMap((entry) => entry.semanticGapIds))].sort()).toEqual(
+    ledger.summary.knownRawSemanticGaps,
+  );
+  expect(constraints.length).toBeGreaterThan(0);
+  return constraints;
+}
+
+function operationForConstraint(constraint: RequestConstraintClassification): EndpointEntry {
+  const manifest =
+    constraint.service === 'backend'
+      ? BACKEND_ENDPOINT_MANIFEST
+      : CORE_ENDPOINT_MANIFEST;
+  const operation = manifest.find((entry) => entry.operationId === constraint.operationId);
+  expect(operation, constraint.key).toBeDefined();
+  return operation!;
+}
+
+function concretePath(path: string): string {
+  return path.replace(/\{([^}]+)\}/g, (_, key) => encodeURIComponent(`${key}-1`));
+}
+
+function invalidValueForConstraint(constraint: RequestConstraintClassification): unknown {
+  switch (constraint.kind) {
+    case 'enum':
+      return `__openbox_invalid_${constraint.location.replace(/[^a-z0-9]+/gi, '_')}__`;
+    case 'format':
+      return constraint.value === 'date-time' ? 'not-a-date-time' : 'not-a-number';
+    case 'integer':
+      return 0.5;
+    case 'maximum':
+      return Number(constraint.value) + 1;
+    case 'maxItems':
+      return Array.from({ length: Number(constraint.value) + 1 }, (_, index) => `item-${index}`);
+    case 'maxLength':
+      return 'x'.repeat(Number(constraint.value) + 1);
+    case 'minimum':
+      return Number(constraint.value) - 1;
+    case 'minItems':
+      return Array.from({ length: Math.max(0, Number(constraint.value) - 1) }, () => 'item');
+    case 'type':
+      return constraint.value === 'string' ? 42 : 'not-a-number';
+  }
+}
+
+function bodyWithLocation(location: string, value: unknown): Record<string, unknown> {
+  const segments = location.replace(/^body\./, '').split('.');
+  let current: unknown = value;
+  for (const segment of [...segments].reverse()) {
+    current = segment === '*' ? [current] : { [segment]: current };
+  }
+  return current as Record<string, unknown>;
+}
+
+function requestOptionsForConstraint(constraint: RequestConstraintClassification): {
+  params?: Record<string, unknown>;
+  data?: unknown;
+} {
+  const value = invalidValueForConstraint(constraint);
+  if (constraint.location.startsWith('query.')) {
+    return {
+      params: {
+        [constraint.location.replace(/^query\./, '')]: value,
+      },
+    };
+  }
+  return {
+    data: bodyWithLocation(constraint.location, value),
+  };
 }
 
 describe('SDK semantic gap preflight closures', () => {
@@ -159,6 +250,30 @@ describe('SDK semantic gap preflight closures', () => {
       operationId: 'evaluateGovernance',
       location: 'body.cost_usd',
     });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('E2E_SDK_GAP_CLOSURE: every generated raw semantic gap constraint rejects before transport', async () => {
+    const backend = backendClient();
+    const core = coreClient();
+
+    for (const constraint of rawSemanticGapConstraints()) {
+      const operation = operationForConstraint(constraint);
+      const client = constraint.service === 'backend' ? backend : core;
+      await expect(
+        client.requestOperation(
+          operation.verb,
+          concretePath(operation.path),
+          requestOptionsForConstraint(constraint),
+        ),
+        constraint.key,
+      ).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: constraint.operationId,
+        location: constraint.location,
+      });
+    }
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
