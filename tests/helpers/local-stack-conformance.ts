@@ -49,6 +49,14 @@ export interface SmokeOperationHit {
   call: string;
 }
 
+export interface UnresolvedMethodHit {
+  file: string;
+  testName: string;
+  call: string;
+  methodName: string;
+  serviceHint?: 'backend' | 'core';
+}
+
 export interface OperationCoverage {
   operation: SpecOperation;
   proofLevel: ProofLevel;
@@ -384,6 +392,7 @@ export interface LocalStackConformanceMatrix {
   providerGuards: ProviderGuardCoverage[];
   exceptions: ConformanceException[];
   smokeHits: SmokeOperationHit[];
+  unresolvedMethodHits: UnresolvedMethodHit[];
   unknownHits: Array<{
     file: string;
     testName: string;
@@ -394,6 +403,7 @@ export interface LocalStackConformanceMatrix {
     operationsWithE2eHits: number;
     operationsWithBehavioralOrBetterHits: number;
     smokeHitCount: number;
+    unresolvedMethodHitCount: number;
     smokeOnlyOperations: number;
     operationsWithoutE2eHits: number;
     knownSemanticGaps: number;
@@ -739,6 +749,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
   const allBlocks = readAllTestBlocks(repoRoot);
   const hitsByOperationId = new Map<string, E2eOperationHit[]>();
   const unknownHits: LocalStackConformanceMatrix['unknownHits'] = [];
+  const unresolvedMethodHits: LocalStackConformanceMatrix['unresolvedMethodHits'] = [];
 
   for (const block of blocks) {
     const proof = classifyTestBlock(block.source);
@@ -752,6 +763,15 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
             : matcher.match(call);
 
       if (!operation) {
+        if (call.methodName) {
+          unresolvedMethodHits.push({
+            file: block.file,
+            testName: block.name,
+            call: call.call,
+            methodName: call.methodName,
+            serviceHint: call.serviceHint,
+          });
+        }
         if (
           (call.operationId && call.operationId !== 'NoSuchOperation') ||
           (call.verb && call.rawPath)
@@ -864,6 +884,11 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     providerGuards,
     exceptions,
     smokeHits,
+    unresolvedMethodHits: unresolvedMethodHits.sort((left, right) =>
+      `${left.file}\0${left.testName}\0${left.call}`.localeCompare(
+        `${right.file}\0${right.testName}\0${right.call}`,
+      ),
+    ),
     unknownHits,
     summary: {
       totalOperations: coverage.length,
@@ -872,6 +897,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
         (entry) => PROOF_ORDER[entry.proofLevel] >= PROOF_ORDER.behavioral,
       ).length,
       smokeHitCount: smokeHits.length,
+      unresolvedMethodHitCount: unresolvedMethodHits.length,
       smokeOnlyOperations: coverage.filter((entry) => entry.proofLevel === 'smoke').length,
       operationsWithoutE2eHits: coverage.filter((entry) => entry.proofLevel === 'none').length,
       knownSemanticGaps: semanticGaps.length,

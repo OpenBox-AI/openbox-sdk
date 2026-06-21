@@ -124,6 +124,8 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.summary.operationsWithoutE2eHits).toBe(0);
     expect(matrix.summary.smokeHitCount).toBe(smokeHits.length);
     expect(matrix.summary.smokeHitCount).toBe(0);
+    expect(matrix.summary.unresolvedMethodHitCount).toBe(matrix.unresolvedMethodHits.length);
+    expect(matrix.summary.unresolvedMethodHitCount).toBe(0);
     expect(matrix.summary.smokeOnlyOperations).toBe(0);
     expect(matrix.summary.knownSemanticGaps).toBe(matrix.semanticGaps.length);
     expect(matrix.summary.sdkSemanticGapClosures).toEqual({
@@ -140,6 +142,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.operationRouteResolutionMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.ambiguousOperationRouteTieRefs).toEqual([]);
     expect(matrix.smokeHits).toEqual([]);
+    expect(matrix.unresolvedMethodHits).toEqual([]);
     expect(matrix.unknownHits).toEqual([]);
   });
 
