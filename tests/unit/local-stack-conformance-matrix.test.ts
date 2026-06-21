@@ -123,6 +123,11 @@ describe('local-stack conformance matrix', () => {
       .filter((entry) => entry.status === 'incomplete')
       .map((entry) => entry.id)
       .sort();
+    const markerOnlyProofBlockRefs = matrix.scenarioPaths
+      .flatMap((entry) =>
+        entry.markerOnlyProofBlockKeys.map((blockKey) => `${entry.id}:${blockKey}`),
+      )
+      .sort();
 
     expect(matrix.summary.totalOperations).toBe(matrix.operations.length);
     expect(matrix.summary.operationsWithE2eHits).toBe(operationsWithE2eHits.length);
@@ -149,6 +154,71 @@ describe('local-stack conformance matrix', () => {
       'backend-tracing-observability',
       'core-governance-verdicts',
     ]);
+    expect(matrix.summary.scenarioPaths).toEqual({
+      total: matrix.scenarioPaths.length,
+      localStackRequired: matrix.scenarioPaths.filter((entry) => entry.localStackRequired).length,
+      localStackProven: matrix.scenarioPaths.filter(
+        (entry) => entry.localStackRequired && entry.status === 'proven',
+      ).length,
+      providerOwned: matrix.scenarioPaths.filter((entry) => !entry.localStackRequired).length,
+      providerOwnedProven: matrix.scenarioPaths.filter(
+        (entry) => !entry.localStackRequired && entry.status === 'proven',
+      ).length,
+      incomplete: matrix.scenarioPaths.filter((entry) => entry.status !== 'proven').length,
+      incompleteScenarioIds: matrix.scenarioPaths
+        .filter((entry) => entry.status !== 'proven')
+        .map((entry) => entry.id)
+        .sort(),
+      missingScenarioProofMarkerIds: matrix.scenarioPaths
+        .filter((entry) => entry.missingScenarioProofMarker)
+        .map((entry) => entry.id)
+        .sort(),
+      markerOnlyProofBlockRefs,
+      missingAssertedEvidenceScenarioIds: matrix.scenarioPaths
+        .filter((entry) => entry.missingAssertedEvidence)
+        .map((entry) => entry.id)
+        .sort(),
+    });
+    expect(matrix.summary.scenarioPaths).toEqual({
+      total: 47,
+      localStackRequired: 44,
+      localStackProven: 44,
+      providerOwned: 3,
+      providerOwnedProven: 3,
+      incomplete: 0,
+      incompleteScenarioIds: [],
+      missingScenarioProofMarkerIds: [],
+      markerOnlyProofBlockRefs: [],
+      missingAssertedEvidenceScenarioIds: [],
+    });
+    expect(matrix.summary.localStackAxes).toEqual({
+      requiredAxes: matrix.scenarioMatrix.requiredLocalStackAxes,
+      categoryCount: matrix.scenarioMatrix.categoryAxisCoverage.length,
+      missingAxes: matrix.scenarioMatrix.missingLocalStackAxes,
+      incompleteAxes: matrix.scenarioMatrix.incompleteLocalStackAxes,
+      missingCategoryAxisRefs: matrix.scenarioMatrix.missingCategoryAxisRefs,
+      incompleteCategoryAxisRefs: matrix.scenarioMatrix.incompleteCategoryAxisRefs,
+    });
+    expect(matrix.summary.localStackAxes).toEqual({
+      requiredAxes: [
+        'cost',
+        'dbquery',
+        'failure',
+        'goal',
+        'guardrails',
+        'happy',
+        'matrix',
+        'opa',
+        'order',
+        'tool',
+        'usage',
+      ],
+      categoryCount: 8,
+      missingAxes: [],
+      incompleteAxes: [],
+      missingCategoryAxisRefs: [],
+      incompleteCategoryAxisRefs: [],
+    });
     expect(matrix.summary.providerExceptions).toEqual({
       total: matrix.exceptions.length,
       observeOnly: matrix.exceptions.filter((entry) => entry.tier === 'observe-only').length,

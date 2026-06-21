@@ -451,6 +451,26 @@ export interface LocalStackConformanceMatrix {
       incomplete: number;
       incompleteOutcomeIds: string[];
     };
+    scenarioPaths: {
+      total: number;
+      localStackRequired: number;
+      localStackProven: number;
+      providerOwned: number;
+      providerOwnedProven: number;
+      incomplete: number;
+      incompleteScenarioIds: string[];
+      missingScenarioProofMarkerIds: string[];
+      markerOnlyProofBlockRefs: string[];
+      missingAssertedEvidenceScenarioIds: string[];
+    };
+    localStackAxes: {
+      requiredAxes: string[];
+      categoryCount: number;
+      missingAxes: string[];
+      incompleteAxes: string[];
+      missingCategoryAxisRefs: string[];
+      incompleteCategoryAxisRefs: string[];
+    };
     providerExceptions: {
       total: number;
       observeOnly: number;
@@ -1004,6 +1024,43 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
           .filter((entry) => entry.status === 'incomplete')
           .map((entry) => entry.id)
           .sort((left, right) => left.localeCompare(right)),
+      },
+      scenarioPaths: {
+        total: scenarioPaths.length,
+        localStackRequired: scenarioPaths.filter((entry) => entry.localStackRequired).length,
+        localStackProven: scenarioPaths.filter(
+          (entry) => entry.localStackRequired && entry.status === 'proven',
+        ).length,
+        providerOwned: scenarioPaths.filter((entry) => !entry.localStackRequired).length,
+        providerOwnedProven: scenarioPaths.filter(
+          (entry) => !entry.localStackRequired && entry.status === 'proven',
+        ).length,
+        incomplete: scenarioPaths.filter((entry) => entry.status !== 'proven').length,
+        incompleteScenarioIds: scenarioPaths
+          .filter((entry) => entry.status !== 'proven')
+          .map((entry) => entry.id)
+          .sort((left, right) => left.localeCompare(right)),
+        missingScenarioProofMarkerIds: scenarioPaths
+          .filter((entry) => entry.missingScenarioProofMarker)
+          .map((entry) => entry.id)
+          .sort((left, right) => left.localeCompare(right)),
+        markerOnlyProofBlockRefs: uniqueSorted(
+          scenarioPaths.flatMap((entry) =>
+            entry.markerOnlyProofBlockKeys.map((blockKey) => `${entry.id}:${blockKey}`),
+          ),
+        ),
+        missingAssertedEvidenceScenarioIds: scenarioPaths
+          .filter((entry) => entry.missingAssertedEvidence)
+          .map((entry) => entry.id)
+          .sort((left, right) => left.localeCompare(right)),
+      },
+      localStackAxes: {
+        requiredAxes: [...scenarioMatrix.requiredLocalStackAxes],
+        categoryCount: scenarioMatrix.categoryAxisCoverage.length,
+        missingAxes: [...scenarioMatrix.missingLocalStackAxes],
+        incompleteAxes: [...scenarioMatrix.incompleteLocalStackAxes],
+        missingCategoryAxisRefs: [...scenarioMatrix.missingCategoryAxisRefs],
+        incompleteCategoryAxisRefs: [...scenarioMatrix.incompleteCategoryAxisRefs],
       },
       providerExceptions: {
         total: exceptions.length,
