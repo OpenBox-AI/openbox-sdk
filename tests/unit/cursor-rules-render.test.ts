@@ -64,9 +64,13 @@ describe('renderRulesProjection', () => {
 
   it('EXHAUSTIVE_SPEC_PROOF: Cursor rules renderer covers every spec rule trigger, severity, and source', () => {
     const rules: ProjectedRule[] = [];
+    const expectedTriples = new Set<string>();
+    const expectedFiles: string[] = [];
     for (const trigger of GOVERNANCE_SPEC_DOMAINS.ruleTriggers) {
       for (const severity of GOVERNANCE_SPEC_DOMAINS.ruleSeverities) {
         for (const source of GOVERNANCE_SPEC_DOMAINS.projectedRuleSources) {
+          expectedTriples.add(`${source}:${trigger}:${severity}`);
+          expectedFiles.push(`openbox-${source}-${trigger}-${severity}.mdc`);
           rules.push(rule({
             id: `${source}/${trigger}-${severity}`,
             source: source as ProjectedRule['source'],
@@ -86,12 +90,18 @@ describe('renderRulesProjection', () => {
         GOVERNANCE_SPEC_DOMAINS.ruleSeverities.length *
         GOVERNANCE_SPEC_DOMAINS.projectedRuleSources.length,
     );
+    expect([...written].sort()).toEqual([...expectedFiles].sort());
+    expect(rules.map((entry) => `${entry.source}:${entry.trigger}:${entry.severity}`).sort()).toEqual(
+      [...expectedTriples].sort(),
+    );
 
+    const observedTriples = new Set<string>();
     for (const trigger of GOVERNANCE_SPEC_DOMAINS.ruleTriggers) {
       for (const severity of GOVERNANCE_SPEC_DOMAINS.ruleSeverities) {
         for (const source of GOVERNANCE_SPEC_DOMAINS.projectedRuleSources) {
           const file = `openbox-${source}-${trigger}-${severity}.mdc`;
           const content = fs.readFileSync(path.join(rulesDir, file), 'utf-8');
+          observedTriples.add(`${source}:${trigger}:${severity}`);
           expect(content).toContain(`# openbox.source: ${source}`);
           expect(content).toContain(`# openbox.severity: ${severity}`);
           expect(content).toContain(`# openbox.id: ${source}/${trigger}-${severity}`);
@@ -117,6 +127,8 @@ describe('renderRulesProjection', () => {
         }
       }
     }
+
+    expect([...observedTriples].sort()).toEqual([...expectedTriples].sort());
   });
 
   it('reruns are idempotent; written list is empty when nothing changed', () => {
