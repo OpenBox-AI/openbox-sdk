@@ -1282,6 +1282,10 @@ describe('local-stack conformance matrix', () => {
           `${scenarioPath.id}:${operationProof.operationId}`,
         ).toEqual([]);
         expect(
+          operationProof.generatedConformanceBlockKeys.length,
+          `${scenarioPath.id}:${operationProof.operationId}`,
+        ).toBeGreaterThan(0);
+        expect(
           operationProof.generatedConformanceBlockKeys.every((blockKey) =>
             operationProof.proofBlockKeys.includes(blockKey),
           ),
@@ -2003,6 +2007,7 @@ describe('local-stack conformance matrix', () => {
       missingOperationEvidencePatternRefs: [],
       unknownOperationEvidencePatternRefs: [],
       duplicateOperationEvidencePatternRefs: [],
+      missingGeneratedConformanceOperationRefs: [],
       incompleteScenarioIds: [],
       missingOutcomeIds: [],
       incompleteOutcomeIds: [],

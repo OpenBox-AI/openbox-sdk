@@ -402,6 +402,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   missingOperationEvidencePatternRefs: string[];
   unknownOperationEvidencePatternRefs: string[];
   duplicateOperationEvidencePatternRefs: string[];
+  missingGeneratedConformanceOperationRefs: string[];
   incompleteScenarioIds: string[];
   missingOutcomeIds: string[];
   incompleteOutcomeIds: string[];
@@ -3730,6 +3731,15 @@ function summarizeScenarioMatrixContract(
       entry.duplicateOperationEvidencePatternIds.map((operationId) => `${entry.id}:${operationId}`),
     ),
   );
+  const missingGeneratedConformanceOperationRefs = uniqueSorted(
+    scenarioPaths
+      .filter((entry) => entry.localStackRequired)
+      .flatMap((entry) =>
+        entry.operationProofs
+          .filter((operationProof) => operationProof.generatedConformanceBlockKeys.length === 0)
+          .map((operationProof) => `${entry.id}:${operationProof.operationId}`),
+      ),
+  );
   const blockers = [
     operationManifestDuplicateRefs.duplicateOperationIdRefs,
     operationManifestDuplicateRefs.duplicateServiceOperationIdRefs,
@@ -3789,6 +3799,7 @@ function summarizeScenarioMatrixContract(
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
+    missingGeneratedConformanceOperationRefs,
     incompleteScenarioIds,
     missingOutcomeIds,
     incompleteOutcomeIds,
@@ -3879,6 +3890,7 @@ function summarizeScenarioMatrixContract(
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
+    missingGeneratedConformanceOperationRefs,
     incompleteScenarioIds,
     missingOutcomeIds,
     incompleteOutcomeIds,
