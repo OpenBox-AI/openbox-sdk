@@ -35,7 +35,7 @@ function extractAssistantContentLikeCore(spans: SpanData[]): string {
 }
 
 describe('LLM completion spans', () => {
-  test('normalizes token, cache, web-search, and cost usage through the shared facade', () => {
+  test('CONFORMANCE: normalizes token, cache, web-search, and cost usage through the shared facade', () => {
     expect(USAGE_NORMALIZATION_SURFACE.minimumValue).toBe(0);
     expect(USAGE_NORMALIZATION_SURFACE.tokenValuesRequireIntegers).toBe(true);
     expect(
@@ -109,7 +109,7 @@ describe('LLM completion spans', () => {
     });
   });
 
-  test('normalizes nested provider usage containers and dotted aliases', () => {
+  test('CONFORMANCE: normalizes nested provider usage containers and dotted aliases', () => {
     expect(USAGE_NORMALIZATION_SURFACE.providerUsageContainers).toContain(
       'response_metadata.token_usage',
     );

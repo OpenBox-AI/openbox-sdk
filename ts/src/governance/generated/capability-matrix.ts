@@ -4834,7 +4834,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "usage"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": false,
     "operationIds": [],
     "evidencePatterns": [
@@ -4854,7 +4854,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "cost",
       "usage"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": false,
     "operationIds": [],
     "evidencePatterns": [
@@ -4873,7 +4873,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "cost",
       "usage"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": false,
     "operationIds": [],
     "evidencePatterns": [

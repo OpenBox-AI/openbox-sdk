@@ -4407,7 +4407,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "usage"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": False,
     "operationIds": [],
     "evidencePatterns": [
@@ -4427,7 +4427,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "cost",
       "usage"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": False,
     "operationIds": [],
     "evidencePatterns": [
@@ -4446,7 +4446,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "cost",
       "usage"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": False,
     "operationIds": [],
     "evidencePatterns": [

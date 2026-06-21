@@ -4406,7 +4406,7 @@
       "axes": [
         "usage"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": false,
       "operationIds": [],
       "evidencePatterns": [
@@ -4426,7 +4426,7 @@
         "cost",
         "usage"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": false,
       "operationIds": [],
       "evidencePatterns": [
@@ -4445,7 +4445,7 @@
         "cost",
         "usage"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": false,
       "operationIds": [],
       "evidencePatterns": [

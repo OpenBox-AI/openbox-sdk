@@ -1658,7 +1658,7 @@ function hasExecutablePrimitiveAssertion(normalizedSource: string): boolean {
 }
 
 function hasExecutableConformanceEvidence(normalizedSource: string): boolean {
-  return /\bmake[A-Za-z0-9]+ConformanceCases?\(|\bGOVERNANCE_(?:SPEC|BOUNDARY)_DOMAINS\.|\brunLocalStackSql\(|\b(?:backendOperation|coreOperation)\(|\boperationPath\(|\bensure[A-Za-z0-9]+Ledger\b/.test(normalizedSource);
+  return /\bmake[A-Za-z0-9]+ConformanceCases?\(|\bGOVERNANCE_(?:SPEC|BOUNDARY)_DOMAINS\.|\bUSAGE_NORMALIZATION_SURFACE\.|\brunLocalStackSql\(|\b(?:backendOperation|coreOperation)\(|\boperationPath\(|\bensure[A-Za-z0-9]+Ledger\b/.test(normalizedSource);
 }
 
 function hasConditionalSkipPath(normalizedSource: string): boolean {
