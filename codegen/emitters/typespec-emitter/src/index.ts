@@ -1874,6 +1874,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];`,
     `  requiredObjectiveIds: readonly string[];`,
     `  requiredObjectiveSpecs: readonly LocalStackObjectiveSpec[];`,
+    `  transportOrFeatureGatedOperationIds: readonly string[];`,
     `  rawBackendCoreSemanticGaps: readonly RawBackendCoreSemanticGapSpec[];`,
     `  requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];`,
     `  requiredSdkSemanticGapClosureTargets: readonly SdkSemanticGapClosureTarget[];`,

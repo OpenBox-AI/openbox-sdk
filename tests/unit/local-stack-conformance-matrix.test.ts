@@ -90,6 +90,7 @@ const providerCapabilitiesFixture = JSON.parse(
       minimumProofLevel: string;
       operationIds: string[];
     }>;
+    transportOrFeatureGatedOperationIds: string[];
   };
 };
 
@@ -1681,6 +1682,10 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.requiredOutcomeSpecs).toEqual(
       providerCapabilitiesFixture.localStackScenarioMatrix.requiredOutcomeSpecs,
     );
+    expect(matrix.scenarioMatrix.transportOrFeatureGatedOperationIds).toEqual(
+      providerCapabilitiesFixture.localStackScenarioMatrix.transportOrFeatureGatedOperationIds,
+    );
+    expect(matrix.scenarioMatrix.unknownTransportOrFeatureGatedOperationIds).toEqual([]);
     expect(
       matrix.outcomes.map((entry) => ({
         id: entry.id,
@@ -1864,6 +1869,7 @@ describe('local-stack conformance matrix', () => {
       outcomeSpecMismatchRefs: [],
       missingObjectiveIds: [],
       objectiveSpecMismatchRefs: [],
+      unknownTransportOrFeatureGatedOperationIds: [],
       missingProviderCapabilityGuardProviderRefs: [],
       unexpectedProviderCapabilityGuardProviderRefs: [],
       providerGuardTierMismatchRefs: [],

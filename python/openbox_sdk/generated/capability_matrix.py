@@ -5545,6 +5545,22 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       ]
     }
   ],
+  "transportOrFeatureGatedOperationIds": [
+    "ApiKeyController_create",
+    "ApiKeyController_delete",
+    "ApiKeyController_get",
+    "ApiKeyController_list",
+    "ApiKeyController_update",
+    "OrganizationController_getMembers",
+    "OrganizationController_sendWelcomeEmail",
+    "WebhookController_create",
+    "WebhookController_delete",
+    "WebhookController_get",
+    "WebhookController_getDeliveryLogs",
+    "WebhookController_list",
+    "WebhookController_regenerateSecret",
+    "WebhookController_update"
+  ],
   "rawBackendCoreSemanticGaps": [
     {
       "id": "approval-status-invalid-query-not-rejected",

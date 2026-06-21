@@ -217,6 +217,7 @@ export interface LocalStackScenarioMatrixContract {
   requiredOutcomeSpecs: LocalStackOutcomeSpec[];
   requiredObjectiveIds: string[];
   requiredObjectiveSpecs: LocalStackObjectiveSpec[];
+  transportOrFeatureGatedOperationIds: string[];
   rawBackendCoreSemanticGaps: RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: string[];
   requiredSdkSemanticGapClosureTargets: string[];
@@ -343,6 +344,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   outcomeSpecMismatchRefs: string[];
   missingObjectiveIds: string[];
   objectiveSpecMismatchRefs: string[];
+  unknownTransportOrFeatureGatedOperationIds: string[];
   missingProviderCapabilityGuardProviderRefs: string[];
   unexpectedProviderCapabilityGuardProviderRefs: string[];
   providerGuardTierMismatchRefs: string[];
@@ -3038,6 +3040,7 @@ function summarizeScenarioMatrixContract(
     requiredOutcomeSpecs: [],
     requiredObjectiveIds: [],
     requiredObjectiveSpecs: [],
+    transportOrFeatureGatedOperationIds: [],
     rawBackendCoreSemanticGaps: [],
     requiredSharedProviderGuardProofCapabilities: [],
     requiredSdkSemanticGapClosureTargets: [],
@@ -3103,6 +3106,7 @@ function summarizeScenarioMatrixContract(
   const outcomeById = new Map(outcomes.map((entry) => [entry.id, entry]));
   const objectiveIds = new Set(objectives.map((entry) => entry.id));
   const objectiveById = new Map(objectives.map((entry) => [entry.id, entry]));
+  const operationIds = new Set(coverage.map((entry) => entry.operation.operationId));
   const requiredOutcomeIds = new Set(resolvedContract.requiredOutcomeIds);
   const incompleteScenarioIds = scenarioPaths
     .filter((entry) => entry.status !== 'proven')
@@ -3167,6 +3171,10 @@ function summarizeScenarioMatrixContract(
       ].filter((entry): entry is string => Boolean(entry));
     }),
   ].sort((left, right) => left.localeCompare(right));
+  const unknownTransportOrFeatureGatedOperationIds =
+    resolvedContract.transportOrFeatureGatedOperationIds
+      .filter((operationId) => !operationIds.has(operationId))
+      .sort((left, right) => left.localeCompare(right));
   const incompleteOutcomeIds = outcomes
     .filter((entry) => requiredOutcomeIds.has(entry.id))
     .filter((entry) => entry.status !== 'proven' && entry.semanticGapIds.length === 0)
@@ -3391,6 +3399,9 @@ function summarizeScenarioMatrixContract(
     ...duplicates(resolvedContract.requiredObjectiveSpecs.map((entry) => entry.id)).map(
       (id) => `requiredObjectiveSpecs:${id}`,
     ),
+    ...duplicates(resolvedContract.transportOrFeatureGatedOperationIds).map(
+      (id) => `transportOrFeatureGatedOperationIds:${id}`,
+    ),
     ...duplicates(resolvedContract.requiredSharedProviderGuardProofCapabilities).map(
       (id) => `requiredSharedProviderGuardProofCapabilities:${id}`,
     ),
@@ -3462,6 +3473,7 @@ function summarizeScenarioMatrixContract(
     outcomeSpecMismatchRefs,
     missingObjectiveIds,
     objectiveSpecMismatchRefs,
+    unknownTransportOrFeatureGatedOperationIds,
     missingProviderCapabilityGuardProviderRefs,
     unexpectedProviderCapabilityGuardProviderRefs,
     providerGuardTierMismatchRefs,
@@ -3536,6 +3548,7 @@ function summarizeScenarioMatrixContract(
     outcomeSpecMismatchRefs,
     missingObjectiveIds,
     objectiveSpecMismatchRefs,
+    unknownTransportOrFeatureGatedOperationIds,
     missingProviderCapabilityGuardProviderRefs,
     unexpectedProviderCapabilityGuardProviderRefs,
     providerGuardTierMismatchRefs,

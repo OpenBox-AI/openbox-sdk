@@ -8,6 +8,9 @@ import {
   REQUEST_PREFLIGHT_RULES as CORE_REQUEST_PREFLIGHT_RULES,
 } from '../../ts/src/core-client/generated/request-preflight.js';
 import {
+  LOCAL_STACK_SCENARIO_MATRIX,
+} from '../../ts/src/governance/generated/capability-matrix.js';
+import {
   BOUNDARY_CONFORMANCE_EVIDENCE,
   BOUNDARY_CONFORMANCE_GAPS,
   GOVERNANCE_BOUNDARY_DOMAINS,
@@ -117,22 +120,21 @@ const DISPOSITIONS: Disposition[] = [
   'sdk-generated-preflight',
 ];
 
-const TRANSPORT_OR_FEATURE_GATED_OPERATIONS = new Set([
-  'ApiKeyController_create',
-  'ApiKeyController_delete',
-  'ApiKeyController_get',
-  'ApiKeyController_list',
-  'ApiKeyController_update',
-  'OrganizationController_getMembers',
-  'OrganizationController_sendWelcomeEmail',
-  'WebhookController_create',
-  'WebhookController_delete',
-  'WebhookController_get',
-  'WebhookController_getDeliveryLogs',
-  'WebhookController_list',
-  'WebhookController_regenerateSecret',
-  'WebhookController_update',
-]);
+const RAW_BACKEND_CORE_SEMANTIC_GAPS =
+  LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps;
+
+const RAW_BACKEND_CORE_SEMANTIC_GAPS_BY_CONSTRAINT_KEY: ReadonlyMap<
+  string,
+  (typeof RAW_BACKEND_CORE_SEMANTIC_GAPS)[number]
+> = new Map(
+  RAW_BACKEND_CORE_SEMANTIC_GAPS.flatMap((gap) =>
+    gap.requestConstraintKeys.map((key) => [key, gap] as const),
+  ),
+);
+
+const TRANSPORT_OR_FEATURE_GATED_OPERATIONS: ReadonlySet<string> = new Set(
+  LOCAL_STACK_SCENARIO_MATRIX.transportOrFeatureGatedOperationIds,
+);
 
 const CORE_TELEMETRY_BODY_FIELDS = new Set([
   'timestamp',
@@ -195,6 +197,7 @@ export function buildRequestConstraintConformance(): RequestConstraintConformanc
     sources: [
       'ts/src/client/generated/request-preflight.ts',
       'ts/src/core-client/generated/request-preflight.ts',
+      'ts/src/governance/generated/capability-matrix.ts',
       'tests/helpers/finite-domain-conformance.ts',
       'tests/helpers/boundary-conformance.ts',
       'tests/unit/client.test.ts',
@@ -280,10 +283,7 @@ function readOptionalSource(relPath: string): string {
 }
 
 function expectedRawSemanticGapIds(): string[] {
-  return [
-    ...FINITE_DOMAIN_GAPS.map((entry) => entry.id),
-    ...BOUNDARY_CONFORMANCE_GAPS.map((entry) => entry.id),
-  ].filter(unique).sort();
+  return RAW_BACKEND_CORE_SEMANTIC_GAPS.map((entry) => entry.id).filter(unique).sort();
 }
 
 function classifyConstraint(
@@ -398,45 +398,15 @@ function makeConstraint(
 }
 
 function semanticGapIdsForConstraint(constraint: RequestConstraint): string[] {
-  if (
-    constraint.kind === 'enum' &&
-    constraint.location === 'query.status' &&
-    [
-      'AgentController_getApprovalHistory',
-      'AgentController_getPendingApprovals',
-      'OrganizationController_getApprovals',
-    ].includes(constraint.operationId)
-  ) {
-    return ['approval-status-invalid-query-not-rejected'];
-  }
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location === 'body.attempt' &&
-    constraint.kind === 'minimum'
-  ) {
-    return ['core-governance-attempt-min-not-rejected'];
-  }
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location === 'body.timestamp' &&
-    constraint.kind === 'format'
-  ) {
-    return ['core-governance-timestamp-format-not-rejected'];
-  }
-  if (
-    constraint.operationId === 'AgentController_getAgentEvaluations' &&
-    ['query.page', 'query.pattern', 'query.perPage'].includes(constraint.location)
-  ) {
-    return ['backend-agent-evaluations-query-boundaries-not-rejected'];
-  }
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location === 'body.cost_usd' &&
-    ['format', 'type'].includes(constraint.kind)
-  ) {
-    return ['core-governance-cost-type-not-rejected'];
-  }
-  return [];
+  return rawSemanticGapsForConstraint(constraint)
+    .map((entry) => entry.id)
+    .filter(unique)
+    .sort();
+}
+
+function rawSemanticGapsForConstraint(constraint: RequestConstraint) {
+  return [RAW_BACKEND_CORE_SEMANTIC_GAPS_BY_CONSTRAINT_KEY.get(constraint.key)]
+    .filter((entry): entry is (typeof RAW_BACKEND_CORE_SEMANTIC_GAPS)[number] => Boolean(entry));
 }
 
 function evidenceIdsForConstraint(constraint: RequestConstraint): string[] {
@@ -449,6 +419,7 @@ function evidenceIdsForConstraint(constraint: RequestConstraint): string[] {
 
 function domainKeysForConstraint(constraint: RequestConstraint): string[] {
   return [
+    ...rawSemanticGapsForConstraint(constraint).flatMap((entry) => entry.domainKeys),
     ...enumDomainKeys(constraint),
     ...boundaryDomainKeys(constraint),
   ].filter(unique).sort();

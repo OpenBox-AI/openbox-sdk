@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRequestConstraintConformance,
 } from '../helpers/request-constraint-conformance';
+import {
+  LOCAL_STACK_SCENARIO_MATRIX,
+} from '../../ts/src/governance/generated/capability-matrix.js';
 
 describe('generated request constraint conformance ledger', () => {
   const ledger = buildRequestConstraintConformance();
@@ -12,6 +15,7 @@ describe('generated request constraint conformance ledger', () => {
       expect.arrayContaining([
         'ts/src/client/generated/request-preflight.ts',
         'ts/src/core-client/generated/request-preflight.ts',
+        'ts/src/governance/generated/capability-matrix.ts',
         'tests/helpers/finite-domain-conformance.ts',
         'tests/helpers/boundary-conformance.ts',
         'tests/unit/client.test.ts',
@@ -36,12 +40,22 @@ describe('generated request constraint conformance ledger', () => {
     ];
 
     expect(ledger.summary.provenRawSemanticGapClosures).toEqual(
+      LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps.map((entry) => entry.id).sort(),
+    );
+    expect(ledger.summary.provenRawSemanticGapClosures).toEqual(
       ledger.summary.knownRawSemanticGaps,
     );
     expect(ledger.summary.missingRawSemanticGapClosures).toEqual([]);
     expect(ledger.constraints.filter(
       (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
     ).map((entry) => entry.key)).toEqual(expectedRawSemanticGapConstraintKeys);
+    expect(ledger.constraints
+      .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
+      .flatMap((entry) => entry.semanticGapIds)
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .sort()).toEqual(
+      LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps.map((entry) => entry.id).sort(),
+    );
   });
 
   it('distinguishes raw local-stack evidence, transport gates, and SDK-only preflight', () => {
@@ -54,6 +68,21 @@ describe('generated request constraint conformance ledger', () => {
     expect(transportGatedConstraintKeys.length).toBeGreaterThan(0);
     expect(ledger.summary.byDisposition['transport-or-feature-gated']).toBe(
       transportGatedConstraintKeys.length,
+    );
+    expect([
+      ...new Set(
+        ledger.constraints
+          .filter((entry) => entry.disposition === 'transport-or-feature-gated')
+          .map((entry) => entry.operationId),
+      ),
+    ].sort()).toEqual(
+      LOCAL_STACK_SCENARIO_MATRIX.transportOrFeatureGatedOperationIds.filter((operationId) =>
+        ledger.constraints.some(
+          (entry) =>
+            entry.operationId === operationId &&
+            entry.disposition === 'transport-or-feature-gated',
+        ),
+      ).sort(),
     );
     expect(ledger.summary.transportGatedPublicWrapperClosures).toEqual({
       constraintCount: transportGatedConstraintKeys.length,

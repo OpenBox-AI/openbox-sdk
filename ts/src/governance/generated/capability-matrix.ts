@@ -358,6 +358,7 @@ export interface LocalStackScenarioMatrixContract {
   requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];
   requiredObjectiveIds: readonly string[];
   requiredObjectiveSpecs: readonly LocalStackObjectiveSpec[];
+  transportOrFeatureGatedOperationIds: readonly string[];
   rawBackendCoreSemanticGaps: readonly RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];
   requiredSdkSemanticGapClosureTargets: readonly SdkSemanticGapClosureTarget[];
@@ -5997,6 +5998,22 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
         "OrganizationController_getTrustTierTrends"
       ]
     }
+  ],
+  "transportOrFeatureGatedOperationIds": [
+    "ApiKeyController_create",
+    "ApiKeyController_delete",
+    "ApiKeyController_get",
+    "ApiKeyController_list",
+    "ApiKeyController_update",
+    "OrganizationController_getMembers",
+    "OrganizationController_sendWelcomeEmail",
+    "WebhookController_create",
+    "WebhookController_delete",
+    "WebhookController_get",
+    "WebhookController_getDeliveryLogs",
+    "WebhookController_list",
+    "WebhookController_regenerateSecret",
+    "WebhookController_update"
   ],
   "rawBackendCoreSemanticGaps": [
     {
