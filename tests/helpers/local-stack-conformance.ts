@@ -189,6 +189,7 @@ export interface RawBackendCoreSemanticGapSpec {
   observedBehavior: string;
   requiredBehavior: string;
   requiredRawRejection: string;
+  remediationRefs: string[];
   sdkClosureTargets: Array<'typescript' | 'python'>;
 }
 
@@ -411,6 +412,7 @@ export interface BackendCoreGapRemediationTarget {
   observedBehavior: string;
   requiredBehavior: string;
   requiredRawRejection: string;
+  remediationRefs: string[];
   sdkClosureTargets: Array<'typescript' | 'python'>;
 }
 
@@ -468,6 +470,7 @@ export interface LocalStackConformanceMatrix {
       requestConstraints: number;
       requestConstraintKeys: string[];
       rawProofFiles: string[];
+      remediationRefs: string[];
       sdkClosureTargets: string[];
       missingGeneratedGapIds: string[];
       unexpectedGeneratedGapIds: string[];
@@ -951,6 +954,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     semanticGaps,
     allBlocks,
     requestConstraints,
+    providerCapabilities.localStackScenarioMatrix?.rawBackendCoreSemanticGaps ?? [],
   );
   const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs.length
     ? providerCapabilities.localStackScenarioMatrix.requiredOutcomeSpecs
@@ -1004,6 +1008,9 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
   );
   const backendCoreGapRawProofFiles = uniqueSorted(
     backendCoreGapRemediationTargets.map((entry) => entry.rawProofFile),
+  );
+  const backendCoreGapRemediationRefs = uniqueSorted(
+    backendCoreGapRemediationTargets.flatMap((entry) => entry.remediationRefs),
   );
   const backendCoreGapSdkClosureTargets = uniqueSorted(
     backendCoreGapRemediationTargets.flatMap((entry) => entry.sdkClosureTargets),
@@ -1079,6 +1086,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
         requestConstraints: backendCoreGapRequestConstraintKeys.length,
         requestConstraintKeys: backendCoreGapRequestConstraintKeys,
         rawProofFiles: backendCoreGapRawProofFiles,
+        remediationRefs: backendCoreGapRemediationRefs,
         sdkClosureTargets: backendCoreGapSdkClosureTargets,
         missingGeneratedGapIds: [...scenarioMatrix.missingGeneratedBackendCoreGapIds],
         unexpectedGeneratedGapIds: [...scenarioMatrix.unexpectedGeneratedBackendCoreGapIds],
@@ -1219,12 +1227,17 @@ function summarizeBackendCoreGapRemediationTargets(
   semanticGaps: SemanticGapCoverage[],
   allBlocks: TestBlock[],
   requestConstraints: RequestConstraintConformance,
+  rawBackendCoreSemanticGapSpecs: RawBackendCoreSemanticGapSpec[],
 ): BackendCoreGapRemediationTarget[] {
   const rawConstraints = requestConstraints.constraints.filter(
     (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
   );
+  const rawSpecByGapId = new Map(
+    rawBackendCoreSemanticGapSpecs.map((entry) => [entry.id, entry]),
+  );
 
   return semanticGaps.map((gap) => {
+    const rawSpec = rawSpecByGapId.get(gap.id);
     const constraints = rawConstraints
       .filter((entry) => entry.semanticGapIds.includes(gap.id))
       .sort((left, right) => left.key.localeCompare(right.key));
@@ -1250,8 +1263,13 @@ function summarizeBackendCoreGapRemediationTargets(
       rawEvidencePattern: gap.evidencePattern,
       observedBehavior: gap.observedBehavior,
       requiredBehavior: gap.requiredBehavior,
-      requiredRawRejection: rawRejectionForSemanticGap(gap),
-      sdkClosureTargets: ['typescript', 'python'] as Array<'typescript' | 'python'>,
+      requiredRawRejection: rawSpec?.requiredRawRejection ?? rawRejectionForSemanticGap(gap),
+      remediationRefs: rawSpec
+        ? [...rawSpec.remediationRefs]
+        : remediationRefsForSemanticGap(gap),
+      sdkClosureTargets: (rawSpec
+        ? [...rawSpec.sdkClosureTargets]
+        : ['typescript', 'python']) as Array<'typescript' | 'python'>,
     };
   }).sort((left, right) => left.gapId.localeCompare(right.gapId));
 }
@@ -1267,6 +1285,32 @@ function rawRejectionForSemanticGap(gap: SemanticGapCoverage): string {
     return 'Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.';
   }
   return gap.requiredBehavior;
+}
+
+function remediationRefsForSemanticGap(gap: SemanticGapCoverage): string[] {
+  switch (gap.id) {
+    case 'approval-status-invalid-query-not-rejected':
+      return [
+        'openbox-backend:src/modules/agent/dto/approvals.dto.ts:31',
+        'openbox-backend:src/modules/agent/agent.controller.ts:1259',
+        'openbox-backend:src/modules/organization/organization.controller.ts:881',
+      ];
+    case 'backend-agent-evaluations-query-boundaries-not-rejected':
+      return [
+        'openbox-backend:src/common/dto/pagination.dto.ts:3',
+        'openbox-backend:src/modules/agent/agent.controller.ts:277',
+        'openbox-backend:src/modules/agent/dto/get-agent-violations.dto.ts:6',
+      ];
+    case 'core-governance-attempt-min-not-rejected':
+    case 'core-governance-cost-type-not-rejected':
+    case 'core-governance-timestamp-format-not-rejected':
+      return [
+        'openbox-core:internal/api/governance.go:60',
+        'openbox-core:internal/content/governance.go:186',
+      ];
+    default:
+      return [];
+  }
 }
 
 function summarizeSdkSemanticGapClosures(
@@ -3277,6 +3321,9 @@ function summarizeScenarioMatrixContract(
         spec.requiredRawRejection === target.requiredRawRejection
           ? undefined
           : `${spec.id}:requiredRawRejection`,
+        sortedEqual(spec.remediationRefs, target.remediationRefs)
+          ? undefined
+          : `${spec.id}:remediationRefs`,
         sortedEqual(spec.sdkClosureTargets, target.sdkClosureTargets)
           ? undefined
           : `${spec.id}:sdkClosureTargets`,

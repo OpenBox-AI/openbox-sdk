@@ -333,6 +333,7 @@ export interface RawBackendCoreSemanticGapSpec {
   observedBehavior: string;
   requiredBehavior: string;
   requiredRawRejection: string;
+  remediationRefs: readonly string[];
   sdkClosureTargets: readonly SdkSemanticGapClosureTarget[];
 }
 
@@ -5892,6 +5893,11 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "observedBehavior": "The local stack accepts out-of-domain approval status query values with 200 responses.",
       "requiredBehavior": "Approval status query parameters are finite in TypeSpec and should reject out-of-domain values.",
       "requiredRawRejection": "Backend approval status query validators should reject out-of-domain status values with a 4xx validation response before returning approval lists.",
+      "remediationRefs": [
+        "openbox-backend:src/modules/agent/dto/approvals.dto.ts:31",
+        "openbox-backend:src/modules/agent/agent.controller.ts:1259",
+        "openbox-backend:src/modules/organization/organization.controller.ts:881"
+      ],
       "sdkClosureTargets": [
         "typescript",
         "python"
@@ -5917,6 +5923,11 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "observedBehavior": "The local backend accepts AgentController_getAgentEvaluations page, perPage, and pattern values outside the generated OpenAPI request constraints.",
       "requiredBehavior": "AgentController_getAgentEvaluations query.page, query.perPage, and query.pattern have generated request constraints and should reject values outside those bounds.",
       "requiredRawRejection": "Backend agent evaluation query validators should reject page, perPage, and pattern values outside generated OpenAPI bounds with a 4xx validation response.",
+      "remediationRefs": [
+        "openbox-backend:src/common/dto/pagination.dto.ts:3",
+        "openbox-backend:src/modules/agent/agent.controller.ts:277",
+        "openbox-backend:src/modules/agent/dto/get-agent-violations.dto.ts:6"
+      ],
       "sdkClosureTargets": [
         "typescript",
         "python"
@@ -5942,6 +5953,10 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "observedBehavior": "The local Core stack accepts GovernanceEventPayload.attempt=0 with a 200 governed response.",
       "requiredBehavior": "GovernanceEventPayload.attempt has TypeSpec @minValue(1) and should reject values below 1.",
       "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
+      "remediationRefs": [
+        "openbox-core:internal/api/governance.go:60",
+        "openbox-core:internal/content/governance.go:186"
+      ],
       "sdkClosureTargets": [
         "typescript",
         "python"
@@ -5966,6 +5981,10 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "observedBehavior": "The local Core stack accepts GovernanceEventPayload.cost_usd values that are not numeric.",
       "requiredBehavior": "GovernanceEventPayload.cost_usd is OpenAPI type=number format=double and should reject nonnumeric values.",
       "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
+      "remediationRefs": [
+        "openbox-core:internal/api/governance.go:60",
+        "openbox-core:internal/content/governance.go:186"
+      ],
       "sdkClosureTargets": [
         "typescript",
         "python"
@@ -5989,6 +6008,10 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "observedBehavior": "The local Core stack accepts GovernanceEventPayload.timestamp values that are not valid date-time strings.",
       "requiredBehavior": "GovernanceEventPayload.timestamp is OpenAPI format=date-time and should reject invalid date-time strings.",
       "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
+      "remediationRefs": [
+        "openbox-core:internal/api/governance.go:60",
+        "openbox-core:internal/content/governance.go:186"
+      ],
       "sdkClosureTargets": [
         "typescript",
         "python"

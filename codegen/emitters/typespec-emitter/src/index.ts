@@ -1849,6 +1849,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  observedBehavior: string;`,
     `  requiredBehavior: string;`,
     `  requiredRawRejection: string;`,
+    `  remediationRefs: readonly string[];`,
     `  sdkClosureTargets: readonly SdkSemanticGapClosureTarget[];`,
     `}`,
     '',

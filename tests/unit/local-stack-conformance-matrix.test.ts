@@ -141,6 +141,9 @@ describe('local-stack conformance matrix', () => {
     const backendCoreRawProofFiles = sortedUniqueStrings(
       matrix.backendCoreGapRemediationTargets.map((entry) => entry.rawProofFile),
     );
+    const backendCoreRemediationRefs = sortedUniqueStrings(
+      matrix.backendCoreGapRemediationTargets.flatMap((entry) => entry.remediationRefs),
+    );
     const backendCoreSdkClosureTargets = sortedUniqueStrings(
       matrix.backendCoreGapRemediationTargets.flatMap((entry) => entry.sdkClosureTargets),
     );
@@ -184,6 +187,7 @@ describe('local-stack conformance matrix', () => {
       requestConstraints: backendCoreRequestConstraintKeys.length,
       requestConstraintKeys: backendCoreRequestConstraintKeys,
       rawProofFiles: backendCoreRawProofFiles,
+      remediationRefs: backendCoreRemediationRefs,
       sdkClosureTargets: backendCoreSdkClosureTargets,
       missingGeneratedGapIds: matrix.scenarioMatrix.missingGeneratedBackendCoreGapIds,
       unexpectedGeneratedGapIds: matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds,
@@ -219,6 +223,16 @@ describe('local-stack conformance matrix', () => {
         'tests/e2e/approvals.test.ts',
         'tests/e2e/core-governance.test.ts',
         'tests/e2e/request-query-boundaries.test.ts',
+      ],
+      remediationRefs: [
+        'openbox-backend:src/common/dto/pagination.dto.ts:3',
+        'openbox-backend:src/modules/agent/agent.controller.ts:1259',
+        'openbox-backend:src/modules/agent/agent.controller.ts:277',
+        'openbox-backend:src/modules/agent/dto/approvals.dto.ts:31',
+        'openbox-backend:src/modules/agent/dto/get-agent-violations.dto.ts:6',
+        'openbox-backend:src/modules/organization/organization.controller.ts:881',
+        'openbox-core:internal/api/governance.go:60',
+        'openbox-core:internal/content/governance.go:186',
       ],
       sdkClosureTargets: ['python', 'typescript'],
       missingGeneratedGapIds: [],
@@ -1876,6 +1890,7 @@ describe('local-stack conformance matrix', () => {
       expect(target.rawProofConstraintKeys, target.gapId).toEqual(target.requestConstraintKeys);
       expect(target.missingRawProofConstraintKeys, target.gapId).toEqual([]);
       expect(target.sdkClosureTargets, target.gapId).toEqual(['typescript', 'python']);
+      expect(target.remediationRefs.length, target.gapId).toBeGreaterThan(0);
       expect(generatedGap).toMatchObject({
         source: gap!.source,
         services: target.services,
@@ -1887,6 +1902,7 @@ describe('local-stack conformance matrix', () => {
         observedBehavior: target.observedBehavior,
         requiredBehavior: target.requiredBehavior,
         requiredRawRejection: target.requiredRawRejection,
+        remediationRefs: target.remediationRefs,
         sdkClosureTargets: target.sdkClosureTargets,
       });
       const sdkClosures = matrix.sdkSemanticGapClosures.filter(
@@ -1914,6 +1930,11 @@ describe('local-stack conformance matrix', () => {
         'backend:AgentController_getPendingApprovals:query.status:enum',
         'backend:OrganizationController_getApprovals:query.status:enum',
       ],
+      remediationRefs: [
+        'openbox-backend:src/modules/agent/dto/approvals.dto.ts:31',
+        'openbox-backend:src/modules/agent/agent.controller.ts:1259',
+        'openbox-backend:src/modules/organization/organization.controller.ts:881',
+      ],
     });
     expect(byGap.get('backend-agent-evaluations-query-boundaries-not-rejected')).toMatchObject({
       services: ['backend'],
@@ -1924,12 +1945,21 @@ describe('local-stack conformance matrix', () => {
         'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
         'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
       ],
+      remediationRefs: [
+        'openbox-backend:src/common/dto/pagination.dto.ts:3',
+        'openbox-backend:src/modules/agent/agent.controller.ts:277',
+        'openbox-backend:src/modules/agent/dto/get-agent-violations.dto.ts:6',
+      ],
     });
     expect(byGap.get('core-governance-attempt-min-not-rejected')).toMatchObject({
       services: ['core'],
       requestLocations: ['body.attempt'],
       constraintKinds: ['minimum'],
       requestConstraintKeys: ['core:evaluateGovernance:body.attempt:minimum'],
+      remediationRefs: [
+        'openbox-core:internal/api/governance.go:60',
+        'openbox-core:internal/content/governance.go:186',
+      ],
     });
     expect(byGap.get('core-governance-cost-type-not-rejected')).toMatchObject({
       services: ['core'],
@@ -1939,12 +1969,20 @@ describe('local-stack conformance matrix', () => {
         'core:evaluateGovernance:body.cost_usd:format',
         'core:evaluateGovernance:body.cost_usd:type',
       ],
+      remediationRefs: [
+        'openbox-core:internal/api/governance.go:60',
+        'openbox-core:internal/content/governance.go:186',
+      ],
     });
     expect(byGap.get('core-governance-timestamp-format-not-rejected')).toMatchObject({
       services: ['core'],
       requestLocations: ['body.timestamp'],
       constraintKinds: ['format'],
       requestConstraintKeys: ['core:evaluateGovernance:body.timestamp:format'],
+      remediationRefs: [
+        'openbox-core:internal/api/governance.go:60',
+        'openbox-core:internal/content/governance.go:186',
+      ],
     });
   });
 
