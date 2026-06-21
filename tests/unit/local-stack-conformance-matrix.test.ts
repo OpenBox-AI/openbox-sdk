@@ -1498,6 +1498,9 @@ describe('local-stack conformance matrix', () => {
       incompleteScenarioIds: [],
       missingOutcomeIds: [],
       incompleteOutcomeIds: [],
+      missingGeneratedBackendCoreGapIds: [],
+      unexpectedGeneratedBackendCoreGapIds: [],
+      backendCoreGapSpecMismatchRefs: [],
       rawSemanticGapOutcomeIds: [
         'backend-approvals-hitl',
         'backend-tracing-observability',
@@ -1558,6 +1561,12 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.knownBackendCoreGapIds).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),
     );
+    expect(matrix.scenarioMatrix.generatedBackendCoreGapIds).toEqual(
+      matrix.semanticGaps.map((entry) => entry.id).sort(),
+    );
+    expect(matrix.scenarioMatrix.missingGeneratedBackendCoreGapIds).toEqual([]);
+    expect(matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds).toEqual([]);
+    expect(matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.semanticGapIds).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),
     );
@@ -1567,6 +1576,9 @@ describe('local-stack conformance matrix', () => {
   });
 
   it('maps every backend/Core raw gap to generated remediation targets', () => {
+    expect(matrix.scenarioMatrix.rawBackendCoreSemanticGaps.map((entry) => entry.id).sort()).toEqual(
+      matrix.semanticGaps.map((entry) => entry.id).sort(),
+    );
     expect(matrix.backendCoreGapRemediationTargets.map((entry) => entry.gapId)).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),
     );
@@ -1578,7 +1590,11 @@ describe('local-stack conformance matrix', () => {
 
     for (const target of matrix.backendCoreGapRemediationTargets) {
       const gap = matrix.semanticGaps.find((entry) => entry.id === target.gapId);
+      const generatedGap = matrix.scenarioMatrix.rawBackendCoreSemanticGaps.find(
+        (entry) => entry.id === target.gapId,
+      );
       expect(gap, target.gapId).toBeDefined();
+      expect(generatedGap, target.gapId).toBeDefined();
       expect(target.operationIds, target.gapId).toEqual(gap!.operationIds);
       expect(target.rawProofFile, target.gapId).toBe(gap!.proofFile);
       expect(target.rawEvidencePattern, target.gapId).toBe(gap!.evidencePattern);
@@ -1587,6 +1603,19 @@ describe('local-stack conformance matrix', () => {
       expect(target.requiredRawRejection, target.gapId).toContain('4xx validation response');
       expect(target.requestConstraintKeys.length, target.gapId).toBeGreaterThan(0);
       expect(target.sdkClosureTargets, target.gapId).toEqual(['typescript', 'python']);
+      expect(generatedGap).toMatchObject({
+        source: gap!.source,
+        services: target.services,
+        domainKeys: gap!.domainKeys,
+        operationIds: target.operationIds,
+        requestConstraintKeys: target.requestConstraintKeys,
+        rawProofFile: target.rawProofFile,
+        rawEvidencePattern: target.rawEvidencePattern,
+        observedBehavior: target.observedBehavior,
+        requiredBehavior: target.requiredBehavior,
+        requiredRawRejection: target.requiredRawRejection,
+        sdkClosureTargets: target.sdkClosureTargets,
+      });
       const sdkClosures = matrix.sdkSemanticGapClosures.filter(
         (entry) => entry.semanticGapId === target.gapId,
       );
@@ -1662,6 +1691,12 @@ describe('local-stack conformance matrix', () => {
       'core-governance-cost-type-not-rejected',
       'core-governance-timestamp-format-not-rejected',
     ]);
+    expect(matrix.scenarioMatrix.generatedBackendCoreGapIds).toEqual(
+      matrix.scenarioMatrix.knownBackendCoreGapIds,
+    );
+    expect(matrix.scenarioMatrix.missingGeneratedBackendCoreGapIds).toEqual([]);
+    expect(matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds).toEqual([]);
+    expect(matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs).toEqual([]);
   });
 
   it('separates proven scenario paths from required-but-open gaps', () => {

@@ -174,6 +174,21 @@ export interface LocalStackOutcomeSpec {
   exceptionCapabilities: string[];
 }
 
+export interface RawBackendCoreSemanticGapSpec {
+  id: string;
+  source: SemanticGapCoverage['source'];
+  services: Array<'backend' | 'core'>;
+  domainKeys: string[];
+  operationIds: string[];
+  requestConstraintKeys: string[];
+  rawProofFile: string;
+  rawEvidencePattern: string;
+  observedBehavior: string;
+  requiredBehavior: string;
+  requiredRawRejection: string;
+  sdkClosureTargets: Array<'typescript' | 'python'>;
+}
+
 export interface LocalStackScenarioMatrixContract {
   id: string;
   description: string;
@@ -186,6 +201,7 @@ export interface LocalStackScenarioMatrixContract {
   providerOwnedScenarioIds: string[];
   requiredOutcomeIds: string[];
   requiredOutcomeSpecs: LocalStackOutcomeSpec[];
+  rawBackendCoreSemanticGaps: RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: string[];
   requiredSdkSemanticGapClosureTargets: string[];
   providerGuardSharedProofPolicy: string;
@@ -269,6 +285,10 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   semanticGapIds: string[];
   knownBackendCoreGapIds: string[];
   backendCoreGapRemediationTargetIds: string[];
+  generatedBackendCoreGapIds: string[];
+  missingGeneratedBackendCoreGapIds: string[];
+  unexpectedGeneratedBackendCoreGapIds: string[];
+  backendCoreGapSpecMismatchRefs: string[];
   missingBackendCoreGapRemediationTargetIds: string[];
   unexpectedBackendCoreGapRemediationTargetIds: string[];
   duplicateOperationIdRefs: string[];
@@ -2800,6 +2820,7 @@ function summarizeScenarioMatrixContract(
     providerOwnedScenarioIds: [],
     requiredOutcomeIds: [],
     requiredOutcomeSpecs: [],
+    rawBackendCoreSemanticGaps: [],
     requiredSharedProviderGuardProofCapabilities: [],
     requiredSdkSemanticGapClosureTargets: [],
     providerGuardSharedProofPolicy: 'missing generated contract',
@@ -2928,9 +2949,14 @@ function summarizeScenarioMatrixContract(
     .map((gap) => gap.id)
     .sort();
   const semanticGapIds = semanticGaps.map((entry) => entry.id).sort();
+  const generatedBackendCoreGapIds = resolvedContract.rawBackendCoreSemanticGaps
+    .map((entry) => entry.id)
+    .sort();
   const backendCoreGapRemediationTargetIds = backendCoreGapRemediationTargets
     .map((entry) => entry.gapId)
     .sort();
+  const missingGeneratedBackendCoreGapIds = missing(semanticGapIds, generatedBackendCoreGapIds);
+  const unexpectedGeneratedBackendCoreGapIds = unexpected(generatedBackendCoreGapIds, semanticGapIds);
   const missingBackendCoreGapRemediationTargetIds = missing(
     semanticGapIds,
     backendCoreGapRemediationTargetIds,
@@ -2939,6 +2965,49 @@ function summarizeScenarioMatrixContract(
     backendCoreGapRemediationTargetIds,
     semanticGapIds,
   );
+  const semanticGapsById = new Map(semanticGaps.map((entry) => [entry.id, entry]));
+  const remediationTargetsByGapId = new Map(
+    backendCoreGapRemediationTargets.map((entry) => [entry.gapId, entry]),
+  );
+  const backendCoreGapSpecMismatchRefs = resolvedContract.rawBackendCoreSemanticGaps
+    .flatMap((spec) => {
+      const gap = semanticGapsById.get(spec.id);
+      const target = remediationTargetsByGapId.get(spec.id);
+      if (!gap || !target) return [];
+      return [
+        spec.source === gap.source ? undefined : `${spec.id}:source`,
+        sortedEqual(spec.domainKeys, gap.domainKeys) ? undefined : `${spec.id}:domainKeys`,
+        sortedEqual(spec.services, target.services) ? undefined : `${spec.id}:services`,
+        sortedEqual(spec.operationIds, gap.operationIds) ? undefined : `${spec.id}:operationIds`,
+        sortedEqual(spec.operationIds, target.operationIds) ? undefined : `${spec.id}:targetOperationIds`,
+        sortedEqual(spec.requestConstraintKeys, target.requestConstraintKeys)
+          ? undefined
+          : `${spec.id}:requestConstraintKeys`,
+        spec.rawProofFile === gap.proofFile ? undefined : `${spec.id}:rawProofFile`,
+        spec.rawProofFile === target.rawProofFile ? undefined : `${spec.id}:targetRawProofFile`,
+        spec.rawEvidencePattern === gap.evidencePattern
+          ? undefined
+          : `${spec.id}:rawEvidencePattern`,
+        spec.rawEvidencePattern === target.rawEvidencePattern
+          ? undefined
+          : `${spec.id}:targetRawEvidencePattern`,
+        spec.observedBehavior === gap.observedBehavior ? undefined : `${spec.id}:observedBehavior`,
+        spec.observedBehavior === target.observedBehavior
+          ? undefined
+          : `${spec.id}:targetObservedBehavior`,
+        spec.requiredBehavior === gap.requiredBehavior ? undefined : `${spec.id}:requiredBehavior`,
+        spec.requiredBehavior === target.requiredBehavior
+          ? undefined
+          : `${spec.id}:targetRequiredBehavior`,
+        spec.requiredRawRejection === target.requiredRawRejection
+          ? undefined
+          : `${spec.id}:requiredRawRejection`,
+        sortedEqual(spec.sdkClosureTargets, target.sdkClosureTargets)
+          ? undefined
+          : `${spec.id}:sdkClosureTargets`,
+      ].filter((entry): entry is string => Boolean(entry));
+    })
+    .sort((left, right) => left.localeCompare(right));
   const missingCapabilities = missing(resolvedContract.requiredCapabilities, actualCapabilities);
   const unexpectedCapabilities = unexpected(actualCapabilities, resolvedContract.requiredCapabilities);
   const missingCategories = missing(resolvedContract.requiredCategories, actualCategories);
@@ -3143,6 +3212,9 @@ function summarizeScenarioMatrixContract(
     missingOutcomeIds,
     incompleteOutcomeIds,
     unclosedSemanticGapIds,
+    missingGeneratedBackendCoreGapIds,
+    unexpectedGeneratedBackendCoreGapIds,
+    backendCoreGapSpecMismatchRefs,
     missingBackendCoreGapRemediationTargetIds,
     unexpectedBackendCoreGapRemediationTargetIds,
   ];
@@ -3154,6 +3226,10 @@ function summarizeScenarioMatrixContract(
     backendCoreGapStatus: semanticGaps.length === 0 ? 'gap-free' : 'known-gaps',
     knownBackendCoreGapIds: semanticGapIds,
     backendCoreGapRemediationTargetIds,
+    generatedBackendCoreGapIds,
+    missingGeneratedBackendCoreGapIds,
+    unexpectedGeneratedBackendCoreGapIds,
+    backendCoreGapSpecMismatchRefs,
     missingBackendCoreGapRemediationTargetIds,
     unexpectedBackendCoreGapRemediationTargetIds,
     ...operationManifestDuplicateRefs,

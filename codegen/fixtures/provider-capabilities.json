@@ -5423,6 +5423,134 @@
         ]
       }
     ],
+    "rawBackendCoreSemanticGaps": [
+      {
+        "id": "approval-status-invalid-query-not-rejected",
+        "source": "finite-domain-ledger",
+        "services": [
+          "backend"
+        ],
+        "domainKeys": [
+          "approvalStatuses"
+        ],
+        "operationIds": [
+          "AgentController_getApprovalHistory",
+          "AgentController_getPendingApprovals",
+          "OrganizationController_getApprovals"
+        ],
+        "requestConstraintKeys": [
+          "backend:AgentController_getApprovalHistory:query.status:enum",
+          "backend:AgentController_getPendingApprovals:query.status:enum",
+          "backend:OrganizationController_getApprovals:query.status:enum"
+        ],
+        "rawProofFile": "tests/e2e/approvals.test.ts",
+        "rawEvidencePattern": "SEMANTIC_GAP_PROOF: approval status query out-of-domain values are accepted by local stack",
+        "observedBehavior": "The local stack accepts out-of-domain approval status query values with 200 responses.",
+        "requiredBehavior": "Approval status query parameters are finite in TypeSpec and should reject out-of-domain values.",
+        "requiredRawRejection": "Backend approval status query validators should reject out-of-domain status values with a 4xx validation response before returning approval lists.",
+        "sdkClosureTargets": [
+          "typescript",
+          "python"
+        ]
+      },
+      {
+        "id": "backend-agent-evaluations-query-boundaries-not-rejected",
+        "source": "boundary-ledger",
+        "services": [
+          "backend"
+        ],
+        "domainKeys": [],
+        "operationIds": [
+          "AgentController_getAgentEvaluations"
+        ],
+        "requestConstraintKeys": [
+          "backend:AgentController_getAgentEvaluations:query.page:minimum",
+          "backend:AgentController_getAgentEvaluations:query.pattern:maxLength",
+          "backend:AgentController_getAgentEvaluations:query.perPage:minimum"
+        ],
+        "rawProofFile": "tests/e2e/request-query-boundaries.test.ts",
+        "rawEvidencePattern": "NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values or expose raw gaps",
+        "observedBehavior": "The local backend accepts AgentController_getAgentEvaluations page, perPage, and pattern values outside the generated OpenAPI request constraints.",
+        "requiredBehavior": "AgentController_getAgentEvaluations query.page, query.perPage, and query.pattern have generated request constraints and should reject values outside those bounds.",
+        "requiredRawRejection": "Backend agent evaluation query validators should reject page, perPage, and pattern values outside generated OpenAPI bounds with a 4xx validation response.",
+        "sdkClosureTargets": [
+          "typescript",
+          "python"
+        ]
+      },
+      {
+        "id": "core-governance-attempt-min-not-rejected",
+        "source": "boundary-ledger",
+        "services": [
+          "core"
+        ],
+        "domainKeys": [
+          "coreNumericFields"
+        ],
+        "operationIds": [
+          "evaluateGovernance"
+        ],
+        "requestConstraintKeys": [
+          "core:evaluateGovernance:body.attempt:minimum"
+        ],
+        "rawProofFile": "tests/e2e/core-governance.test.ts",
+        "rawEvidencePattern": "SEMANTIC_GAP_PROOF: core governance attempt below min is accepted by local stack",
+        "observedBehavior": "The local Core stack accepts GovernanceEventPayload.attempt=0 with a 200 governed response.",
+        "requiredBehavior": "GovernanceEventPayload.attempt has TypeSpec @minValue(1) and should reject values below 1.",
+        "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
+        "sdkClosureTargets": [
+          "typescript",
+          "python"
+        ]
+      },
+      {
+        "id": "core-governance-cost-type-not-rejected",
+        "source": "boundary-ledger",
+        "services": [
+          "core"
+        ],
+        "domainKeys": [],
+        "operationIds": [
+          "evaluateGovernance"
+        ],
+        "requestConstraintKeys": [
+          "core:evaluateGovernance:body.cost_usd:format",
+          "core:evaluateGovernance:body.cost_usd:type"
+        ],
+        "rawProofFile": "tests/e2e/core-governance.test.ts",
+        "rawEvidencePattern": "SEMANTIC_GAP_PROOF: core governance cost accepts nonnumeric values",
+        "observedBehavior": "The local Core stack accepts GovernanceEventPayload.cost_usd values that are not numeric.",
+        "requiredBehavior": "GovernanceEventPayload.cost_usd is OpenAPI type=number format=double and should reject nonnumeric values.",
+        "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
+        "sdkClosureTargets": [
+          "typescript",
+          "python"
+        ]
+      },
+      {
+        "id": "core-governance-timestamp-format-not-rejected",
+        "source": "boundary-ledger",
+        "services": [
+          "core"
+        ],
+        "domainKeys": [],
+        "operationIds": [
+          "evaluateGovernance"
+        ],
+        "requestConstraintKeys": [
+          "core:evaluateGovernance:body.timestamp:format"
+        ],
+        "rawProofFile": "tests/e2e/core-governance.test.ts",
+        "rawEvidencePattern": "SEMANTIC_GAP_PROOF: core governance timestamp format accepts invalid date-time values",
+        "observedBehavior": "The local Core stack accepts GovernanceEventPayload.timestamp values that are not valid date-time strings.",
+        "requiredBehavior": "GovernanceEventPayload.timestamp is OpenAPI format=date-time and should reject invalid date-time strings.",
+        "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
+        "sdkClosureTargets": [
+          "typescript",
+          "python"
+        ]
+      }
+    ],
     "requiredSharedProviderGuardProofCapabilities": [
       "opa-rules"
     ],
