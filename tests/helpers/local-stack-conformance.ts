@@ -16,7 +16,10 @@ import {
 import {
   REQUEST_PREFLIGHT_RULES as TS_CORE_REQUEST_PREFLIGHT_RULES,
 } from '../../ts/src/core-client/generated/request-preflight.js';
-import { buildRequestConstraintConformance } from './request-constraint-conformance';
+import {
+  buildRequestConstraintConformance,
+  type RequestConstraintConformance,
+} from './request-constraint-conformance';
 
 export type ProofLevel =
   | 'none'
@@ -365,6 +368,10 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   }>;
   unclosedSemanticGapIds: string[];
   missingRawProofConstraintKeyRefs: string[];
+  unclassifiedRequestConstraintRefs: string[];
+  sdkGeneratedPreflightOnlyConstraintRefs: string[];
+  missingRequestConstraintRawGapClosureRefs: string[];
+  missingTransportGatedPublicWrapperClosureRefs: string[];
 }
 
 export interface SemanticGapCoverage {
@@ -418,6 +425,7 @@ export interface LocalStackConformanceMatrix {
   semanticGaps: SemanticGapCoverage[];
   sdkSemanticGapClosures: SdkSemanticGapClosure[];
   backendCoreGapRemediationTargets: BackendCoreGapRemediationTarget[];
+  requestConstraints: RequestConstraintConformance;
   providerGuards: ProviderGuardCoverage[];
   exceptions: ConformanceException[];
   smokeHits: SmokeOperationHit[];
@@ -437,6 +445,16 @@ export interface LocalStackConformanceMatrix {
     smokeOnlyOperations: number;
     operationsWithoutE2eHits: number;
     knownSemanticGaps: number;
+    requestConstraints: {
+      total: number;
+      localStackE2e: number;
+      rawSemanticGapSdkClosed: number;
+      transportOrFeatureGated: number;
+      sdkGeneratedPreflightOnly: number;
+      unclassified: number;
+      missingRawSemanticGapClosures: number;
+      missingTransportGatedPublicWrapperClosures: number;
+    };
     sdkSemanticGapClosures: {
       total: number;
       proven: number;
@@ -850,11 +868,13 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     blocks,
     providerCapabilities.localStackScenarioPaths ?? [],
   );
+  const requestConstraints = buildRequestConstraintConformance();
   const semanticGaps = summarizeSemanticGaps();
   const sdkSemanticGapClosures = summarizeSdkSemanticGapClosures(repoRoot, semanticGaps);
   const backendCoreGapRemediationTargets = summarizeBackendCoreGapRemediationTargets(
     semanticGaps,
     allBlocks,
+    requestConstraints,
   );
   const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs.length
     ? providerCapabilities.localStackScenarioMatrix.requiredOutcomeSpecs
@@ -883,6 +903,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     semanticGaps,
     sdkSemanticGapClosures,
     backendCoreGapRemediationTargets,
+    requestConstraints,
     operationManifestDuplicateRefs,
     operationRouteResolutionRefs,
     unknownScenarioProofMarkerRefs,
@@ -922,6 +943,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     semanticGaps,
     sdkSemanticGapClosures,
     backendCoreGapRemediationTargets,
+    requestConstraints,
     providerGuards,
     exceptions,
     smokeHits,
@@ -943,6 +965,22 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       smokeOnlyOperations: coverage.filter((entry) => entry.proofLevel === 'smoke').length,
       operationsWithoutE2eHits: coverage.filter((entry) => entry.proofLevel === 'none').length,
       knownSemanticGaps: semanticGaps.length,
+      requestConstraints: {
+        total: requestConstraints.summary.totalConstraints,
+        localStackE2e: requestConstraints.summary.byDisposition['local-stack-e2e'],
+        rawSemanticGapSdkClosed:
+          requestConstraints.summary.byDisposition['raw-semantic-gap-sdk-closed'],
+        transportOrFeatureGated:
+          requestConstraints.summary.byDisposition['transport-or-feature-gated'],
+        sdkGeneratedPreflightOnly: requestConstraints.summary.sdkGeneratedPreflightOnly,
+        unclassified: requestConstraints.unclassified.length,
+        missingRawSemanticGapClosures:
+          requestConstraints.summary.missingRawSemanticGapClosures.length,
+        missingTransportGatedPublicWrapperClosures:
+          requestConstraints.transportGatedPublicWrapperClosures.filter(
+            (entry) => entry.status !== 'proven',
+          ).length,
+      },
       sdkSemanticGapClosures: {
         total: sdkSemanticGapClosures.length,
         proven: sdkSemanticGapClosures.filter((entry) => entry.status === 'proven').length,
@@ -962,8 +1000,9 @@ function summarizeSemanticGaps(): SemanticGapCoverage[] {
 function summarizeBackendCoreGapRemediationTargets(
   semanticGaps: SemanticGapCoverage[],
   allBlocks: TestBlock[],
+  requestConstraints: RequestConstraintConformance,
 ): BackendCoreGapRemediationTarget[] {
-  const rawConstraints = buildRequestConstraintConformance().constraints.filter(
+  const rawConstraints = requestConstraints.constraints.filter(
     (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
   );
 
@@ -2810,6 +2849,7 @@ function summarizeScenarioMatrixContract(
   semanticGaps: SemanticGapCoverage[],
   sdkSemanticGapClosures: SdkSemanticGapClosure[],
   backendCoreGapRemediationTargets: BackendCoreGapRemediationTarget[],
+  requestConstraints: RequestConstraintConformance,
   operationManifestDuplicateRefs: Pick<
     ScenarioMatrixCoverage,
     | 'duplicateOperationIdRefs'
@@ -3030,6 +3070,21 @@ function summarizeScenarioMatrixContract(
       target.missingRawProofConstraintKeys.map((key) => `${target.gapId}:${key}`),
     )
     .sort((left, right) => left.localeCompare(right));
+  const unclassifiedRequestConstraintRefs = requestConstraints.unclassified
+    .map((entry) => entry.key)
+    .sort((left, right) => left.localeCompare(right));
+  const sdkGeneratedPreflightOnlyConstraintRefs = requestConstraints.constraints
+    .filter((entry) => entry.disposition === 'sdk-generated-preflight')
+    .map((entry) => entry.key)
+    .sort((left, right) => left.localeCompare(right));
+  const missingRequestConstraintRawGapClosureRefs = [
+    ...requestConstraints.summary.missingRawSemanticGapClosures,
+  ].sort((left, right) => left.localeCompare(right));
+  const missingTransportGatedPublicWrapperClosureRefs =
+    requestConstraints.transportGatedPublicWrapperClosures
+      .filter((entry) => entry.status !== 'proven')
+      .map((entry) => `${entry.sdkTarget}:${entry.proofFile}`)
+      .sort((left, right) => left.localeCompare(right));
   const missingCapabilities = missing(resolvedContract.requiredCapabilities, actualCapabilities);
   const unexpectedCapabilities = unexpected(actualCapabilities, resolvedContract.requiredCapabilities);
   const missingCategories = missing(resolvedContract.requiredCategories, actualCategories);
@@ -3238,6 +3293,10 @@ function summarizeScenarioMatrixContract(
     unexpectedGeneratedBackendCoreGapIds,
     backendCoreGapSpecMismatchRefs,
     missingRawProofConstraintKeyRefs,
+    unclassifiedRequestConstraintRefs,
+    sdkGeneratedPreflightOnlyConstraintRefs,
+    missingRequestConstraintRawGapClosureRefs,
+    missingTransportGatedPublicWrapperClosureRefs,
     missingBackendCoreGapRemediationTargetIds,
     unexpectedBackendCoreGapRemediationTargetIds,
   ];
@@ -3302,6 +3361,10 @@ function summarizeScenarioMatrixContract(
     rawSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
     missingRawProofConstraintKeyRefs,
+    unclassifiedRequestConstraintRefs,
+    sdkGeneratedPreflightOnlyConstraintRefs,
+    missingRequestConstraintRawGapClosureRefs,
+    missingTransportGatedPublicWrapperClosureRefs,
   };
 }
 

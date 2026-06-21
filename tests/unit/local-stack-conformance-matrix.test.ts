@@ -118,6 +118,7 @@ describe('local-stack conformance matrix', () => {
         })),
     );
     const sdkSemanticGapClosures = matrix.sdkSemanticGapClosures;
+    const requestConstraints = matrix.requestConstraints;
 
     expect(matrix.summary.totalOperations).toBe(matrix.operations.length);
     expect(matrix.summary.operationsWithE2eHits).toBe(operationsWithE2eHits.length);
@@ -133,6 +134,27 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.summary.unresolvedMethodHitCount).toBe(0);
     expect(matrix.summary.smokeOnlyOperations).toBe(0);
     expect(matrix.summary.knownSemanticGaps).toBe(matrix.semanticGaps.length);
+    expect(matrix.summary.requestConstraints).toEqual({
+      total: requestConstraints.summary.totalConstraints,
+      localStackE2e: requestConstraints.summary.byDisposition['local-stack-e2e'],
+      rawSemanticGapSdkClosed:
+        requestConstraints.summary.byDisposition['raw-semantic-gap-sdk-closed'],
+      transportOrFeatureGated:
+        requestConstraints.summary.byDisposition['transport-or-feature-gated'],
+      sdkGeneratedPreflightOnly: requestConstraints.summary.sdkGeneratedPreflightOnly,
+      unclassified: requestConstraints.unclassified.length,
+      missingRawSemanticGapClosures:
+        requestConstraints.summary.missingRawSemanticGapClosures.length,
+      missingTransportGatedPublicWrapperClosures:
+        requestConstraints.transportGatedPublicWrapperClosures.filter(
+          (entry) => entry.status !== 'proven',
+        ).length,
+    });
+    expect(matrix.summary.requestConstraints.total).toBe(365);
+    expect(matrix.summary.requestConstraints.unclassified).toBe(0);
+    expect(matrix.summary.requestConstraints.sdkGeneratedPreflightOnly).toBe(0);
+    expect(matrix.summary.requestConstraints.missingRawSemanticGapClosures).toBe(0);
+    expect(matrix.summary.requestConstraints.missingTransportGatedPublicWrapperClosures).toBe(0);
     expect(matrix.summary.sdkSemanticGapClosures).toEqual({
       total: sdkSemanticGapClosures.length,
       proven: sdkSemanticGapClosures.filter((entry) => entry.status === 'proven').length,
@@ -1502,6 +1524,10 @@ describe('local-stack conformance matrix', () => {
       unexpectedGeneratedBackendCoreGapIds: [],
       backendCoreGapSpecMismatchRefs: [],
       missingRawProofConstraintKeyRefs: [],
+      unclassifiedRequestConstraintRefs: [],
+      sdkGeneratedPreflightOnlyConstraintRefs: [],
+      missingRequestConstraintRawGapClosureRefs: [],
+      missingTransportGatedPublicWrapperClosureRefs: [],
       rawSemanticGapOutcomeIds: [
         'backend-approvals-hitl',
         'backend-tracing-observability',
@@ -1569,6 +1595,10 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds).toEqual([]);
     expect(matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.missingRawProofConstraintKeyRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.unclassifiedRequestConstraintRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.sdkGeneratedPreflightOnlyConstraintRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.missingRequestConstraintRawGapClosureRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.missingTransportGatedPublicWrapperClosureRefs).toEqual([]);
     expect(matrix.scenarioMatrix.semanticGapIds).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),
     );
