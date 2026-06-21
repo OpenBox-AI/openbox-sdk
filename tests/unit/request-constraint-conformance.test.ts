@@ -37,6 +37,7 @@ describe('generated request constraint conformance ledger', () => {
         'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
         'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
         'core:evaluateGovernance:body.attempt:minimum',
+        'core:evaluateGovernance:body.cost_usd:format',
         'core:evaluateGovernance:body.cost_usd:type',
         'core:evaluateGovernance:body.timestamp:format',
       ]),

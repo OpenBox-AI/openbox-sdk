@@ -64,6 +64,19 @@ KNOWN_GOVERNANCE_GAP_CLOSURE_CASES: list[Rule] = [
     },
 ]
 
+EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS = [
+    "backend:AgentController_getAgentEvaluations:query.page:minimum",
+    "backend:AgentController_getAgentEvaluations:query.pattern:maxLength",
+    "backend:AgentController_getAgentEvaluations:query.perPage:minimum",
+    "backend:AgentController_getApprovalHistory:query.status:enum",
+    "backend:AgentController_getPendingApprovals:query.status:enum",
+    "backend:OrganizationController_getApprovals:query.status:enum",
+    "core:evaluateGovernance:body.attempt:minimum",
+    "core:evaluateGovernance:body.cost_usd:format",
+    "core:evaluateGovernance:body.cost_usd:type",
+    "core:evaluateGovernance:body.timestamp:format",
+]
+
 
 def test_generated_python_request_preflight_matches_openapi_constraints() -> None:
     assert _normalize_rules(BACKEND_REQUEST_PREFLIGHT_RULES) == _extract_request_rules(
@@ -155,6 +168,11 @@ def test_python_known_governance_gap_closures_are_generated() -> None:
             raise AssertionError(f"unhandled gap closure case: {case['id']}")
 
 
+def test_python_known_governance_gap_closures_cover_every_raw_constraint_key() -> None:
+    cases = _raw_semantic_gap_constraint_cases()
+    assert [case["key"] for case in cases] == EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS
+
+
 @pytest.mark.asyncio
 async def test_python_clients_apply_generated_preflight_before_transport() -> None:
     requests: list[httpx.Request] = []
@@ -202,6 +220,43 @@ async def test_python_clients_apply_generated_preflight_before_transport() -> No
                 path_params=_path_params(str(body_rule["path"])),
                 data=_body_with_path_value(body_constraint["path"], invalid_body["value"]),
             )
+
+    assert requests == []
+
+
+@pytest.mark.asyncio
+async def test_python_clients_block_every_raw_semantic_gap_constraint_before_transport() -> None:
+    requests: list[httpx.Request] = []
+    cases = _raw_semantic_gap_constraint_cases()
+    assert [case["key"] for case in cases] == EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS
+
+    async def transport(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"data": {"ok": True}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+        backend = AsyncOpenBoxClient(
+            api_url="https://backend.example",
+            api_key="obx_key_123",
+            http_client=http,
+        )
+        core = AsyncOpenBoxCoreClient(
+            api_url="https://core.example",
+            api_key="obx_test_runtime",
+            http_client=http,
+        )
+
+        for case in cases:
+            client = backend if case["service"] == "backend" else core
+            with pytest.raises(RequestPreflightError) as excinfo:
+                await client.request_operation(
+                    str(case["operation_id"]),
+                    path_params=_path_params(str(case["path"])),
+                    params=case.get("query"),
+                    data=case.get("data"),
+                )
+            assert excinfo.value.operation_id == case["operation_id"], case["key"]
+            assert excinfo.value.location == case["location"], case["key"]
 
     assert requests == []
 
@@ -523,6 +578,96 @@ def _transport_gated_public_method_constraints() -> list[Rule]:
     )
 
 
+def _raw_semantic_gap_constraint_cases() -> list[Rule]:
+    cases: list[Rule] = []
+    expected_keys = set(EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS)
+    for service, rules in [
+        ("backend", _normalize_rules(BACKEND_REQUEST_PREFLIGHT_RULES)),
+        ("core", _normalize_rules(CORE_REQUEST_PREFLIGHT_RULES)),
+    ]:
+        for rule in rules:
+            operation_id = str(rule["operation_id"])
+            for query_rule in rule.get("query") or []:
+                location = f"query.{query_rule['name']}"
+                for kind in _executable_constraint_kinds(query_rule, include_type=False):
+                    key = _constraint_key(service, operation_id, location, kind)
+                    if key not in expected_keys:
+                        continue
+                    cases.append(
+                        {
+                            "key": key,
+                            "service": service,
+                            "operation_id": operation_id,
+                            "path": rule["path"],
+                            "location": location,
+                            "kind": kind,
+                            "query": {
+                                query_rule["name"]: _invalid_value_for_constraint(
+                                    query_rule,
+                                    kind,
+                                )
+                            },
+                        }
+                    )
+            for body_rule in rule.get("body") or []:
+                location = f"body.{'.'.join(body_rule['path'])}"
+                for kind in _executable_constraint_kinds(body_rule, include_type=True):
+                    key = _constraint_key(service, operation_id, location, kind)
+                    if key not in expected_keys:
+                        continue
+                    invalid_value = _invalid_value_for_constraint(body_rule, kind)
+                    cases.append(
+                        {
+                            "key": key,
+                            "service": service,
+                            "operation_id": operation_id,
+                            "path": rule["path"],
+                            "location": location,
+                            "kind": kind,
+                            "data": _semantic_gap_body(rule, body_rule, invalid_value),
+                        }
+                    )
+    return sorted(cases, key=lambda case: str(case["key"]))
+
+
+def _constraint_key(service: str, operation_id: str, location: str, kind: str) -> str:
+    return f"{service}:{operation_id}:{location}:{_canonical_constraint_kind(kind)}"
+
+
+def _canonical_constraint_kind(kind: str) -> str:
+    return {
+        "max_items": "maxItems",
+        "max_length": "maxLength",
+        "min_items": "minItems",
+    }.get(kind, kind)
+
+
+def _semantic_gap_body(rule: Rule, body_rule: Rule, invalid_value: Any) -> Any:
+    body = (
+        _base_core_governance_payload()
+        if rule.get("operation_id") == "evaluateGovernance"
+        else {}
+    )
+    path = body_rule["path"]
+    if len(path) == 1 and path[0] != "*":
+        return {**body, str(path[0]): invalid_value}
+    return _body_with_path_value(path, invalid_value)
+
+
+def _base_core_governance_payload() -> dict[str, Any]:
+    return {
+        "event_type": "ActivityStarted",
+        "workflow_id": "wf-1",
+        "run_id": "run-1",
+        "workflow_type": "unit-test",
+        "task_queue": "langchain",
+        "source": "workflow-telemetry",
+        "timestamp": "2026-06-21T00:00:00Z",
+        "activity_id": "act-1",
+        "activity_type": "my-activity",
+    }
+
+
 def _is_transport_or_feature_gated_operation(operation_id: str) -> bool:
     return (
         operation_id.startswith("ApiKeyController_")
@@ -599,6 +744,8 @@ def _invalid_cases(
         cases.append({"kind": "format", "value": "not-a-uuid"})
     if rule.get("format") == "date-time":
         cases.append({"kind": "format", "value": "not-a-date-time"})
+    if rule.get("format") == "double":
+        cases.append({"kind": "format", "value": "not-a-number"})
     if rule.get("integer") is True:
         cases.append({"kind": "integer", "value": _fractional_within_range(rule)})
     if rule.get("minimum") is not None:

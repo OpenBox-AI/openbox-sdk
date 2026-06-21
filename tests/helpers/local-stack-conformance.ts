@@ -928,6 +928,7 @@ function summarizeSdkSemanticGapClosures(
   const tsOperationIds = new Set(tsRules.map((rule) => rule.operationId));
   const pythonRules = readPythonGeneratedPreflightRules(repoRoot);
   const pythonOperationIds = new Set(pythonRules.map((rule) => rule.operationId));
+  const rawConstraintKeysByGapId = rawSemanticGapConstraintKeysByGapId();
   const tsProofSources = readCombinedSource(repoRoot, [
     'tests/helpers/request-constraint-conformance.ts',
     'tests/unit/request-constraint-conformance.test.ts',
@@ -956,6 +957,7 @@ function summarizeSdkSemanticGapClosures(
       ],
       proofSource: tsProofSources,
       generatedRuleClosure: gapClosedByPreflight(gap, tsRules),
+      requestConstraintKeys: rawConstraintKeysByGapId.get(gap.id) ?? [],
     }),
     sdkClosureForGap({
       gap,
@@ -967,8 +969,25 @@ function summarizeSdkSemanticGapClosures(
       ],
       proofSource: pythonProofSources,
       generatedRuleClosure: gapClosedByPreflight(gap, pythonRules),
+      requestConstraintKeys: rawConstraintKeysByGapId.get(gap.id) ?? [],
     }),
   ]);
+}
+
+function rawSemanticGapConstraintKeysByGapId(): Map<string, string[]> {
+  const keysByGapId = new Map<string, string[]>();
+  for (const constraint of buildRequestConstraintConformance().constraints) {
+    if (constraint.disposition !== 'raw-semantic-gap-sdk-closed') continue;
+    for (const gapId of constraint.semanticGapIds) {
+      const keys = keysByGapId.get(gapId) ?? [];
+      keys.push(constraint.key);
+      keysByGapId.set(gapId, keys);
+    }
+  }
+  for (const [gapId, keys] of keysByGapId) {
+    keysByGapId.set(gapId, [...new Set(keys)].sort());
+  }
+  return keysByGapId;
 }
 
 function sdkClosureForGap(opts: {
@@ -978,8 +997,9 @@ function sdkClosureForGap(opts: {
   proofFiles: string[];
   proofSource: string;
   generatedRuleClosure: boolean;
+  requestConstraintKeys: string[];
 }): SdkSemanticGapClosure {
-  const evidencePatterns = sdkGapEvidencePatterns(opts.gap);
+  const evidencePatterns = sdkGapEvidencePatterns(opts.gap, opts.requestConstraintKeys);
   const missingOperationIds = opts.gap.operationIds
     .filter((operationId) => !opts.operationIds.has(operationId))
     .sort();
@@ -1004,10 +1024,14 @@ function sdkClosureForGap(opts: {
   };
 }
 
-function sdkGapEvidencePatterns(gap: SemanticGapCoverage): string[] {
+function sdkGapEvidencePatterns(
+  gap: SemanticGapCoverage,
+  requestConstraintKeys: string[],
+): string[] {
   return [
     gap.id,
     ...gap.operationIds,
+    ...requestConstraintKeys,
   ];
 }
 
