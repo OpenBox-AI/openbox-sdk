@@ -329,6 +329,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   duplicateScenarioMatrixContractRefs: string[];
   duplicateScenarioOperationRefs: string[];
   duplicateScenarioAxisRefs: string[];
+  underConformanceOperationRefs: string[];
   underConformanceObjectiveOperationRefs: string[];
   underConformanceLocalStackOutcomeRefs: string[];
   missingOperationEvidencePatternRefs: string[];
@@ -407,6 +408,7 @@ export interface LocalStackConformanceMatrix {
     totalOperations: number;
     operationsWithE2eHits: number;
     operationsWithBehavioralOrBetterHits: number;
+    operationsWithConformanceHits: number;
     smokeHitCount: number;
     unresolvedMethodHitCount: number;
     smokeOnlyOperations: number;
@@ -847,6 +849,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
   );
   const scenarioMatrix = summarizeScenarioMatrixContract(
     providerCapabilities.localStackScenarioMatrix,
+    coverage,
     scenarioPaths,
     outcomes,
     objectives,
@@ -908,6 +911,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       operationsWithBehavioralOrBetterHits: coverage.filter(
         (entry) => PROOF_ORDER[entry.proofLevel] >= PROOF_ORDER.behavioral,
       ).length,
+      operationsWithConformanceHits: coverage.filter((entry) => entry.proofLevel === 'conformance').length,
       smokeHitCount: smokeHits.length,
       unresolvedMethodHitCount: unresolvedMethodHits.length,
       smokeOnlyOperations: coverage.filter((entry) => entry.proofLevel === 'smoke').length,
@@ -2761,6 +2765,7 @@ function summarizeScenarioPaths(
 
 function summarizeScenarioMatrixContract(
   contract: LocalStackScenarioMatrixContract | undefined,
+  coverage: OperationCoverage[],
   scenarioPaths: ScenarioPathCoverage[],
   outcomes: CapabilityOutcomeCoverage[],
   objectives: ObjectiveCoverage[],
@@ -3012,6 +3017,10 @@ function summarizeScenarioMatrixContract(
     .filter((entry) => PROOF_ORDER[entry.minimumProofLevel] < PROOF_ORDER.conformance)
     .map((entry) => `${entry.id}:${entry.minimumProofLevel}`)
     .sort();
+  const underConformanceOperationRefs = coverage
+    .filter((entry) => PROOF_ORDER[entry.proofLevel] < PROOF_ORDER.conformance)
+    .map((entry) => `${entry.operation.service}:${entry.operation.operationId}:${entry.proofLevel}`)
+    .sort();
   const underConformanceObjectiveOperationRefs = objectives
     .flatMap((entry) =>
       entry.underConformanceOperationIds.map((operationId) => `${entry.id}:${operationId}`),
@@ -3124,6 +3133,7 @@ function summarizeScenarioMatrixContract(
     duplicateScenarioMatrixContractRefs,
     duplicateScenarioOperationRefs,
     duplicateScenarioAxisRefs,
+    underConformanceOperationRefs,
     underConformanceObjectiveOperationRefs,
     underConformanceLocalStackOutcomeRefs,
     missingOperationEvidencePatternRefs,
@@ -3180,6 +3190,7 @@ function summarizeScenarioMatrixContract(
     duplicateScenarioMatrixContractRefs,
     duplicateScenarioOperationRefs,
     duplicateScenarioAxisRefs,
+    underConformanceOperationRefs,
     underConformanceObjectiveOperationRefs,
     underConformanceLocalStackOutcomeRefs,
     missingOperationEvidencePatternRefs,

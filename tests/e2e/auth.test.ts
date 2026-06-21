@@ -35,11 +35,15 @@ function withoutField(body: Record<string, unknown>, field: string): Record<stri
 }
 
 describe('Auth Endpoints', () => {
-  it('GET /auth/profile returns user profile with required fields', async () => {
+  it('CONFORMANCE: GET /auth/profile returns API-key profile identity', async () => {
+    // CONFORMANCE_PROOF: auth profile follows the generated operation and
+    // asserts the local-stack API-key principal shape.
+    const operation = backendOperation('AuthController_getProfile');
     const client = getBackendClient();
-    const response = await client.get('/auth/profile');
+    const response = await client.get(operation.path);
     const body = fullResponse(response);
 
+    expect(operation.path).toBe('/auth/profile');
     expect(body.status).toBe(200);
 
     const profile = body.data;

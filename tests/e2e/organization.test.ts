@@ -185,10 +185,11 @@ describe('Organization', () => {
     expect(body.status).toBe(422);
   });
 
-  it('GET /organization/{orgId}/features returns feature gate flags', async () => {
+  it('CONFORMANCE: GET /organization/{orgId}/features returns feature gate flags', async () => {
     // CONFORMANCE_PROOF: feature discovery exposes finite local-stack feature
     // gates used by webhook/API-key/SSO boundary tests.
-    const response = await client.get(`/organization/${orgId}/features`);
+    const operation = backendOperation('OrganizationController_getFeatures');
+    const response = await client.get(operationPath(operation.path, { organizationId: orgId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -511,10 +512,13 @@ describe('Organization', () => {
     expect(invalidAuditDates.data.status).toBe(500);
   }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
 
-  it('GET /organization/{orgId}/dashboard/governance-slo returns SLO counters', async () => {
+  it('CONFORMANCE: GET /organization/{orgId}/dashboard/governance-slo returns SLO counters', async () => {
     // CONFORMANCE_PROOF: governance SLO dashboard conformance verifies
     // verdict counters, rates, targets, and tier breakdown.
-    const response = await client.get(`/organization/${orgId}/dashboard/governance-slo?window=7d`);
+    const operation = backendOperation('OrganizationController_getGovernanceSlo');
+    const response = await client.get(
+      `${operationPath(operation.path, { organizationId: orgId })}?window=7d`,
+    );
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -533,10 +537,13 @@ describe('Organization', () => {
     );
   });
 
-  it('GET /organization/{orgId}/dashboard/violation-heatcal returns heat calendar matrix', async () => {
+  it('CONFORMANCE: GET /organization/{orgId}/dashboard/violation-heatcal returns heat calendar matrix', async () => {
     // CONFORMANCE_PROOF: violation heat calendar conformance verifies the
     // dashboard matrix dimensions and peak summary fields.
-    const response = await client.get(`/organization/${orgId}/dashboard/violation-heatcal?window=7d`);
+    const operation = backendOperation('OrganizationController_getViolationHeatcal');
+    const response = await client.get(
+      `${operationPath(operation.path, { organizationId: orgId })}?window=7d`,
+    );
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);

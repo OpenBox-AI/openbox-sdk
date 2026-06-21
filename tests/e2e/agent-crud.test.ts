@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-client';
 import { makeJsonObjectValueClassPayload } from '../helpers/boundary-conformance';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
@@ -7,6 +8,19 @@ import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
+
+function backendOperation(operationId: string) {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
+}
+
+function operationPath(path: string, params: Record<string, string>) {
+  return path.replace(/\{([^}]+)\}/g, (_, key) => {
+    expect(params[key], key).toBeDefined();
+    return encodeURIComponent(params[key]);
+  });
+}
 
 describe('Agent CRUD Lifecycle', () => {
   const client = getBackendClient();
@@ -95,10 +109,13 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.status).toBe(422);
   });
 
-  it('lists agents and includes created agent', async () => {
-    // Search by the unique name; default list paginates and filters drafts
-    // (status=0) so newly-created agents may not appear on page 1.
-    const response = await client.get(`/agent/list?search=${encodeURIComponent(agentName)}`);
+  it('CONFORMANCE: lists agents and includes created agent', async () => {
+    // CONFORMANCE_PROOF: agent list follows the generated list operation and
+    // searches for a uniquely-created local-stack agent.
+    const operation = backendOperation('AgentController_getAgents');
+    const response = await client.get(
+      `${operationPath(operation.path, {})}?search=${encodeURIComponent(agentName)}`,
+    );
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -108,19 +125,23 @@ describe('Agent CRUD Lifecycle', () => {
     expect(found).toBeDefined();
   });
 
-  it('gets agent by ID', async () => {
-    const response = await client.get(`/agent/${agentId}`);
+  it('CONFORMANCE: gets agent by ID', async () => {
+    // CONFORMANCE_PROOF: agent read follows the generated detail operation and
+    // verifies the local-stack row created by this suite.
+    const operation = backendOperation('AgentController_getAgent');
+    const response = await client.get(operationPath(operation.path, { agentId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
     expect(body.data.agent_name).toBe(agentName);
   });
 
-  it('updates agent', async () => {
+  it('CONFORMANCE: updates agent', async () => {
     // CONFORMANCE_PROOF: agent lifecycle conformance verifies update returns
     // the persisted agent mutation.
+    const operation = backendOperation('AgentController_updateAgent');
     const config = { updated: makeJsonObjectValueClassPayload() };
-    const response = await client.put(`/agent/${agentId}`, {
+    const response = await client.put(operationPath(operation.path, { agentId }), {
       description: 'Updated by test',
       config,
     });
@@ -134,8 +155,9 @@ describe('Agent CRUD Lifecycle', () => {
     });
   });
 
-  it('verifies update', async () => {
-    const response = await client.get(`/agent/${agentId}`);
+  it('CONFORMANCE: verifies update persisted through generated read', async () => {
+    const operation = backendOperation('AgentController_getAgent');
+    const response = await client.get(operationPath(operation.path, { agentId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -143,10 +165,11 @@ describe('Agent CRUD Lifecycle', () => {
     expect(body.data.config).toMatchObject({ updated: makeJsonObjectValueClassPayload() });
   });
 
-  it('deletes agent', async () => {
+  it('CONFORMANCE: deletes agent', async () => {
     // CONFORMANCE_PROOF: agent lifecycle conformance verifies delete returns
     // a backend acknowledgement before the follow-up read confirms removal.
-    const response = await client.delete(`/agent/${agentId}`);
+    const operation = backendOperation('AgentController_deleteAgent');
+    const response = await client.delete(operationPath(operation.path, { agentId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);

@@ -104,6 +104,9 @@ describe('local-stack conformance matrix', () => {
     const operationsWithBehavioralOrBetterHits = matrix.operations.filter((entry) =>
       proofAtLeast(entry.proofLevel, 'behavioral'),
     );
+    const operationsWithConformanceHits = matrix.operations.filter((entry) =>
+      proofAtLeast(entry.proofLevel, 'conformance'),
+    );
     const smokeHits = matrix.operations.flatMap((entry) =>
       entry.hits
         .filter((hit) => hit.proofLevel === 'smoke')
@@ -121,6 +124,8 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.summary.operationsWithBehavioralOrBetterHits).toBe(
       operationsWithBehavioralOrBetterHits.length,
     );
+    expect(matrix.summary.operationsWithConformanceHits).toBe(operationsWithConformanceHits.length);
+    expect(matrix.summary.operationsWithConformanceHits).toBe(matrix.summary.totalOperations);
     expect(matrix.summary.operationsWithoutE2eHits).toBe(0);
     expect(matrix.summary.smokeHitCount).toBe(smokeHits.length);
     expect(matrix.summary.smokeHitCount).toBe(0);
@@ -141,6 +146,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.duplicateOperationPathPatternRefs).toEqual([]);
     expect(matrix.scenarioMatrix.operationRouteResolutionMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.ambiguousOperationRouteTieRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.underConformanceOperationRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceLocalStackRequiredProofLevelRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceObjectiveOperationRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceLocalStackOutcomeRefs).toEqual([]);
@@ -149,8 +155,8 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.unknownHits).toEqual([]);
   });
 
-  it('distinguishes endpoint smoke from behavioral local-stack proof', () => {
-    expect(operation(matrix, 'AppController_getHello').proofLevel).toBe('behavioral');
+  it('classifies endpoint local-stack proof strength', () => {
+    expect(operation(matrix, 'AppController_getHello').proofLevel).toBe('conformance');
     expect(operation(matrix, 'AgentController_createAgent').proofLevel).toBe('conformance');
     expect(operation(matrix, 'PolicyController_evaluate').proofLevel).toBe('conformance');
 
@@ -1478,6 +1484,7 @@ describe('local-stack conformance matrix', () => {
       unexpectedLocalStackScenarioIds: [],
       missingProviderOwnedScenarioIds: [],
       unexpectedProviderOwnedScenarioIds: [],
+      underConformanceOperationRefs: [],
       underConformanceObjectiveOperationRefs: [],
       unknownScenarioProofMarkerRefs: [],
       duplicateScenarioPathRefs: [],

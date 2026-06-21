@@ -24,8 +24,11 @@ describe('Teams', () => {
     orgId = getOrgId();
   });
 
-  it('GET /organization/{orgId}/teams returns 200 with data array', async () => {
-    const response = await client.get(`/organization/${orgId}/teams`);
+  it('CONFORMANCE: GET /organization/{orgId}/teams returns team list data', async () => {
+    // CONFORMANCE_PROOF: team list follows the generated route and asserts
+    // the local-stack paged team list shape.
+    const operation = backendOperation('OrganizationController_getTeams');
+    const response = await client.get(operationPath(operation.path, { organizationId: orgId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -33,10 +36,11 @@ describe('Teams', () => {
     expect(Array.isArray(body.data.data)).toBe(true);
   });
 
-  it('GET /organization/{orgId}/teams/stats returns 200', async () => {
+  it('CONFORMANCE: GET /organization/{orgId}/teams/stats returns counters', async () => {
     // CONFORMANCE_PROOF: team stats expose local-stack team/member/agent
     // counters rather than only endpoint reachability.
-    const response = await client.get(`/organization/${orgId}/teams/stats`);
+    const operation = backendOperation('OrganizationController_getTeamStats');
+    const response = await client.get(operationPath(operation.path, { organizationId: orgId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -51,13 +55,16 @@ describe('Teams', () => {
     );
   });
 
-  it('POST/PUT/DELETE /organization/{orgId}/teams manages a disposable team', async () => {
+  it('CONFORMANCE: POST/PUT/DELETE /organization/{orgId}/teams manages a disposable team', async () => {
     // CONFORMANCE_PROOF: team lifecycle reaches create, update, and bulk
     // delete paths and cleans up the disposable team before the test exits.
+    const createOperation = backendOperation('OrganizationController_createTeam');
+    const updateOperation = backendOperation('OrganizationController_updateTeam');
+    const deleteOperation = backendOperation('OrganizationController_deleteTeams');
     let teamId: string | undefined;
 
     try {
-      const created = await client.post(`/organization/${orgId}/teams`, {
+      const created = await client.post(operationPath(createOperation.path, { organizationId: orgId }), {
         name: `e2e-team-${Date.now()}`,
         icon: 'https://example.invalid/openbox-team-icon.png',
         description: 'local-stack lifecycle proof',
@@ -69,19 +76,23 @@ describe('Teams', () => {
           id: expect.any(String),
         }),
       );
-      teamId = createBody.data.id;
+      const createdTeamId = createBody.data.id as string;
+      teamId = createdTeamId;
 
-      const updated = await client.put(`/organization/${orgId}/teams/${teamId}`, {});
+      const updated = await client.put(
+        operationPath(updateOperation.path, { organizationId: orgId, teamId: createdTeamId }),
+        {},
+      );
       const updateBody = fullResponse(updated);
       expect(updateBody.status).toBe(200);
       expect(updateBody.data).toEqual(
         expect.objectContaining({
-          id: teamId,
+          id: createdTeamId,
           name: expect.any(String),
         }),
       );
 
-      const deleted = await client.delete(`/organization/${orgId}/teams`, {
+      const deleted = await client.delete(operationPath(deleteOperation.path, { organizationId: orgId }), {
         ids: [teamId],
       });
       expect(fullResponse(deleted).status).toBe(200);
