@@ -42,6 +42,13 @@ export interface E2eOperationHit {
   call: string;
 }
 
+export interface SmokeOperationHit {
+  operationId: string;
+  file: string;
+  testName: string;
+  call: string;
+}
+
 export interface OperationCoverage {
   operation: SpecOperation;
   proofLevel: ProofLevel;
@@ -376,6 +383,7 @@ export interface LocalStackConformanceMatrix {
   backendCoreGapRemediationTargets: BackendCoreGapRemediationTarget[];
   providerGuards: ProviderGuardCoverage[];
   exceptions: ConformanceException[];
+  smokeHits: SmokeOperationHit[];
   unknownHits: Array<{
     file: string;
     testName: string;
@@ -385,6 +393,7 @@ export interface LocalStackConformanceMatrix {
     totalOperations: number;
     operationsWithE2eHits: number;
     operationsWithBehavioralOrBetterHits: number;
+    smokeHitCount: number;
     smokeOnlyOperations: number;
     operationsWithoutE2eHits: number;
     knownSemanticGaps: number;
@@ -777,6 +786,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       hits,
     };
   });
+  const smokeHits = summarizeSmokeHits(coverage);
 
   const objectives = OBJECTIVE_SELECTORS.map(({ id, select }) =>
     summarizeObjective(id, coverage.filter(({ operation }) => select(operation))),
@@ -853,6 +863,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     backendCoreGapRemediationTargets,
     providerGuards,
     exceptions,
+    smokeHits,
     unknownHits,
     summary: {
       totalOperations: coverage.length,
@@ -860,6 +871,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       operationsWithBehavioralOrBetterHits: coverage.filter(
         (entry) => PROOF_ORDER[entry.proofLevel] >= PROOF_ORDER.behavioral,
       ).length,
+      smokeHitCount: smokeHits.length,
       smokeOnlyOperations: coverage.filter((entry) => entry.proofLevel === 'smoke').length,
       operationsWithoutE2eHits: coverage.filter((entry) => entry.proofLevel === 'none').length,
       knownSemanticGaps: semanticGaps.length,
@@ -1979,6 +1991,25 @@ function maxProofLevel(levels: ProofLevel[]): ProofLevel {
     if (PROOF_ORDER[level] > PROOF_ORDER[best]) best = level;
   }
   return best;
+}
+
+function summarizeSmokeHits(coverage: OperationCoverage[]): SmokeOperationHit[] {
+  return coverage
+    .flatMap((entry) =>
+      entry.hits
+        .filter((hit) => hit.proofLevel === 'smoke')
+        .map((hit) => ({
+          operationId: entry.operation.operationId,
+          file: hit.file,
+          testName: hit.testName,
+          call: hit.call,
+        })),
+    )
+    .sort((left, right) =>
+      `${left.operationId}\0${left.file}\0${left.testName}\0${left.call}`.localeCompare(
+        `${right.operationId}\0${right.file}\0${right.testName}\0${right.call}`,
+      ),
+    );
 }
 
 function summarizeObjective(id: string, coverage: OperationCoverage[]): ObjectiveCoverage {

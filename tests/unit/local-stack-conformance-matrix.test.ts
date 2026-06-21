@@ -104,6 +104,16 @@ describe('local-stack conformance matrix', () => {
     const operationsWithBehavioralOrBetterHits = matrix.operations.filter((entry) =>
       proofAtLeast(entry.proofLevel, 'behavioral'),
     );
+    const smokeHits = matrix.operations.flatMap((entry) =>
+      entry.hits
+        .filter((hit) => hit.proofLevel === 'smoke')
+        .map((hit) => ({
+          operationId: entry.operation.operationId,
+          file: hit.file,
+          testName: hit.testName,
+          call: hit.call,
+        })),
+    );
     const sdkSemanticGapClosures = matrix.sdkSemanticGapClosures;
 
     expect(matrix.summary.totalOperations).toBe(matrix.operations.length);
@@ -112,6 +122,8 @@ describe('local-stack conformance matrix', () => {
       operationsWithBehavioralOrBetterHits.length,
     );
     expect(matrix.summary.operationsWithoutE2eHits).toBe(0);
+    expect(matrix.summary.smokeHitCount).toBe(smokeHits.length);
+    expect(matrix.summary.smokeHitCount).toBe(0);
     expect(matrix.summary.smokeOnlyOperations).toBe(0);
     expect(matrix.summary.knownSemanticGaps).toBe(matrix.semanticGaps.length);
     expect(matrix.summary.sdkSemanticGapClosures).toEqual({
@@ -127,6 +139,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.duplicateOperationPathPatternRefs).toEqual([]);
     expect(matrix.scenarioMatrix.operationRouteResolutionMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.ambiguousOperationRouteTieRefs).toEqual([]);
+    expect(matrix.smokeHits).toEqual([]);
     expect(matrix.unknownHits).toEqual([]);
   });
 
