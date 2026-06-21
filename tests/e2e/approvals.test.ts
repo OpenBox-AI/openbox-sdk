@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { getBackendClient, fullResponse, getOrgId, getTeamIds } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
@@ -7,12 +8,40 @@ import {
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
 import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import { buildRequestConstraintConformance } from '../helpers/request-constraint-conformance';
 
 function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.data)) return value.data;
   if (Array.isArray(value?.approvals?.data)) return value.approvals.data;
   return [];
+}
+
+function sortedStrings(values: Iterable<string>): string[] {
+  return [...values].sort((left, right) => left.localeCompare(right));
+}
+
+function backendOperation(operationId: string) {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
+}
+
+function operationPath(path: string, params: Record<string, string>) {
+  return path.replace(/\{([^}]+)\}/g, (_, key) => {
+    expect(params[key], key).toBeDefined();
+    return encodeURIComponent(params[key]);
+  });
+}
+
+function rawApprovalStatusConstraintsFromLedger() {
+  const ledger = buildRequestConstraintConformance();
+  return ledger.constraints
+    .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
+    .filter((entry) =>
+      entry.semanticGapIds.includes('approval-status-invalid-query-not-rejected'),
+    )
+    .sort((left, right) => left.key.localeCompare(right.key));
 }
 
 describe('Approvals', () => {
@@ -255,28 +284,82 @@ describe('Approvals', () => {
     // until backend validation rejects invalid approval statuses.
     await ensureApprovalDashboardLedger();
 
-    const invalidStatus = invalidGovernanceSpecMember('approvalStatuses');
+    const rawApprovalStatusConstraints = rawApprovalStatusConstraintsFromLedger();
+    expect(rawApprovalStatusConstraints.map((entry) => entry.key)).toEqual([
+      'backend:AgentController_getApprovalHistory:query.status:enum',
+      'backend:AgentController_getPendingApprovals:query.status:enum',
+      'backend:OrganizationController_getApprovals:query.status:enum',
+    ]);
+    expect(rawApprovalStatusConstraints.every((entry) => entry.service === 'backend')).toBe(true);
+    expect(rawApprovalStatusConstraints.every((entry) => entry.location === 'query.status')).toBe(
+      true,
+    );
+    expect(rawApprovalStatusConstraints.every((entry) => entry.kind === 'enum')).toBe(true);
+    expect(rawApprovalStatusConstraints.every((entry) =>
+      sortedStrings((entry.value as string[] | undefined) ?? []).join('|') ===
+        sortedStrings(GOVERNANCE_SPEC_DOMAINS.approvalStatuses).join('|'),
+    )).toBe(true);
+    expect(rawApprovalStatusConstraints.every((entry) =>
+      entry.semanticGapIds.includes('approval-status-invalid-query-not-rejected'),
+    )).toBe(true);
 
+    const invalidStatus = invalidGovernanceSpecMember('approvalStatuses');
+    const observedOperationIds: string[] = [];
+
+    const pendingConstraint = rawApprovalStatusConstraints.find(
+      (entry) => entry.operationId === 'AgentController_getPendingApprovals',
+    );
+    expect(pendingConstraint).toBeDefined();
+    const pendingOperation = backendOperation(pendingConstraint!.operationId);
+    expect(pendingOperation.verb, pendingConstraint!.key).toBe('get');
+    expect(operationPath(pendingOperation.path, { agentId })).toBe(
+      `/agent/${encodeURIComponent(agentId)}/approvals/pending`,
+    );
     const pendingResponse = await client.get(
-      `/agent/${agentId}/approvals/pending?status=${invalidStatus}`,
+      `/agent/${agentId}/approvals/pending?status=${encodeURIComponent(invalidStatus)}`,
     );
     const pendingBody = fullResponse(pendingResponse);
-    expect(pendingBody.status).toBe(200);
-    expect(Array.isArray(listItems(pendingBody.data))).toBe(true);
+    expect(pendingBody.status, pendingConstraint!.key).toBe(200);
+    expect(Array.isArray(listItems(pendingBody.data)), pendingConstraint!.key).toBe(true);
+    observedOperationIds.push(pendingConstraint!.operationId);
 
+    const historyConstraint = rawApprovalStatusConstraints.find(
+      (entry) => entry.operationId === 'AgentController_getApprovalHistory',
+    );
+    expect(historyConstraint).toBeDefined();
+    const historyOperation = backendOperation(historyConstraint!.operationId);
+    expect(historyOperation.verb, historyConstraint!.key).toBe('get');
+    expect(operationPath(historyOperation.path, { agentId })).toBe(
+      `/agent/${encodeURIComponent(agentId)}/approvals/history`,
+    );
     const historyResponse = await client.get(
-      `/agent/${agentId}/approvals/history?status=${invalidStatus}`,
+      `/agent/${agentId}/approvals/history?status=${encodeURIComponent(invalidStatus)}`,
     );
     const historyBody = fullResponse(historyResponse);
-    expect(historyBody.status).toBe(200);
-    expect(Array.isArray(listItems(historyBody.data))).toBe(true);
+    expect(historyBody.status, historyConstraint!.key).toBe(200);
+    expect(Array.isArray(listItems(historyBody.data)), historyConstraint!.key).toBe(true);
+    observedOperationIds.push(historyConstraint!.operationId);
 
+    const orgConstraint = rawApprovalStatusConstraints.find(
+      (entry) => entry.operationId === 'OrganizationController_getApprovals',
+    );
+    expect(orgConstraint).toBeDefined();
+    const orgOperation = backendOperation(orgConstraint!.operationId);
+    expect(orgOperation.verb, orgConstraint!.key).toBe('get');
+    expect(operationPath(orgOperation.path, { organizationId: orgId })).toBe(
+      `/organization/${encodeURIComponent(orgId)}/approvals`,
+    );
     const orgResponse = await client.get(
-      `/organization/${orgId}/approvals?status=${invalidStatus}`,
+      `/organization/${orgId}/approvals?status=${encodeURIComponent(invalidStatus)}`,
     );
     const orgBody = fullResponse(orgResponse);
-    expect(orgBody.status).toBe(200);
-    expect(Array.isArray(listItems(orgBody.data))).toBe(true);
+    expect(orgBody.status, orgConstraint!.key).toBe(200);
+    expect(Array.isArray(listItems(orgBody.data)), orgConstraint!.key).toBe(true);
+    observedOperationIds.push(orgConstraint!.operationId);
+
+    expect(sortedStrings(observedOperationIds)).toEqual(
+      sortedStrings(rawApprovalStatusConstraints.map((entry) => entry.operationId)),
+    );
   });
 
   it('GET /organization/{orgId}/approvals/metrics returns 200', async () => {

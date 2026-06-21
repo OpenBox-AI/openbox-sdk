@@ -575,10 +575,14 @@ export const FINITE_DOMAIN_GAPS: FiniteDomainGap[] = [
     evidencePattern: 'SEMANTIC_GAP_PROOF: approval status query out-of-domain values are accepted by local stack',
     executablePatterns: [
       "invalidGovernanceSpecMember('approvalStatuses')",
-      '?status=${invalidStatus}',
-      'expect(pendingBody.status).toBe(200)',
-      'expect(historyBody.status).toBe(200)',
-      'expect(orgBody.status).toBe(200)',
+      'rawApprovalStatusConstraintsFromLedger()',
+      'approval-status-invalid-query-not-rejected',
+      'backendOperation(pendingConstraint!.operationId)',
+      '?status=${encodeURIComponent(invalidStatus)}',
+      'expect(pendingBody.status, pendingConstraint!.key).toBe(200)',
+      'expect(historyBody.status, historyConstraint!.key).toBe(200)',
+      'expect(orgBody.status, orgConstraint!.key).toBe(200)',
+      'observedOperationIds.push(pendingConstraint!.operationId)',
     ],
     observedBehavior:
       'The local stack accepts out-of-domain approval status query values with 200 responses.',
