@@ -327,6 +327,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   duplicateScenarioMatrixContractRefs: string[];
   duplicateScenarioOperationRefs: string[];
   duplicateScenarioAxisRefs: string[];
+  underConformanceLocalStackOutcomeRefs: string[];
   missingOperationEvidencePatternRefs: string[];
   unknownOperationEvidencePatternRefs: string[];
   duplicateOperationEvidencePatternRefs: string[];
@@ -569,15 +570,17 @@ const OBJECTIVE_SELECTORS: Array<{
   },
 ];
 
-const OUTCOME_SPECS: Array<{
+type OutcomeSpecInput = {
   id: string;
   label: string;
   source: CapabilityOutcomeCoverage['source'];
   minimumProofLevel: ProofLevel;
-  operationIds?: string[];
-  providerGuardCapabilities?: string[];
-  exceptionCapabilities?: string[];
-}> = [
+  operationIds?: readonly string[];
+  providerGuardCapabilities?: readonly string[];
+  exceptionCapabilities?: readonly string[];
+};
+
+const OUTCOME_SPECS: OutcomeSpecInput[] = [
   {
     id: 'core-governance-verdicts',
     label: 'Core governance verdicts',
@@ -822,11 +825,15 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
   const semanticGaps = summarizeSemanticGaps();
   const sdkSemanticGapClosures = summarizeSdkSemanticGapClosures(repoRoot, semanticGaps);
   const backendCoreGapRemediationTargets = summarizeBackendCoreGapRemediationTargets(semanticGaps);
+  const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs.length
+    ? providerCapabilities.localStackScenarioMatrix.requiredOutcomeSpecs
+    : OUTCOME_SPECS;
   const outcomes = summarizeCapabilityOutcomes(
     coverage,
     providerGuards,
     exceptions,
     semanticGaps,
+    outcomeSpecs,
   );
   const scenarioPaths = summarizeScenarioPaths(
     providerCapabilities.localStackScenarioPaths ?? [],
@@ -2289,6 +2296,7 @@ function summarizeCapabilityOutcomes(
   providerGuards: ProviderGuardCoverage[],
   exceptions: ConformanceException[],
   semanticGaps: SemanticGapCoverage[],
+  outcomeSpecs: ReadonlyArray<OutcomeSpecInput> = OUTCOME_SPECS,
 ): CapabilityOutcomeCoverage[] {
   const coverageByOperationId = new Map(
     coverage.map((entry) => [entry.operation.operationId, entry]),
@@ -2297,9 +2305,10 @@ function summarizeCapabilityOutcomes(
     providerGuards.map((entry) => [entry.capability, entry]),
   );
 
-  return OUTCOME_SPECS.map((spec) => {
-    const operationIds = spec.operationIds ?? [];
-    const providerGuardCapabilities = spec.providerGuardCapabilities ?? [];
+  return outcomeSpecs.map((spec) => {
+    const operationIds = [...(spec.operationIds ?? [])];
+    const providerGuardCapabilities = [...(spec.providerGuardCapabilities ?? [])];
+    const exceptionCapabilities = [...(spec.exceptionCapabilities ?? [])];
     const entries = operationIds
       .map((operationId) => coverageByOperationId.get(operationId))
       .filter((entry): entry is OperationCoverage => Boolean(entry));
@@ -2343,7 +2352,7 @@ function summarizeCapabilityOutcomes(
       ...new Set(providerGuardEntries.flatMap((guard) => guard.guardProofBlockKeys)),
     ].sort();
     const exceptionIds = exceptions
-      .filter((entry) => (spec.exceptionCapabilities ?? []).includes(entry.capability))
+      .filter((entry) => exceptionCapabilities.includes(entry.capability))
       .map((entry) => entry.id)
       .sort();
     const semanticGapIds = semanticGaps
@@ -2360,7 +2369,7 @@ function summarizeCapabilityOutcomes(
       minimumProofLevel: spec.minimumProofLevel,
       operationIds,
       providerGuardCapabilities,
-      exceptionCapabilities: spec.exceptionCapabilities ?? [],
+      exceptionCapabilities,
       providerGuardProofBlockKeys,
       missingProviderGuardCapabilities,
       missingProviderGuardTestRefs,
@@ -2985,6 +2994,11 @@ function summarizeScenarioMatrixContract(
     .filter((entry) => PROOF_ORDER[entry.requiredProofLevel] < PROOF_ORDER.conformance)
     .map((entry) => `${entry.id}:${entry.requiredProofLevel}`)
     .sort();
+  const underConformanceLocalStackOutcomeRefs = outcomes
+    .filter((entry) => entry.source === 'local-stack-e2e')
+    .filter((entry) => PROOF_ORDER[entry.minimumProofLevel] < PROOF_ORDER.conformance)
+    .map((entry) => `${entry.id}:${entry.minimumProofLevel}`)
+    .sort();
   const duplicateScenarioPathRefs = duplicates(scenarioPaths.map((entry) => entry.id));
   const duplicateOutcomeRefs = duplicates(outcomes.map((entry) => entry.id));
   const duplicateScenarioMatrixContractRefs = uniqueSorted([
@@ -3092,6 +3106,7 @@ function summarizeScenarioMatrixContract(
     duplicateScenarioMatrixContractRefs,
     duplicateScenarioOperationRefs,
     duplicateScenarioAxisRefs,
+    underConformanceLocalStackOutcomeRefs,
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
@@ -3146,6 +3161,7 @@ function summarizeScenarioMatrixContract(
     duplicateScenarioMatrixContractRefs,
     duplicateScenarioOperationRefs,
     duplicateScenarioAxisRefs,
+    underConformanceLocalStackOutcomeRefs,
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,

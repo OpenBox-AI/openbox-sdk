@@ -5236,7 +5236,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "core-governance-verdicts",
       "label": "Core governance verdicts",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "validateApiKey",
         "evaluateGovernance"
@@ -5248,7 +5248,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "core-approval-polling",
       "label": "Core approval polling",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "pollApproval"
       ],
@@ -5259,7 +5259,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "backend-policy-evaluation",
       "label": "Backend policy and OPA evaluation",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "AgentController_createPolicy",
         "AgentController_getPolicies",
@@ -5275,7 +5275,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "backend-guardrail-enforcement",
       "label": "Backend guardrail enforcement",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "AgentController_createGuardrail",
         "AgentController_getGuardrails",
@@ -5291,7 +5291,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "backend-approvals-hitl",
       "label": "Backend approvals and HITL",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "AgentController_getPendingApprovals",
         "AgentController_getApprovalHistory",
@@ -5325,7 +5325,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "backend-tracing-observability",
       "label": "Backend tracing and observability",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "AgentController_getAgentEvaluations",
         "AgentController_getSessions",
@@ -5344,7 +5344,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "backend-usage-cost-trust",
       "label": "Backend usage, cost, and trust",
       "source": "local-stack-e2e",
-      "minimumProofLevel": "behavioral",
+      "minimumProofLevel": "conformance",
       "operationIds": [
         "AgentController_getAgentsMetrics",
         "AgentController_updateAivssConfig",

@@ -142,6 +142,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.operationRouteResolutionMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.ambiguousOperationRouteTieRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceLocalStackRequiredProofLevelRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.underConformanceLocalStackOutcomeRefs).toEqual([]);
     expect(matrix.smokeHits).toEqual([]);
     expect(matrix.unresolvedMethodHits).toEqual([]);
     expect(matrix.unknownHits).toEqual([]);
@@ -1285,12 +1286,16 @@ describe('local-stack conformance matrix', () => {
       matrix.scenarioMatrix.requiredOutcomeIds,
     );
     expect(matrix.scenarioMatrix.outcomeSpecMismatchRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.underConformanceLocalStackOutcomeRefs).toEqual([]);
 
     for (const spec of matrix.scenarioMatrix.requiredOutcomeSpecs) {
       const coveredOutcome = outcome(matrix, spec.id);
       expect(coveredOutcome.label, spec.id).toBe(spec.label);
       expect(coveredOutcome.source, spec.id).toBe(spec.source);
       expect(coveredOutcome.minimumProofLevel, spec.id).toBe(spec.minimumProofLevel);
+      if (coveredOutcome.source === 'local-stack-e2e') {
+        expect(coveredOutcome.minimumProofLevel, spec.id).toBe('conformance');
+      }
       expect(coveredOutcome.operationIds, spec.id).toEqual(spec.operationIds);
       expect(coveredOutcome.providerGuardCapabilities, spec.id).toEqual(
         spec.providerGuardCapabilities,
