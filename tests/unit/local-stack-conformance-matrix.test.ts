@@ -73,6 +73,17 @@ const providerCapabilitiesFixture = JSON.parse(
   capabilityIds: string[];
   providerIds: string[];
   supportTiers: string[];
+  localStackScenarioMatrix: {
+    requiredOutcomeSpecs: Array<{
+      id: string;
+      label: string;
+      source: string;
+      minimumProofLevel: string;
+      operationIds: string[];
+      providerGuardCapabilities: string[];
+      exceptionCapabilities: string[];
+    }>;
+  };
 };
 
 describe('local-stack conformance matrix', () => {
@@ -1634,6 +1645,20 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.requiredOutcomeSpecs.map((entry) => entry.id)).toEqual(
       matrix.scenarioMatrix.requiredOutcomeIds,
     );
+    expect(matrix.scenarioMatrix.requiredOutcomeSpecs).toEqual(
+      providerCapabilitiesFixture.localStackScenarioMatrix.requiredOutcomeSpecs,
+    );
+    expect(
+      matrix.outcomes.map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        source: entry.source,
+        minimumProofLevel: entry.minimumProofLevel,
+        operationIds: entry.operationIds,
+        providerGuardCapabilities: entry.providerGuardCapabilities,
+        exceptionCapabilities: entry.exceptionCapabilities,
+      })),
+    ).toEqual(providerCapabilitiesFixture.localStackScenarioMatrix.requiredOutcomeSpecs);
     expect(matrix.scenarioMatrix.outcomeSpecMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceLocalStackOutcomeRefs).toEqual([]);
 

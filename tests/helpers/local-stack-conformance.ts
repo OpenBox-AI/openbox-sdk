@@ -720,149 +720,6 @@ type OutcomeSpecInput = {
   exceptionCapabilities?: readonly string[];
 };
 
-const OUTCOME_SPECS: OutcomeSpecInput[] = [
-  {
-    id: 'core-governance-verdicts',
-    label: 'Core governance verdicts',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: ['validateApiKey', 'evaluateGovernance'],
-  },
-  {
-    id: 'core-approval-polling',
-    label: 'Core approval polling',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: ['pollApproval'],
-  },
-  {
-    id: 'backend-policy-evaluation',
-    label: 'Backend policy and OPA evaluation',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: [
-      'AgentController_createPolicy',
-      'AgentController_getPolicies',
-      'AgentController_getPolicy',
-      'PolicyController_evaluate',
-    ],
-    providerGuardCapabilities: ['opa-rules'],
-  },
-  {
-    id: 'backend-guardrail-enforcement',
-    label: 'Backend guardrail enforcement',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: [
-      'AgentController_createGuardrail',
-      'AgentController_getGuardrails',
-      'AgentController_getGuardrail',
-      'GuardrailController_runTest',
-    ],
-    providerGuardCapabilities: ['guardrails'],
-  },
-  {
-    id: 'backend-approvals-hitl',
-    label: 'Backend approvals and HITL',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: [
-      'AgentController_getPendingApprovals',
-      'AgentController_getApprovalHistory',
-      'AgentController_decideApproval',
-      'OrganizationController_getApprovals',
-    ],
-    providerGuardCapabilities: ['approvals-hitl'],
-  },
-  {
-    id: 'backend-organization-member-admin',
-    label: 'Backend organization member administration',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'conformance',
-    operationIds: [
-      'OrganizationController_getMembers',
-      'OrganizationController_removeMembers',
-      'OrganizationController_createUser',
-      'OrganizationController_sendWelcomeEmail',
-      'OrganizationController_inviteUser',
-      'OrganizationController_assignRoles',
-      'OrganizationController_removeRoles',
-      'OrganizationController_updateMember',
-    ],
-  },
-  {
-    id: 'backend-tracing-observability',
-    label: 'Backend tracing and observability',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: [
-      'AgentController_getAgentEvaluations',
-      'AgentController_getSessions',
-      'AgentController_getSession',
-      'AgentController_getSessionLogs',
-      'AgentController_getSessionReasoningTrace',
-      'AgentController_getObservability',
-      'OrganizationController_getGovernanceFeed',
-    ],
-    providerGuardCapabilities: ['tracing'],
-  },
-  {
-    id: 'backend-usage-cost-trust',
-    label: 'Backend usage, cost, and trust',
-    source: 'local-stack-e2e',
-    minimumProofLevel: 'behavioral',
-    operationIds: [
-      'AgentController_getAgentsMetrics',
-      'AgentController_updateAivssConfig',
-      'AgentController_recalculateTrustScore',
-      'AgentController_getTrustTierChanges',
-      'AgentController_getAgentTrustScoreEvents',
-      'OrganizationController_getTrustTierTrends',
-    ],
-    providerGuardCapabilities: ['usage-cost'],
-  },
-  {
-    id: 'provider-adapter-guardrails',
-    label: 'Provider adapter guardrails',
-    source: 'provider-guard-fixture',
-    minimumProofLevel: 'none',
-    providerGuardCapabilities: ['guardrails'],
-    exceptionCapabilities: ['guardrails'],
-  },
-  {
-    id: 'provider-adapter-approvals-hitl',
-    label: 'Provider adapter approvals and HITL',
-    source: 'provider-guard-fixture',
-    minimumProofLevel: 'none',
-    providerGuardCapabilities: ['approvals-hitl'],
-    exceptionCapabilities: ['approvals-hitl'],
-  },
-  {
-    id: 'provider-adapter-tracing',
-    label: 'Provider adapter tracing',
-    source: 'provider-guard-fixture',
-    minimumProofLevel: 'none',
-    providerGuardCapabilities: ['tracing'],
-    exceptionCapabilities: ['tracing'],
-  },
-  {
-    id: 'provider-adapter-usage-cost',
-    label: 'Provider adapter usage and cost',
-    source: 'provider-guard-fixture',
-    minimumProofLevel: 'none',
-    providerGuardCapabilities: ['usage-cost'],
-    exceptionCapabilities: ['usage-cost'],
-  },
-  {
-    id: 'provider-adapter-opa-rules',
-    label: 'Provider adapter OPA/rules boundary',
-    source: 'provider-guard-fixture',
-    minimumProofLevel: 'none',
-    providerGuardCapabilities: ['opa-rules'],
-    exceptionCapabilities: ['rules-instructions'],
-  },
-];
-
 export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): LocalStackConformanceMatrix {
   const manifest = readJson<SdkManifestFixture>(
     repoRoot,
@@ -971,9 +828,7 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     requestConstraints,
     providerCapabilities.localStackScenarioMatrix?.rawBackendCoreSemanticGaps ?? [],
   );
-  const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs.length
-    ? providerCapabilities.localStackScenarioMatrix.requiredOutcomeSpecs
-    : OUTCOME_SPECS;
+  const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs ?? [];
   const outcomes = summarizeCapabilityOutcomes(
     coverage,
     providerGuards,
@@ -2692,7 +2547,7 @@ function summarizeCapabilityOutcomes(
   providerGuards: ProviderGuardCoverage[],
   exceptions: ConformanceException[],
   semanticGaps: SemanticGapCoverage[],
-  outcomeSpecs: ReadonlyArray<OutcomeSpecInput> = OUTCOME_SPECS,
+  outcomeSpecs: ReadonlyArray<OutcomeSpecInput>,
 ): CapabilityOutcomeCoverage[] {
   const coverageByOperationId = new Map(
     coverage.map((entry) => [entry.operation.operationId, entry]),
