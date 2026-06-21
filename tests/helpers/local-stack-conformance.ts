@@ -316,6 +316,9 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   knownBackendCoreGapIds: string[];
   backendCoreGapRemediationTargetIds: string[];
   generatedBackendCoreGapIds: string[];
+  duplicateSemanticGapRefs: string[];
+  duplicateGeneratedBackendCoreGapRefs: string[];
+  duplicateBackendCoreGapRemediationTargetRefs: string[];
   missingGeneratedBackendCoreGapIds: string[];
   unexpectedGeneratedBackendCoreGapIds: string[];
   backendCoreGapSpecMismatchRefs: string[];
@@ -3382,9 +3385,18 @@ function summarizeScenarioMatrixContract(
   const generatedBackendCoreGapIds = resolvedContract.rawBackendCoreSemanticGaps
     .map((entry) => entry.id)
     .sort();
+  const duplicateSemanticGapRefs = duplicates(semanticGaps.map((entry) => entry.id)).map(
+    (id) => `semanticGaps:${id}`,
+  );
+  const duplicateGeneratedBackendCoreGapRefs = duplicates(
+    resolvedContract.rawBackendCoreSemanticGaps.map((entry) => entry.id),
+  ).map((id) => `rawBackendCoreSemanticGaps:${id}`);
   const backendCoreGapRemediationTargetIds = backendCoreGapRemediationTargets
     .map((entry) => entry.gapId)
     .sort();
+  const duplicateBackendCoreGapRemediationTargetRefs = duplicates(
+    backendCoreGapRemediationTargets.map((entry) => entry.gapId),
+  ).map((id) => `backendCoreGapRemediationTargets:${id}`);
   const missingGeneratedBackendCoreGapIds = missing(semanticGapIds, generatedBackendCoreGapIds);
   const unexpectedGeneratedBackendCoreGapIds = unexpected(generatedBackendCoreGapIds, semanticGapIds);
   const missingBackendCoreGapRemediationTargetIds = missing(
@@ -3709,6 +3721,9 @@ function summarizeScenarioMatrixContract(
     missingOutcomeIds,
     incompleteOutcomeIds,
     unclosedSemanticGapIds,
+    duplicateSemanticGapRefs,
+    duplicateGeneratedBackendCoreGapRefs,
+    duplicateBackendCoreGapRemediationTargetRefs,
     missingGeneratedBackendCoreGapIds,
     unexpectedGeneratedBackendCoreGapIds,
     backendCoreGapSpecMismatchRefs,
@@ -3738,6 +3753,9 @@ function summarizeScenarioMatrixContract(
     knownBackendCoreGapIds: semanticGapIds,
     backendCoreGapRemediationTargetIds,
     generatedBackendCoreGapIds,
+    duplicateSemanticGapRefs,
+    duplicateGeneratedBackendCoreGapRefs,
+    duplicateBackendCoreGapRemediationTargetRefs,
     missingGeneratedBackendCoreGapIds,
     unexpectedGeneratedBackendCoreGapIds,
     backendCoreGapSpecMismatchRefs,
