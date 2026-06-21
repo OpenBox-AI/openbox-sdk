@@ -57,8 +57,11 @@ describe('OpenBoxCoreClient E2E', () => {
 
   describe('auth validation', () => {
     it('validates the API key', async () => {
-      const result = await client.validateApiKey();
-      expect(result).toBeDefined();
+      const result = (await client.validateApiKey()) as Record<string, unknown>;
+      expect(result).toMatchObject({
+        valid: true,
+        agent_id: expect.any(String),
+      });
     });
 
     it('throws CoreApiError for invalid API key', async () => {

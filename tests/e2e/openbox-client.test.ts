@@ -28,12 +28,16 @@ describe('OpenBoxClient E2E', () => {
   describe('health and auth', () => {
     it('health endpoint returns success', async () => {
       const result = await client.health();
-      expect(result).toBeDefined();
+      expect(result).toEqual('Success');
     });
 
     it('getProfile returns user profile', async () => {
       const profile = (await client.getProfile()) as Record<string, unknown>;
-      expect(profile).toBeDefined();
+      expect(profile).toMatchObject({
+        orgId,
+        isApiKeyAuth: true,
+        permissions: expect.any(Array),
+      });
       expect(profile.sub || profile.email || profile.id).toBeDefined();
     });
   });
@@ -74,24 +78,33 @@ describe('OpenBoxClient E2E', () => {
 
     it('gets agent by ID', async () => {
       const agent = (await client.getAgent(agentId)) as Record<string, unknown>;
-      expect(agent.agent_name).toBe(agentName);
+      expect(agent).toMatchObject({
+        id: agentId,
+        agent_name: agentName,
+      });
     });
 
     it('updates agent', async () => {
-      const result = await client.updateAgent(agentId, {
+      const result = (await client.updateAgent(agentId, {
+        description: 'Updated by OpenBoxClient e2e test',
+      })) as Record<string, unknown>;
+      expect(result).toMatchObject({
+        id: agentId,
         description: 'Updated by OpenBoxClient e2e test',
       });
-      expect(result).toBeDefined();
     });
 
     it('verifies update persisted', async () => {
       const agent = (await client.getAgent(agentId)) as Record<string, unknown>;
-      expect(agent.description).toBe('Updated by OpenBoxClient e2e test');
+      expect(agent).toMatchObject({
+        id: agentId,
+        description: 'Updated by OpenBoxClient e2e test',
+      });
     });
 
     it('deletes agent', async () => {
       const result = await client.deleteAgent(agentId);
-      expect(result).toBeDefined();
+      expect(result).toEqual({ status: 200 });
     });
 
     it('confirms deletion throws error', async () => {
@@ -147,19 +160,32 @@ describe('OpenBoxClient E2E', () => {
         string,
         unknown
       >;
-      expect(guardrail).toBeDefined();
+      expect(guardrail).toMatchObject({
+        id: guardrailId,
+        agent_id: guardrailAgentId,
+      });
     });
 
     it('updates guardrail', async () => {
-      const result = await client.updateGuardrail(guardrailAgentId, guardrailId, {
+      const result = (await client.updateGuardrail(guardrailAgentId, guardrailId, {
+        description: 'Updated by e2e',
+      })) as Record<string, unknown>;
+      expect(result).toMatchObject({
+        id: guardrailId,
+        agent_id: guardrailAgentId,
         description: 'Updated by e2e',
       });
-      expect(result).toBeDefined();
     });
 
     it('deletes guardrail', async () => {
-      const result = await client.deleteGuardrail(guardrailAgentId, guardrailId);
-      expect(result).toBeDefined();
+      const result = (await client.deleteGuardrail(guardrailAgentId, guardrailId)) as Record<
+        string,
+        unknown
+      >;
+      expect(result).toMatchObject({
+        agent_id: guardrailAgentId,
+        description: 'Updated by e2e',
+      });
     });
 
     afterAll(async () => {
