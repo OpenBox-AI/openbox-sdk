@@ -4567,7 +4567,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "matrix"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "AgentController_getBehaviorMetrics",

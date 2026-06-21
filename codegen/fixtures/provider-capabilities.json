@@ -4139,7 +4139,7 @@
         "failure",
         "matrix"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "AgentController_getBehaviorMetrics",

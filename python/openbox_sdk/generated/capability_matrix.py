@@ -4140,7 +4140,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "matrix"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "AgentController_getBehaviorMetrics",

@@ -392,14 +392,17 @@ describeOrSkip('Behavior Rules', () => {
     });
   });
 
-  it('gets behavior metrics', async () => {
+  it('CONFORMANCE: gets behavior metrics', async () => {
     // SCENARIO_PROOF: behavior-rule-metrics-violations
     // CONFORMANCE_PROOF: behavior metrics conformance asserts dashboard metric
     // keys instead of only endpoint reachability.
     expect('SCENARIO_PROOF: behavior-rule-metrics-violations').toContain(
       'behavior-rule-metrics-violations',
     );
-    const response = await client.get(`/agent/${agentId}/behavior/metrics`);
+    const operation = backendOperation('AgentController_getBehaviorMetrics');
+    expect(operation.verb).toBe('get');
+    expect(operation.path).toContain('behavior/metrics');
+    const response = await client.get(operationPath(operation.path, { agentId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
@@ -411,7 +414,7 @@ describeOrSkip('Behavior Rules', () => {
     });
   });
 
-  it('gets behavior violations', async () => {
+  it('CONFORMANCE: gets behavior violations', async () => {
     // SCENARIO_PROOF: behavior-rule-metrics-violations
     // CONFORMANCE_PROOF: behavior metrics conformance asserts the violations
     // endpoint returns the seeded behavior_violated failure row.
