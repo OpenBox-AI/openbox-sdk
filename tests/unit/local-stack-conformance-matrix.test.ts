@@ -1315,6 +1315,7 @@ describe('local-stack conformance matrix', () => {
         'usage-core-wire-boundary',
         'usage-token-counts',
         'usage-cost-usd',
+        'usage-zero-values',
         'trust-aivss-ledger',
         'goal-alignment-checked',
         'goal-drift-detected',

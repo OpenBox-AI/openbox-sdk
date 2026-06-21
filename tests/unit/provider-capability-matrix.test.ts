@@ -15,6 +15,10 @@ import {
   HITL_CAPABILITY_GUARDS,
   HOOK_CAPABILITY_GUARDS,
   INSTALL_DOCTOR_CAPABILITY_GUARDS,
+  LOCAL_STACK_OUTCOME_SOURCES,
+  LOCAL_STACK_PROOF_LEVELS,
+  LOCAL_STACK_SCENARIO_AXIS_IDS,
+  LOCAL_STACK_SCENARIO_CATEGORY_IDS,
   LOCAL_STACK_SCENARIO_PATHS,
   LOCAL_STACK_SCENARIO_MATRIX,
   MCP_CAPABILITY_GUARDS,
@@ -35,6 +39,7 @@ import {
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
   RULES_INSTRUCTION_CAPABILITY_GUARDS,
+  SDK_SEMANTIC_GAP_CLOSURE_TARGETS,
   SKILL_CAPABILITY_GUARDS,
   SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
@@ -44,6 +49,7 @@ import {
   type ReferenceProviderParityClosureStatus,
   type ReferenceProviderRuntimePromotionDecision,
 } from '../../ts/src/governance/capability-matrix.js';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 const PROVIDERS: readonly OpenBoxProviderId[] = OPENBOX_PROVIDER_IDS;
 
@@ -210,6 +216,15 @@ describe('provider capability matrix', () => {
     expect(OPENBOX_CAPABILITY_IDS).toEqual(fixture.capabilityIds);
     expect(OPENBOX_PROVIDER_IDS).toEqual(fixture.providerIds);
     expect(OPENBOX_SUPPORT_TIERS).toEqual(fixture.supportTiers);
+    expect(LOCAL_STACK_SCENARIO_CATEGORY_IDS).toEqual(
+      GOVERNANCE_SPEC_DOMAINS.localStackScenarioCategories,
+    );
+    expect(LOCAL_STACK_SCENARIO_AXIS_IDS).toEqual(GOVERNANCE_SPEC_DOMAINS.localStackScenarioAxes);
+    expect(LOCAL_STACK_PROOF_LEVELS).toEqual(GOVERNANCE_SPEC_DOMAINS.localStackProofLevels);
+    expect(LOCAL_STACK_OUTCOME_SOURCES).toEqual(GOVERNANCE_SPEC_DOMAINS.localStackOutcomeSources);
+    expect(SDK_SEMANTIC_GAP_CLOSURE_TARGETS).toEqual(
+      GOVERNANCE_SPEC_DOMAINS.sdkSemanticGapClosureTargets,
+    );
     expect(PROVIDER_CAPABILITY_MATRIX).toEqual(fixture.providerCapabilityMatrix);
     expect(REFERENCE_PROVIDER_PARITY_CLOSURES).toEqual(
       fixture.referenceProviderParityClosures,
