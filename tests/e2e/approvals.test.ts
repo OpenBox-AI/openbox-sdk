@@ -310,13 +310,14 @@ describe('Approvals', () => {
       (entry) => entry.operationId === 'AgentController_getPendingApprovals',
     );
     expect(pendingConstraint).toBeDefined();
-    const pendingOperation = backendOperation(pendingConstraint!.operationId);
+    const pendingOperation = backendOperation('AgentController_getPendingApprovals');
+    expect(pendingConstraint!.operationId).toBe(pendingOperation.operationId);
     expect(pendingOperation.verb, pendingConstraint!.key).toBe('get');
     expect(operationPath(pendingOperation.path, { agentId })).toBe(
       `/agent/${encodeURIComponent(agentId)}/approvals/pending`,
     );
     const pendingResponse = await client.get(
-      `/agent/${agentId}/approvals/pending?status=${encodeURIComponent(invalidStatus)}`,
+      `${operationPath(pendingOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}`,
     );
     const pendingBody = fullResponse(pendingResponse);
     expect(pendingBody.status, pendingConstraint!.key).toBe(200);
@@ -327,13 +328,14 @@ describe('Approvals', () => {
       (entry) => entry.operationId === 'AgentController_getApprovalHistory',
     );
     expect(historyConstraint).toBeDefined();
-    const historyOperation = backendOperation(historyConstraint!.operationId);
+    const historyOperation = backendOperation('AgentController_getApprovalHistory');
+    expect(historyConstraint!.operationId).toBe(historyOperation.operationId);
     expect(historyOperation.verb, historyConstraint!.key).toBe('get');
     expect(operationPath(historyOperation.path, { agentId })).toBe(
       `/agent/${encodeURIComponent(agentId)}/approvals/history`,
     );
     const historyResponse = await client.get(
-      `/agent/${agentId}/approvals/history?status=${encodeURIComponent(invalidStatus)}`,
+      `${operationPath(historyOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}`,
     );
     const historyBody = fullResponse(historyResponse);
     expect(historyBody.status, historyConstraint!.key).toBe(200);
@@ -344,13 +346,14 @@ describe('Approvals', () => {
       (entry) => entry.operationId === 'OrganizationController_getApprovals',
     );
     expect(orgConstraint).toBeDefined();
-    const orgOperation = backendOperation(orgConstraint!.operationId);
+    const orgOperation = backendOperation('OrganizationController_getApprovals');
+    expect(orgConstraint!.operationId).toBe(orgOperation.operationId);
     expect(orgOperation.verb, orgConstraint!.key).toBe('get');
     expect(operationPath(orgOperation.path, { organizationId: orgId })).toBe(
       `/organization/${encodeURIComponent(orgId)}/approvals`,
     );
     const orgResponse = await client.get(
-      `/organization/${orgId}/approvals?status=${encodeURIComponent(invalidStatus)}`,
+      `${operationPath(orgOperation.path, { organizationId: orgId })}?status=${encodeURIComponent(invalidStatus)}`,
     );
     const orgBody = fullResponse(orgResponse);
     expect(orgBody.status, orgConstraint!.key).toBe(200);
