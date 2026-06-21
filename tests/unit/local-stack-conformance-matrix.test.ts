@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildLocalStackConformanceMatrix,
@@ -8,6 +10,7 @@ import {
   localStackBlockIncludesScenarioMarkerForTesting,
   localStackBlockIncludesEvidencePatternForTesting,
   localStackTestBlockIncludesEvidencePatternForTesting,
+  providerCapabilityDomainRefsForTesting,
   providerGuardTestRefMatchesBlockForTesting,
   unknownScenarioProofMarkerRefsForTesting,
   type LocalStackConformanceMatrix,
@@ -41,8 +44,21 @@ function scenario(matrix: LocalStackConformanceMatrix, id: string) {
   return found!;
 }
 
+const providerCapabilitiesFixture = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'codegen/fixtures/provider-capabilities.json'), 'utf8'),
+) as {
+  capabilityIds: string[];
+  providerIds: string[];
+  supportTiers: string[];
+};
+
 describe('local-stack conformance matrix', () => {
   const matrix = buildLocalStackConformanceMatrix();
+  const providerDomains = {
+    capabilityIds: providerCapabilitiesFixture.capabilityIds,
+    providerIds: providerCapabilitiesFixture.providerIds,
+    supportTiers: providerCapabilitiesFixture.supportTiers,
+  };
 
   it('is derived from generated TypeSpec fixtures and current e2e files', () => {
     expect(matrix.generatedBy).toBe('tests/helpers/local-stack-conformance.ts');
@@ -386,6 +402,83 @@ describe('local-stack conformance matrix', () => {
         ['trace-logs'],
       ),
     ).toEqual(['stale-trace-logz:__test__.ts#__test__']);
+  });
+
+  it('fails generated capability provider and tier references outside canonical domains', () => {
+    const refs = providerCapabilityDomainRefsForTesting({
+      contract: {
+        ...matrix.scenarioMatrix,
+        requiredCapabilities: [
+          ...matrix.scenarioMatrix.requiredCapabilities,
+          'capability-domain-drift',
+        ],
+        requiredSharedProviderGuardProofCapabilities: [
+          ...matrix.scenarioMatrix.requiredSharedProviderGuardProofCapabilities,
+          'shared-provider-guard-domain-drift',
+        ],
+        requiredOutcomeSpecs: [
+          ...matrix.scenarioMatrix.requiredOutcomeSpecs,
+          {
+            ...matrix.scenarioMatrix.requiredOutcomeSpecs[0],
+            id: 'domain-drift-outcome-spec',
+            providerGuardCapabilities: ['outcome-provider-guard-domain-drift'],
+            exceptionCapabilities: ['outcome-exception-domain-drift'],
+          },
+        ],
+      },
+      scenarioPaths: [
+        ...matrix.scenarioPaths,
+        { id: 'domain-drift-scenario', capability: 'scenario-capability-domain-drift' },
+      ],
+      outcomes: [
+        ...matrix.outcomes,
+        {
+          id: 'domain-drift-outcome',
+          providerGuardCapabilities: ['outcome-capability-domain-drift'],
+          exceptionCapabilities: ['outcome-exception-domain-drift'],
+        },
+      ],
+      providerGuards: [
+        ...matrix.providerGuards,
+        {
+          capability: 'provider-guard-capability-domain-drift',
+          providers: ['provider-domain-drift'],
+          guardProviderTiers: [
+            { provider: 'guard-tier-provider-domain-drift', tier: 'guard-tier-domain-drift' },
+          ],
+          matrixProviderTiers: [
+            { provider: 'matrix-provider-domain-drift', tier: 'matrix-tier-domain-drift' },
+          ],
+        },
+      ],
+      providerDomains,
+    });
+
+    expect(refs).toEqual({
+      unknownScenarioCapabilityRefs: [
+        'domain-drift-scenario:scenario-capability-domain-drift',
+      ],
+      unknownOutcomeCapabilityRefs: [
+        'domain-drift-outcome:exceptionCapabilities:outcome-exception-domain-drift',
+        'domain-drift-outcome:providerGuardCapabilities:outcome-capability-domain-drift',
+      ],
+      unknownScenarioMatrixCapabilityRefs: [
+        'requiredCapabilities:capability-domain-drift',
+        'requiredOutcomeSpecs:domain-drift-outcome-spec:exceptionCapabilities:outcome-exception-domain-drift',
+        'requiredOutcomeSpecs:domain-drift-outcome-spec:providerGuardCapabilities:outcome-provider-guard-domain-drift',
+        'requiredSharedProviderGuardProofCapabilities:shared-provider-guard-domain-drift',
+      ],
+      unknownProviderGuardCapabilityRefs: ['provider-guard-capability-domain-drift'],
+      unknownProviderGuardProviderRefs: [
+        'provider-guard-capability-domain-drift:guard:provider-domain-drift',
+        'provider-guard-capability-domain-drift:guardTier:guard-tier-provider-domain-drift',
+        'provider-guard-capability-domain-drift:matrix:matrix-provider-domain-drift',
+      ],
+      unknownProviderGuardTierRefs: [
+        'provider-guard-capability-domain-drift:guard:guard-tier-provider-domain-drift:guard-tier-domain-drift',
+        'provider-guard-capability-domain-drift:matrix:matrix-provider-domain-drift:matrix-tier-domain-drift',
+      ],
+    });
   });
 
   it('does not extract operation hits from commented-out calls', () => {
@@ -1153,6 +1246,12 @@ describe('local-stack conformance matrix', () => {
       unexpectedCategories: [],
       missingAxes: [],
       unexpectedAxes: [],
+      unknownScenarioCapabilityRefs: [],
+      unknownOutcomeCapabilityRefs: [],
+      unknownScenarioMatrixCapabilityRefs: [],
+      unknownProviderGuardCapabilityRefs: [],
+      unknownProviderGuardProviderRefs: [],
+      unknownProviderGuardTierRefs: [],
       missingLocalStackAxes: [],
       incompleteLocalStackAxes: [],
       outcomeSpecMismatchRefs: [],

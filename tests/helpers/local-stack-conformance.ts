@@ -65,6 +65,10 @@ export interface ProviderGuardCoverage {
     provider: string;
     tier: string;
   }>;
+  guardProviderTiers: Array<{
+    provider: string;
+    tier: string;
+  }>;
   guardTestRefs: Array<{
     provider: string;
     guardTest: string;
@@ -262,6 +266,12 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   unexpectedCategories: string[];
   missingAxes: string[];
   unexpectedAxes: string[];
+  unknownScenarioCapabilityRefs: string[];
+  unknownOutcomeCapabilityRefs: string[];
+  unknownScenarioMatrixCapabilityRefs: string[];
+  unknownProviderGuardCapabilityRefs: string[];
+  unknownProviderGuardProviderRefs: string[];
+  unknownProviderGuardTierRefs: string[];
   missingLocalStackAxes: string[];
   incompleteLocalStackAxes: string[];
   outcomeSpecMismatchRefs: string[];
@@ -392,6 +402,9 @@ interface SdkManifestFixture {
 
 interface ProviderCapabilitiesFixture {
   source: string;
+  capabilityIds?: string[];
+  providerIds?: string[];
+  supportTiers?: string[];
   providerCapabilityMatrix?: ProviderCapabilityMatrixEntry[];
   hitlCapabilityGuards?: ProviderGuardEntry[];
   guardrailCapabilityGuards?: ProviderGuardEntry[];
@@ -416,6 +429,22 @@ interface ProviderCapabilityMatrixEntry {
   status?: string;
   closureDecision?: string;
 }
+
+export interface ProviderCapabilityDomains {
+  capabilityIds: readonly string[];
+  providerIds: readonly string[];
+  supportTiers: readonly string[];
+}
+
+export type ProviderCapabilityDomainRefs = Pick<
+  ScenarioMatrixCoverage,
+  | 'unknownScenarioCapabilityRefs'
+  | 'unknownOutcomeCapabilityRefs'
+  | 'unknownScenarioMatrixCapabilityRefs'
+  | 'unknownProviderGuardCapabilityRefs'
+  | 'unknownProviderGuardProviderRefs'
+  | 'unknownProviderGuardTierRefs'
+>;
 
 interface TestBlock {
   file: string;
@@ -755,6 +784,11 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     operationManifestDuplicateRefs,
     operationRouteResolutionRefs,
     unknownScenarioProofMarkerRefs,
+    {
+      capabilityIds: providerCapabilities.capabilityIds ?? [],
+      providerIds: providerCapabilities.providerIds ?? [],
+      supportTiers: providerCapabilities.supportTiers ?? [],
+    },
   );
 
   return {
@@ -2008,6 +2042,11 @@ function summarizeProviderGuards(
       .sort((left, right) =>
         `${left.provider}:${left.guardTest}`.localeCompare(`${right.provider}:${right.guardTest}`),
       );
+    const guardProviderTiers = (guards ?? [])
+      .map((guard) => ({ provider: guard.provider, tier: guard.tier }))
+      .sort((left, right) =>
+        `${left.provider}:${left.tier}`.localeCompare(`${right.provider}:${right.tier}`),
+      );
     const guardProviders = uniqueSorted((guards ?? []).map((guard) => guard.provider));
     const guardsByProvider = new Map<string, ProviderGuardEntry[]>();
     for (const guard of guards ?? []) {
@@ -2062,6 +2101,7 @@ function summarizeProviderGuards(
       unexpectedProviderCapabilityGuardProviders: unexpected(guardProviders, matrixProviders),
       providerTierMismatchRefs,
       duplicateProviderCapabilityGuardProviderRefs,
+      guardProviderTiers,
       guardTestRefs,
       sharedGuardTestRefs,
       guardTests: [...new Set((guards ?? []).map((guard) => guard.guardTest))].sort(),
@@ -2597,6 +2637,7 @@ function summarizeScenarioMatrixContract(
     'operationRouteResolutionMismatchRefs' | 'ambiguousOperationRouteTieRefs'
   >,
   unknownScenarioProofMarkerRefs: string[],
+  providerDomains: ProviderCapabilityDomains,
 ): ScenarioMatrixCoverage {
   const resolvedContract = contract ?? {
     id: '__missing_local_stack_scenario_matrix__',
@@ -2755,6 +2796,13 @@ function summarizeScenarioMatrixContract(
   const unexpectedCategories = unexpected(actualCategories, resolvedContract.requiredCategories);
   const missingAxes = missing(resolvedContract.requiredAxes, actualAxes);
   const unexpectedAxes = unexpected(actualAxes, resolvedContract.requiredAxes);
+  const providerDomainRefs = summarizeProviderCapabilityDomainRefs(
+    resolvedContract,
+    scenarioPaths,
+    outcomes,
+    providerGuards,
+    providerDomains,
+  );
   const missingLocalStackAxes = missing(resolvedContract.requiredLocalStackAxes, actualLocalStackAxes);
   const incompleteLocalStackAxes = missing(resolvedContract.requiredLocalStackAxes, provenLocalStackAxes);
   const categoryAxisCoverage = resolvedContract.requiredCategoryAxes
@@ -2874,6 +2922,12 @@ function summarizeScenarioMatrixContract(
     unexpectedCategories,
     missingAxes,
     unexpectedAxes,
+    providerDomainRefs.unknownScenarioCapabilityRefs,
+    providerDomainRefs.unknownOutcomeCapabilityRefs,
+    providerDomainRefs.unknownScenarioMatrixCapabilityRefs,
+    providerDomainRefs.unknownProviderGuardCapabilityRefs,
+    providerDomainRefs.unknownProviderGuardProviderRefs,
+    providerDomainRefs.unknownProviderGuardTierRefs,
     missingLocalStackAxes,
     incompleteLocalStackAxes,
     outcomeSpecMismatchRefs,
@@ -2923,6 +2977,7 @@ function summarizeScenarioMatrixContract(
     unexpectedCategories,
     missingAxes,
     unexpectedAxes,
+    ...providerDomainRefs,
     missingLocalStackAxes,
     incompleteLocalStackAxes,
     outcomeSpecMismatchRefs,
@@ -2956,6 +3011,125 @@ function summarizeScenarioMatrixContract(
     rawSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
   };
+}
+
+type ProviderDomainContractSlice = Pick<
+  LocalStackScenarioMatrixContract,
+  | 'requiredCapabilities'
+  | 'requiredSharedProviderGuardProofCapabilities'
+  | 'requiredOutcomeSpecs'
+>;
+
+function summarizeProviderCapabilityDomainRefs(
+  contract: ProviderDomainContractSlice,
+  scenarioPaths: ReadonlyArray<Pick<ScenarioPathCoverage, 'id' | 'capability'>>,
+  outcomes: ReadonlyArray<
+    Pick<CapabilityOutcomeCoverage, 'id' | 'providerGuardCapabilities' | 'exceptionCapabilities'>
+  >,
+  providerGuards: ReadonlyArray<
+    Pick<
+      ProviderGuardCoverage,
+      'capability' | 'providers' | 'matrixProviderTiers' | 'guardProviderTiers'
+    >
+  >,
+  providerDomains: ProviderCapabilityDomains,
+): ProviderCapabilityDomainRefs {
+  const canonicalCapabilityIds = new Set(providerDomains.capabilityIds);
+  const canonicalProviderIds = new Set(providerDomains.providerIds);
+  const canonicalSupportTiers = new Set(providerDomains.supportTiers);
+
+  return {
+    unknownScenarioCapabilityRefs: uniqueSorted(
+      scenarioPaths
+        .filter((entry) => !canonicalCapabilityIds.has(entry.capability))
+        .map((entry) => `${entry.id}:${entry.capability}`),
+    ),
+    unknownOutcomeCapabilityRefs: uniqueSorted(
+      outcomes.flatMap((outcome) => [
+        ...outcome.providerGuardCapabilities
+          .filter((capability) => !canonicalCapabilityIds.has(capability))
+          .map((capability) => `${outcome.id}:providerGuardCapabilities:${capability}`),
+        ...outcome.exceptionCapabilities
+          .filter((capability) => !canonicalCapabilityIds.has(capability))
+          .map((capability) => `${outcome.id}:exceptionCapabilities:${capability}`),
+      ]),
+    ),
+    unknownScenarioMatrixCapabilityRefs: uniqueSorted([
+      ...contract.requiredCapabilities
+        .filter((capability) => !canonicalCapabilityIds.has(capability))
+        .map((capability) => `requiredCapabilities:${capability}`),
+      ...contract.requiredSharedProviderGuardProofCapabilities
+        .filter((capability) => !canonicalCapabilityIds.has(capability))
+        .map((capability) => `requiredSharedProviderGuardProofCapabilities:${capability}`),
+      ...contract.requiredOutcomeSpecs.flatMap((spec) => [
+        ...spec.providerGuardCapabilities
+          .filter((capability) => !canonicalCapabilityIds.has(capability))
+          .map(
+            (capability) =>
+              `requiredOutcomeSpecs:${spec.id}:providerGuardCapabilities:${capability}`,
+          ),
+        ...spec.exceptionCapabilities
+          .filter((capability) => !canonicalCapabilityIds.has(capability))
+          .map(
+            (capability) =>
+              `requiredOutcomeSpecs:${spec.id}:exceptionCapabilities:${capability}`,
+          ),
+      ]),
+    ]),
+    unknownProviderGuardCapabilityRefs: uniqueSorted(
+      providerGuards
+        .filter((entry) => !canonicalCapabilityIds.has(entry.capability))
+        .map((entry) => entry.capability),
+    ),
+    unknownProviderGuardProviderRefs: uniqueSorted(
+      providerGuards.flatMap((entry) => [
+        ...entry.providers
+          .filter((provider) => !canonicalProviderIds.has(provider))
+          .map((provider) => `${entry.capability}:guard:${provider}`),
+        ...entry.guardProviderTiers
+          .filter(({ provider }) => !canonicalProviderIds.has(provider))
+          .map(({ provider }) => `${entry.capability}:guardTier:${provider}`),
+        ...entry.matrixProviderTiers
+          .filter(({ provider }) => !canonicalProviderIds.has(provider))
+          .map(({ provider }) => `${entry.capability}:matrix:${provider}`),
+      ]),
+    ),
+    unknownProviderGuardTierRefs: uniqueSorted(
+      providerGuards.flatMap((entry) => [
+        ...entry.guardProviderTiers
+          .filter(({ tier }) => !canonicalSupportTiers.has(tier))
+          .map(({ provider, tier }) => `${entry.capability}:guard:${provider}:${tier}`),
+        ...entry.matrixProviderTiers
+          .filter(({ tier }) => !canonicalSupportTiers.has(tier))
+          .map(({ provider, tier }) => `${entry.capability}:matrix:${provider}:${tier}`),
+      ]),
+    ),
+  };
+}
+
+export function providerCapabilityDomainRefsForTesting(
+  input: {
+    contract: ProviderDomainContractSlice;
+    scenarioPaths: ReadonlyArray<Pick<ScenarioPathCoverage, 'id' | 'capability'>>;
+    outcomes: ReadonlyArray<
+      Pick<CapabilityOutcomeCoverage, 'id' | 'providerGuardCapabilities' | 'exceptionCapabilities'>
+    >;
+    providerGuards: ReadonlyArray<
+      Pick<
+        ProviderGuardCoverage,
+        'capability' | 'providers' | 'matrixProviderTiers' | 'guardProviderTiers'
+      >
+    >;
+    providerDomains: ProviderCapabilityDomains;
+  },
+): ProviderCapabilityDomainRefs {
+  return summarizeProviderCapabilityDomainRefs(
+    input.contract,
+    input.scenarioPaths,
+    input.outcomes,
+    input.providerGuards,
+    input.providerDomains,
+  );
 }
 
 function uniqueSorted(values: Iterable<string>): string[] {
