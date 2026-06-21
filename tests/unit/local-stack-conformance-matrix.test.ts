@@ -13,6 +13,7 @@ import {
   localStackScenarioDomainRefsForTesting,
   providerCapabilityDomainRefsForTesting,
   providerGuardTestRefMatchesBlockForTesting,
+  backendCoreGapRemediationRefRefsForTesting,
   unknownScenarioProofMarkerRefsForTesting,
   type LocalStackConformanceMatrix,
   type OperationCoverage,
@@ -196,6 +197,14 @@ describe('local-stack conformance matrix', () => {
       unexpectedRemediationTargetIds:
         matrix.scenarioMatrix.unexpectedBackendCoreGapRemediationTargetIds,
       specMismatchRefs: matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs,
+      missingRemediationRefRefs:
+        matrix.scenarioMatrix.missingBackendCoreGapRemediationRefRefs,
+      invalidRemediationRefRefs:
+        matrix.scenarioMatrix.invalidBackendCoreGapRemediationRefRefs,
+      serviceMismatchRemediationRefRefs:
+        matrix.scenarioMatrix.serviceMismatchBackendCoreGapRemediationRefRefs,
+      duplicateRemediationRefRefs:
+        matrix.scenarioMatrix.duplicateBackendCoreGapRemediationRefRefs,
       missingRawProofConstraintKeyRefs: matrix.scenarioMatrix.missingRawProofConstraintKeyRefs,
     });
     expect(matrix.summary.backendCoreGaps).toMatchObject({
@@ -240,6 +249,10 @@ describe('local-stack conformance matrix', () => {
       missingRemediationTargetIds: [],
       unexpectedRemediationTargetIds: [],
       specMismatchRefs: [],
+      missingRemediationRefRefs: [],
+      invalidRemediationRefRefs: [],
+      serviceMismatchRemediationRefRefs: [],
+      duplicateRemediationRefRefs: [],
       missingRawProofConstraintKeyRefs: [],
     });
     expect(matrix.summary.scenarioPaths).toEqual({
@@ -833,6 +846,51 @@ describe('local-stack conformance matrix', () => {
       ],
       unknownSdkSemanticGapClosureTargetRefs: [
         'requiredSdkSemanticGapClosureTargets:sdk-closure-target-domain-drift',
+      ],
+    });
+  });
+
+  it('fails backend/Core remediation refs outside canonical service-owned file refs', () => {
+    expect(
+      backendCoreGapRemediationRefRefsForTesting([
+        {
+          gapId: 'missing-ref-gap',
+          services: ['backend'],
+          remediationRefs: [],
+        },
+        {
+          gapId: 'invalid-ref-gap',
+          services: ['backend'],
+          remediationRefs: [
+            'openbox-api:src/modules/agent/controller.ts:1',
+            'openbox-backend:src/modules/agent/controller.ts',
+          ],
+        },
+        {
+          gapId: 'service-mismatch-gap',
+          services: ['core'],
+          remediationRefs: ['openbox-backend:src/modules/agent/controller.ts:277'],
+        },
+        {
+          gapId: 'duplicate-ref-gap',
+          services: ['backend'],
+          remediationRefs: [
+            'openbox-backend:src/modules/agent/controller.ts:277',
+            'openbox-backend:src/modules/agent/controller.ts:277',
+          ],
+        },
+      ]),
+    ).toEqual({
+      missingBackendCoreGapRemediationRefRefs: ['missing-ref-gap'],
+      invalidBackendCoreGapRemediationRefRefs: [
+        'invalid-ref-gap:openbox-api:src/modules/agent/controller.ts:1',
+        'invalid-ref-gap:openbox-backend:src/modules/agent/controller.ts',
+      ],
+      serviceMismatchBackendCoreGapRemediationRefRefs: [
+        'service-mismatch-gap:openbox-backend:src/modules/agent/controller.ts:277',
+      ],
+      duplicateBackendCoreGapRemediationRefRefs: [
+        'duplicate-ref-gap:openbox-backend:src/modules/agent/controller.ts:277',
       ],
     });
   });
@@ -1776,6 +1834,10 @@ describe('local-stack conformance matrix', () => {
       missingGeneratedBackendCoreGapIds: [],
       unexpectedGeneratedBackendCoreGapIds: [],
       backendCoreGapSpecMismatchRefs: [],
+      missingBackendCoreGapRemediationRefRefs: [],
+      invalidBackendCoreGapRemediationRefRefs: [],
+      serviceMismatchBackendCoreGapRemediationRefRefs: [],
+      duplicateBackendCoreGapRemediationRefRefs: [],
       missingRawProofConstraintKeyRefs: [],
       unclassifiedRequestConstraintRefs: [],
       sdkGeneratedPreflightOnlyConstraintRefs: [],

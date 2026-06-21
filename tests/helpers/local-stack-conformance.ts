@@ -293,6 +293,10 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   missingGeneratedBackendCoreGapIds: string[];
   unexpectedGeneratedBackendCoreGapIds: string[];
   backendCoreGapSpecMismatchRefs: string[];
+  missingBackendCoreGapRemediationRefRefs: string[];
+  invalidBackendCoreGapRemediationRefRefs: string[];
+  serviceMismatchBackendCoreGapRemediationRefRefs: string[];
+  duplicateBackendCoreGapRemediationRefRefs: string[];
   missingBackendCoreGapRemediationTargetIds: string[];
   unexpectedBackendCoreGapRemediationTargetIds: string[];
   duplicateOperationIdRefs: string[];
@@ -416,6 +420,13 @@ export interface BackendCoreGapRemediationTarget {
   sdkClosureTargets: Array<'typescript' | 'python'>;
 }
 
+export interface BackendCoreGapRemediationRefRefs {
+  missingBackendCoreGapRemediationRefRefs: string[];
+  invalidBackendCoreGapRemediationRefRefs: string[];
+  serviceMismatchBackendCoreGapRemediationRefRefs: string[];
+  duplicateBackendCoreGapRemediationRefRefs: string[];
+}
+
 export interface LocalStackConformanceMatrix {
   generatedBy: 'tests/helpers/local-stack-conformance.ts';
   sources: string[];
@@ -477,6 +488,10 @@ export interface LocalStackConformanceMatrix {
       missingRemediationTargetIds: string[];
       unexpectedRemediationTargetIds: string[];
       specMismatchRefs: string[];
+      missingRemediationRefRefs: string[];
+      invalidRemediationRefRefs: string[];
+      serviceMismatchRemediationRefRefs: string[];
+      duplicateRemediationRefRefs: string[];
       missingRawProofConstraintKeyRefs: string[];
     };
     scenarioPaths: {
@@ -1097,6 +1112,18 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
           ...scenarioMatrix.unexpectedBackendCoreGapRemediationTargetIds,
         ],
         specMismatchRefs: [...scenarioMatrix.backendCoreGapSpecMismatchRefs],
+        missingRemediationRefRefs: [
+          ...scenarioMatrix.missingBackendCoreGapRemediationRefRefs,
+        ],
+        invalidRemediationRefRefs: [
+          ...scenarioMatrix.invalidBackendCoreGapRemediationRefRefs,
+        ],
+        serviceMismatchRemediationRefRefs: [
+          ...scenarioMatrix.serviceMismatchBackendCoreGapRemediationRefRefs,
+        ],
+        duplicateRemediationRefRefs: [
+          ...scenarioMatrix.duplicateBackendCoreGapRemediationRefRefs,
+        ],
         missingRawProofConstraintKeyRefs: [...scenarioMatrix.missingRawProofConstraintKeyRefs],
       },
       scenarioPaths: {
@@ -1311,6 +1338,62 @@ function remediationRefsForSemanticGap(gap: SemanticGapCoverage): string[] {
     default:
       return [];
   }
+}
+
+export function backendCoreGapRemediationRefRefsForTesting(
+  targets: ReadonlyArray<
+    Pick<BackendCoreGapRemediationTarget, 'gapId' | 'services' | 'remediationRefs'>
+  >,
+): BackendCoreGapRemediationRefRefs {
+  return summarizeBackendCoreGapRemediationRefRefs(targets);
+}
+
+function summarizeBackendCoreGapRemediationRefRefs(
+  targets: ReadonlyArray<
+    Pick<BackendCoreGapRemediationTarget, 'gapId' | 'services' | 'remediationRefs'>
+  >,
+): BackendCoreGapRemediationRefRefs {
+  const validRefPattern = /^openbox-(backend|core):[^:\s]+:\d+$/;
+  const missingBackendCoreGapRemediationRefRefs: string[] = [];
+  const invalidBackendCoreGapRemediationRefRefs: string[] = [];
+  const serviceMismatchBackendCoreGapRemediationRefRefs: string[] = [];
+  const duplicateBackendCoreGapRemediationRefRefs: string[] = [];
+
+  for (const target of targets) {
+    if (target.remediationRefs.length === 0) {
+      missingBackendCoreGapRemediationRefRefs.push(target.gapId);
+    }
+    duplicateBackendCoreGapRemediationRefRefs.push(
+      ...duplicates(target.remediationRefs).map((ref) => `${target.gapId}:${ref}`),
+    );
+
+    for (const ref of target.remediationRefs) {
+      const match = validRefPattern.exec(ref);
+      if (!match) {
+        invalidBackendCoreGapRemediationRefRefs.push(`${target.gapId}:${ref}`);
+        continue;
+      }
+      const service = match[1] as 'backend' | 'core';
+      if (!target.services.includes(service)) {
+        serviceMismatchBackendCoreGapRemediationRefRefs.push(`${target.gapId}:${ref}`);
+      }
+    }
+  }
+
+  return {
+    missingBackendCoreGapRemediationRefRefs: uniqueSorted(
+      missingBackendCoreGapRemediationRefRefs,
+    ),
+    invalidBackendCoreGapRemediationRefRefs: uniqueSorted(
+      invalidBackendCoreGapRemediationRefRefs,
+    ),
+    serviceMismatchBackendCoreGapRemediationRefRefs: uniqueSorted(
+      serviceMismatchBackendCoreGapRemediationRefRefs,
+    ),
+    duplicateBackendCoreGapRemediationRefRefs: uniqueSorted(
+      duplicateBackendCoreGapRemediationRefRefs,
+    ),
+  };
 }
 
 function summarizeSdkSemanticGapClosures(
@@ -3284,6 +3367,9 @@ function summarizeScenarioMatrixContract(
     backendCoreGapRemediationTargetIds,
     semanticGapIds,
   );
+  const backendCoreGapRemediationRefRefs = summarizeBackendCoreGapRemediationRefRefs(
+    backendCoreGapRemediationTargets,
+  );
   const semanticGapsById = new Map(semanticGaps.map((entry) => [entry.id, entry]));
   const remediationTargetsByGapId = new Map(
     backendCoreGapRemediationTargets.map((entry) => [entry.gapId, entry]),
@@ -3557,6 +3643,10 @@ function summarizeScenarioMatrixContract(
     missingGeneratedBackendCoreGapIds,
     unexpectedGeneratedBackendCoreGapIds,
     backendCoreGapSpecMismatchRefs,
+    backendCoreGapRemediationRefRefs.missingBackendCoreGapRemediationRefRefs,
+    backendCoreGapRemediationRefRefs.invalidBackendCoreGapRemediationRefRefs,
+    backendCoreGapRemediationRefRefs.serviceMismatchBackendCoreGapRemediationRefRefs,
+    backendCoreGapRemediationRefRefs.duplicateBackendCoreGapRemediationRefRefs,
     missingRawProofConstraintKeyRefs,
     unclassifiedRequestConstraintRefs,
     sdkGeneratedPreflightOnlyConstraintRefs,
@@ -3577,6 +3667,7 @@ function summarizeScenarioMatrixContract(
     missingGeneratedBackendCoreGapIds,
     unexpectedGeneratedBackendCoreGapIds,
     backendCoreGapSpecMismatchRefs,
+    ...backendCoreGapRemediationRefRefs,
     missingBackendCoreGapRemediationTargetIds,
     unexpectedBackendCoreGapRemediationTargetIds,
     ...operationManifestDuplicateRefs,
