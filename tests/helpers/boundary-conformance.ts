@@ -643,6 +643,11 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
   {
     id: 'aivss-numeric-scale-members',
     domainKeys: ['aivssNumericFields'],
+    coveredFields: coverFields('aivssNumericFields', [
+      'BaseSecurityDto',
+      'AISpecificDto',
+      'ImpactDto',
+    ]),
     source: 'typespec',
     proofMode: 'exhaustive-local-stack-e2e',
     proofFile: 'tests/e2e/aivss.test.ts',
@@ -657,6 +662,11 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
   {
     id: 'aivss-numeric-invalid-boundaries',
     domainKeys: ['aivssNumericFields'],
+    coveredFields: coverFields('aivssNumericFields', [
+      'BaseSecurityDto',
+      'AISpecificDto',
+      'ImpactDto',
+    ]),
     source: 'typespec',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/aivss.test.ts',
@@ -705,6 +715,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
   {
     id: 'goal-alignment-threshold-boundaries',
     domainKeys: ['goalAlignmentThresholds'],
+    coveredFields: coverFields('goalAlignmentThresholds', ['GoalAlignmentConfigDto']),
     source: 'typespec',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/goal-alignment.test.ts',
@@ -719,7 +730,10 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
   {
     id: 'behavior-rule-numeric-boundaries',
     domainKeys: ['behaviorRuleNumericFields', 'trustThresholdFields'],
-    coveredFields: coverFields('trustThresholdFields', ['CreateBehaviorRuleDto']),
+    coveredFields: [
+      ...coverFields('behaviorRuleNumericFields', ['CreateBehaviorRuleDto']),
+      ...coverFields('trustThresholdFields', ['CreateBehaviorRuleDto']),
+    ],
     source: 'typespec',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/behavior-rules.test.ts',
@@ -1279,6 +1293,9 @@ export function boundaryFieldCoverageKey(field: BoundaryFieldCoverage): string {
 export function requiredBoundaryFieldCoverageKeys(): string[] {
   return [
     ...fieldKeys('requiredBodyFields'),
+    ...fieldKeys('aivssNumericFields'),
+    ...fieldKeys('goalAlignmentThresholds'),
+    ...fieldKeys('behaviorRuleNumericFields'),
     ...fieldKeys('backendOpenJsonFields'),
     ...fieldKeys('coreOpenJsonFields'),
     ...fieldKeys('trustThresholdFields'),
