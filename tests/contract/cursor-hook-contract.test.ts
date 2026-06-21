@@ -767,7 +767,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     });
   });
 
-  test('cursor-permission require_approval (poll timed out) → deny (ask is silently no-op in Cursor; deny is the only working gate)', async () => {
+  test('cursor-permission require_approval (poll timed out) -> deny (ask is silently no-op in Cursor; deny is the only working gate)', async () => {
     // Bundle audit (workbench.desktop.main.js): the only consumers of
     // hook `permission` branch on `=== "deny"`. `ask` is accepted by
     // the validator but no UI renders for it on tool/shell/MCP gates.

@@ -10,6 +10,7 @@ export const OPENBOX_CAPABILITY_IDS = [
   "approvals-hitl",
   "usage-cost",
   "guardrails",
+  "behavior-rules",
   "opa-rules",
   "goal-signals",
   "tracing",
@@ -243,6 +244,61 @@ export interface McpCapabilityGuardEntry {
   guardTest: string;
 }
 
+export interface LocalStackScenarioPathSpec {
+  id: string;
+  category: string;
+  capability: OpenBoxCapabilityId;
+  label: string;
+  axes: readonly string[];
+  requiredProofLevel: string;
+  localStackRequired: boolean;
+  operationIds: readonly string[];
+  evidencePatterns: readonly string[];
+  operationEvidencePatterns?: readonly LocalStackOperationEvidenceSpec[];
+  requiredBehavior: string;
+}
+
+export interface LocalStackOperationEvidenceSpec {
+  operationId: string;
+  evidencePatterns: readonly string[];
+}
+
+export interface LocalStackCategoryAxisSpec {
+  category: string;
+  axes: readonly string[];
+}
+
+export interface LocalStackOutcomeSpec {
+  id: string;
+  label: string;
+  source: string;
+  minimumProofLevel: string;
+  operationIds: readonly string[];
+  providerGuardCapabilities: readonly string[];
+  exceptionCapabilities: readonly string[];
+}
+
+export interface LocalStackScenarioMatrixContract {
+  id: string;
+  description: string;
+  requiredCapabilities: readonly OpenBoxCapabilityId[];
+  requiredCategories: readonly string[];
+  requiredAxes: readonly string[];
+  requiredLocalStackAxes: readonly string[];
+  requiredCategoryAxes: readonly LocalStackCategoryAxisSpec[];
+  localStackScenarioIds: readonly string[];
+  providerOwnedScenarioIds: readonly string[];
+  requiredOutcomeIds: readonly string[];
+  requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];
+  requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];
+  requiredSdkSemanticGapClosureTargets: readonly string[];
+  providerGuardSharedProofPolicy: string;
+  localStackAxisPolicy: string;
+  rawSemanticGapPolicy: string;
+  backendCoreGapStatusPolicy: string;
+  backendCoreGapRemediationPolicy: string;
+}
+
 export interface McpToolSurfaceEntry {
   name: string;
   title: string;
@@ -427,6 +483,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
   },
   {
     "provider": "codex",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "Behavior-rule triggers are evaluated by backend/Core from Codex hook spans; SDK code only sends spans and enforces verdicts."
+  },
+  {
+    "provider": "codex",
     "capability": "goal-signals",
     "tier": "native",
     "rationale": "UserPromptSubmit emits the default goal signal before governed prompt/action work."
@@ -502,6 +564,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "capability": "opa-rules",
     "tier": "native",
     "rationale": "Rules are evaluated by Core; Cursor receives projected instructions and verdicts only."
+  },
+  {
+    "provider": "cursor",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "Cursor hook spans feed backend-owned behavior-rule matching; projections are instructional only."
   },
   {
     "provider": "cursor",
@@ -583,6 +651,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
   },
   {
     "provider": "claude-code",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "Claude Code hook spans feed backend-owned behavior-rule matching; plugin assets do not evaluate predicates locally."
+  },
+  {
+    "provider": "claude-code",
     "capability": "goal-signals",
     "tier": "native",
     "rationale": "UserPromptSubmit emits goal signals ahead of prompt/tool gates."
@@ -658,6 +732,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "capability": "opa-rules",
     "tier": "native",
     "rationale": "MCP policy/rule reads and check_governance stay backend-owned."
+  },
+  {
+    "provider": "mcp",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "MCP check_governance sends caller spans to backend-owned behavior-rule matching and exposes rules as read-only resources."
   },
   {
     "provider": "mcp",
@@ -739,6 +819,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
   },
   {
     "provider": "openai-agents-sdk",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "Agent/tool/run spans are sent to backend-owned behavior-rule matching; SDK helpers only project returned verdicts."
+  },
+  {
+    "provider": "openai-agents-sdk",
     "capability": "goal-signals",
     "tier": "native",
     "rationale": "Run-start helpers emit the default goal signal before governed action."
@@ -814,6 +900,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "capability": "opa-rules",
     "tier": "native",
     "rationale": "Core evaluates all policies and behavior rules."
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "Hook/message/tool spans feed backend-owned behavior-rule matching; SDK code does not evaluate predicates locally."
   },
   {
     "provider": "anthropic-agent-sdk",
@@ -895,6 +987,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
   },
   {
     "provider": "copilotkit",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "Prompt/tool/output spans feed backend-owned behavior-rule matching; adapters only project returned verdicts."
+  },
+  {
+    "provider": "copilotkit",
     "capability": "goal-signals",
     "tier": "native",
     "rationale": "Run/prompt entrypoints emit goal signals before governed actions."
@@ -970,6 +1068,12 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "capability": "opa-rules",
     "tier": "native",
     "rationale": "Core evaluates OPA/Rego and behavior rules."
+  },
+  {
+    "provider": "n8n",
+    "capability": "behavior-rules",
+    "tier": "native",
+    "rationale": "n8n node/LLM spans feed backend-owned behavior-rule matching; node helpers project returned verdicts."
   },
   {
     "provider": "n8n",
@@ -3435,6 +3539,2288 @@ export const INSTALL_DOCTOR_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
   }
 ] as const satisfies readonly InstallDoctorCapabilityGuardEntry[];
+export const LOCAL_STACK_SCENARIO_PATHS = [
+  {
+    "id": "opa-allow",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA/Rego allows a governed event",
+    "axes": [
+      "happy",
+      "opa",
+      "matrix"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "PolicyController_evaluate",
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "allow = true",
+      "regoCase.expected"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "PolicyController_evaluate",
+        "evidencePatterns": [
+          "allow = true",
+          "regoCase.expected"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "ALLOW db query database_query path"
+        ]
+      }
+    ],
+    "requiredBehavior": "The local stack must prove an OPA allow result through generated policy evaluation or Core governance evaluation."
+  },
+  {
+    "id": "opa-require-approval",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA/Rego requires approval",
+    "axes": [
+      "happy",
+      "opa",
+      "matrix",
+      "tool"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createPolicy",
+      "evaluateGovernance",
+      "pollApproval"
+    ],
+    "evidencePatterns": [
+      "REQUIRE_APPROVAL",
+      "approval_expiration_time"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createPolicy",
+        "evidencePatterns": [
+          "REQUIRE_APPROVAL",
+          "approval_expiration_time"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "REQUIRE_APPROVAL",
+          "approval_expiration_time"
+        ]
+      },
+      {
+        "operationId": "pollApproval",
+        "evidencePatterns": [
+          "REQUIRE_APPROVAL",
+          "approval_expiration_time"
+        ]
+      }
+    ],
+    "requiredBehavior": "A generated policy must return require_approval, create a pending approval, and expose the approval through Core polling."
+  },
+  {
+    "id": "opa-block",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA/Rego blocks a governed event",
+    "axes": [
+      "failure",
+      "opa",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createPolicy",
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "BLOCK file_write path",
+      "matrixCase.expected.verdict"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createPolicy",
+        "evidencePatterns": [
+          "BLOCK file_write path",
+          "matrixCase.expected.verdict"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "BLOCK file_write path",
+          "matrixCase.expected.verdict"
+        ]
+      }
+    ],
+    "requiredBehavior": "A generated policy must return block and Core must expose the blocking verdict without allowing the action."
+  },
+  {
+    "id": "opa-halt",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA/Rego halts a governed event",
+    "axes": [
+      "failure",
+      "opa",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createPolicy",
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "HALT http POST http_post path",
+      "matrixCase.expected.action"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createPolicy",
+        "evidencePatterns": [
+          "HALT http POST http_post path",
+          "matrixCase.expected.action"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "HALT http POST http_post path",
+          "matrixCase.expected.action"
+        ]
+      }
+    ],
+    "requiredBehavior": "A generated policy must return halt and Core must expose the halted verdict without allowing the action."
+  },
+  {
+    "id": "opa-decision-aliases",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA/Rego legacy decision aliases map to canonical verdicts",
+    "axes": [
+      "happy",
+      "failure",
+      "opa",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createPolicy",
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "aliasCase.policyBody.rego_code",
+      "matrixCase.expected.reason"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createPolicy",
+        "evidencePatterns": [
+          "aliasCase.policyBody.rego_code",
+          "matrixCase.expected.reason"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "aliasCase.policyBody.rego_code",
+          "matrixCase.expected.reason"
+        ]
+      }
+    ],
+    "requiredBehavior": "Legacy OPA decision aliases must map through Core/backend to canonical verdicts: continue to allow, stop to halt, and require-approval to require_approval."
+  },
+  {
+    "id": "opa-constrain",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA/Rego constrain contract boundary",
+    "axes": [
+      "happy",
+      "opa",
+      "matrix",
+      "dbquery"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createPolicy",
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "CONSTRAIN",
+      "constrainCase.expected.action"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createPolicy",
+        "evidencePatterns": [
+          "CONSTRAIN",
+          "constrainCase.expected.action"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "CONSTRAIN",
+          "constrainCase.expected.action"
+        ]
+      }
+    ],
+    "requiredBehavior": "A generated CONSTRAIN policy must prove the real backend/Core boundary: backend accepts the policy, Core falls through to allow, and SDK validation rejects CONSTRAIN as unsupported authoring input."
+  },
+  {
+    "id": "opa-unavailable-fail-closed",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "OPA unavailable fails closed",
+    "axes": [
+      "failure",
+      "opa"
+    ],
+    "requiredProofLevel": "negative-path",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "unavailableVerdict",
+      "unavailableReason"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "unavailableReason",
+          "unavailableVerdict"
+        ]
+      }
+    ],
+    "requiredBehavior": "If OPA is unavailable, Core must fail closed with a halt/block class result rather than allow."
+  },
+  {
+    "id": "approval-pending",
+    "category": "approvals-hitl",
+    "capability": "approvals-hitl",
+    "label": "Approval pending state is materialized",
+    "axes": [
+      "happy",
+      "tool"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getPendingApprovals",
+      "OrganizationController_getApprovals",
+      "pollApproval"
+    ],
+    "evidencePatterns": [
+      "pendingApproval",
+      "approval_status"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getPendingApprovals",
+        "evidencePatterns": [
+          "approval_status",
+          "pendingApproval"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getApprovals",
+        "evidencePatterns": [
+          "approval_status",
+          "pendingApproval"
+        ]
+      },
+      {
+        "operationId": "pollApproval",
+        "evidencePatterns": [
+          "approval_status",
+          "pendingApproval"
+        ]
+      }
+    ],
+    "requiredBehavior": "A require_approval verdict must appear in agent, organization, and Core polling surfaces as pending."
+  },
+  {
+    "id": "approval-approved",
+    "category": "approvals-hitl",
+    "capability": "approvals-hitl",
+    "label": "Approval approve decision resolves pending row",
+    "axes": [
+      "happy",
+      "tool"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_decideApproval",
+      "AgentController_getApprovalHistory"
+    ],
+    "evidencePatterns": [
+      "decideBody.data.verdict",
+      "historyApproval.approval_status",
+      "historyApproval.verdict"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_decideApproval",
+        "evidencePatterns": [
+          "decideBody.data.decided_at",
+          "decideBody.data.verdict"
+        ]
+      },
+      {
+        "operationId": "AgentController_getApprovalHistory",
+        "evidencePatterns": [
+          "historyApproval.approval_status",
+          "historyApproval.verdict"
+        ]
+      }
+    ],
+    "requiredBehavior": "An approve decision must mutate the pending approval into approved history and allow the stored verdict."
+  },
+  {
+    "id": "approval-rejected",
+    "category": "approvals-hitl",
+    "capability": "approvals-hitl",
+    "label": "Approval reject decision resolves pending row",
+    "axes": [
+      "failure",
+      "tool"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_decideApproval",
+      "AgentController_getApprovalHistory"
+    ],
+    "evidencePatterns": [
+      "rejectBody.data.id",
+      "rejectedHistoryApproval.approval_status"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_decideApproval",
+        "evidencePatterns": [
+          "rejectBody.data.decided_at",
+          "rejectBody.data.id"
+        ]
+      },
+      {
+        "operationId": "AgentController_getApprovalHistory",
+        "evidencePatterns": [
+          "rejectedHistoryApproval.approval_status"
+        ]
+      }
+    ],
+    "requiredBehavior": "A reject decision must mutate the pending approval into rejected history and keep the action denied."
+  },
+  {
+    "id": "approval-expired-timeout",
+    "category": "approvals-hitl",
+    "capability": "approvals-hitl",
+    "label": "Approval timeout/expiration fails closed",
+    "axes": [
+      "failure",
+      "tool"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "pollApproval",
+      "AgentController_getPendingApprovals",
+      "OrganizationController_getApprovals"
+    ],
+    "evidencePatterns": [
+      "conformanceCase.scenarioId",
+      "pollAfterExpiration.data.action",
+      "expiredApprovalsBody.data.metrics.expired_count"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "pollApproval",
+        "evidencePatterns": [
+          "conformanceCase.scenarioId",
+          "expiredApprovalsBody.data.metrics.expired_count",
+          "pollAfterExpiration.data.action"
+        ]
+      },
+      {
+        "operationId": "AgentController_getPendingApprovals",
+        "evidencePatterns": [
+          "conformanceCase.scenarioId",
+          "expiredApprovalsBody.data.metrics.expired_count",
+          "pollAfterExpiration.data.action"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getApprovals",
+        "evidencePatterns": [
+          "conformanceCase.scenarioId",
+          "expiredApprovalsBody.data.metrics.expired_count",
+          "pollAfterExpiration.data.action"
+        ]
+      }
+    ],
+    "requiredBehavior": "Expired approvals must fail closed and must not be silently converted into allow."
+  },
+  {
+    "id": "approval-dashboard-metrics-history",
+    "category": "approvals-hitl",
+    "capability": "approvals-hitl",
+    "label": "Approval dashboard metrics, history, and SLA are shaped",
+    "axes": [
+      "happy",
+      "order",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getAgentApprovalsMetrics",
+      "AgentController_getPendingApprovals",
+      "AgentController_getApprovalHistory",
+      "OrganizationController_getApprovals",
+      "OrganizationController_getApprovalsMetrics",
+      "OrganizationController_getSlaPerformance",
+      "OrganizationController_getRecentDecisions"
+    ],
+    "evidencePatterns": [
+      "approval-dashboard-pending",
+      "approval-dashboard-approved"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getAgentApprovalsMetrics",
+        "evidencePatterns": [
+          "body.data.pending"
+        ]
+      },
+      {
+        "operationId": "AgentController_getPendingApprovals",
+        "evidencePatterns": [
+          "approval-dashboard-pending"
+        ]
+      },
+      {
+        "operationId": "AgentController_getApprovalHistory",
+        "evidencePatterns": [
+          "approval-dashboard-approved"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getApprovals",
+        "evidencePatterns": [
+          "approval-dashboard-pending"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getApprovalsMetrics",
+        "evidencePatterns": [
+          "approved_today"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getSlaPerformance",
+        "evidencePatterns": [
+          "within_count"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getRecentDecisions",
+        "evidencePatterns": [
+          "approval-dashboard-approved"
+        ]
+      }
+    ],
+    "requiredBehavior": "Approval dashboard metrics, history, and SLA endpoints must assert seeded pending and decided approval rows plus stable dashboard rollup shape."
+  },
+  {
+    "id": "guardrail-allow",
+    "category": "guardrails",
+    "capability": "guardrails",
+    "label": "Guardrail allows safe input/output",
+    "axes": [
+      "happy",
+      "guardrails"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "GuardrailController_runTest"
+    ],
+    "evidencePatterns": [
+      "validation_passed",
+      "allowed"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "GuardrailController_runTest",
+        "evidencePatterns": [
+          "allowed",
+          "validation_passed"
+        ]
+      }
+    ],
+    "requiredBehavior": "The local stack must prove a safe guardrail evaluation returns allowed/passed."
+  },
+  {
+    "id": "guardrail-block",
+    "category": "guardrails",
+    "capability": "guardrails",
+    "label": "Guardrail blocks unsafe input/output",
+    "axes": [
+      "failure",
+      "guardrails"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "GuardrailController_runTest"
+    ],
+    "evidencePatterns": [
+      "observedValidationResults",
+      "observedStatuses",
+      "toContain('blocked')"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "GuardrailController_runTest",
+        "evidencePatterns": [
+          "observedStatuses",
+          "observedValidationResults",
+          "toContain('blocked')"
+        ]
+      }
+    ],
+    "requiredBehavior": "The local stack must prove an unsafe guardrail evaluation returns blocked rather than pass-through."
+  },
+  {
+    "id": "guardrail-redact",
+    "category": "guardrails",
+    "capability": "guardrails",
+    "label": "Guardrail redacts or transforms sensitive fields",
+    "axes": [
+      "happy",
+      "guardrails"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "GuardrailController_runTest",
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "redacted_input",
+      "toContain('redacted')",
+      "toContain('transformed')"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "GuardrailController_runTest",
+        "evidencePatterns": [
+          "redacted_input",
+          "toContain('redacted')",
+          "toContain('transformed')"
+        ]
+      },
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "[redacted-email]",
+          "guardrails_result"
+        ]
+      }
+    ],
+    "requiredBehavior": "Redaction/constrain output must be asserted as returned transformed payload, not only endpoint reachability."
+  },
+  {
+    "id": "guardrail-service-unavailable-fail-closed",
+    "category": "guardrails",
+    "capability": "guardrails",
+    "label": "Guardrail service unavailable fails closed",
+    "axes": [
+      "failure",
+      "guardrails"
+    ],
+    "requiredProofLevel": "negative-path",
+    "localStackRequired": true,
+    "operationIds": [
+      "GuardrailController_runTest"
+    ],
+    "evidencePatterns": [
+      "Guardrails test execution failed",
+      "guardrail-service-unavailable-fail-closed"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "GuardrailController_runTest",
+        "evidencePatterns": [
+          "Guardrails test execution failed",
+          "guardrail-service-unavailable-fail-closed"
+        ]
+      }
+    ],
+    "requiredBehavior": "Unavailable guardrail service paths must fail closed or be explicitly marked unavailable; they cannot count as behavioral proof."
+  },
+  {
+    "id": "behavior-order-goal-before-action",
+    "category": "behavioral",
+    "capability": "goal-signals",
+    "label": "Goal signal precedes first governed action",
+    "axes": [
+      "order",
+      "goal"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "goalSignalEvent.event_type",
+      "toBeLessThan",
+      "firstGovernedSurface"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "firstGovernedSurface",
+          "goalSignalEvent.event_type",
+          "toBeLessThan"
+        ]
+      }
+    ],
+    "requiredBehavior": "The suite must prove goal capture happens before the first governed prompt/tool/action."
+  },
+  {
+    "id": "behavior-db-query",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "Database query span is governed",
+    "axes": [
+      "dbquery",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "database_query",
+      "ALLOW db query database_query path",
+      "DatabaseQuery"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "ALLOW db query database_query path",
+          "DatabaseQuery",
+          "database_query"
+        ]
+      }
+    ],
+    "requiredBehavior": "A database query span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-tool-call",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "Tool-call span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "tool_call",
+      "llm_tool_call",
+      "sdk-conformance-approval-tool"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "llm_tool_call",
+          "sdk-conformance-approval-tool",
+          "tool_call"
+        ]
+      }
+    ],
+    "requiredBehavior": "A tool-call span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-http",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "HTTP span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "http_post",
+      "HALT http POST http_post path",
+      "HTTPRequest"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "HALT http POST http_post path",
+          "HTTPRequest",
+          "http_post"
+        ]
+      }
+    ],
+    "requiredBehavior": "An HTTP span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-file-read",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "File-read span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "file_read",
+      "REQUIRE_APPROVAL file_read path",
+      "FileRead"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "FileRead",
+          "REQUIRE_APPROVAL file_read path",
+          "file_read"
+        ]
+      }
+    ],
+    "requiredBehavior": "A file-read span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-file-write",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "File-write span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "file_write",
+      "BLOCK file_write path",
+      "FileEdit"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "BLOCK file_write path",
+          "FileEdit",
+          "file_write"
+        ]
+      }
+    ],
+    "requiredBehavior": "A file-write span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-shell",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "Shell span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "shell",
+      "BLOCK shell path",
+      "ShellExecution"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "BLOCK shell path",
+          "ShellExecution",
+          "shell"
+        ]
+      }
+    ],
+    "requiredBehavior": "A shell/internal command span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-llm",
+    "category": "behavioral",
+    "capability": "tracing",
+    "label": "LLM span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "llm_gen_ai",
+      "llm_completion",
+      "e2e-approve-llm"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "e2e-approve-llm",
+          "llm_completion",
+          "llm_gen_ai"
+        ]
+      }
+    ],
+    "requiredBehavior": "An LLM generation/completion span must be classified and governed through the local stack."
+  },
+  {
+    "id": "behavior-mcp",
+    "category": "behavioral",
+    "capability": "mcp",
+    "label": "MCP tool span is governed",
+    "axes": [
+      "tool",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "mcp_tool_call",
+      "check_governance"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "check_governance",
+          "mcp_tool_call"
+        ]
+      }
+    ],
+    "requiredBehavior": "An MCP tool span must be classified and governed through the local stack or declared observe-only for library providers."
+  },
+  {
+    "id": "behavior-rule-lifecycle-current",
+    "category": "behavioral",
+    "capability": "behavior-rules",
+    "label": "Behavior rule lifecycle persists current state",
+    "axes": [
+      "happy",
+      "order"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createBehaviorRule",
+      "AgentController_getBehaviorRule",
+      "AgentController_updateBehaviorRule",
+      "AgentController_changeBehaviorRuleStatus",
+      "AgentController_getCurrentBehaviorRule",
+      "AgentController_deleteBehaviorRule"
+    ],
+    "evidencePatterns": [
+      "change_log",
+      "is_active"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createBehaviorRule",
+        "evidencePatterns": [
+          "body.data.rule_name"
+        ]
+      },
+      {
+        "operationId": "AgentController_getBehaviorRule",
+        "evidencePatterns": [
+          "body.data.rule_name"
+        ]
+      },
+      {
+        "operationId": "AgentController_updateBehaviorRule",
+        "evidencePatterns": [
+          "change_log"
+        ]
+      },
+      {
+        "operationId": "AgentController_changeBehaviorRuleStatus",
+        "evidencePatterns": [
+          "is_active"
+        ]
+      },
+      {
+        "operationId": "AgentController_getCurrentBehaviorRule",
+        "evidencePatterns": [
+          "is_active"
+        ]
+      },
+      {
+        "operationId": "AgentController_deleteBehaviorRule",
+        "evidencePatterns": [
+          "toBeUndefined"
+        ]
+      }
+    ],
+    "requiredBehavior": "Behavior-rule create, update, current-version, status toggle, and delete paths must assert persisted state, not only HTTP 200. The current-rule surface returns the current version and carries its is_active state."
+  },
+  {
+    "id": "behavior-rule-metrics-violations",
+    "category": "behavioral",
+    "capability": "behavior-rules",
+    "label": "Behavior rule metrics and violations are shaped",
+    "axes": [
+      "happy",
+      "failure",
+      "matrix"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getBehaviorMetrics",
+      "AgentController_getBehaviorViolations"
+    ],
+    "evidencePatterns": [
+      "behavior/violations",
+      "violations_today",
+      "compliance_rate",
+      "behavior_violated: true"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getBehaviorMetrics",
+        "evidencePatterns": [
+          "compliance_rate",
+          "violations_today"
+        ]
+      },
+      {
+        "operationId": "AgentController_getBehaviorViolations",
+        "evidencePatterns": [
+          "behavior/violations",
+          "behavior_violated: true"
+        ]
+      }
+    ],
+    "requiredBehavior": "Behavior-rule metrics and violation list endpoints must assert dashboard shape and a seeded behavior_violated row so behavioral failure coverage does not count as smoke coverage."
+  },
+  {
+    "id": "behavior-rule-rollback-history",
+    "category": "behavioral",
+    "capability": "behavior-rules",
+    "label": "Behavior rule history and rollback are stateful",
+    "axes": [
+      "happy",
+      "order"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_updateBehaviorRule",
+      "AgentController_getBehavioralRuleHistories",
+      "AgentController_rollbackBehaviorRule",
+      "AgentController_getCurrentBehaviorRule"
+    ],
+    "evidencePatterns": [
+      "base_rule_id",
+      "is_current_version"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_updateBehaviorRule",
+        "evidencePatterns": [
+          "base_rule_id",
+          "is_current_version"
+        ]
+      },
+      {
+        "operationId": "AgentController_getBehavioralRuleHistories",
+        "evidencePatterns": [
+          "base_rule_id",
+          "is_current_version"
+        ]
+      },
+      {
+        "operationId": "AgentController_rollbackBehaviorRule",
+        "evidencePatterns": [
+          "base_rule_id",
+          "is_current_version"
+        ]
+      },
+      {
+        "operationId": "AgentController_getCurrentBehaviorRule",
+        "evidencePatterns": [
+          "found.is_active"
+        ]
+      }
+    ],
+    "requiredBehavior": "Behavior-rule update must create a versioned history, and rollback must make the selected historical version current again."
+  },
+  {
+    "id": "policy-lifecycle-evaluations-metrics",
+    "category": "opa",
+    "capability": "opa-rules",
+    "label": "Policy lifecycle, evaluations, and metrics are stateful",
+    "axes": [
+      "happy",
+      "dbquery",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createPolicy",
+      "AgentController_getPolicies",
+      "AgentController_getCurrentPolicy",
+      "AgentController_updatePolicy",
+      "AgentController_getPolicesMetrics",
+      "AgentController_getPolicyEvaluations"
+    ],
+    "evidencePatterns": [
+      "body.data.rego_code",
+      "is_active: false",
+      "decision_distribution"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createPolicy",
+        "evidencePatterns": [
+          "body.data.rego_code"
+        ]
+      },
+      {
+        "operationId": "AgentController_getPolicies",
+        "evidencePatterns": [
+          "found).toBeDefined"
+        ]
+      },
+      {
+        "operationId": "AgentController_getCurrentPolicy",
+        "evidencePatterns": [
+          "is_active: true"
+        ]
+      },
+      {
+        "operationId": "AgentController_updatePolicy",
+        "evidencePatterns": [
+          "is_active: false"
+        ]
+      },
+      {
+        "operationId": "AgentController_getPolicesMetrics",
+        "evidencePatterns": [
+          "decision_distribution"
+        ]
+      },
+      {
+        "operationId": "AgentController_getPolicyEvaluations",
+        "evidencePatterns": [
+          "decision_distribution"
+        ]
+      }
+    ],
+    "requiredBehavior": "Policy current/update/metrics/evaluation endpoints must assert persisted policy state and DB-backed evaluation rows."
+  },
+  {
+    "id": "guardrail-lifecycle-order-metrics",
+    "category": "guardrails",
+    "capability": "guardrails",
+    "label": "Guardrail lifecycle, ordering, metrics, and logs are stateful",
+    "axes": [
+      "happy",
+      "order",
+      "dbquery"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_createGuardrail",
+      "AgentController_getGuardrails",
+      "AgentController_getGuardrail",
+      "AgentController_updateGuardrails",
+      "AgentController_reorderGuardrail",
+      "AgentController_getGuardrailMetrics",
+      "AgentController_getGuardrailViolationLogs",
+      "AgentController_deleteGuardrails"
+    ],
+    "evidencePatterns": [
+      "body.data.name",
+      "order: 0",
+      "violations_trend"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_createGuardrail",
+        "evidencePatterns": [
+          "body.data.name"
+        ]
+      },
+      {
+        "operationId": "AgentController_getGuardrails",
+        "evidencePatterns": [
+          "found).toBeDefined"
+        ]
+      },
+      {
+        "operationId": "AgentController_getGuardrail",
+        "evidencePatterns": [
+          "body.data.name"
+        ]
+      },
+      {
+        "operationId": "AgentController_updateGuardrails",
+        "evidencePatterns": [
+          "is_active: false"
+        ]
+      },
+      {
+        "operationId": "AgentController_reorderGuardrail",
+        "evidencePatterns": [
+          "order: 0"
+        ]
+      },
+      {
+        "operationId": "AgentController_getGuardrailMetrics",
+        "evidencePatterns": [
+          "violations_trend"
+        ]
+      },
+      {
+        "operationId": "AgentController_getGuardrailViolationLogs",
+        "evidencePatterns": [
+          "guardrailEvaluationId"
+        ]
+      },
+      {
+        "operationId": "AgentController_deleteGuardrails",
+        "evidencePatterns": [
+          "toBeUndefined"
+        ]
+      }
+    ],
+    "requiredBehavior": "Guardrail lifecycle, ordering, metrics, and violation-log endpoints must assert persisted state and DB-backed evaluation rows."
+  },
+  {
+    "id": "usage-core-wire-boundary",
+    "category": "usage-cost",
+    "capability": "usage-cost",
+    "label": "Core accepts usage/cost wire fields without fabricating dashboard metrics",
+    "axes": [
+      "happy",
+      "usage",
+      "cost",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "not.toContain('cost_usd')",
+      "not.toContain('input_tokens')",
+      "Number(metrics.trim())).toBe(0)"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "not.toContain('cost_usd')",
+          "not.toContain('input_tokens')",
+          "Number(metrics.trim())).toBe(0)"
+        ]
+      }
+    ],
+    "requiredBehavior": "Core must accept top-level usage/cost fields and persist the governance event, while the local backend must not fabricate observability metric rows from provider-owned usage telemetry."
+  },
+  {
+    "id": "usage-token-counts",
+    "category": "usage-cost",
+    "capability": "usage-cost",
+    "label": "Token usage is normalized by provider adapters",
+    "axes": [
+      "usage"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": false,
+    "operationIds": [],
+    "evidencePatterns": [
+      "normalizeOpenBoxUsage",
+      "inputTokens",
+      "outputTokens",
+      "totalTokens"
+    ],
+    "requiredBehavior": "Token aliases normalize through generated/provider SDK guards; /agent/metrics is a dashboard aggregate, not the local token ledger."
+  },
+  {
+    "id": "usage-cost-usd",
+    "category": "usage-cost",
+    "capability": "usage-cost",
+    "label": "Cost USD is normalized by provider adapters",
+    "axes": [
+      "cost",
+      "usage"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": false,
+    "operationIds": [],
+    "evidencePatterns": [
+      "costUsd",
+      "cost_usd",
+      "total_cost_usd"
+    ],
+    "requiredBehavior": "Cost aliases normalize through generated/provider SDK guards and remain Core-owned for policy; local backend metrics do not expose spend rows."
+  },
+  {
+    "id": "usage-zero-values",
+    "category": "usage-cost",
+    "capability": "usage-cost",
+    "label": "Zero usage/cost values are preserved by provider adapters",
+    "axes": [
+      "cost",
+      "usage"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": false,
+    "operationIds": [],
+    "evidencePatterns": [
+      "normalizeOpenBoxUsage",
+      "cost_usd: 0"
+    ],
+    "requiredBehavior": "Explicit zero token and cost fields are preserved by SDK normalization tests; the local backend has no usage/cost write API to seed this path."
+  },
+  {
+    "id": "backend-dashboard-metrics",
+    "category": "usage-cost",
+    "capability": "usage-cost",
+    "label": "Backend dashboard metrics expose stable rollups",
+    "axes": [
+      "happy",
+      "usage",
+      "matrix"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getAgentsMetrics"
+    ],
+    "evidencePatterns": [
+      "total_agents",
+      "violation_rate"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getAgentsMetrics",
+        "evidencePatterns": [
+          "total_agents",
+          "violation_rate"
+        ]
+      }
+    ],
+    "requiredBehavior": "Backend agent metrics are dashboard rollups and must assert agent/guardrail/policy sections rather than only HTTP 200."
+  },
+  {
+    "id": "trust-aivss-ledger",
+    "category": "usage-cost",
+    "capability": "usage-cost",
+    "label": "AIVSS and trust ledger surfaces are stateful",
+    "axes": [
+      "happy",
+      "usage",
+      "cost",
+      "matrix",
+      "dbquery"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getAssessments",
+      "AgentController_updateAivssConfig",
+      "AgentController_recalculateTrustScore",
+      "AgentController_getAgentTrustHistories",
+      "AgentController_getAgentTrustScoreEvents",
+      "AgentController_getAgentTrustRecoveryStatus",
+      "AgentController_getTrustTierChanges",
+      "OrganizationController_getTrustTierTrends"
+    ],
+    "evidencePatterns": [
+      "score: expect.any(Number)",
+      "has_penalty",
+      "tier0"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getAssessments",
+        "evidencePatterns": [
+          "trust_score"
+        ]
+      },
+      {
+        "operationId": "AgentController_updateAivssConfig",
+        "evidencePatterns": [
+          "body.data.id"
+        ]
+      },
+      {
+        "operationId": "AgentController_recalculateTrustScore",
+        "evidencePatterns": [
+          "body.data).toBe(agentId)"
+        ]
+      },
+      {
+        "operationId": "AgentController_getAgentTrustHistories",
+        "evidencePatterns": [
+          "score: expect.any(Number)"
+        ]
+      },
+      {
+        "operationId": "AgentController_getAgentTrustScoreEvents",
+        "evidencePatterns": [
+          "policy_violation"
+        ]
+      },
+      {
+        "operationId": "AgentController_getAgentTrustRecoveryStatus",
+        "evidencePatterns": [
+          "has_penalty"
+        ]
+      },
+      {
+        "operationId": "AgentController_getTrustTierChanges",
+        "evidencePatterns": [
+          "previous_tier: 1"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getTrustTierTrends",
+        "evidencePatterns": [
+          "tier0"
+        ]
+      }
+    ],
+    "requiredBehavior": "AIVSS update/recalculate and trust dashboard endpoints must assert DB-backed trust history, event, recovery, and org trend state."
+  },
+  {
+    "id": "goal-alignment-checked",
+    "category": "goal-drift",
+    "capability": "goal-signals",
+    "label": "Goal alignment check result is surfaced",
+    "axes": [
+      "happy",
+      "goal"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "goal_alignment_checked",
+      "actionResponse.data.age_result"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "actionResponse.data.age_result",
+          "goal_alignment_checked"
+        ]
+      }
+    ],
+    "requiredBehavior": "Core governance results must surface whether goal alignment was checked."
+  },
+  {
+    "id": "goal-drift-detected",
+    "category": "goal-drift",
+    "capability": "goal-signals",
+    "label": "Goal drift detection is surfaced",
+    "axes": [
+      "goal",
+      "failure"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getRecentDriftEvents",
+      "AgentController_getDriftEvents",
+      "AgentController_getGoalAlignmentTrend",
+      "AgentController_getSessionGoalAlignmentStats"
+    ],
+    "evidencePatterns": [
+      "conformanceCase.expected.goalDrifted",
+      "goal_drifted).toBe(true)",
+      "drifted_count).toBeGreaterThan(0)"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getRecentDriftEvents",
+        "evidencePatterns": [
+          "conformanceCase.expected.goalDrifted",
+          "drifted_count).toBeGreaterThan(0)",
+          "goal_drifted).toBe(true)"
+        ]
+      },
+      {
+        "operationId": "AgentController_getDriftEvents",
+        "evidencePatterns": [
+          "conformanceCase.expected.goalDrifted",
+          "drifted_count).toBeGreaterThan(0)",
+          "goal_drifted).toBe(true)"
+        ]
+      },
+      {
+        "operationId": "AgentController_getGoalAlignmentTrend",
+        "evidencePatterns": [
+          "conformanceCase.expected.goalDrifted",
+          "drifted_count).toBeGreaterThan(0)",
+          "goal_drifted).toBe(true)"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSessionGoalAlignmentStats",
+        "evidencePatterns": [
+          "conformanceCase.expected.goalDrifted",
+          "drifted_count).toBeGreaterThan(0)",
+          "goal_drifted).toBe(true)"
+        ]
+      }
+    ],
+    "requiredBehavior": "The suite must prove a drifted result through the goal-drift endpoints."
+  },
+  {
+    "id": "goal-drift-fallback",
+    "category": "goal-drift",
+    "capability": "goal-signals",
+    "label": "Goal drift fallback is surfaced",
+    "axes": [
+      "goal",
+      "failure"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "fallback_used",
+      "conformanceCase.expected.fallbackUsed",
+      "actionResponse.data.age_result"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "actionResponse.data.age_result",
+          "conformanceCase.expected.fallbackUsed",
+          "fallback_used"
+        ]
+      }
+    ],
+    "requiredBehavior": "If goal alignment falls back, the fallback flag must be visible and asserted."
+  },
+  {
+    "id": "trace-session",
+    "category": "tracing",
+    "capability": "tracing",
+    "label": "Session trace surfaces are readable",
+    "axes": [
+      "happy"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getSessions",
+      "AgentController_getSession"
+    ],
+    "evidencePatterns": [
+      "completedSummary",
+      "detail: 'seeded workflow session conformance'",
+      "status: 'completed'"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getSessions",
+        "evidencePatterns": [
+          "completedSummary",
+          "status: 'completed'"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSession",
+        "evidencePatterns": [
+          "detail: 'seeded workflow session conformance'",
+          "status: 'completed'"
+        ]
+      }
+    ],
+    "requiredBehavior": "Session list/detail endpoints must assert returned state, not only status."
+  },
+  {
+    "id": "trace-logs",
+    "category": "tracing",
+    "capability": "tracing",
+    "label": "Governance/log trace surfaces are readable",
+    "axes": [
+      "happy"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getSessionLogs",
+      "AgentController_getDriftEvents",
+      "OrganizationController_getGovernanceFeed"
+    ],
+    "evidencePatterns": [
+      "activity_id: 'workflow-session-log'",
+      "driftLog).toBeDefined",
+      "Array.isArray(body.data)"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getSessionLogs",
+        "evidencePatterns": [
+          "activity_id: 'workflow-session-log'",
+          "logEntry"
+        ]
+      },
+      {
+        "operationId": "AgentController_getDriftEvents",
+        "evidencePatterns": [
+          "driftLog).toBeDefined"
+        ]
+      },
+      {
+        "operationId": "OrganizationController_getGovernanceFeed",
+        "evidencePatterns": [
+          "Array.isArray(body.data)"
+        ]
+      }
+    ],
+    "requiredBehavior": "Log and governance feed endpoints must assert returned trace/log content."
+  },
+  {
+    "id": "trace-reasoning",
+    "category": "tracing",
+    "capability": "tracing",
+    "label": "Reasoning trace surface is readable",
+    "axes": [
+      "happy"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getSessionReasoningTrace"
+    ],
+    "evidencePatterns": [
+      "goal_alignment_checked: true",
+      "goal_drift: false"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getSessionReasoningTrace",
+        "evidencePatterns": [
+          "reasoningEntry).toMatchObject"
+        ]
+      }
+    ],
+    "requiredBehavior": "Reasoning trace endpoints must assert returned trace content."
+  },
+  {
+    "id": "trace-source-attribution",
+    "category": "tracing",
+    "capability": "tracing",
+    "label": "Provider/source attribution is retained",
+    "axes": [
+      "happy",
+      "tool"
+    ],
+    "requiredProofLevel": "behavioral",
+    "localStackRequired": true,
+    "operationIds": [
+      "evaluateGovernance"
+    ],
+    "evidencePatterns": [
+      "sourceAttribution",
+      "_openbox_source",
+      "source-attribution"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "evaluateGovernance",
+        "evidencePatterns": [
+          "_openbox_source",
+          "source-attribution",
+          "sourceAttribution"
+        ]
+      }
+    ],
+    "requiredBehavior": "Governed events must retain provider/source attribution through the persisted _openbox_source input fallback; provider span stamping is covered by adapter guard tests because the local Core path does not persist submitted openbox.source span attributes on governance_events."
+  },
+  {
+    "id": "observability-ledger-dashboard",
+    "category": "tracing",
+    "capability": "tracing",
+    "label": "Observability dashboard and logs read seeded ledger state",
+    "axes": [
+      "happy",
+      "dbquery",
+      "matrix"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getObservability",
+      "AgentController_getIssues",
+      "AgentController_getInsightMetrics",
+      "AgentController_getAgentLogs"
+    ],
+    "evidencePatterns": [
+      "observability ledger issue",
+      "input_tokens"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getObservability",
+        "evidencePatterns": [
+          "input_tokens"
+        ]
+      },
+      {
+        "operationId": "AgentController_getIssues",
+        "evidencePatterns": [
+          "observability ledger issue"
+        ]
+      },
+      {
+        "operationId": "AgentController_getInsightMetrics",
+        "evidencePatterns": [
+          "body.data.violation.total"
+        ]
+      },
+      {
+        "operationId": "AgentController_getAgentLogs",
+        "evidencePatterns": [
+          "observability-ledger"
+        ]
+      }
+    ],
+    "requiredBehavior": "Observability, issues, insights, and agent logs must assert seeded local-stack telemetry rows and dashboard rollup shapes."
+  },
+  {
+    "id": "violation-false-positive",
+    "category": "tracing",
+    "capability": "tracing",
+    "label": "Violation ledgers support false-positive marking",
+    "axes": [
+      "failure",
+      "dbquery",
+      "order"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getViolations",
+      "AgentController_getAgentEvaluations",
+      "AgentController_markAsFalsePositive"
+    ],
+    "evidencePatterns": [
+      "source_type: 'behavior'",
+      "is_false_positive: true",
+      "guardrail_violations"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getViolations",
+        "evidencePatterns": [
+          "guardrail_violations"
+        ]
+      },
+      {
+        "operationId": "AgentController_getAgentEvaluations",
+        "evidencePatterns": [
+          "is_false_positive",
+          "source_type: 'behavior'"
+        ]
+      },
+      {
+        "operationId": "AgentController_markAsFalsePositive",
+        "evidencePatterns": [
+          "is_false_positive: true"
+        ]
+      }
+    ],
+    "requiredBehavior": "Violation list endpoints must expose seeded violation rows and false-positive marking must persist the is_false_positive state."
+  },
+  {
+    "id": "workflow-session-lifecycle",
+    "category": "workflow",
+    "capability": "tracing",
+    "label": "Workflow session lifecycle is readable",
+    "axes": [
+      "happy",
+      "order"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getSessions",
+      "AgentController_getActiveSessions",
+      "AgentController_getSession",
+      "AgentController_getSessionLogs",
+      "AgentController_getSessionReasoningTrace",
+      "AgentController_getSessionGoalAlignmentStats"
+    ],
+    "evidencePatterns": [
+      "completedSummary",
+      "goal_alignment_checked: true",
+      "total_checked: 1"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getSessions",
+        "evidencePatterns": [
+          "completedSummary",
+          "status: 'completed'"
+        ]
+      },
+      {
+        "operationId": "AgentController_getActiveSessions",
+        "evidencePatterns": [
+          "activeSessionId",
+          "toBeDefined"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSession",
+        "evidencePatterns": [
+          "detail: 'seeded workflow session conformance'",
+          "status: 'completed'"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSessionLogs",
+        "evidencePatterns": [
+          "activity_id: 'workflow-session-log'",
+          "logEntry"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSessionReasoningTrace",
+        "evidencePatterns": [
+          "goal_alignment_checked: true",
+          "goal_drift: false"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSessionGoalAlignmentStats",
+        "evidencePatterns": [
+          "total_checked: 1",
+          "total_drifted: 0"
+        ]
+      }
+    ],
+    "requiredBehavior": "A seeded local-stack workflow session must be visible in list/detail/log/reasoning/stat surfaces with asserted state."
+  },
+  {
+    "id": "workflow-session-terminate",
+    "category": "workflow",
+    "capability": "tracing",
+    "label": "Workflow session termination changes active state",
+    "axes": [
+      "failure",
+      "order"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [
+      "AgentController_getActiveSessions",
+      "AgentController_terminateSession",
+      "AgentController_getSession"
+    ],
+    "evidencePatterns": [
+      "Session terminated by admin",
+      "terminatedDetailBody.data.status",
+      "toBeUndefined"
+    ],
+    "operationEvidencePatterns": [
+      {
+        "operationId": "AgentController_getActiveSessions",
+        "evidencePatterns": [
+          "activeAfterTerminateBody.status",
+          "toBeUndefined"
+        ]
+      },
+      {
+        "operationId": "AgentController_terminateSession",
+        "evidencePatterns": [
+          "Session terminated by admin",
+          "status: 'halted'"
+        ]
+      },
+      {
+        "operationId": "AgentController_getSession",
+        "evidencePatterns": [
+          "terminatedDetailBody.data.status",
+          "halted"
+        ]
+      }
+    ],
+    "requiredBehavior": "Terminating an active workflow session must remove it from active sessions and persist halted detail state."
+  }
+] as const satisfies readonly LocalStackScenarioPathSpec[];
+export const LOCAL_STACK_SCENARIO_MATRIX = {
+  "id": "backend-core-governance-full-matrix",
+  "description": "Backend/Core governance conformance matrix for OPA, approvals, guardrails, behavior rules, goal drift, tracing, usage/cost, workflow ordering, and DB-backed dashboard paths. Provider-owned usage/cost normalization is allowed only when declared outside local-stack runtime proof.",
+  "requiredCapabilities": [
+    "approvals-hitl",
+    "behavior-rules",
+    "goal-signals",
+    "guardrails",
+    "mcp",
+    "opa-rules",
+    "tracing",
+    "usage-cost"
+  ],
+  "requiredCategories": [
+    "approvals-hitl",
+    "behavioral",
+    "goal-drift",
+    "guardrails",
+    "opa",
+    "tracing",
+    "usage-cost",
+    "workflow"
+  ],
+  "requiredAxes": [
+    "cost",
+    "dbquery",
+    "failure",
+    "goal",
+    "guardrails",
+    "happy",
+    "matrix",
+    "opa",
+    "order",
+    "tool",
+    "usage"
+  ],
+  "requiredLocalStackAxes": [
+    "cost",
+    "dbquery",
+    "failure",
+    "goal",
+    "guardrails",
+    "happy",
+    "matrix",
+    "opa",
+    "order",
+    "tool",
+    "usage"
+  ],
+  "requiredCategoryAxes": [
+    {
+      "category": "approvals-hitl",
+      "axes": [
+        "failure",
+        "happy",
+        "matrix",
+        "order",
+        "tool"
+      ]
+    },
+    {
+      "category": "behavioral",
+      "axes": [
+        "dbquery",
+        "failure",
+        "goal",
+        "happy",
+        "matrix",
+        "order",
+        "tool"
+      ]
+    },
+    {
+      "category": "goal-drift",
+      "axes": [
+        "failure",
+        "goal",
+        "happy"
+      ]
+    },
+    {
+      "category": "guardrails",
+      "axes": [
+        "dbquery",
+        "failure",
+        "guardrails",
+        "happy",
+        "order"
+      ]
+    },
+    {
+      "category": "opa",
+      "axes": [
+        "dbquery",
+        "failure",
+        "happy",
+        "matrix",
+        "opa",
+        "tool"
+      ]
+    },
+    {
+      "category": "tracing",
+      "axes": [
+        "dbquery",
+        "failure",
+        "happy",
+        "matrix",
+        "order",
+        "tool"
+      ]
+    },
+    {
+      "category": "usage-cost",
+      "axes": [
+        "cost",
+        "dbquery",
+        "happy",
+        "matrix",
+        "usage"
+      ]
+    },
+    {
+      "category": "workflow",
+      "axes": [
+        "failure",
+        "happy",
+        "order"
+      ]
+    }
+  ],
+  "localStackScenarioIds": [
+    "opa-allow",
+    "opa-require-approval",
+    "opa-block",
+    "opa-halt",
+    "opa-decision-aliases",
+    "opa-constrain",
+    "opa-unavailable-fail-closed",
+    "approval-pending",
+    "approval-approved",
+    "approval-rejected",
+    "approval-expired-timeout",
+    "approval-dashboard-metrics-history",
+    "guardrail-allow",
+    "guardrail-block",
+    "guardrail-redact",
+    "guardrail-service-unavailable-fail-closed",
+    "behavior-order-goal-before-action",
+    "behavior-db-query",
+    "behavior-tool-call",
+    "behavior-http",
+    "behavior-file-read",
+    "behavior-file-write",
+    "behavior-shell",
+    "behavior-llm",
+    "behavior-mcp",
+    "behavior-rule-lifecycle-current",
+    "behavior-rule-metrics-violations",
+    "behavior-rule-rollback-history",
+    "policy-lifecycle-evaluations-metrics",
+    "guardrail-lifecycle-order-metrics",
+    "usage-core-wire-boundary",
+    "backend-dashboard-metrics",
+    "trust-aivss-ledger",
+    "goal-alignment-checked",
+    "goal-drift-detected",
+    "goal-drift-fallback",
+    "trace-session",
+    "trace-logs",
+    "trace-reasoning",
+    "trace-source-attribution",
+    "observability-ledger-dashboard",
+    "violation-false-positive",
+    "workflow-session-lifecycle",
+    "workflow-session-terminate"
+  ],
+  "providerOwnedScenarioIds": [
+    "usage-token-counts",
+    "usage-cost-usd",
+    "usage-zero-values"
+  ],
+  "requiredOutcomeIds": [
+    "core-governance-verdicts",
+    "core-approval-polling",
+    "backend-policy-evaluation",
+    "backend-guardrail-enforcement",
+    "backend-approvals-hitl",
+    "backend-organization-member-admin",
+    "backend-tracing-observability",
+    "backend-usage-cost-trust",
+    "provider-adapter-guardrails",
+    "provider-adapter-approvals-hitl",
+    "provider-adapter-tracing",
+    "provider-adapter-usage-cost",
+    "provider-adapter-opa-rules"
+  ],
+  "requiredOutcomeSpecs": [
+    {
+      "id": "core-governance-verdicts",
+      "label": "Core governance verdicts",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "validateApiKey",
+        "evaluateGovernance"
+      ],
+      "providerGuardCapabilities": [],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "core-approval-polling",
+      "label": "Core approval polling",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "pollApproval"
+      ],
+      "providerGuardCapabilities": [],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "backend-policy-evaluation",
+      "label": "Backend policy and OPA evaluation",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "AgentController_createPolicy",
+        "AgentController_getPolicies",
+        "AgentController_getPolicy",
+        "PolicyController_evaluate"
+      ],
+      "providerGuardCapabilities": [
+        "opa-rules"
+      ],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "backend-guardrail-enforcement",
+      "label": "Backend guardrail enforcement",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "AgentController_createGuardrail",
+        "AgentController_getGuardrails",
+        "AgentController_getGuardrail",
+        "GuardrailController_runTest"
+      ],
+      "providerGuardCapabilities": [
+        "guardrails"
+      ],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "backend-approvals-hitl",
+      "label": "Backend approvals and HITL",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "AgentController_getPendingApprovals",
+        "AgentController_getApprovalHistory",
+        "AgentController_decideApproval",
+        "OrganizationController_getApprovals"
+      ],
+      "providerGuardCapabilities": [
+        "approvals-hitl"
+      ],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "backend-organization-member-admin",
+      "label": "Backend organization member administration",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "OrganizationController_getMembers",
+        "OrganizationController_removeMembers",
+        "OrganizationController_createUser",
+        "OrganizationController_sendWelcomeEmail",
+        "OrganizationController_inviteUser",
+        "OrganizationController_assignRoles",
+        "OrganizationController_removeRoles",
+        "OrganizationController_updateMember"
+      ],
+      "providerGuardCapabilities": [],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "backend-tracing-observability",
+      "label": "Backend tracing and observability",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "AgentController_getAgentEvaluations",
+        "AgentController_getSessions",
+        "AgentController_getSession",
+        "AgentController_getSessionLogs",
+        "AgentController_getSessionReasoningTrace",
+        "AgentController_getObservability",
+        "OrganizationController_getGovernanceFeed"
+      ],
+      "providerGuardCapabilities": [
+        "tracing"
+      ],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "backend-usage-cost-trust",
+      "label": "Backend usage, cost, and trust",
+      "source": "local-stack-e2e",
+      "minimumProofLevel": "behavioral",
+      "operationIds": [
+        "AgentController_getAgentsMetrics",
+        "AgentController_updateAivssConfig",
+        "AgentController_recalculateTrustScore",
+        "AgentController_getTrustTierChanges",
+        "AgentController_getAgentTrustScoreEvents",
+        "OrganizationController_getTrustTierTrends"
+      ],
+      "providerGuardCapabilities": [
+        "usage-cost"
+      ],
+      "exceptionCapabilities": []
+    },
+    {
+      "id": "provider-adapter-guardrails",
+      "label": "Provider adapter guardrails",
+      "source": "provider-guard-fixture",
+      "minimumProofLevel": "none",
+      "operationIds": [],
+      "providerGuardCapabilities": [
+        "guardrails"
+      ],
+      "exceptionCapabilities": [
+        "guardrails"
+      ]
+    },
+    {
+      "id": "provider-adapter-approvals-hitl",
+      "label": "Provider adapter approvals and HITL",
+      "source": "provider-guard-fixture",
+      "minimumProofLevel": "none",
+      "operationIds": [],
+      "providerGuardCapabilities": [
+        "approvals-hitl"
+      ],
+      "exceptionCapabilities": [
+        "approvals-hitl"
+      ]
+    },
+    {
+      "id": "provider-adapter-tracing",
+      "label": "Provider adapter tracing",
+      "source": "provider-guard-fixture",
+      "minimumProofLevel": "none",
+      "operationIds": [],
+      "providerGuardCapabilities": [
+        "tracing"
+      ],
+      "exceptionCapabilities": [
+        "tracing"
+      ]
+    },
+    {
+      "id": "provider-adapter-usage-cost",
+      "label": "Provider adapter usage and cost",
+      "source": "provider-guard-fixture",
+      "minimumProofLevel": "none",
+      "operationIds": [],
+      "providerGuardCapabilities": [
+        "usage-cost"
+      ],
+      "exceptionCapabilities": [
+        "usage-cost"
+      ]
+    },
+    {
+      "id": "provider-adapter-opa-rules",
+      "label": "Provider adapter OPA/rules boundary",
+      "source": "provider-guard-fixture",
+      "minimumProofLevel": "none",
+      "operationIds": [],
+      "providerGuardCapabilities": [
+        "opa-rules"
+      ],
+      "exceptionCapabilities": [
+        "rules-instructions"
+      ]
+    }
+  ],
+  "requiredSharedProviderGuardProofCapabilities": [
+    "opa-rules"
+  ],
+  "requiredSdkSemanticGapClosureTargets": [
+    "typescript",
+    "python"
+  ],
+  "providerGuardSharedProofPolicy": "Shared provider guard proof is allowed only for explicitly generated backend-owned capabilities. OPA/Rego and behavior-rule evaluation are backend-owned, so every SDK/runtime provider must prove it delegates that capability rather than implementing policy evaluation locally.",
+  "localStackAxisPolicy": "Every required governance axis must be represented by at least one proven local-stack scenario; provider-owned fixture evidence cannot satisfy the local-stack governance axis requirement.",
+  "rawSemanticGapPolicy": "Raw backend/Core semantic gaps must remain explicit in the local-stack ledger and each gap must have generated TypeScript and Python request-preflight closure evidence until backend/Core rejects the invalid input itself.",
+  "backendCoreGapStatusPolicy": "The matrix status can be proven through SDK closures while raw backend/Core semantic gaps exist, but backendCoreGapStatus must remain known-gaps until the raw local stack rejects those inputs directly.",
+  "backendCoreGapRemediationPolicy": "Every raw backend/Core semantic gap must map to a generated request constraint remediation target with the affected operations, constraint keys, raw proof file, and required raw rejection behavior."
+} as const satisfies LocalStackScenarioMatrixContract;
 export const MCP_TOOL_SURFACES = [
   {
     "name": "get_profile",

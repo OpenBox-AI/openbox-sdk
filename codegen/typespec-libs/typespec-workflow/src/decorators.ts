@@ -695,7 +695,7 @@ export function $providerCapabilities(
     return;
   }
   const record = value as Record<string, unknown>;
-  for (const key of ['capabilityIds', 'providers', 'capabilities', 'referenceProviderParityClosures', 'referenceProviderRuntimeAudit', 'goalSignalGuards', 'usageCostCapabilityGuards', 'usageNormalization', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations', 'mcpTools', 'mcpPrompts', 'mcpResourceTemplates', 'mcpSkillReferences', 'n8nIntegration']) {
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'referenceProviderParityClosures', 'referenceProviderRuntimeAudit', 'goalSignalGuards', 'usageCostCapabilityGuards', 'usageNormalization', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'localStackScenarioPaths', 'localStackScenarioMatrix', 'eventCatalog', 'pluginComponents', 'publicIntegrations', 'mcpTools', 'mcpPrompts', 'mcpResourceTemplates', 'mcpSkillReferences', 'n8nIntegration']) {
     if (!(key in record)) {
       reportDiagnostic(context.program, {
         code: 'invalid-provider-capabilities',
@@ -1832,6 +1832,10 @@ export function $sdkTargets(
         reportInvalidSdkTargets(context, target, `generatedArtifacts.${field} must be a string array`);
         return;
       }
+    }
+    if (artifacts.driftCheckFiles !== undefined && !isStringArray(artifacts.driftCheckFiles)) {
+      reportInvalidSdkTargets(context, target, 'generatedArtifacts.driftCheckFiles must be a string array');
+      return;
     }
 
     const nested = artifacts.nestedGeneratedFiles;

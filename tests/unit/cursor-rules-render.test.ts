@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { renderRulesProjection } from '../../ts/src/runtime/cursor/rules.js';
 import type { RulesProjection, ProjectedRule } from '../../ts/src/governance/rules-projection.js';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 function tempWorkspace(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'openbox-rules-'));
@@ -59,6 +60,63 @@ describe('renderRulesProjection', () => {
     expect(content).toContain('description:');
     expect(content).not.toContain('alwaysApply');
     expect(content).not.toContain('globs:');
+  });
+
+  it('EXHAUSTIVE_SPEC_PROOF: Cursor rules renderer covers every spec rule trigger, severity, and source', () => {
+    const rules: ProjectedRule[] = [];
+    for (const trigger of GOVERNANCE_SPEC_DOMAINS.ruleTriggers) {
+      for (const severity of GOVERNANCE_SPEC_DOMAINS.ruleSeverities) {
+        for (const source of GOVERNANCE_SPEC_DOMAINS.projectedRuleSources) {
+          rules.push(rule({
+            id: `${source}/${trigger}-${severity}`,
+            source: source as ProjectedRule['source'],
+            trigger: trigger as ProjectedRule['trigger'],
+            severity: severity as ProjectedRule['severity'],
+            description: `${source} ${trigger} ${severity}`,
+            body: `body for ${source} ${trigger} ${severity}`,
+            ...(trigger === 'globMatch' ? { globs: [`src/${source}/**/*`] } : {}),
+          }));
+        }
+      }
+    }
+
+    const { rulesDir, written } = renderRulesProjection(projection(rules), { workspace });
+    expect(written).toHaveLength(
+      GOVERNANCE_SPEC_DOMAINS.ruleTriggers.length *
+        GOVERNANCE_SPEC_DOMAINS.ruleSeverities.length *
+        GOVERNANCE_SPEC_DOMAINS.projectedRuleSources.length,
+    );
+
+    for (const trigger of GOVERNANCE_SPEC_DOMAINS.ruleTriggers) {
+      for (const severity of GOVERNANCE_SPEC_DOMAINS.ruleSeverities) {
+        for (const source of GOVERNANCE_SPEC_DOMAINS.projectedRuleSources) {
+          const file = `openbox-${source}-${trigger}-${severity}.mdc`;
+          const content = fs.readFileSync(path.join(rulesDir, file), 'utf-8');
+          expect(content).toContain(`# openbox.source: ${source}`);
+          expect(content).toContain(`# openbox.severity: ${severity}`);
+          expect(content).toContain(`# openbox.id: ${source}/${trigger}-${severity}`);
+          if (trigger === 'always') {
+            expect(content).toContain('alwaysApply: true');
+            expect(content).toContain('description:');
+            expect(content).not.toContain('globs:');
+          } else if (trigger === 'globMatch') {
+            expect(content).toContain(`globs: ["src/${source}/**/*"]`);
+            expect(content).toContain('description:');
+            expect(content).not.toContain('alwaysApply');
+          } else if (trigger === 'agentRequested') {
+            expect(content).toContain('description:');
+            expect(content).not.toContain('alwaysApply');
+            expect(content).not.toContain('globs:');
+          } else if (trigger === 'manual') {
+            expect(content).not.toContain('description:');
+            expect(content).not.toContain('alwaysApply');
+            expect(content).not.toContain('globs:');
+          } else {
+            throw new Error(`Unhandled RuleTrigger ${trigger}`);
+          }
+        }
+      }
+    }
   });
 
   it('reruns are idempotent; written list is empty when nothing changed', () => {

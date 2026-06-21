@@ -1,5 +1,38 @@
 import { describe, it, expect } from 'vitest';
-import { getBackendClient, fullResponse, unwrap } from '../helpers/api-client';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
+import { getBackendClient, fullResponse, getOrgId, unwrap } from '../helpers/api-client';
+import { GOVERNANCE_BOUNDARY_DOMAINS } from '../helpers/boundary-conformance';
+
+function backendOperation(operationId: string) {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
+}
+
+function expectValidationOrThrottle(body: any, fields: string[]) {
+  if (body.status === 429) {
+    expect(body.message).toContain('Too Many Requests');
+    return;
+  }
+
+  expect(body.status).toBe(422);
+  const message = JSON.stringify(body);
+  for (const field of fields) {
+    expect(message).toContain(field);
+  }
+}
+
+function requiredFields(modelName: string): string[] {
+  return GOVERNANCE_BOUNDARY_DOMAINS.requiredBodyFields
+    .filter((entry) => entry.modelName === modelName)
+    .map((entry) => entry.fieldName);
+}
+
+function withoutField(body: Record<string, unknown>, field: string): Record<string, unknown> {
+  const copy = { ...body };
+  delete copy[field];
+  return copy;
+}
 
 describe('Auth Endpoints', () => {
   it('GET /auth/profile returns user profile with required fields', async () => {
@@ -23,29 +56,88 @@ describe('Auth Endpoints', () => {
     expect(profile.isApiKeyAuth).toBe(true);
   });
 
-  it('POST /auth/login with empty body returns 422 with validation errors', async () => {
+  it('CONTRACT_BOUNDARY: auth DTOs reject every missing required field from TypeSpec', async () => {
+    // CONTRACT_BOUNDARY_PROOF: local-stack auth/session operations are not
+    // mutated by SDK X-API-Key transport, but every required TypeSpec DTO
+    // field is sent through backend validation as a one-missing-field matrix.
     const client = getBackendClient();
-    const response = await client.post('/auth/login', {});
-    const body = response.data;
+    const loginOperation = backendOperation('AuthController_login');
+    const logoutOperation = backendOperation('AuthController_logout');
+    const forgotPasswordOperation = backendOperation('AuthController_forgotPassword');
+    const resetPasswordOperation = backendOperation('AuthController_resetPassword');
+    const changePasswordOperation = backendOperation('AuthController_changePassword');
+    const refreshOperation = backendOperation('AuthController_refreshToken');
+    expect([
+      loginOperation.verb,
+      logoutOperation.verb,
+      forgotPasswordOperation.verb,
+      resetPasswordOperation.verb,
+      changePasswordOperation.verb,
+      refreshOperation.verb,
+    ]).toEqual(['post', 'post', 'post', 'post', 'post', 'post']);
 
-    expect(body.status).toBe(422);
+    const loginBody = {
+      realm: 'openbox',
+      username: 'boundary@example.invalid',
+      password: 'invalid-password',
+      recaptchaToken: 'invalid-recaptcha',
+    };
+    for (const field of requiredFields('LoginDto')) {
+      const response = await client.post(loginOperation.path, withoutField(loginBody, field));
+      expectValidationOrThrottle(response.data, [field]);
+    }
 
-    const message = JSON.stringify(body);
-    expect(message).toContain('realm');
-    expect(message).toContain('username');
-    expect(message).toContain('password');
-    expect(message).toContain('recaptchaToken');
+    const logoutBody = { refreshToken: 'invalid-refresh-token' };
+    for (const field of requiredFields('LogoutDto')) {
+      const response = await client.post(logoutOperation.path, withoutField(logoutBody, field));
+      expectValidationOrThrottle(response.data, [field]);
+    }
+
+    const forgotPasswordBody = {
+      email: 'boundary@example.invalid',
+      realm: 'openbox',
+    };
+    for (const field of requiredFields('ForgotPasswordDto')) {
+      const response = await client.post(forgotPasswordOperation.path, withoutField(forgotPasswordBody, field));
+      expectValidationOrThrottle(response.data, [field]);
+    }
+
+    const resetPasswordBody = {
+      token: 'invalid-reset-token',
+      newPassword: 'InvalidPassword123!',
+    };
+    for (const field of requiredFields('ResetPasswordDto')) {
+      const response = await client.post(resetPasswordOperation.path, withoutField(resetPasswordBody, field));
+      expectValidationOrThrottle(response.data, [field]);
+    }
+
+    const changePasswordBody = {
+      currentPassword: 'old-password',
+      newPassword: 'InvalidPassword123!',
+      orgId: getOrgId(),
+    };
+    for (const field of requiredFields('ChangePasswordDto')) {
+      const response = await client.post(changePasswordOperation.path, withoutField(changePasswordBody, field));
+      expectValidationOrThrottle(response.data, [field]);
+    }
+
+    const refreshBody = { refreshToken: 'invalid-refresh-token' };
+    for (const field of requiredFields('RefreshDto')) {
+      const response = await client.post(refreshOperation.path, withoutField(refreshBody, field));
+      expectValidationOrThrottle(response.data, [field]);
+    }
   });
 
-  it('GET /user/roles returns 200 or 403', async () => {
+  it('NEGATIVE: GET /user/roles requires read:user', async () => {
+    // CONTRACT_BOUNDARY_PROOF: role listing fails closed for the SDK X-API-Key
+    // principal; this is not a conditional status smoke test.
     const client = getBackendClient();
-    const response = await client.get('/user/roles');
-    const body = fullResponse(response);
+    const operation = backendOperation('UserController_getRoles');
+    expect(operation.verb).toBe('get');
+    const response = await client.get(operation.path);
+    const body = response.data;
 
-    // May return 403 if user lacks read:user permission
-    expect([200, 403]).toContain(body.status);
-    if (body.status === 200) {
-      expect(Array.isArray(body.data)).toBe(true);
-    }
+    expect(body.status).toBe(403);
+    expect(body.message).toContain('read:user');
   });
 });

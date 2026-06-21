@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Model, Namespace, Program, Type } from '@typespec/compiler';
 import { resolvePath } from '@typespec/compiler';
@@ -110,6 +110,7 @@ export function emitPythonSdk(program: Program, repoRoot: string): void {
     resolvePath(outDir, 'permissions.py'),
     emitPermissions(backendManifest, methodPermissions),
   );
+  writePythonFile(resolvePath(outDir, 'request_preflight.py'), emitPythonRequestPreflight(repoRoot));
   writePythonFile(resolvePath(outDir, 'schemas.py'), emitSchemas(program));
   writePythonFile(resolvePath(outDir, 'capability_matrix.py'), emitCapabilityMatrix(program));
   writePythonFile(resolvePath(outDir, 'sdk_targets.py'), emitSdkTargets(program));
@@ -215,6 +216,456 @@ function emitPermissions(
   return `${PYTHON_BANNER}PATH_PERMISSION_RULES = ${py(rules)}\n`;
 }
 
+interface PythonOpenApiDocument {
+  paths?: Record<string, Record<string, PythonOpenApiOperation>>;
+  components?: {
+    schemas?: Record<string, PythonOpenApiSchema>;
+  };
+}
+
+interface PythonOpenApiOperation {
+  operationId?: string;
+  parameters?: PythonOpenApiParameter[];
+  requestBody?: {
+    content?: Record<string, { schema?: PythonOpenApiSchema }>;
+  };
+}
+
+interface PythonOpenApiParameter {
+  name?: string;
+  in?: string;
+  schema?: PythonOpenApiSchema;
+}
+
+interface PythonOpenApiSchema {
+  $ref?: string;
+  type?: string;
+  format?: string;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  maxLength?: number;
+  properties?: Record<string, PythonOpenApiSchema>;
+  items?: PythonOpenApiSchema;
+  allOf?: PythonOpenApiSchema[];
+  oneOf?: PythonOpenApiSchema[];
+  anyOf?: PythonOpenApiSchema[];
+}
+
+interface PythonRequestPreflightRule {
+  operation_id: string;
+  method: string;
+  path: string;
+  path_pattern: string;
+  query?: PythonQueryPreflightRule[];
+  body?: PythonBodyPreflightRule[];
+}
+
+interface PythonQueryPreflightRule {
+  name: string;
+  type?: string;
+  format?: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  max_length?: number;
+  integer?: boolean;
+}
+
+interface PythonBodyPreflightRule extends Omit<PythonQueryPreflightRule, 'name'> {
+  path: string[];
+  min_items?: number;
+  max_items?: number;
+}
+
+function emitPythonRequestPreflight(repoRoot: string): string {
+  const backendRules = readPythonRequestPreflightRules(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxBackend.json',
+  );
+  const coreRules = readPythonRequestPreflightRules(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxCore.json',
+  );
+  return emitPythonRequestPreflightRuntime(backendRules, coreRules);
+}
+
+function readPythonRequestPreflightRules(
+  repoRoot: string,
+  openApiRel: string,
+): PythonRequestPreflightRule[] {
+  const openApi = JSON.parse(
+    readFileSync(resolvePath(repoRoot, openApiRel), 'utf8'),
+  ) as PythonOpenApiDocument;
+  return collectPythonRequestPreflightRules(openApi);
+}
+
+function collectPythonRequestPreflightRules(
+  openApi: PythonOpenApiDocument,
+): PythonRequestPreflightRule[] {
+  const out: PythonRequestPreflightRule[] = [];
+  const methods = new Set(['get', 'post', 'put', 'patch', 'delete']);
+  for (const [path, item] of Object.entries(openApi.paths ?? {})) {
+    for (const [method, operation] of Object.entries(item)) {
+      if (!methods.has(method) || !operation?.operationId) continue;
+      const query = collectPythonQueryPreflightRules(operation.parameters ?? [], openApi);
+      const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+      const body = bodySchema
+        ? collectPythonBodyPreflightRules(resolvePythonOpenApiSchema(bodySchema, openApi), openApi, [])
+        : [];
+      if (query.length === 0 && body.length === 0) continue;
+      out.push({
+        operation_id: operation.operationId,
+        method: method.toUpperCase(),
+        path,
+        path_pattern: pythonOpenApiPathRegexSource(path),
+        query: query.length > 0 ? query : undefined,
+        body: body.length > 0 ? body : undefined,
+      });
+    }
+  }
+  return out.sort((left, right) => {
+    const byOperation = left.operation_id.localeCompare(right.operation_id);
+    return byOperation !== 0 ? byOperation : left.method.localeCompare(right.method);
+  });
+}
+
+function collectPythonQueryPreflightRules(
+  parameters: PythonOpenApiParameter[],
+  openApi: PythonOpenApiDocument,
+): PythonQueryPreflightRule[] {
+  return parameters
+    .filter((parameter) => parameter.in === 'query' && parameter.name && parameter.schema)
+    .map((parameter) => {
+      const schema = resolvePythonOpenApiSchema(parameter.schema!, openApi);
+      return pythonQueryRuleFromSchema(parameter.name!, schema);
+    })
+    .filter((rule): rule is PythonQueryPreflightRule => Boolean(rule))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function collectPythonBodyPreflightRules(
+  schema: PythonOpenApiSchema | undefined,
+  openApi: PythonOpenApiDocument,
+  path: string[],
+  seenRefs = new Set<string>(),
+): PythonBodyPreflightRule[] {
+  if (!schema) return [];
+  const resolved = resolvePythonOpenApiSchema(schema, openApi, seenRefs);
+  const out: PythonBodyPreflightRule[] = [];
+  const current = pythonBodyRuleFromSchema(path, resolved);
+  if (current) out.push(current);
+
+  for (const branch of [
+    ...(resolved.allOf ?? []),
+    ...(resolved.oneOf ?? []),
+    ...(resolved.anyOf ?? []),
+  ]) {
+    out.push(...collectPythonBodyPreflightRules(branch, openApi, path, new Set(seenRefs)));
+  }
+
+  for (const [key, property] of Object.entries(resolved.properties ?? {})) {
+    out.push(
+      ...collectPythonBodyPreflightRules(property, openApi, [...path, key], new Set(seenRefs)),
+    );
+  }
+
+  if (resolved.items && path.length > 0) {
+    out.push(
+      ...collectPythonBodyPreflightRules(resolved.items, openApi, [...path, '*'], new Set(seenRefs)),
+    );
+  }
+
+  return out;
+}
+
+function pythonQueryRuleFromSchema(
+  name: string,
+  schema: PythonOpenApiSchema,
+): PythonQueryPreflightRule | null {
+  const base = pythonConstraintRuleFromSchema(schema);
+  return base ? { name, ...base } : null;
+}
+
+function pythonBodyRuleFromSchema(
+  path: string[],
+  schema: PythonOpenApiSchema,
+): PythonBodyPreflightRule | null {
+  if (path.length === 0) return null;
+  const base = pythonConstraintRuleFromSchema(schema);
+  return base ? { path, ...base } : null;
+}
+
+function pythonConstraintRuleFromSchema(
+  schema: PythonOpenApiSchema,
+): (Omit<PythonQueryPreflightRule, 'name'> & { min_items?: number; max_items?: number }) | null {
+  const enumValues = (schema.enum ?? [])
+    .filter((value): value is string => typeof value === 'string');
+  const rule: Omit<PythonQueryPreflightRule, 'name'> & {
+    min_items?: number;
+    max_items?: number;
+  } = {};
+  const hasConstraint =
+    Boolean(schema.format) ||
+    enumValues.length > 0 ||
+    typeof schema.minimum === 'number' ||
+    typeof schema.maximum === 'number' ||
+    typeof schema.maxLength === 'number' ||
+    typeof schema.minItems === 'number' ||
+    typeof schema.maxItems === 'number' ||
+    schema.type === 'integer';
+  if (!hasConstraint) return null;
+  if (schema.type) rule.type = schema.type;
+  if (schema.format) rule.format = schema.format;
+  if (enumValues.length > 0) rule.enum = enumValues;
+  if (typeof schema.minimum === 'number') rule.minimum = schema.minimum;
+  if (typeof schema.maximum === 'number') rule.maximum = schema.maximum;
+  if (typeof schema.maxLength === 'number') rule.max_length = schema.maxLength;
+  if (typeof schema.minItems === 'number') rule.min_items = schema.minItems;
+  if (typeof schema.maxItems === 'number') rule.max_items = schema.maxItems;
+  if (schema.type === 'integer') rule.integer = true;
+  return rule;
+}
+
+function resolvePythonOpenApiSchema(
+  schema: PythonOpenApiSchema,
+  openApi: PythonOpenApiDocument,
+  seenRefs = new Set<string>(),
+): PythonOpenApiSchema {
+  if (!schema.$ref) return schema;
+  if (seenRefs.has(schema.$ref)) return schema;
+  seenRefs.add(schema.$ref);
+  const prefix = '#/components/schemas/';
+  if (!schema.$ref.startsWith(prefix)) return schema;
+  const name = schema.$ref.slice(prefix.length);
+  const resolved = openApi.components?.schemas?.[name];
+  return resolved ? resolvePythonOpenApiSchema(resolved, openApi, seenRefs) : schema;
+}
+
+function pythonOpenApiPathRegexSource(path: string): string {
+  const escaped = path
+    .split(/(\{[^}]+\})/g)
+    .map((part) =>
+      part.startsWith('{') && part.endsWith('}')
+        ? '[^/]+'
+        : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    )
+    .join('');
+  return `^${escaped}$`;
+}
+
+function emitPythonRequestPreflightRuntime(
+  backendRules: PythonRequestPreflightRule[],
+  coreRules: PythonRequestPreflightRule[],
+): string {
+  return `${PYTHON_BANNER}import json
+import math
+import re
+from collections.abc import Mapping
+from datetime import datetime
+from typing import Any, TypeAlias
+
+JsonMapping: TypeAlias = Mapping[str, Any]
+RequestPreflightRule: TypeAlias = dict[str, Any]
+
+BACKEND_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = ${py(backendRules)}
+CORE_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = ${py(coreRules)}
+
+
+class RequestPreflightError(ValueError):
+    def __init__(self, operation_id: str, location: str, message: str) -> None:
+        super().__init__(message)
+        self.operation_id = operation_id
+        self.location = location
+        self.name = "RequestPreflightError"
+
+
+def validate_backend_request(
+    method: str,
+    path: str,
+    query: JsonMapping | None = None,
+    body: Any = None,
+) -> None:
+    _validate_request(BACKEND_REQUEST_PREFLIGHT_RULES, method, path, query, body)
+
+
+def validate_core_request(
+    method: str,
+    path: str,
+    query: JsonMapping | None = None,
+    body: Any = None,
+) -> None:
+    _validate_request(CORE_REQUEST_PREFLIGHT_RULES, method, path, query, body)
+
+
+def _validate_request(
+    rules: list[RequestPreflightRule],
+    method: str,
+    path: str,
+    query: JsonMapping | None,
+    body: Any,
+) -> None:
+    normalized_path = path.split("?", 1)[0]
+    upper_method = method.upper()
+    rule = next(
+        (
+            entry
+            for entry in rules
+            if entry["method"] == upper_method
+            and re.match(str(entry["path_pattern"]), normalized_path) is not None
+        ),
+        None,
+    )
+    if rule is None:
+        return
+
+    for query_rule in rule.get("query") or []:
+        if query is None:
+            continue
+        value = query.get(query_rule["name"])
+        if value is None:
+            continue
+        values = value if isinstance(value, list) else [value]
+        for item in values:
+            _validate_scalar(rule, f"query.{query_rule['name']}", item, query_rule)
+
+    for body_rule in rule.get("body") or []:
+        values = _values_at_body_path(body, body_rule["path"])
+        if not values:
+            continue
+        for value in values:
+            _validate_body_value(rule, f"body.{'.'.join(body_rule['path'])}", value, body_rule)
+
+
+def _validate_body_value(
+    operation: RequestPreflightRule,
+    location: str,
+    value: Any,
+    rule: RequestPreflightRule,
+) -> None:
+    if (
+        rule.get("min_items") is not None
+        or rule.get("max_items") is not None
+    ):
+        if not isinstance(value, list):
+            _fail(operation, location, "must be an array", value)
+        if rule.get("min_items") is not None and len(value) < int(rule["min_items"]):
+            _fail(operation, location, f"must contain at least {rule['min_items']} item(s)", value)
+        if rule.get("max_items") is not None and len(value) > int(rule["max_items"]):
+            _fail(operation, location, f"must contain at most {rule['max_items']} item(s)", value)
+    _validate_scalar(operation, location, value, rule)
+
+
+def _validate_scalar(
+    operation: RequestPreflightRule,
+    location: str,
+    value: Any,
+    rule: RequestPreflightRule,
+) -> None:
+    is_body = location.startswith("body.")
+    if is_body and rule.get("type") == "string" and not isinstance(value, str):
+        _fail(operation, location, "must be a string", value)
+    if rule.get("enum") is not None and str(value) not in rule["enum"]:
+        _fail(operation, location, f"must be one of: {', '.join(rule['enum'])}", value)
+    if rule.get("max_length") is not None and len(str(value)) > int(rule["max_length"]):
+        _fail(operation, location, f"must be at most {rule['max_length']} characters", value)
+    if rule.get("format") == "uuid" and (
+        not isinstance(value, str) or UUID_RE.match(value) is None
+    ):
+        _fail(operation, location, "must be a valid UUID", value)
+    if rule.get("format") == "date-time" and not _is_valid_date_time(value):
+        _fail(operation, location, "must be a valid date-time", value)
+    requires_numeric = (
+        rule.get("type") in {"number", "integer"}
+        or rule.get("minimum") is not None
+        or rule.get("maximum") is not None
+        or rule.get("integer") is True
+    )
+    if requires_numeric:
+        if (
+            is_body
+            and rule.get("type") in {"number", "integer"}
+            and (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+            )
+        ):
+            _fail(operation, location, "must be numeric", value)
+        try:
+            number_value = float(value)
+        except (TypeError, ValueError):
+            _fail(operation, location, "must be numeric", value)
+        if not math.isfinite(number_value):
+            _fail(operation, location, "must be numeric", value)
+        if rule.get("integer") is True and not number_value.is_integer():
+            _fail(operation, location, "must be an integer", value)
+        if rule.get("minimum") is not None and number_value < float(rule["minimum"]):
+            _fail(operation, location, f"must be >= {rule['minimum']}", value)
+        if rule.get("maximum") is not None and number_value > float(rule["maximum"]):
+            _fail(operation, location, f"must be <= {rule['maximum']}", value)
+
+
+def _is_valid_date_time(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return True
+    except ValueError:
+        return False
+
+
+def _values_at_body_path(body: Any, path: list[str]) -> list[Any]:
+    current = [body]
+    for segment in path:
+        next_values: list[Any] = []
+        for value in current:
+            if segment == "*":
+                if isinstance(value, list):
+                    next_values.extend(value)
+                continue
+            if isinstance(value, Mapping) and segment in value:
+                next_values.append(value[segment])
+        current = next_values
+        if not current:
+            break
+    return [value for value in current if value is not None]
+
+
+def _fail(
+    operation: RequestPreflightRule,
+    location: str,
+    expected: str,
+    value: Any,
+) -> None:
+    raise RequestPreflightError(
+        str(operation["operation_id"]),
+        location,
+        f"{operation['operation_id']} {location} {expected}. Got: {_json_value(value)}",
+    )
+
+
+def _json_value(value: Any) -> str:
+    try:
+        return json.dumps(value, separators=(",", ":"), sort_keys=True)
+    except TypeError:
+        return repr(value)
+
+
+UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+
+__all__ = [
+    "BACKEND_REQUEST_PREFLIGHT_RULES",
+    "CORE_REQUEST_PREFLIGHT_RULES",
+    "RequestPreflightError",
+    "validate_backend_request",
+    "validate_core_request",
+]
+`;
+}
+
 function emitSchemas(program: Program): string {
   const names = new Set<string>();
   for (const namespaceName of ['OpenboxBackend', 'OpenboxCore']) {
@@ -303,6 +754,8 @@ PLUGIN_CAPABILITY_GUARDS = ${py(matrix.pluginCapabilityGuards)}
 SKILL_CAPABILITY_GUARDS = ${py(matrix.skillCapabilityGuards)}
 MCP_CAPABILITY_GUARDS = ${py(matrix.mcpCapabilityGuards)}
 INSTALL_DOCTOR_CAPABILITY_GUARDS = ${py(matrix.installDoctorCapabilityGuards)}
+LOCAL_STACK_SCENARIO_PATHS = ${py(matrix.localStackScenarioPaths)}
+LOCAL_STACK_SCENARIO_MATRIX = ${py(matrix.localStackScenarioMatrix)}
 MCP_TOOL_SURFACES = ${py(matrix.mcpTools)}
 MCP_PROMPT_SURFACES = ${py(matrix.mcpPrompts)}
 MCP_RESOURCE_TEMPLATE_SURFACES = ${py(matrix.mcpResourceTemplates)}

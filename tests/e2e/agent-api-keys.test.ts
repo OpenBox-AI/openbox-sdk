@@ -66,10 +66,18 @@ describe('Agent API Key Management', () => {
   });
 
   it('revokes API key', async () => {
+    // CONFORMANCE_PROOF: agent API key conformance verifies revoke returns an
+    // acknowledgement and the revoked runtime key no longer validates in Core.
     const response = await client.post(`/agent/${agentId}/revoke-api-key`);
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
+    expect(body.data?.message ?? body.message ?? '').toEqual(expect.any(String));
+
+    const coreClient = getCoreClient(apiKey, agentIdentity);
+    const validation = await coreClient.get('/api/v1/auth/validate');
+
+    expect(validation.status).not.toBe(200);
   });
 
   afterAll(async () => {

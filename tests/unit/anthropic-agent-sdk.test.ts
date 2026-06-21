@@ -543,8 +543,20 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       },
     );
 
-    expect((askOutput as any).hookSpecificOutput.permissionDecision).toBe('ask');
-    expect((deferOutput as any).hookSpecificOutput.permissionDecision).toBe('defer');
+    expect(askOutput).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: '[OpenBox] needs reviewer',
+      },
+    });
+    expect(deferOutput).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'defer',
+        permissionDecisionReason: '[OpenBox] needs reviewer',
+      },
+    });
   });
 
   it('pairs post-tool telemetry with the approval-required pre-tool activity', async () => {

@@ -21,12 +21,6 @@ export const BACKEND_ENDPOINT_MANIFEST = [
     "pathPattern": "/auth/profile"
   },
   {
-    "operationId": "AuthController_getCsrf",
-    "path": "/auth/csrf",
-    "verb": "get",
-    "pathPattern": "/auth/csrf"
-  },
-  {
     "operationId": "AuthController_login",
     "path": "/auth/login",
     "verb": "post",
