@@ -23,6 +23,8 @@ describe('generated request constraint conformance ledger', () => {
     );
     expect(ledger.unclassified).toEqual([]);
     expect(ledger.summary.unknownGeneratedEvidenceConstraintKeys).toEqual([]);
+    expect(ledger.summary.unknownGeneratedDomainConstraintKeys).toEqual([]);
+    expect(ledger.summary.unknownGeneratedDomainKeys).toEqual([]);
     expect(ledger.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys).toEqual([]);
     expect(ledger.summary.totalConstraints).toBe(ledger.constraints.length);
   });
@@ -122,6 +124,15 @@ describe('generated request constraint conformance ledger', () => {
           ledger.constraints.find((entry) => entry.key === key)?.evidenceIds,
           `${spec.id}:${key}`,
         ).toContain(spec.id);
+      }
+    }
+    for (const spec of LOCAL_STACK_SCENARIO_MATRIX.requestConstraintDomainSpecs) {
+      expect(spec.requestConstraintKeys.length, spec.domainKey).toBeGreaterThan(0);
+      for (const key of spec.requestConstraintKeys) {
+        expect(
+          ledger.constraints.find((entry) => entry.key === key)?.domainKeys,
+          `${spec.domainKey}:${key}`,
+        ).toContain(spec.domainKey);
       }
     }
     expect(ledger.constraints.find(

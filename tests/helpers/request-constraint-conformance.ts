@@ -111,6 +111,8 @@ export interface RequestConstraintConformance {
     };
     sdkGeneratedPreflightOnly: number;
     unknownGeneratedEvidenceConstraintKeys: string[];
+    unknownGeneratedDomainConstraintKeys: string[];
+    unknownGeneratedDomainKeys: string[];
     unknownSdkGeneratedPreflightOnlyConstraintKeys: string[];
   };
 }
@@ -147,6 +149,15 @@ for (const spec of LOCAL_STACK_SCENARIO_MATRIX.requestConstraintEvidenceSpecs) {
   }
 }
 
+const REQUEST_CONSTRAINT_DOMAIN_KEYS_BY_CONSTRAINT_KEY = new Map<string, string[]>();
+for (const spec of LOCAL_STACK_SCENARIO_MATRIX.requestConstraintDomainSpecs) {
+  for (const key of spec.requestConstraintKeys) {
+    const domainKeys = REQUEST_CONSTRAINT_DOMAIN_KEYS_BY_CONSTRAINT_KEY.get(key) ?? [];
+    domainKeys.push(spec.domainKey);
+    REQUEST_CONSTRAINT_DOMAIN_KEYS_BY_CONSTRAINT_KEY.set(key, domainKeys);
+  }
+}
+
 const SDK_GENERATED_PREFLIGHT_ONLY_CONSTRAINT_KEYS: ReadonlySet<string> = new Set(
   LOCAL_STACK_SCENARIO_MATRIX.sdkGeneratedPreflightOnlyConstraintKeys,
 );
@@ -158,6 +169,14 @@ export function buildRequestConstraintConformance(): RequestConstraintConformanc
     LOCAL_STACK_SCENARIO_MATRIX.requestConstraintEvidenceSpecs.flatMap(
       (entry) => entry.requestConstraintKeys,
     ),
+  );
+  const generatedDomainConstraintKeys = uniqueSorted(
+    LOCAL_STACK_SCENARIO_MATRIX.requestConstraintDomainSpecs.flatMap(
+      (entry) => entry.requestConstraintKeys,
+    ),
+  );
+  const generatedDomainKeys = uniqueSorted(
+    LOCAL_STACK_SCENARIO_MATRIX.requestConstraintDomainSpecs.map((entry) => entry.domainKey),
   );
   const classified = constraints.map(classifyConstraint);
   const unclassified = classified
@@ -227,6 +246,12 @@ export function buildRequestConstraintConformance(): RequestConstraintConformanc
       sdkGeneratedPreflightOnly: byDisposition['sdk-generated-preflight'],
       unknownGeneratedEvidenceConstraintKeys: generatedEvidenceConstraintKeys.filter(
         (key) => !constraintKeys.has(key),
+      ),
+      unknownGeneratedDomainConstraintKeys: generatedDomainConstraintKeys.filter(
+        (key) => !constraintKeys.has(key),
+      ),
+      unknownGeneratedDomainKeys: generatedDomainKeys.filter(
+        (key) => !isKnownGeneratedDomainKey(key),
       ),
       unknownSdkGeneratedPreflightOnlyConstraintKeys:
         LOCAL_STACK_SCENARIO_MATRIX.sdkGeneratedPreflightOnlyConstraintKeys.filter(
@@ -430,84 +455,8 @@ function evidenceIdsForConstraint(constraint: RequestConstraint): string[] {
 function domainKeysForConstraint(constraint: RequestConstraint): string[] {
   return [
     ...rawSemanticGapsForConstraint(constraint).flatMap((entry) => entry.domainKeys),
-    ...enumDomainKeys(constraint),
-    ...boundaryDomainKeys(constraint),
+    ...(REQUEST_CONSTRAINT_DOMAIN_KEYS_BY_CONSTRAINT_KEY.get(constraint.key) ?? []),
   ].filter(unique).sort();
-}
-
-function enumDomainKeys(constraint: RequestConstraint): string[] {
-  const enumValues = Array.isArray(constraint.value)
-    ? constraint.value
-    : constraint.kind === 'type'
-      ? enumValuesForConstraintLocation(constraint) ?? []
-      : [];
-  if (enumValues.length === 0) return [];
-  const values = [...new Set(enumValues.map(String))];
-  return [
-    ...Object.entries(GOVERNANCE_SPEC_DOMAINS)
-      .filter(([, domain]) => arrayEquals(values, [...new Set(domain.map(String))]))
-      .map(([key]) => `finite:${key}`),
-    ...Object.entries(GOVERNANCE_BOUNDARY_DOMAINS)
-      .filter(([, domain]) => Array.isArray(domain))
-      .filter(([, domain]) => (domain as readonly unknown[]).every((entry) => typeof entry === 'string'))
-      .filter(([, domain]) => arrayEquals(values, [...new Set((domain as readonly string[]).map(String))]))
-      .map(([key]) => `boundary:${key}`),
-  ];
-}
-
-function enumValuesForConstraintLocation(constraint: RequestConstraint): readonly string[] | undefined {
-  const rules =
-    constraint.service === 'backend'
-      ? BACKEND_REQUEST_PREFLIGHT_RULES
-      : CORE_REQUEST_PREFLIGHT_RULES;
-  const rule = rules.find((entry) => entry.operationId === constraint.operationId);
-  if (!rule) return undefined;
-  if (constraint.location.startsWith('query.')) {
-    const name = constraint.location.slice('query.'.length);
-    return rule.query?.find((entry) => entry.name === name)?.enum;
-  }
-  if (constraint.location.startsWith('body.')) {
-    const path = constraint.location.slice('body.'.length);
-    return rule.body?.find((entry) => entry.path.join('.') === path)?.enum;
-  }
-  return undefined;
-}
-
-function boundaryDomainKeys(constraint: RequestConstraint): string[] {
-  const field = constraint.location.split('.').filter((part) => part !== '*').at(-1);
-  if (!field) return [];
-  const out: string[] = [];
-
-  if (
-    GOVERNANCE_BOUNDARY_DOMAINS.aivssNumericFields.some((entry) => entry.fieldName === field)
-  ) {
-    out.push('boundary:aivssNumericFields');
-  }
-  if (field === 'alignment_threshold') out.push('boundary:goalAlignmentThresholds');
-  if (
-    /BehaviorRule/.test(constraint.operationId) &&
-    ['approval_timeout', 'priority', 'time_window'].includes(field)
-  ) {
-    out.push('boundary:behaviorRuleNumericFields');
-  }
-  if (field === 'trust_threshold') out.push('boundary:trustThresholdFields');
-  if (field === 'dependency_base_rule_id') out.push('boundary:backendUuidFormatFields');
-  if (
-    (constraint.operationId === 'AgentController_createPolicy' &&
-      ['description', 'name'].includes(field)) ||
-    (constraint.operationId === 'OrganizationController_createTeam' &&
-      ['description', 'icon', 'name'].includes(field))
-  ) {
-    out.push('boundary:backendStringLengthFields');
-  }
-  if (constraint.operationId === 'OrganizationController_removeMembers' && field === 'memberIds') {
-    out.push('boundary:backendArrayItemFields');
-  }
-  if (constraint.operationId === 'evaluateGovernance' && field === 'attempt') {
-    out.push('boundary:coreNumericFields');
-  }
-
-  return out;
 }
 
 function evidenceIdsForDomainKey(domainKey: string): string[] {
@@ -546,11 +495,13 @@ function isSdkGeneratedPreflightConstraint(constraint: RequestConstraint): boole
   return SDK_GENERATED_PREFLIGHT_ONLY_CONSTRAINT_KEYS.has(constraint.key);
 }
 
-function arrayEquals(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  const sortedLeft = [...left].sort();
-  const sortedRight = [...right].sort();
-  return sortedLeft.every((value, index) => value === sortedRight[index]);
+function isKnownGeneratedDomainKey(domainKey: string): boolean {
+  const parts = domainKey.split(':');
+  if (parts.length !== 2) return false;
+  const [kind, key] = parts;
+  if (kind === 'finite') return key in GOVERNANCE_SPEC_DOMAINS;
+  if (kind === 'boundary') return key in GOVERNANCE_BOUNDARY_DOMAINS;
+  return false;
 }
 
 function unique<T>(value: T, index: number, array: T[]): boolean {

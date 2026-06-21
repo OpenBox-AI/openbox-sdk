@@ -192,6 +192,11 @@ export interface RequestConstraintEvidenceSpec {
   requestConstraintKeys: string[];
 }
 
+export interface RequestConstraintDomainSpec {
+  domainKey: string;
+  requestConstraintKeys: string[];
+}
+
 export interface RawBackendCoreSemanticGapSpec {
   id: string;
   source: SemanticGapCoverage['source'];
@@ -224,6 +229,7 @@ export interface LocalStackScenarioMatrixContract {
   requiredObjectiveSpecs: LocalStackObjectiveSpec[];
   transportOrFeatureGatedOperationIds: string[];
   requestConstraintEvidenceSpecs: RequestConstraintEvidenceSpec[];
+  requestConstraintDomainSpecs: RequestConstraintDomainSpec[];
   sdkGeneratedPreflightOnlyConstraintKeys: string[];
   rawBackendCoreSemanticGaps: RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: string[];
@@ -353,6 +359,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   objectiveSpecMismatchRefs: string[];
   unknownTransportOrFeatureGatedOperationIds: string[];
   unknownGeneratedRequestConstraintEvidenceRefs: string[];
+  unknownGeneratedRequestConstraintDomainRefs: string[];
   unknownSdkGeneratedPreflightOnlyConstraintRefs: string[];
   missingProviderCapabilityGuardProviderRefs: string[];
   unexpectedProviderCapabilityGuardProviderRefs: string[];
@@ -567,6 +574,7 @@ export interface LocalStackConformanceMatrix {
       unclassified: number;
       missingRawSemanticGapClosures: number;
       unknownGeneratedRequestConstraintEvidenceRefs: number;
+      unknownGeneratedRequestConstraintDomainRefs: number;
       unknownSdkGeneratedPreflightOnlyConstraintRefs: number;
       missingTransportGatedPublicWrapperClosures: number;
       transportGatedPublicWrapperClosures: {
@@ -1082,6 +1090,9 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
           requestConstraints.summary.missingRawSemanticGapClosures.length,
         unknownGeneratedRequestConstraintEvidenceRefs:
           requestConstraints.summary.unknownGeneratedEvidenceConstraintKeys.length,
+        unknownGeneratedRequestConstraintDomainRefs:
+          requestConstraints.summary.unknownGeneratedDomainConstraintKeys.length +
+          requestConstraints.summary.unknownGeneratedDomainKeys.length,
         unknownSdkGeneratedPreflightOnlyConstraintRefs:
           requestConstraints.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys.length,
         missingTransportGatedPublicWrapperClosures:
@@ -3057,6 +3068,7 @@ function summarizeScenarioMatrixContract(
     requiredObjectiveSpecs: [],
     transportOrFeatureGatedOperationIds: [],
     requestConstraintEvidenceSpecs: [],
+    requestConstraintDomainSpecs: [],
     sdkGeneratedPreflightOnlyConstraintKeys: [],
     rawBackendCoreSemanticGaps: [],
     requiredSharedProviderGuardProofCapabilities: [],
@@ -3304,6 +3316,12 @@ function summarizeScenarioMatrixContract(
   const unknownGeneratedRequestConstraintEvidenceRefs = [
     ...requestConstraints.summary.unknownGeneratedEvidenceConstraintKeys,
   ].sort((left, right) => left.localeCompare(right));
+  const unknownGeneratedRequestConstraintDomainRefs = [
+    ...requestConstraints.summary.unknownGeneratedDomainConstraintKeys.map(
+      (key) => `constraint:${key}`,
+    ),
+    ...requestConstraints.summary.unknownGeneratedDomainKeys.map((key) => `domain:${key}`),
+  ].sort((left, right) => left.localeCompare(right));
   const unknownSdkGeneratedPreflightOnlyConstraintRefs = [
     ...requestConstraints.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys,
   ].sort((left, right) => left.localeCompare(right));
@@ -3433,6 +3451,14 @@ function summarizeScenarioMatrixContract(
         (key) => `requestConstraintEvidenceSpecs:${entry.id}:${key}`,
       ),
     ),
+    ...duplicates(resolvedContract.requestConstraintDomainSpecs.map((entry) => entry.domainKey)).map(
+      (id) => `requestConstraintDomainSpecs:${id}`,
+    ),
+    ...resolvedContract.requestConstraintDomainSpecs.flatMap((entry) =>
+      duplicates(entry.requestConstraintKeys).map(
+        (key) => `requestConstraintDomainSpecs:${entry.domainKey}:${key}`,
+      ),
+    ),
     ...duplicates(resolvedContract.sdkGeneratedPreflightOnlyConstraintKeys).map(
       (id) => `sdkGeneratedPreflightOnlyConstraintKeys:${id}`,
     ),
@@ -3549,6 +3575,7 @@ function summarizeScenarioMatrixContract(
     sdkGeneratedPreflightOnlyConstraintRefs,
     missingRequestConstraintRawGapClosureRefs,
     unknownGeneratedRequestConstraintEvidenceRefs,
+    unknownGeneratedRequestConstraintDomainRefs,
     unknownSdkGeneratedPreflightOnlyConstraintRefs,
     missingTransportGatedPublicWrapperClosureRefs,
     missingBackendCoreGapRemediationTargetIds,
@@ -3623,6 +3650,7 @@ function summarizeScenarioMatrixContract(
     sdkGeneratedPreflightOnlyConstraintRefs,
     missingRequestConstraintRawGapClosureRefs,
     unknownGeneratedRequestConstraintEvidenceRefs,
+    unknownGeneratedRequestConstraintDomainRefs,
     unknownSdkGeneratedPreflightOnlyConstraintRefs,
     missingTransportGatedPublicWrapperClosureRefs,
   };

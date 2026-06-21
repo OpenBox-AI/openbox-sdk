@@ -95,6 +95,10 @@ const providerCapabilitiesFixture = JSON.parse(
       id: string;
       requestConstraintKeys: string[];
     }>;
+    requestConstraintDomainSpecs: Array<{
+      domainKey: string;
+      requestConstraintKeys: string[];
+    }>;
     sdkGeneratedPreflightOnlyConstraintKeys: string[];
   };
 };
@@ -429,6 +433,9 @@ describe('local-stack conformance matrix', () => {
         requestConstraints.summary.missingRawSemanticGapClosures.length,
       unknownGeneratedRequestConstraintEvidenceRefs:
         requestConstraints.summary.unknownGeneratedEvidenceConstraintKeys.length,
+      unknownGeneratedRequestConstraintDomainRefs:
+        requestConstraints.summary.unknownGeneratedDomainConstraintKeys.length +
+        requestConstraints.summary.unknownGeneratedDomainKeys.length,
       unknownSdkGeneratedPreflightOnlyConstraintRefs:
         requestConstraints.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys.length,
       missingTransportGatedPublicWrapperClosures:
@@ -1697,6 +1704,9 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.requestConstraintEvidenceSpecs).toEqual(
       providerCapabilitiesFixture.localStackScenarioMatrix.requestConstraintEvidenceSpecs,
     );
+    expect(matrix.scenarioMatrix.requestConstraintDomainSpecs).toEqual(
+      providerCapabilitiesFixture.localStackScenarioMatrix.requestConstraintDomainSpecs,
+    );
     expect(matrix.scenarioMatrix.sdkGeneratedPreflightOnlyConstraintKeys).toEqual(
       providerCapabilitiesFixture.localStackScenarioMatrix.sdkGeneratedPreflightOnlyConstraintKeys,
     );
@@ -1924,6 +1934,7 @@ describe('local-stack conformance matrix', () => {
       sdkGeneratedPreflightOnlyConstraintRefs: [],
       missingRequestConstraintRawGapClosureRefs: [],
       unknownGeneratedRequestConstraintEvidenceRefs: [],
+      unknownGeneratedRequestConstraintDomainRefs: [],
       unknownSdkGeneratedPreflightOnlyConstraintRefs: [],
       missingTransportGatedPublicWrapperClosureRefs: [],
       rawSemanticGapOutcomeIds: [
@@ -1997,6 +2008,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.sdkGeneratedPreflightOnlyConstraintRefs).toEqual([]);
     expect(matrix.scenarioMatrix.missingRequestConstraintRawGapClosureRefs).toEqual([]);
     expect(matrix.scenarioMatrix.unknownGeneratedRequestConstraintEvidenceRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.unknownGeneratedRequestConstraintDomainRefs).toEqual([]);
     expect(matrix.scenarioMatrix.unknownSdkGeneratedPreflightOnlyConstraintRefs).toEqual([]);
     expect(matrix.scenarioMatrix.missingTransportGatedPublicWrapperClosureRefs).toEqual([]);
     expect(matrix.scenarioMatrix.semanticGapIds).toEqual(
