@@ -1185,9 +1185,21 @@ describe('Core Governance API', () => {
     expect(matrix.cases.map((entry) => entry.activityInput.tool)).toEqual(
       expect.arrayContaining(['check_governance', 'sdk-conformance-approval-tool']),
     );
+    const expectedOpaVerdicts = [
+      ...GOVERNANCE_SPEC_DOMAINS.coreVerdicts.filter((verdict) => verdict !== 'constrain'),
+    ].sort();
+    const expectedOpaSemanticTypes = [
+      ...GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers,
+      'llm_gen_ai',
+      'mcp_tool_call',
+    ].sort();
     const opaVerdicts = new Set(matrix.cases.map((entry) => entry.expected.verdict));
-    expect([...opaVerdicts].sort()).toEqual(
-      [...GOVERNANCE_SPEC_DOMAINS.coreVerdicts.filter((verdict) => verdict !== 'constrain')].sort(),
+    const opaSemanticTypes = new Set(matrix.cases.map((entry) => entry.semanticType));
+
+    expect([...opaVerdicts].sort()).toEqual(expectedOpaVerdicts);
+    expect([...opaSemanticTypes].sort()).toEqual(expectedOpaSemanticTypes);
+    expect(matrix.cases).toHaveLength(
+      expectedOpaVerdicts.length * expectedOpaSemanticTypes.length,
     );
 
     const createPolicyResponse = await backendClient.post(

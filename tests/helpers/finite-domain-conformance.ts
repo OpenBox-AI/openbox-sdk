@@ -399,8 +399,12 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
     evidencePattern: 'CONFORMANCE: OPA verdict matrix covers ALLOW, REQUIRE_APPROVAL, BLOCK, and HALT paths',
     executablePatterns: [
       'GOVERNANCE_SPEC_DOMAINS.coreVerdicts.filter',
+      'GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers',
       'matrix.cases.map((entry) => entry.expected.verdict)',
+      'matrix.cases.map((entry) => entry.semanticType)',
       'expect([...opaVerdicts].sort()).toEqual',
+      'expect([...opaSemanticTypes].sort()).toEqual',
+      'expectedOpaVerdicts.length * expectedOpaSemanticTypes.length',
     ],
   },
   {
