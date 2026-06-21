@@ -1263,6 +1263,10 @@ export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
     executablePatterns: [
       'RAW_SEMANTIC_GAP_OPERATIONS',
       "'AgentController_getAgentEvaluations'",
+      'expectedAgentEvaluationConstraintKeys',
+      'backend:AgentController_getAgentEvaluations:query.page:minimum',
+      'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
+      'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
       'rawSemanticGapBoundaryConstraintsFromLedger()',
       'expectedBoundaryConstraintKeysFromLedger()',
       'testCase.constraintKey',

@@ -238,8 +238,16 @@ describe('Generated Backend Query Boundaries', () => {
     const semanticGapCases = cases.filter(
       (testCase) => testCase.operationId === 'AgentController_getAgentEvaluations',
     );
+    const expectedAgentEvaluationConstraintKeys = [
+      'backend:AgentController_getAgentEvaluations:query.page:minimum',
+      'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
+      'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
+    ];
     expect(sortedStrings(semanticGapCases.map((testCase) => testCase.constraintKey))).toEqual(
-      rawSemanticGapConstraints.map((entry) => entry.key),
+      expectedAgentEvaluationConstraintKeys,
+    );
+    expect(rawSemanticGapConstraints.map((entry) => entry.key)).toEqual(
+      expectedAgentEvaluationConstraintKeys,
     );
     expect([...new Set(rawSemanticGapConstraints.flatMap((entry) => entry.semanticGapIds))]).toEqual([
       'backend-agent-evaluations-query-boundaries-not-rejected',

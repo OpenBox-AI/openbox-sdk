@@ -1501,6 +1501,7 @@ describe('local-stack conformance matrix', () => {
       missingGeneratedBackendCoreGapIds: [],
       unexpectedGeneratedBackendCoreGapIds: [],
       backendCoreGapSpecMismatchRefs: [],
+      missingRawProofConstraintKeyRefs: [],
       rawSemanticGapOutcomeIds: [
         'backend-approvals-hitl',
         'backend-tracing-observability',
@@ -1567,6 +1568,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.missingGeneratedBackendCoreGapIds).toEqual([]);
     expect(matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds).toEqual([]);
     expect(matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.missingRawProofConstraintKeyRefs).toEqual([]);
     expect(matrix.scenarioMatrix.semanticGapIds).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),
     );
@@ -1602,6 +1604,8 @@ describe('local-stack conformance matrix', () => {
       expect(target.requiredBehavior, target.gapId).toBe(gap!.requiredBehavior);
       expect(target.requiredRawRejection, target.gapId).toContain('4xx validation response');
       expect(target.requestConstraintKeys.length, target.gapId).toBeGreaterThan(0);
+      expect(target.rawProofConstraintKeys, target.gapId).toEqual(target.requestConstraintKeys);
+      expect(target.missingRawProofConstraintKeys, target.gapId).toEqual([]);
       expect(target.sdkClosureTargets, target.gapId).toEqual(['typescript', 'python']);
       expect(generatedGap).toMatchObject({
         source: gap!.source,

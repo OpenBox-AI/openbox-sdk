@@ -364,6 +364,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
     semanticGapIds: string[];
   }>;
   unclosedSemanticGapIds: string[];
+  missingRawProofConstraintKeyRefs: string[];
 }
 
 export interface SemanticGapCoverage {
@@ -394,6 +395,8 @@ export interface BackendCoreGapRemediationTarget {
   services: Array<'backend' | 'core'>;
   operationIds: string[];
   requestConstraintKeys: string[];
+  rawProofConstraintKeys: string[];
+  missingRawProofConstraintKeys: string[];
   requestLocations: string[];
   constraintKinds: string[];
   rawProofFile: string;
@@ -849,7 +852,10 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
   );
   const semanticGaps = summarizeSemanticGaps();
   const sdkSemanticGapClosures = summarizeSdkSemanticGapClosures(repoRoot, semanticGaps);
-  const backendCoreGapRemediationTargets = summarizeBackendCoreGapRemediationTargets(semanticGaps);
+  const backendCoreGapRemediationTargets = summarizeBackendCoreGapRemediationTargets(
+    semanticGaps,
+    allBlocks,
+  );
   const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs.length
     ? providerCapabilities.localStackScenarioMatrix.requiredOutcomeSpecs
     : OUTCOME_SPECS;
@@ -955,6 +961,7 @@ function summarizeSemanticGaps(): SemanticGapCoverage[] {
 
 function summarizeBackendCoreGapRemediationTargets(
   semanticGaps: SemanticGapCoverage[],
+  allBlocks: TestBlock[],
 ): BackendCoreGapRemediationTarget[] {
   const rawConstraints = buildRequestConstraintConformance().constraints.filter(
     (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
@@ -964,12 +971,22 @@ function summarizeBackendCoreGapRemediationTargets(
     const constraints = rawConstraints
       .filter((entry) => entry.semanticGapIds.includes(gap.id))
       .sort((left, right) => left.key.localeCompare(right.key));
+    const requestConstraintKeys = constraints.map((entry) => entry.key);
+    const proofBlocks = allBlocks.filter(
+      (block) =>
+        block.file === gap.proofFile && rawProofBlockIncludesPattern(block, gap.evidencePattern),
+    );
+    const rawProofConstraintKeys = requestConstraintKeys.filter((key) =>
+      proofBlocks.some((block) => stripCodeComments(block.source).includes(key)),
+    );
 
     return {
       gapId: gap.id,
       services: uniqueSorted(constraints.map((entry) => entry.service)) as Array<'backend' | 'core'>,
       operationIds: [...gap.operationIds].sort(),
-      requestConstraintKeys: constraints.map((entry) => entry.key),
+      requestConstraintKeys,
+      rawProofConstraintKeys,
+      missingRawProofConstraintKeys: missing(requestConstraintKeys, rawProofConstraintKeys),
       requestLocations: uniqueSorted(constraints.map((entry) => entry.location)),
       constraintKinds: uniqueSorted(constraints.map((entry) => entry.kind)),
       rawProofFile: gap.proofFile,
@@ -3008,6 +3025,11 @@ function summarizeScenarioMatrixContract(
       ].filter((entry): entry is string => Boolean(entry));
     })
     .sort((left, right) => left.localeCompare(right));
+  const missingRawProofConstraintKeyRefs = backendCoreGapRemediationTargets
+    .flatMap((target) =>
+      target.missingRawProofConstraintKeys.map((key) => `${target.gapId}:${key}`),
+    )
+    .sort((left, right) => left.localeCompare(right));
   const missingCapabilities = missing(resolvedContract.requiredCapabilities, actualCapabilities);
   const unexpectedCapabilities = unexpected(actualCapabilities, resolvedContract.requiredCapabilities);
   const missingCategories = missing(resolvedContract.requiredCategories, actualCategories);
@@ -3215,6 +3237,7 @@ function summarizeScenarioMatrixContract(
     missingGeneratedBackendCoreGapIds,
     unexpectedGeneratedBackendCoreGapIds,
     backendCoreGapSpecMismatchRefs,
+    missingRawProofConstraintKeyRefs,
     missingBackendCoreGapRemediationTargetIds,
     unexpectedBackendCoreGapRemediationTargetIds,
   ];
@@ -3278,6 +3301,7 @@ function summarizeScenarioMatrixContract(
     rawSemanticGapOutcomeIds,
     rawSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
+    missingRawProofConstraintKeyRefs,
   };
 }
 
@@ -3548,6 +3572,10 @@ function normalizeProofLevel(level: string): ProofLevel {
 function blockIncludesPattern(block: TestBlock, pattern: string): boolean {
   const haystack = stripProofMetadata(block.source).toLowerCase();
   return haystack.includes(pattern.toLowerCase());
+}
+
+function rawProofBlockIncludesPattern(block: TestBlock, pattern: string): boolean {
+  return `${block.name}\n${block.source}`.toLowerCase().includes(pattern.toLowerCase());
 }
 
 function blockHasAssertedEvidencePattern(block: TestBlock, pattern: string): boolean {
