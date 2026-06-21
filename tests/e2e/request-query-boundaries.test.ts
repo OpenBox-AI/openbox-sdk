@@ -16,8 +16,10 @@ import {
   makeCreatePolicyDto,
 } from '../helpers/fixtures';
 import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import { buildRequestConstraintConformance } from '../helpers/request-constraint-conformance';
 
 interface QueryBoundaryCase {
+  constraintKey: string;
   operationId: string;
   path: string;
   queryName: 'page' | 'perPage' | 'pattern';
@@ -33,6 +35,10 @@ const RAW_SEMANTIC_GAP_OPERATIONS = new Set([
   'AgentController_getAgentEvaluations',
 ]);
 
+function sortedStrings(values: Iterable<string>): string[] {
+  return [...values].sort((left, right) => left.localeCompare(right));
+}
+
 function operationPath(path: string, params: Record<string, string>) {
   return path.replace(/\{([^}]+)\}/g, (_, key) => {
     expect(params[key], key).toBeDefined();
@@ -44,6 +50,11 @@ function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
   expect(operation, operationId).toBeDefined();
   return operation!;
+}
+
+function queryBoundaryConstraintKey(operationId: string, queryName: QueryBoundaryCase['queryName']) {
+  const kind = queryName === 'pattern' ? 'maxLength' : 'minimum';
+  return `backend:${operationId}:query.${queryName}:${kind}`;
 }
 
 function sleep(ms: number) {
@@ -70,6 +81,7 @@ function boundaryCases(params: Record<string, string>): QueryBoundaryCase[] {
           ? 'x'.repeat(Number(query.maxLength) + 1)
           : String(Number(query.minimum) - 1);
       cases.push({
+        constraintKey: queryBoundaryConstraintKey(rule.operationId, queryName),
         operationId: rule.operationId,
         path: operationPath(operation.path, params),
         queryName,
@@ -100,6 +112,30 @@ function expectedBoundaryCaseCount(): number {
       ['page', 'perPage', 'pattern'].includes(query.name),
     ).length;
   }, 0);
+}
+
+function expectedBoundaryConstraintKeysFromLedger(): string[] {
+  const excludedOperationPrefixes = ['ApiKeyController_', 'WebhookController_'];
+  const ledger = buildRequestConstraintConformance();
+  return ledger.constraints
+    .filter((entry) => entry.service === 'backend')
+    .filter((entry) => ['query.page', 'query.perPage', 'query.pattern'].includes(entry.location))
+    .filter((entry) => ['minimum', 'maxLength'].includes(entry.kind))
+    .filter((entry) =>
+      excludedOperationPrefixes.every((prefix) => !entry.operationId.startsWith(prefix)),
+    )
+    .map((entry) => entry.key)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function rawSemanticGapBoundaryConstraintsFromLedger() {
+  const ledger = buildRequestConstraintConformance();
+  return ledger.constraints
+    .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
+    .filter((entry) => entry.service === 'backend')
+    .filter((entry) => ['query.page', 'query.perPage', 'query.pattern'].includes(entry.location))
+    .filter((entry) => ['minimum', 'maxLength'].includes(entry.kind))
+    .sort((left, right) => left.key.localeCompare(right.key));
 }
 
 async function rawBoundaryGet(
@@ -188,13 +224,26 @@ describe('Generated Backend Query Boundaries', () => {
     // SEMANTIC_GAP_PROOF: AgentController_getAgentEvaluations accepts
     // page/perPage/pattern values outside the generated request constraints.
     const cases = boundaryCases(params);
+    const rawSemanticGapConstraints = rawSemanticGapBoundaryConstraintsFromLedger();
     expect(cases).toHaveLength(expectedBoundaryCaseCount());
+    expect(sortedStrings(cases.map((testCase) => testCase.constraintKey))).toEqual(
+      expectedBoundaryConstraintKeysFromLedger(),
+    );
     expect(BACKEND_REQUEST_PREFLIGHT_RULES.length).toBeGreaterThan(0);
     expect(cases.some((testCase) => testCase.queryName === 'pattern')).toBe(true);
+    expect(sortedStrings(RAW_SEMANTIC_GAP_OPERATIONS)).toEqual(
+      sortedStrings(new Set(rawSemanticGapConstraints.map((entry) => entry.operationId))),
+    );
     expect(RAW_SEMANTIC_GAP_OPERATIONS.has('AgentController_getAgentEvaluations')).toBe(true);
     const semanticGapCases = cases.filter(
       (testCase) => testCase.operationId === 'AgentController_getAgentEvaluations',
     );
+    expect(sortedStrings(semanticGapCases.map((testCase) => testCase.constraintKey))).toEqual(
+      rawSemanticGapConstraints.map((entry) => entry.key),
+    );
+    expect([...new Set(rawSemanticGapConstraints.flatMap((entry) => entry.semanticGapIds))]).toEqual([
+      'backend-agent-evaluations-query-boundaries-not-rejected',
+    ]);
     expect(semanticGapCases.map((testCase) => testCase.queryName).sort()).toEqual([
       'page',
       'pattern',

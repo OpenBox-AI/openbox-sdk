@@ -1247,6 +1247,9 @@ export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
     executablePatterns: [
       'RAW_SEMANTIC_GAP_OPERATIONS',
       "'AgentController_getAgentEvaluations'",
+      'rawSemanticGapBoundaryConstraintsFromLedger()',
+      'expectedBoundaryConstraintKeysFromLedger()',
+      'testCase.constraintKey',
       "testCase.operationId === 'AgentController_getAgentEvaluations'",
       'semanticGapCases.every',
       'expectedBoundaryCaseCount()',
