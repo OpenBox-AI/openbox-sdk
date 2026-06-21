@@ -316,6 +316,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   knownBackendCoreGapIds: string[];
   backendCoreGapRemediationTargetIds: string[];
   generatedBackendCoreGapIds: string[];
+  semanticGapLedgerMismatchRefs: string[];
   duplicateSemanticGapRefs: string[];
   duplicateGeneratedBackendCoreGapRefs: string[];
   duplicateBackendCoreGapRemediationTargetRefs: string[];
@@ -856,13 +857,15 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     providerCapabilities.localStackScenarioPaths ?? [],
   );
   const requestConstraints = buildRequestConstraintConformance();
-  const semanticGaps = summarizeSemanticGaps();
+  const rawBackendCoreSemanticGapSpecs =
+    providerCapabilities.localStackScenarioMatrix?.rawBackendCoreSemanticGaps ?? [];
+  const semanticGaps = summarizeSemanticGaps(rawBackendCoreSemanticGapSpecs);
   const sdkSemanticGapClosures = summarizeSdkSemanticGapClosures(repoRoot, semanticGaps);
   const backendCoreGapRemediationTargets = summarizeBackendCoreGapRemediationTargets(
     semanticGaps,
     allBlocks,
     requestConstraints,
-    providerCapabilities.localStackScenarioMatrix?.rawBackendCoreSemanticGaps ?? [],
+    rawBackendCoreSemanticGapSpecs,
   );
   const outcomeSpecs = providerCapabilities.localStackScenarioMatrix?.requiredOutcomeSpecs ?? [];
   const outcomes = summarizeCapabilityOutcomes(
@@ -1149,7 +1152,15 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
   };
 }
 
-function summarizeSemanticGaps(): SemanticGapCoverage[] {
+function summarizeSemanticGaps(
+  rawBackendCoreSemanticGapSpecs: readonly RawBackendCoreSemanticGapSpec[],
+): SemanticGapCoverage[] {
+  return rawBackendCoreSemanticGapSpecs
+    .map(rawBackendCoreSemanticGapSpecToSemanticGap)
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function summarizeSemanticGapLedgers(): SemanticGapCoverage[] {
   return [
     ...FINITE_DOMAIN_GAPS.map((gap) => finiteDomainGapToSemanticGap(gap)),
     ...BOUNDARY_CONFORMANCE_GAPS.map((gap) => boundaryGapToSemanticGap(gap)),
@@ -1289,6 +1300,51 @@ function summarizeBackendCoreGapRemediationRefRefs(
     ),
     remediationRepositoryStatuses,
   };
+}
+
+function summarizeSemanticGapLedgerMismatchRefs(
+  semanticGaps: readonly SemanticGapCoverage[],
+): string[] {
+  const ledgerGaps = summarizeSemanticGapLedgers();
+  const semanticGapsById = new Map(semanticGaps.map((entry) => [entry.id, entry]));
+  const ledgerGapsById = new Map(ledgerGaps.map((entry) => [entry.id, entry]));
+  return uniqueSorted([
+    ...missing(
+      semanticGaps.map((entry) => entry.id),
+      ledgerGaps.map((entry) => entry.id),
+    ).map((id) => `${id}:missing-ledger-gap`),
+    ...unexpected(
+      ledgerGaps.map((entry) => entry.id),
+      semanticGaps.map((entry) => entry.id),
+    ).map((id) => `${id}:unexpected-ledger-gap`),
+    ...semanticGaps.flatMap((gap) => {
+      const ledgerGap = ledgerGapsById.get(gap.id);
+      if (!ledgerGap) return [];
+      return [
+        ledgerGap.source === gap.source ? undefined : `${gap.id}:ledger-source`,
+        sortedEqual(ledgerGap.domainKeys, gap.domainKeys)
+          ? undefined
+          : `${gap.id}:ledger-domainKeys`,
+        sortedEqual(ledgerGap.operationIds, gap.operationIds)
+          ? undefined
+          : `${gap.id}:ledger-operationIds`,
+        ledgerGap.proofFile === gap.proofFile ? undefined : `${gap.id}:ledger-proofFile`,
+        ledgerGap.evidencePattern === gap.evidencePattern
+          ? undefined
+          : `${gap.id}:ledger-evidencePattern`,
+        ledgerGap.observedBehavior === gap.observedBehavior
+          ? undefined
+          : `${gap.id}:ledger-observedBehavior`,
+        ledgerGap.requiredBehavior === gap.requiredBehavior
+          ? undefined
+          : `${gap.id}:ledger-requiredBehavior`,
+      ].filter((entry): entry is string => Boolean(entry));
+    }),
+    ...duplicates(ledgerGaps.map((entry) => entry.id)).map((id) => `${id}:duplicate-ledger-gap`),
+    ...duplicates(semanticGaps.map((entry) => entry.id)).map(
+      (id) => `${id}:duplicate-generated-gap`,
+    ),
+  ]);
 }
 
 function defaultBackendCoreRepositoryRoots(): BackendCoreGapRemediationRepositoryRoots {
@@ -1664,6 +1720,21 @@ function readCombinedSource(repoRoot: string, files: string[]): string {
 
 function arrayEquals(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function rawBackendCoreSemanticGapSpecToSemanticGap(
+  spec: RawBackendCoreSemanticGapSpec,
+): SemanticGapCoverage {
+  return {
+    id: spec.id,
+    source: spec.source,
+    domainKeys: spec.domainKeys.map(String).sort(),
+    operationIds: [...spec.operationIds].sort(),
+    proofFile: spec.rawProofFile,
+    evidencePattern: spec.rawEvidencePattern,
+    observedBehavior: spec.observedBehavior,
+    requiredBehavior: spec.requiredBehavior,
+  };
 }
 
 function finiteDomainGapToSemanticGap(gap: FiniteDomainGap): SemanticGapCoverage {
@@ -3382,6 +3453,7 @@ function summarizeScenarioMatrixContract(
     .map((gap) => gap.id)
     .sort();
   const semanticGapIds = semanticGaps.map((entry) => entry.id).sort();
+  const semanticGapLedgerMismatchRefs = summarizeSemanticGapLedgerMismatchRefs(semanticGaps);
   const generatedBackendCoreGapIds = resolvedContract.rawBackendCoreSemanticGaps
     .map((entry) => entry.id)
     .sort();
@@ -3721,6 +3793,7 @@ function summarizeScenarioMatrixContract(
     missingOutcomeIds,
     incompleteOutcomeIds,
     unclosedSemanticGapIds,
+    semanticGapLedgerMismatchRefs,
     duplicateSemanticGapRefs,
     duplicateGeneratedBackendCoreGapRefs,
     duplicateBackendCoreGapRemediationTargetRefs,
@@ -3753,6 +3826,7 @@ function summarizeScenarioMatrixContract(
     knownBackendCoreGapIds: semanticGapIds,
     backendCoreGapRemediationTargetIds,
     generatedBackendCoreGapIds,
+    semanticGapLedgerMismatchRefs,
     duplicateSemanticGapRefs,
     duplicateGeneratedBackendCoreGapRefs,
     duplicateBackendCoreGapRemediationTargetRefs,

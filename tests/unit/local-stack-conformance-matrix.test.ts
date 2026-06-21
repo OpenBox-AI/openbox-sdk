@@ -2006,6 +2006,7 @@ describe('local-stack conformance matrix', () => {
       incompleteScenarioIds: [],
       missingOutcomeIds: [],
       incompleteOutcomeIds: [],
+      semanticGapLedgerMismatchRefs: [],
       duplicateSemanticGapRefs: [],
       duplicateGeneratedBackendCoreGapRefs: [],
       duplicateBackendCoreGapRemediationTargetRefs: [],
@@ -2089,6 +2090,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.generatedBackendCoreGapIds).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),
     );
+    expect(matrix.scenarioMatrix.semanticGapLedgerMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.duplicateSemanticGapRefs).toEqual([]);
     expect(matrix.scenarioMatrix.duplicateGeneratedBackendCoreGapRefs).toEqual([]);
     expect(matrix.scenarioMatrix.duplicateBackendCoreGapRemediationTargetRefs).toEqual([]);
@@ -2258,6 +2260,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.generatedBackendCoreGapIds).toEqual(
       matrix.scenarioMatrix.knownBackendCoreGapIds,
     );
+    expect(matrix.scenarioMatrix.semanticGapLedgerMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.duplicateSemanticGapRefs).toEqual([]);
     expect(matrix.scenarioMatrix.duplicateGeneratedBackendCoreGapRefs).toEqual([]);
     expect(matrix.scenarioMatrix.duplicateBackendCoreGapRemediationTargetRefs).toEqual([]);
