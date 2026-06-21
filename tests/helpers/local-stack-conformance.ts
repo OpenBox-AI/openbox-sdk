@@ -689,21 +689,28 @@ interface ExtractedCall {
 }
 
 interface NormalizedPreflightRule {
+  service: 'backend' | 'core';
   operationId: string;
   query?: Array<{
     name: string;
     enum?: readonly string[];
+    format?: string;
+    integer?: boolean;
+    maximum?: number;
     minimum?: number;
     maxLength?: number;
   }>;
   body?: Array<{
     path: readonly string[];
     type?: string;
+    enum?: readonly string[];
     format?: string;
     minimum?: number;
+    maximum?: number;
     integer?: boolean;
     minItems?: number;
     maxItems?: number;
+    maxLength?: number;
   }>;
 }
 
@@ -1259,8 +1266,11 @@ function summarizeSdkSemanticGapClosures(
         'tests/e2e/sdk-preflight-closures.test.ts',
       ],
       proofSource: tsProofSources,
-      generatedRuleClosure: gapClosedByPreflight(gap, tsRules),
       requestConstraintKeys: rawConstraintKeysByGapId.get(gap.id) ?? [],
+      generatedRuleClosure: gapClosedByPreflight(
+        rawConstraintKeysByGapId.get(gap.id) ?? [],
+        tsRules,
+      ),
     }),
     sdkClosureForGap({
       gap,
@@ -1271,8 +1281,11 @@ function summarizeSdkSemanticGapClosures(
         'python/tests/test_request_preflight.py',
       ],
       proofSource: pythonProofSources,
-      generatedRuleClosure: gapClosedByPreflight(gap, pythonRules),
       requestConstraintKeys: rawConstraintKeysByGapId.get(gap.id) ?? [],
+      generatedRuleClosure: gapClosedByPreflight(
+        rawConstraintKeysByGapId.get(gap.id) ?? [],
+        pythonRules,
+      ),
     }),
   ]);
 }
@@ -1341,67 +1354,85 @@ function sdkGapEvidencePatterns(
 
 function normalizeTsPreflightRules(): NormalizedPreflightRule[] {
   return [
-    ...TS_BACKEND_REQUEST_PREFLIGHT_RULES,
-    ...TS_CORE_REQUEST_PREFLIGHT_RULES,
-  ].map((rule) => ({
+    ...TS_BACKEND_REQUEST_PREFLIGHT_RULES.map((rule) => normalizeTsPreflightRule('backend', rule)),
+    ...TS_CORE_REQUEST_PREFLIGHT_RULES.map((rule) => normalizeTsPreflightRule('core', rule)),
+  ];
+}
+
+function normalizeTsPreflightRule(
+  service: 'backend' | 'core',
+  rule: (typeof TS_BACKEND_REQUEST_PREFLIGHT_RULES)[number],
+): NormalizedPreflightRule {
+  return {
+    service,
     operationId: rule.operationId,
     query: rule.query?.map((query) => ({
       name: query.name,
       enum: query.enum,
+      format: query.format,
+      integer: query.integer,
+      maximum: query.maximum,
       minimum: query.minimum,
       maxLength: query.maxLength,
     })),
     body: rule.body?.map((body) => ({
       path: body.path,
       type: body.type,
+      enum: body.enum,
       format: body.format,
       minimum: body.minimum,
+      maximum: body.maximum,
       integer: body.integer,
       minItems: body.minItems,
       maxItems: body.maxItems,
+      maxLength: body.maxLength,
     })),
-  }));
+  };
 }
 
 function gapClosedByPreflight(
-  gap: SemanticGapCoverage,
+  requestConstraintKeys: string[],
   rules: NormalizedPreflightRule[],
 ): boolean {
-  switch (gap.id) {
-    case 'approval-status-invalid-query-not-rejected':
-      return gap.operationIds.every((operationId) => {
-        const rule = rules.find((entry) => entry.operationId === operationId);
-        const status = rule?.query?.find((entry) => entry.name === 'status');
-        return arrayEquals(status?.enum ?? [], GOVERNANCE_SPEC_DOMAINS.approvalStatuses);
-      });
-    case 'core-governance-attempt-min-not-rejected': {
-      const rule = rules.find((entry) => entry.operationId === 'evaluateGovernance');
-      const attempt = rule?.body?.find((entry) => arrayEquals(entry.path, ['attempt']));
-      return attempt?.minimum === 1;
+  if (requestConstraintKeys.length === 0) return false;
+  const generatedConstraintKeys = new Set(generatedPreflightConstraintKeys(rules));
+  return requestConstraintKeys.every((key) => generatedConstraintKeys.has(key));
+}
+
+function generatedPreflightConstraintKeys(rules: readonly NormalizedPreflightRule[]): string[] {
+  const keys: string[] = [];
+  for (const rule of rules) {
+    for (const query of rule.query ?? []) {
+      for (const kind of executablePreflightConstraintKinds(query, false)) {
+        keys.push(`${rule.service}:${rule.operationId}:query.${query.name}:${kind}`);
+      }
     }
-    case 'core-governance-timestamp-format-not-rejected': {
-      const rule = rules.find((entry) => entry.operationId === 'evaluateGovernance');
-      const timestamp = rule?.body?.find((entry) => arrayEquals(entry.path, ['timestamp']));
-      return timestamp?.type === 'string' && timestamp.format === 'date-time';
+    for (const body of rule.body ?? []) {
+      for (const kind of executablePreflightConstraintKinds(body, true)) {
+        keys.push(`${rule.service}:${rule.operationId}:body.${body.path.join('.')}:${kind}`);
+      }
     }
-    case 'core-governance-cost-type-not-rejected': {
-      const rule = rules.find((entry) => entry.operationId === 'evaluateGovernance');
-      const cost = rule?.body?.find((entry) => arrayEquals(entry.path, ['cost_usd']));
-      return cost?.type === 'number' && cost.format === 'double';
-    }
-    case 'backend-agent-evaluations-query-boundaries-not-rejected': {
-      const rule = rules.find(
-        (entry) => entry.operationId === 'AgentController_getAgentEvaluations',
-      );
-      return (
-        rule?.query?.find((entry) => entry.name === 'page')?.minimum === 0 &&
-        rule.query.find((entry) => entry.name === 'perPage')?.minimum === 1 &&
-        rule.query.find((entry) => entry.name === 'pattern')?.maxLength === 255
-      );
-    }
-    default:
-      return false;
   }
+  return uniqueSorted(keys);
+}
+
+function executablePreflightConstraintKinds(
+  rule:
+    | NonNullable<NormalizedPreflightRule['query']>[number]
+    | NonNullable<NormalizedPreflightRule['body']>[number],
+  includeType: boolean,
+): string[] {
+  const kinds: string[] = [];
+  if (includeType && 'type' in rule && rule.type) kinds.push('type');
+  if (rule.enum) kinds.push('enum');
+  if (rule.format) kinds.push('format');
+  if (rule.integer) kinds.push('integer');
+  if (rule.maximum !== undefined) kinds.push('maximum');
+  if ('maxItems' in rule && rule.maxItems !== undefined) kinds.push('maxItems');
+  if (rule.maxLength !== undefined) kinds.push('maxLength');
+  if (rule.minimum !== undefined) kinds.push('minimum');
+  if ('minItems' in rule && rule.minItems !== undefined) kinds.push('minItems');
+  return kinds;
 }
 
 function readPythonGeneratedPreflightRules(repoRoot: string): NormalizedPreflightRule[] {
@@ -1410,14 +1441,15 @@ function readPythonGeneratedPreflightRules(repoRoot: string): NormalizedPrefligh
     'utf8',
   );
   return [
-    ...parsePythonPreflightRuleList(source, 'BACKEND_REQUEST_PREFLIGHT_RULES'),
-    ...parsePythonPreflightRuleList(source, 'CORE_REQUEST_PREFLIGHT_RULES'),
+    ...parsePythonPreflightRuleList(source, 'BACKEND_REQUEST_PREFLIGHT_RULES', 'backend'),
+    ...parsePythonPreflightRuleList(source, 'CORE_REQUEST_PREFLIGHT_RULES', 'core'),
   ];
 }
 
 function parsePythonPreflightRuleList(
   source: string,
   variableName: string,
+  service: 'backend' | 'core',
 ): NormalizedPreflightRule[] {
   const assignment = `${variableName}: list[RequestPreflightRule] = `;
   const assignmentIndex = source.indexOf(assignment);
@@ -1442,35 +1474,48 @@ function parsePythonPreflightRuleList(
     query?: Array<{
       name: string;
       enum?: string[];
+      format?: string;
+      integer?: boolean;
+      maximum?: number;
       minimum?: number;
       max_length?: number;
     }>;
     body?: Array<{
       path: string[];
       type?: string;
+      enum?: string[];
       format?: string;
       minimum?: number;
+      maximum?: number;
       integer?: boolean;
       min_items?: number;
       max_items?: number;
+      max_length?: number;
     }>;
   }>;
   return rules.map((rule) => ({
+    service,
     operationId: rule.operation_id,
     query: rule.query?.map((query) => ({
       name: query.name,
       enum: query.enum,
+      format: query.format,
+      integer: query.integer,
+      maximum: query.maximum,
       minimum: query.minimum,
       maxLength: query.max_length,
     })),
     body: rule.body?.map((body) => ({
       path: body.path,
       type: body.type,
+      enum: body.enum,
       format: body.format,
       minimum: body.minimum,
+      maximum: body.maximum,
       integer: body.integer,
       minItems: body.min_items,
       maxItems: body.max_items,
+      maxLength: body.max_length,
     })),
   }));
 }
