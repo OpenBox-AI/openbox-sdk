@@ -1290,54 +1290,13 @@ function summarizeBackendCoreGapRemediationTargets(
       rawEvidencePattern: gap.evidencePattern,
       observedBehavior: gap.observedBehavior,
       requiredBehavior: gap.requiredBehavior,
-      requiredRawRejection: rawSpec?.requiredRawRejection ?? rawRejectionForSemanticGap(gap),
-      remediationRefs: rawSpec
-        ? [...rawSpec.remediationRefs]
-        : remediationRefsForSemanticGap(gap),
+      requiredRawRejection: rawSpec?.requiredRawRejection ?? '',
+      remediationRefs: rawSpec ? [...rawSpec.remediationRefs] : [],
       sdkClosureTargets: (rawSpec
         ? [...rawSpec.sdkClosureTargets]
-        : ['typescript', 'python']) as Array<'typescript' | 'python'>,
+        : []) as Array<'typescript' | 'python'>,
     };
   }).sort((left, right) => left.gapId.localeCompare(right.gapId));
-}
-
-function rawRejectionForSemanticGap(gap: SemanticGapCoverage): string {
-  if (gap.id === 'approval-status-invalid-query-not-rejected') {
-    return 'Backend approval status query validators should reject out-of-domain status values with a 4xx validation response before returning approval lists.';
-  }
-  if (gap.id === 'backend-agent-evaluations-query-boundaries-not-rejected') {
-    return 'Backend agent evaluation query validators should reject page, perPage, and pattern values outside generated OpenAPI bounds with a 4xx validation response.';
-  }
-  if (gap.id.startsWith('core-governance-')) {
-    return 'Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.';
-  }
-  return gap.requiredBehavior;
-}
-
-function remediationRefsForSemanticGap(gap: SemanticGapCoverage): string[] {
-  switch (gap.id) {
-    case 'approval-status-invalid-query-not-rejected':
-      return [
-        'openbox-backend:src/modules/agent/dto/approvals.dto.ts:31',
-        'openbox-backend:src/modules/agent/agent.controller.ts:1259',
-        'openbox-backend:src/modules/organization/organization.controller.ts:881',
-      ];
-    case 'backend-agent-evaluations-query-boundaries-not-rejected':
-      return [
-        'openbox-backend:src/common/dto/pagination.dto.ts:3',
-        'openbox-backend:src/modules/agent/agent.controller.ts:277',
-        'openbox-backend:src/modules/agent/dto/get-agent-violations.dto.ts:6',
-      ];
-    case 'core-governance-attempt-min-not-rejected':
-    case 'core-governance-cost-type-not-rejected':
-    case 'core-governance-timestamp-format-not-rejected':
-      return [
-        'openbox-core:internal/api/governance.go:60',
-        'openbox-core:internal/content/governance.go:186',
-      ];
-    default:
-      return [];
-  }
 }
 
 export function backendCoreGapRemediationRefRefsForTesting(
