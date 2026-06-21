@@ -157,11 +157,12 @@ describe('Goal Alignment', () => {
     }
   }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
 
-  it('GET /agent/{agentId}/goal-alignment/trend returns 200', async () => {
+  it('GET /agent/{agentId}/goal-alignment/trend returns a trend list payload', async () => {
     const response = await client.get(`/agent/${agentId}/goal-alignment/trend`);
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
+    expect(Array.isArray(body.data) || Array.isArray(body.data.data)).toBe(true);
   });
 
   it('GET /agent/{agentId}/goal-alignment/recent-drifts returns 200', async () => {

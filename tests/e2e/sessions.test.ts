@@ -101,11 +101,12 @@ describe('Sessions', () => {
     }
   });
 
-  it('GET /agent/{agentId}/active-sessions returns 200', async () => {
+  it('GET /agent/{agentId}/active-sessions returns a session list payload', async () => {
     const response = await client.get(`/agent/${agentId}/active-sessions`);
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
+    expect(Array.isArray(body.data) || Array.isArray(body.data.data)).toBe(true);
   });
 
   it('CONFORMANCE: seeded workflow session conformance covers detail, logs, reasoning, stats, active, and terminate', async () => {
