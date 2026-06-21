@@ -3,6 +3,7 @@ import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoin
 import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import {
+  expectedGoalAlignmentFiniteConfigCaseCount,
   invalidBoundarySpecMember,
   makeGoalAlignmentFiniteConfigCases,
   makeGoalAlignmentThresholdBoundaryCases,
@@ -59,7 +60,7 @@ describe('Goal Alignment', () => {
     const operation = backendOperation('AgentController_updateGoalAlignmentConfig');
     expect(operation.verb).toBe('put');
     const cases = makeGoalAlignmentFiniteConfigCases();
-    expect(cases).toHaveLength(36);
+    expect(cases).toHaveLength(expectedGoalAlignmentFiniteConfigCaseCount());
 
     for (const testCase of cases) {
       const response = await client.put(operationPath(operation.path, { agentId }), testCase.config);

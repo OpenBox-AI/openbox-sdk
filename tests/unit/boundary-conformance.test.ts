@@ -7,6 +7,9 @@ import {
   JSON_VALUE_CLASS_CASES,
   assertBoundaryConformanceEvidenceFiles,
   evidencedBoundaryFieldCoverageKeys,
+  expectedAivssIntegerMemberCaseCount,
+  expectedAivssInvalidBoundaryCaseCount,
+  expectedGoalAlignmentFiniteConfigCaseCount,
   makeAivssIntegerMemberCases,
   makeAivssInvalidBoundaryCases,
   makeGoalAlignmentFiniteConfigCases,
@@ -33,12 +36,10 @@ describe('boundary conformance ledger', () => {
       'safety_impact',
     ]);
 
-    expect(makeAivssIntegerMemberCases()).toHaveLength(58);
-    expect(makeAivssInvalidBoundaryCases()).toHaveLength(42);
+    expect(makeAivssIntegerMemberCases()).toHaveLength(expectedAivssIntegerMemberCaseCount());
+    expect(makeAivssInvalidBoundaryCases()).toHaveLength(expectedAivssInvalidBoundaryCaseCount());
     expect(makeGoalAlignmentFiniteConfigCases()).toHaveLength(
-      GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentModels.length *
-        GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentDriftActions.length *
-        GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentEvaluationFrequencies.length,
+      expectedGoalAlignmentFiniteConfigCaseCount(),
     );
     expect(GOVERNANCE_BOUNDARY_DOMAINS.trustThresholdFields).toHaveLength(6);
     expect(GOVERNANCE_BOUNDARY_DOMAINS.backendStringLengthFields).toHaveLength(5);

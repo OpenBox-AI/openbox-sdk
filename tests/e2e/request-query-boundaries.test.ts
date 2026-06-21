@@ -88,6 +88,20 @@ function boundaryCases(params: Record<string, string>): QueryBoundaryCase[] {
   );
 }
 
+function expectedBoundaryCaseCount(): number {
+  return BACKEND_REQUEST_PREFLIGHT_RULES.reduce((total, rule) => {
+    const operation = BACKEND_ENDPOINT_MANIFEST.find(
+      (entry) => entry.operationId === rule.operationId,
+    );
+    if (!operation || operation.verb !== 'get') return total;
+    if (rule.operationId.startsWith('ApiKeyController_')) return total;
+    if (rule.operationId.startsWith('WebhookController_')) return total;
+    return total + (rule.query ?? []).filter((query) =>
+      ['page', 'perPage', 'pattern'].includes(query.name),
+    ).length;
+  }, 0);
+}
+
 async function rawBoundaryGet(
   client: ReturnType<typeof getBackendClient>,
   testCase: QueryBoundaryCase,
@@ -174,7 +188,7 @@ describe('Generated Backend Query Boundaries', () => {
     // SEMANTIC_GAP_PROOF: AgentController_getAgentEvaluations accepts
     // page/perPage/pattern values outside the generated request constraints.
     const cases = boundaryCases(params);
-    expect(cases).toHaveLength(55);
+    expect(cases).toHaveLength(expectedBoundaryCaseCount());
     expect(BACKEND_REQUEST_PREFLIGHT_RULES.length).toBeGreaterThan(0);
     expect(cases.some((testCase) => testCase.queryName === 'pattern')).toBe(true);
     expect(RAW_SEMANTIC_GAP_OPERATIONS.has('AgentController_getAgentEvaluations')).toBe(true);

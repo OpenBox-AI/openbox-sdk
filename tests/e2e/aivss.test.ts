@@ -3,6 +3,8 @@ import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoin
 import { getBackendClient, fullResponse, getTeamIds, hasOrgId } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import {
+  expectedAivssIntegerMemberCaseCount,
+  expectedAivssInvalidBoundaryCaseCount,
   makeAivssConfig,
   makeAivssIntegerMemberCases,
   makeAivssInvalidBoundaryCases,
@@ -101,7 +103,7 @@ describeOrSkip('AIVSS Assessment', () => {
     const operation = backendOperation('AgentController_getAivssScore');
     expect(operation.verb).toBe('post');
     const cases = makeAivssIntegerMemberCases();
-    expect(cases).toHaveLength(58);
+    expect(cases).toHaveLength(expectedAivssIntegerMemberCaseCount());
 
     for (const testCase of cases) {
       await sleep(AIVSS_BOUNDARY_PACE_MS);
@@ -123,7 +125,7 @@ describeOrSkip('AIVSS Assessment', () => {
     // below-min, above-max, and fractional values instead of silently
     // coercing unscored inputs.
     const cases = makeAivssInvalidBoundaryCases();
-    expect(cases).toHaveLength(42);
+    expect(cases).toHaveLength(expectedAivssInvalidBoundaryCaseCount());
 
     for (const testCase of cases) {
       await sleep(AIVSS_BOUNDARY_PACE_MS);

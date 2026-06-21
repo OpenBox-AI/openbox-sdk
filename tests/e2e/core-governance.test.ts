@@ -39,6 +39,23 @@ import { startGuardrailProviderStub } from '../helpers/guardrail-provider-stub';
 
 const execFileAsync = promisify(execFile);
 const OPA_CONTAINER_NAME = process.env.OPENBOX_E2E_OPA_CONTAINER ?? 'openbox-local-sdk-opa';
+const CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS = [
+  'input_tokens',
+  'output_tokens',
+  'total_tokens',
+  'span_count',
+] as const;
+const CORE_TELEMETRY_SPAN_NUMERIC_FIELDS = [
+  'start_time',
+  'end_time',
+  'duration_ns',
+  'http_status_code',
+  'server_port',
+  'rowcount',
+  'bytes_read',
+  'bytes_written',
+  'lines_count',
+] as const;
 
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
@@ -58,6 +75,14 @@ function operationPath(path: string, params: Record<string, string>) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function expectedInvalidTelemetryCaseCount(): number {
+  return (
+    CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS.length +
+    CORE_TELEMETRY_SPAN_NUMERIC_FIELDS.length +
+    1
+  );
 }
 
 async function docker(args: string[]) {
@@ -358,41 +383,13 @@ describe('Core Governance API', () => {
       lines_count: 4,
     });
     const cases: Array<{ id: string; event: Record<string, any> }> = [
-      {
-        id: 'input_tokens',
+      ...CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS.map((field) => ({
+        id: field,
         event: makeGovernanceEvent({
-          input_tokens: 'not-a-number',
+          [field]: 'not-a-number',
         }),
-      },
-      {
-        id: 'output_tokens',
-        event: makeGovernanceEvent({
-          output_tokens: 'not-a-number',
-        }),
-      },
-      {
-        id: 'total_tokens',
-        event: makeGovernanceEvent({
-          total_tokens: 'not-a-number',
-        }),
-      },
-      {
-        id: 'span_count',
-        event: makeGovernanceEvent({
-          span_count: 'not-a-number',
-        }),
-      },
-      ...[
-        'start_time',
-        'end_time',
-        'duration_ns',
-        'http_status_code',
-        'server_port',
-        'rowcount',
-        'bytes_read',
-        'bytes_written',
-        'lines_count',
-      ].map((field) => ({
+      })),
+      ...CORE_TELEMETRY_SPAN_NUMERIC_FIELDS.map((field) => ({
         id: `span.${field}`,
         event: makeGovernanceEvent({
           span_count: 1,
@@ -417,7 +414,7 @@ describe('Core Governance API', () => {
       },
     ];
 
-    expect(cases).toHaveLength(14);
+    expect(cases).toHaveLength(expectedInvalidTelemetryCaseCount());
     for (const testCase of cases) {
       const response = await coreClient.post(evaluateOperation.path, {
         ...testCase.event,

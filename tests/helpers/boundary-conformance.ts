@@ -427,6 +427,13 @@ export function makeAivssIntegerMemberCases(): AivssIntegerMemberCase[] {
   });
 }
 
+export function expectedAivssIntegerMemberCaseCount(): number {
+  return AIVSS_NUMERIC_BOUNDARIES.reduce((total, field) => {
+    if (field.max === undefined) throw new Error(`AIVSS field ${field.fieldName} must have max`);
+    return total + field.max - field.min + 1;
+  }, 0);
+}
+
 export function makeAivssInvalidBoundaryCases(): AivssInvalidBoundaryCase[] {
   return AIVSS_NUMERIC_BOUNDARIES.flatMap((field) => {
     if (field.max === undefined) throw new Error(`AIVSS field ${field.fieldName} must have max`);
@@ -456,6 +463,10 @@ export function makeAivssInvalidBoundaryCases(): AivssInvalidBoundaryCase[] {
   });
 }
 
+export function expectedAivssInvalidBoundaryCaseCount(): number {
+  return AIVSS_NUMERIC_BOUNDARIES.length * 3;
+}
+
 export interface GoalAlignmentConfigCase {
   id: string;
   config: Record<string, any>;
@@ -474,6 +485,14 @@ export function makeGoalAlignmentFiniteConfigCases(): GoalAlignmentConfigCase[] 
         },
       })),
     ),
+  );
+}
+
+export function expectedGoalAlignmentFiniteConfigCaseCount(): number {
+  return (
+    GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentModels.length *
+    GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentDriftActions.length *
+    GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentEvaluationFrequencies.length
   );
 }
 
@@ -654,7 +673,8 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     evidencePattern: 'EXHAUSTIVE_BOUNDARY_PROOF: AIVSS numeric rubric fields',
     executablePatterns: [
       'makeAivssIntegerMemberCases()',
-      'expect(cases).toHaveLength(58)',
+      'expectedAivssIntegerMemberCaseCount()',
+      'expect(cases).toHaveLength(expectedAivssIntegerMemberCaseCount())',
       "backendOperation('AgentController_getAivssScore')",
       'client.post(operation.path',
     ],
@@ -673,7 +693,8 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: AIVSS numeric rubric fields reject outside and fractional values',
     executablePatterns: [
       'makeAivssInvalidBoundaryCases()',
-      'expect(cases).toHaveLength(42)',
+      'expectedAivssInvalidBoundaryCaseCount()',
+      'expect(cases).toHaveLength(expectedAivssInvalidBoundaryCaseCount())',
       'expect(body.status, testCase.id).toBe(422)',
     ],
   },
@@ -690,7 +711,8 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     evidencePattern: 'EXHAUSTIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite option product',
     executablePatterns: [
       'makeGoalAlignmentFiniteConfigCases()',
-      'expect(cases).toHaveLength(36)',
+      'expectedGoalAlignmentFiniteConfigCaseCount()',
+      'expect(cases).toHaveLength(expectedGoalAlignmentFiniteConfigCaseCount())',
       'goal_alignment_config',
     ],
   },
@@ -980,12 +1002,11 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     proofFile: 'tests/e2e/core-governance.test.ts',
     evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: core governance numeric telemetry fields reject invalid request types',
     executablePatterns: [
-      'input_tokens',
-      'output_tokens',
-      'total_tokens',
-      'span_count',
-      'bytes_written',
-      'expect(cases).toHaveLength(14)',
+      'CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS',
+      'CORE_TELEMETRY_SPAN_NUMERIC_FIELDS',
+      "[field]: 'not-a-number'",
+      'expectedInvalidTelemetryCaseCount()',
+      'expect(cases).toHaveLength(expectedInvalidTelemetryCaseCount())',
       'expect([400, 422]',
     ],
   },
@@ -1012,7 +1033,8 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     executablePatterns: [
       'BACKEND_REQUEST_PREFLIGHT_RULES.length',
       "testCase.queryName === 'pattern'",
-      'expect(cases).toHaveLength(55)',
+      'expectedBoundaryCaseCount()',
+      'expect(cases).toHaveLength(expectedBoundaryCaseCount())',
       'await rawBoundaryGet(client, testCase)',
     ],
   },
@@ -1223,7 +1245,8 @@ export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
       "'AgentController_getAgentEvaluations'",
       "testCase.operationId === 'AgentController_getAgentEvaluations'",
       'semanticGapCases.every',
-      'expect(cases).toHaveLength(55)',
+      'expectedBoundaryCaseCount()',
+      'expect(cases).toHaveLength(expectedBoundaryCaseCount())',
     ],
     observedBehavior:
       'The local backend accepts AgentController_getAgentEvaluations page, perPage, and pattern values outside the generated OpenAPI request constraints.',
