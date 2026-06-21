@@ -86,6 +86,37 @@ type ValidateRequest = (
   body?: unknown,
 ) => void;
 
+type CaseKind =
+  | 'arrayType'
+  | 'enum'
+  | 'enumMember'
+  | 'format'
+  | 'integer'
+  | 'maxItems'
+  | 'maxLength'
+  | 'maximum'
+  | 'minItems'
+  | 'minimum'
+  | 'type'
+  | 'valid';
+
+type CaseCounts = Record<CaseKind, number>;
+
+const CASE_KINDS: CaseKind[] = [
+  'arrayType',
+  'enum',
+  'enumMember',
+  'format',
+  'integer',
+  'maxItems',
+  'maxLength',
+  'maximum',
+  'minItems',
+  'minimum',
+  'type',
+  'valid',
+];
+
 describe('generated request preflight conformance', () => {
   it('matches every OpenAPI-derived request constraint exactly', () => {
     expect(normalizeRules(BACKEND_REQUEST_PREFLIGHT_RULES)).toEqual(
@@ -99,20 +130,7 @@ describe('generated request preflight conformance', () => {
   it('exercises every emitted backend preflight constraint with generated invalid cases', () => {
     const result = exerciseRules(BACKEND_REQUEST_PREFLIGHT_RULES, validateBackendRequest);
     expect(result.ruleCount).toBe(BACKEND_REQUEST_PREFLIGHT_RULES.length);
-    expect(result.caseCounts).toMatchObject({
-      arrayType: expect.any(Number),
-      enum: expect.any(Number),
-      enumMember: expect.any(Number),
-      format: expect.any(Number),
-      integer: expect.any(Number),
-      maxItems: expect.any(Number),
-      maxLength: expect.any(Number),
-      maximum: expect.any(Number),
-      minItems: expect.any(Number),
-      minimum: expect.any(Number),
-      type: expect.any(Number),
-      valid: expect.any(Number),
-    });
+    expect(result.caseCounts).toEqual(expectedCaseCounts(BACKEND_REQUEST_PREFLIGHT_RULES));
     expect(result.caseCounts.enum).toBeGreaterThan(0);
     expect(result.caseCounts.enumMember).toBeGreaterThan(result.caseCounts.enum);
     expect(result.caseCounts.minimum).toBeGreaterThan(0);
@@ -125,6 +143,7 @@ describe('generated request preflight conformance', () => {
   it('exercises every emitted core preflight constraint with generated invalid cases', () => {
     const result = exerciseRules(CORE_REQUEST_PREFLIGHT_RULES, validateCoreRequest);
     expect(result.ruleCount).toBe(1);
+    expect(result.caseCounts).toEqual(expectedCaseCounts(CORE_REQUEST_PREFLIGHT_RULES));
     expect(result.caseCounts.enumMember).toBeGreaterThan(result.caseCounts.enum);
     expect(result.caseCounts.enum).toBeGreaterThan(0);
     expect(result.caseCounts.integer).toBeGreaterThan(0);
@@ -170,20 +189,7 @@ describe('generated request preflight conformance', () => {
 });
 
 function exerciseRules(rules: readonly RequestRule[], validate: ValidateRequest) {
-  const caseCounts: Record<string, number> = {
-    arrayType: 0,
-    enum: 0,
-    enumMember: 0,
-    format: 0,
-    integer: 0,
-    maxItems: 0,
-    maxLength: 0,
-    maximum: 0,
-    minItems: 0,
-    minimum: 0,
-    type: 0,
-    valid: 0,
-  };
+  const caseCounts = emptyCaseCounts();
 
   for (const rule of normalizeRules(rules)) {
     for (const queryRule of rule.query ?? []) {
@@ -229,11 +235,41 @@ function exerciseRules(rules: readonly RequestRule[], validate: ValidateRequest)
   return { ruleCount: rules.length, caseCounts };
 }
 
+function expectedCaseCounts(rules: readonly RequestRule[]): CaseCounts {
+  const caseCounts = emptyCaseCounts();
+  for (const rule of normalizeRules(rules)) {
+    for (const queryRule of rule.query ?? []) {
+      const valid = validValues(queryRule);
+      caseCounts.valid += valid.length;
+      if (queryRule.enum) caseCounts.enumMember += valid.length;
+      for (const testCase of invalidCases(queryRule)) {
+        caseCounts[testCase.kind]++;
+      }
+    }
+    for (const bodyRule of rule.body ?? []) {
+      const valid = validValues(bodyRule);
+      caseCounts.valid += valid.length;
+      if (bodyRule.enum) caseCounts.enumMember += valid.length;
+      for (const testCase of invalidCases(bodyRule, {
+        includeArrayType: true,
+        includeBodyType: true,
+      })) {
+        caseCounts[testCase.kind]++;
+      }
+    }
+  }
+  return caseCounts;
+}
+
+function emptyCaseCounts(): CaseCounts {
+  return Object.fromEntries(CASE_KINDS.map((kind) => [kind, 0])) as CaseCounts;
+}
+
 function invalidCases(
   rule: ScalarRule,
   opts: { includeArrayType?: boolean; includeBodyType?: boolean } = {},
-): Array<{ kind: string; value: unknown }> {
-  const cases: Array<{ kind: string; value: unknown }> = [];
+): Array<{ kind: Exclude<CaseKind, 'enumMember' | 'valid'>; value: unknown }> {
+  const cases: Array<{ kind: Exclude<CaseKind, 'enumMember' | 'valid'>; value: unknown }> = [];
   if (opts.includeArrayType && (rule.minItems !== undefined || rule.maxItems !== undefined)) {
     cases.push({ kind: 'arrayType', value: 'not-an-array' });
   }
