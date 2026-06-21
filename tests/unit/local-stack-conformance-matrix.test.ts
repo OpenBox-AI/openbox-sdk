@@ -181,6 +181,46 @@ describe('local-stack conformance matrix', () => {
         'openai-agents-sdk',
       ],
     });
+    expect(matrix.summary.providerGuards).toEqual({
+      capabilityIds: matrix.providerGuards.map((entry) => entry.capability).sort(),
+      totalGuardTests: matrix.providerGuards.reduce(
+        (total, entry) => total + entry.guardTestRefs.length,
+        0,
+      ),
+      totalProofBlocks: matrix.providerGuards.reduce(
+        (total, entry) => total + entry.guardProofBlockKeys.length,
+        0,
+      ),
+      sharedGuardTestRefs: matrix.providerGuards.flatMap((entry) =>
+        entry.sharedGuardTestRefs.map(
+          (ref) => `${entry.capability}:${ref.providers.join('+')}:${ref.guardTest}`,
+        ),
+      ).sort(),
+      missingGuardTestRefs: [],
+      missingProviderCapabilityGuardProviderRefs: [],
+      unexpectedProviderCapabilityGuardProviderRefs: [],
+      providerTierMismatchRefs: [],
+      duplicateProviderCapabilityGuardProviderRefs: [],
+    });
+    expect(matrix.summary.providerGuards).toEqual({
+      capabilityIds: [
+        'approvals-hitl',
+        'guardrails',
+        'opa-rules',
+        'tracing',
+        'usage-cost',
+      ],
+      totalGuardTests: 40,
+      totalProofBlocks: 33,
+      sharedGuardTestRefs: [
+        'opa-rules:anthropic-agent-sdk+claude-code+codex+copilotkit+cursor+mcp+n8n+openai-agents-sdk:tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources',
+      ],
+      missingGuardTestRefs: [],
+      missingProviderCapabilityGuardProviderRefs: [],
+      unexpectedProviderCapabilityGuardProviderRefs: [],
+      providerTierMismatchRefs: [],
+      duplicateProviderCapabilityGuardProviderRefs: [],
+    });
     expect(matrix.summary.requestConstraints).toEqual({
       total: requestConstraints.summary.totalConstraints,
       localStackE2e: requestConstraints.summary.byDisposition['local-stack-e2e'],

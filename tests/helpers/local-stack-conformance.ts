@@ -459,6 +459,17 @@ export interface LocalStackConformanceMatrix {
       capabilityIds: string[];
       providerIds: string[];
     };
+    providerGuards: {
+      capabilityIds: string[];
+      totalGuardTests: number;
+      totalProofBlocks: number;
+      sharedGuardTestRefs: string[];
+      missingGuardTestRefs: string[];
+      missingProviderCapabilityGuardProviderRefs: string[];
+      unexpectedProviderCapabilityGuardProviderRefs: string[];
+      providerTierMismatchRefs: string[];
+      duplicateProviderCapabilityGuardProviderRefs: string[];
+    };
     requestConstraints: {
       total: number;
       localStackE2e: number;
@@ -1001,6 +1012,51 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
         diagnoseOnly: exceptions.filter((entry) => entry.tier === 'diagnose-only').length,
         capabilityIds: uniqueSorted(exceptions.map((entry) => entry.capability)),
         providerIds: uniqueSorted(exceptions.map((entry) => entry.provider)),
+      },
+      providerGuards: {
+        capabilityIds: uniqueSorted(providerGuards.map((entry) => entry.capability)),
+        totalGuardTests: providerGuards.reduce(
+          (total, entry) => total + entry.guardTestRefs.length,
+          0,
+        ),
+        totalProofBlocks: providerGuards.reduce(
+          (total, entry) => total + entry.guardProofBlockKeys.length,
+          0,
+        ),
+        sharedGuardTestRefs: uniqueSorted(
+          providerGuards.flatMap((entry) =>
+            entry.sharedGuardTestRefs.map(
+              (ref) => `${entry.capability}:${ref.providers.join('+')}:${ref.guardTest}`,
+            ),
+          ),
+        ),
+        missingGuardTestRefs: uniqueSorted(
+          providerGuards.flatMap((entry) =>
+            entry.missingGuardTestRefs.map(
+              (ref) => `${entry.capability}:${ref.provider}:${ref.guardTest}`,
+            ),
+          ),
+        ),
+        missingProviderCapabilityGuardProviderRefs: uniqueSorted(
+          providerGuards.flatMap((entry) =>
+            entry.missingProviderCapabilityGuardProviders.map(
+              (provider) => `${entry.capability}:${provider}`,
+            ),
+          ),
+        ),
+        unexpectedProviderCapabilityGuardProviderRefs: uniqueSorted(
+          providerGuards.flatMap((entry) =>
+            entry.unexpectedProviderCapabilityGuardProviders.map(
+              (provider) => `${entry.capability}:${provider}`,
+            ),
+          ),
+        ),
+        providerTierMismatchRefs: uniqueSorted(
+          providerGuards.flatMap((entry) => entry.providerTierMismatchRefs),
+        ),
+        duplicateProviderCapabilityGuardProviderRefs: uniqueSorted(
+          providerGuards.flatMap((entry) => entry.duplicateProviderCapabilityGuardProviderRefs),
+        ),
       },
       requestConstraints: {
         total: requestConstraints.summary.totalConstraints,
