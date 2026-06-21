@@ -885,6 +885,27 @@ describe('local-stack conformance matrix', () => {
     ).toEqual([]);
   });
 
+  it('resolves same-name backend and core SDK aliases independently', () => {
+    expect(operation(matrix, 'AppController_getHello').hits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: 'tests/e2e/openbox-client.test.ts',
+          testName: 'health endpoint returns success',
+          call: 'client.health()',
+        }),
+      ]),
+    );
+    expect(operation(matrix, 'healthCheck').hits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: 'tests/e2e/core-client.test.ts',
+          testName: 'returns the literal core health response',
+          call: 'client.health()',
+        }),
+      ]),
+    );
+  });
+
   it('proves every core governance operation with behavioral or conformance evidence', () => {
     const core = objective(matrix, 'core-governance');
     const coreOperationIds = matrix.operations

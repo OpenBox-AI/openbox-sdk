@@ -1401,7 +1401,7 @@ function addMethodAliases(
       const request = body.match(
         /this\.request\(\s*(['"])(GET|POST|PUT|PATCH|DELETE)\1\s*,\s*(['"`])([^'"`]+)\3/i,
       );
-      if (!request || methodMap.has(aliasName)) {
+      if (!request || methodMap.has(methodKey(service, aliasName))) {
         continue;
       }
       const operation = matcher.match({
