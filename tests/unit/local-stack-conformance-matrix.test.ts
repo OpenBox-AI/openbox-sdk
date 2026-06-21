@@ -119,6 +119,10 @@ describe('local-stack conformance matrix', () => {
     );
     const sdkSemanticGapClosures = matrix.sdkSemanticGapClosures;
     const requestConstraints = matrix.requestConstraints;
+    const incompleteOutcomeIds = matrix.outcomes
+      .filter((entry) => entry.status === 'incomplete')
+      .map((entry) => entry.id)
+      .sort();
 
     expect(matrix.summary.totalOperations).toBe(matrix.operations.length);
     expect(matrix.summary.operationsWithE2eHits).toBe(operationsWithE2eHits.length);
@@ -134,6 +138,17 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.summary.unresolvedMethodHitCount).toBe(0);
     expect(matrix.summary.smokeOnlyOperations).toBe(0);
     expect(matrix.summary.knownSemanticGaps).toBe(matrix.semanticGaps.length);
+    expect(matrix.summary.outcomes).toEqual({
+      total: matrix.outcomes.length,
+      proven: matrix.outcomes.filter((entry) => entry.status === 'proven').length,
+      incomplete: incompleteOutcomeIds.length,
+      incompleteOutcomeIds,
+    });
+    expect(matrix.summary.outcomes.incompleteOutcomeIds).toEqual([
+      'backend-approvals-hitl',
+      'backend-tracing-observability',
+      'core-governance-verdicts',
+    ]);
     expect(matrix.summary.requestConstraints).toEqual({
       total: requestConstraints.summary.totalConstraints,
       localStackE2e: requestConstraints.summary.byDisposition['local-stack-e2e'],
@@ -149,12 +164,20 @@ describe('local-stack conformance matrix', () => {
         requestConstraints.transportGatedPublicWrapperClosures.filter(
           (entry) => entry.status !== 'proven',
         ).length,
+      transportGatedPublicWrapperClosures:
+        requestConstraints.summary.transportGatedPublicWrapperClosures,
     });
     expect(matrix.summary.requestConstraints.total).toBe(365);
     expect(matrix.summary.requestConstraints.unclassified).toBe(0);
     expect(matrix.summary.requestConstraints.sdkGeneratedPreflightOnly).toBe(0);
     expect(matrix.summary.requestConstraints.missingRawSemanticGapClosures).toBe(0);
     expect(matrix.summary.requestConstraints.missingTransportGatedPublicWrapperClosures).toBe(0);
+    expect(matrix.summary.requestConstraints.transportGatedPublicWrapperClosures).toEqual({
+      constraintCount: 22,
+      total: 44,
+      proven: 44,
+      missing: 0,
+    });
     expect(matrix.summary.sdkSemanticGapClosures).toEqual({
       total: sdkSemanticGapClosures.length,
       proven: sdkSemanticGapClosures.filter((entry) => entry.status === 'proven').length,

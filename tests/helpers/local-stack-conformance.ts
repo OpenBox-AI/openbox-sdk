@@ -445,6 +445,12 @@ export interface LocalStackConformanceMatrix {
     smokeOnlyOperations: number;
     operationsWithoutE2eHits: number;
     knownSemanticGaps: number;
+    outcomes: {
+      total: number;
+      proven: number;
+      incomplete: number;
+      incompleteOutcomeIds: string[];
+    };
     requestConstraints: {
       total: number;
       localStackE2e: number;
@@ -454,6 +460,12 @@ export interface LocalStackConformanceMatrix {
       unclassified: number;
       missingRawSemanticGapClosures: number;
       missingTransportGatedPublicWrapperClosures: number;
+      transportGatedPublicWrapperClosures: {
+        constraintCount: number;
+        total: number;
+        proven: number;
+        missing: number;
+      };
     };
     sdkSemanticGapClosures: {
       total: number;
@@ -965,6 +977,15 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       smokeOnlyOperations: coverage.filter((entry) => entry.proofLevel === 'smoke').length,
       operationsWithoutE2eHits: coverage.filter((entry) => entry.proofLevel === 'none').length,
       knownSemanticGaps: semanticGaps.length,
+      outcomes: {
+        total: outcomes.length,
+        proven: outcomes.filter((entry) => entry.status === 'proven').length,
+        incomplete: outcomes.filter((entry) => entry.status === 'incomplete').length,
+        incompleteOutcomeIds: outcomes
+          .filter((entry) => entry.status === 'incomplete')
+          .map((entry) => entry.id)
+          .sort((left, right) => left.localeCompare(right)),
+      },
       requestConstraints: {
         total: requestConstraints.summary.totalConstraints,
         localStackE2e: requestConstraints.summary.byDisposition['local-stack-e2e'],
@@ -980,6 +1001,8 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
           requestConstraints.transportGatedPublicWrapperClosures.filter(
             (entry) => entry.status !== 'proven',
           ).length,
+        transportGatedPublicWrapperClosures:
+          requestConstraints.summary.transportGatedPublicWrapperClosures,
       },
       sdkSemanticGapClosures: {
         total: sdkSemanticGapClosures.length,
