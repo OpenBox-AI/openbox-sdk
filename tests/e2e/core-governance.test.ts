@@ -876,19 +876,23 @@ describe('Core Governance API', () => {
     }
   });
 
-  it('POST /api/v1/governance/approval returns a response', async () => {
+  it('NEGATIVE_PATH_PROOF: Core approval polling returns not-found for unknown workflow activity', async () => {
     const coreClient = getCoreClient(apiKey, agentIdentity);
+    const operation = coreOperation('pollApproval');
+    expect(operation.verb).toBe('post');
     const payload = {
       workflow_id: 'fake',
       run_id: 'fake',
       activity_id: 'fake',
     };
 
-    const response = await coreClient.post('/api/v1/governance/approval', payload);
+    const response = await coreClient.post(operationPath(operation.path, {}), payload);
 
-    // This may return an error structure but should still respond (not hang/crash)
-    expect(response.status).toBeDefined();
-    expect(response.data).toBeDefined();
+    expect(response.status).toBe(404);
+    expect(response.data).toEqual({
+      code: 404,
+      message: 'governance event not found',
+    });
   });
 
   it('CONFORMANCE: creates a require_approval policy and polls its pending approval', async () => {
