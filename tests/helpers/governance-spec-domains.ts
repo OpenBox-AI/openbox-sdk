@@ -216,6 +216,17 @@ export const GOVERNANCE_SPEC_DOMAINS = Object.freeze({
   openboxProviderIds: extractEnumMembers(governCapabilities, 'OpenBoxProviderId'),
   openboxSupportTiers: extractEnumMembers(governCapabilities, 'OpenBoxSupportTier'),
   openboxCapabilityIds: extractEnumMembers(governCapabilities, 'OpenBoxCapabilityId'),
+  localStackScenarioCategories: extractEnumMembers(
+    governCapabilities,
+    'LocalStackScenarioCategoryId',
+  ),
+  localStackScenarioAxes: extractEnumMembers(governCapabilities, 'LocalStackScenarioAxisId'),
+  localStackProofLevels: extractEnumMembers(governCapabilities, 'LocalStackProofLevel'),
+  localStackOutcomeSources: extractEnumMembers(governCapabilities, 'LocalStackOutcomeSource'),
+  sdkSemanticGapClosureTargets: extractEnumMembers(
+    governCapabilities,
+    'SdkSemanticGapClosureTarget',
+  ),
   referenceProviderParityClosureStatuses: extractEnumMembers(
     governCapabilities,
     'ReferenceProviderParityClosureStatus',
@@ -399,6 +410,31 @@ export const GOVERNANCE_SPEC_DOMAIN_PROVENANCE = Object.freeze({
   openboxCapabilityIds: {
     source: 'specs/typespec/govern/capabilities.tsp',
     selector: 'enum OpenBoxCapabilityId',
+    extractor: 'enum',
+  },
+  localStackScenarioCategories: {
+    source: 'specs/typespec/govern/capabilities.tsp',
+    selector: 'enum LocalStackScenarioCategoryId',
+    extractor: 'enum',
+  },
+  localStackScenarioAxes: {
+    source: 'specs/typespec/govern/capabilities.tsp',
+    selector: 'enum LocalStackScenarioAxisId',
+    extractor: 'enum',
+  },
+  localStackProofLevels: {
+    source: 'specs/typespec/govern/capabilities.tsp',
+    selector: 'enum LocalStackProofLevel',
+    extractor: 'enum',
+  },
+  localStackOutcomeSources: {
+    source: 'specs/typespec/govern/capabilities.tsp',
+    selector: 'enum LocalStackOutcomeSource',
+    extractor: 'enum',
+  },
+  sdkSemanticGapClosureTargets: {
+    source: 'specs/typespec/govern/capabilities.tsp',
+    selector: 'enum SdkSemanticGapClosureTarget',
     extractor: 'enum',
   },
   referenceProviderParityClosureStatuses: {

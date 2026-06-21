@@ -47,6 +47,49 @@ namespace OpenboxGovern.Capabilities {
     `install-doctor`,
   }
 
+  enum LocalStackScenarioCategoryId {
+    `approvals-hitl`,
+    behavioral,
+    `goal-drift`,
+    guardrails,
+    opa,
+    tracing,
+    `usage-cost`,
+    workflow,
+  }
+
+  enum LocalStackScenarioAxisId {
+    cost,
+    dbquery,
+    failure,
+    goal,
+    guardrails,
+    happy,
+    matrix,
+    opa,
+    order,
+    tool,
+    usage,
+  }
+
+  enum LocalStackProofLevel {
+    none,
+    smoke,
+    `negative-path`,
+    behavioral,
+    conformance,
+  }
+
+  enum LocalStackOutcomeSource {
+    `local-stack-e2e`,
+    `provider-guard-fixture`,
+  }
+
+  enum SdkSemanticGapClosureTarget {
+    typescript,
+    python,
+  }
+
   model ProviderCapabilityEntry {
     provider: OpenBoxProviderId;
     capability: OpenBoxCapabilityId;
@@ -261,11 +304,11 @@ namespace OpenboxGovern.Capabilities {
 
   model LocalStackScenarioPathSpec {
     id: string;
-    category: string;
+    category: LocalStackScenarioCategoryId;
     capability: OpenBoxCapabilityId;
     label: string;
-    axes: string[];
-    requiredProofLevel: string;
+    axes: LocalStackScenarioAxisId[];
+    requiredProofLevel: LocalStackProofLevel;
     localStackRequired: boolean;
     operationIds: string[];
     evidencePatterns: string[];
@@ -279,15 +322,15 @@ namespace OpenboxGovern.Capabilities {
   }
 
   model LocalStackCategoryAxisSpec {
-    category: string;
-    axes: string[];
+    category: LocalStackScenarioCategoryId;
+    axes: LocalStackScenarioAxisId[];
   }
 
   model LocalStackOutcomeSpec {
     id: string;
     label: string;
-    source: string;
-    minimumProofLevel: string;
+    source: LocalStackOutcomeSource;
+    minimumProofLevel: LocalStackProofLevel;
     operationIds: string[];
     providerGuardCapabilities: string[];
     exceptionCapabilities: string[];
@@ -297,16 +340,16 @@ namespace OpenboxGovern.Capabilities {
     id: string;
     description: string;
     requiredCapabilities: OpenBoxCapabilityId[];
-    requiredCategories: string[];
-    requiredAxes: string[];
-    requiredLocalStackAxes: string[];
+    requiredCategories: LocalStackScenarioCategoryId[];
+    requiredAxes: LocalStackScenarioAxisId[];
+    requiredLocalStackAxes: LocalStackScenarioAxisId[];
     requiredCategoryAxes: LocalStackCategoryAxisSpec[];
     localStackScenarioIds: string[];
     providerOwnedScenarioIds: string[];
     requiredOutcomeIds: string[];
     requiredOutcomeSpecs: LocalStackOutcomeSpec[];
     requiredSharedProviderGuardProofCapabilities: OpenBoxCapabilityId[];
-    requiredSdkSemanticGapClosureTargets: string[];
+    requiredSdkSemanticGapClosureTargets: SdkSemanticGapClosureTarget[];
     providerGuardSharedProofPolicy: string;
     localStackAxisPolicy: string;
     rawSemanticGapPolicy: string;

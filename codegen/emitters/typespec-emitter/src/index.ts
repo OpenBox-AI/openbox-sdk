@@ -1555,6 +1555,18 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
   const capabilityIds = conformance.capabilityIds;
   const providers = conformance.providerIds;
   const supportTiers = conformance.supportTiers;
+  const capabilitiesNs = ns.namespaces.get('Capabilities') ?? ns;
+  const localStackScenarioCategories = enumMemberValues(
+    capabilitiesNs,
+    'LocalStackScenarioCategoryId',
+  );
+  const localStackScenarioAxes = enumMemberValues(capabilitiesNs, 'LocalStackScenarioAxisId');
+  const localStackProofLevels = enumMemberValues(capabilitiesNs, 'LocalStackProofLevel');
+  const localStackOutcomeSources = enumMemberValues(capabilitiesNs, 'LocalStackOutcomeSource');
+  const sdkSemanticGapClosureTargets = enumMemberValues(
+    capabilitiesNs,
+    'SdkSemanticGapClosureTarget',
+  );
 
   out.addStatements([
     `export const OPENBOX_CAPABILITY_IDS = ${literalTs(capabilityIds)} as const;`,
@@ -1565,6 +1577,21 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const OPENBOX_SUPPORT_TIERS = ${literalTs(supportTiers)} as const;`,
     `export type OpenBoxSupportTier = typeof OPENBOX_SUPPORT_TIERS[number];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_CATEGORY_IDS = ${literalTs(localStackScenarioCategories)} as const;`,
+    `export type LocalStackScenarioCategoryId = typeof LOCAL_STACK_SCENARIO_CATEGORY_IDS[number];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_AXIS_IDS = ${literalTs(localStackScenarioAxes)} as const;`,
+    `export type LocalStackScenarioAxisId = typeof LOCAL_STACK_SCENARIO_AXIS_IDS[number];`,
+    '',
+    `export const LOCAL_STACK_PROOF_LEVELS = ${literalTs(localStackProofLevels)} as const;`,
+    `export type LocalStackProofLevel = typeof LOCAL_STACK_PROOF_LEVELS[number];`,
+    '',
+    `export const LOCAL_STACK_OUTCOME_SOURCES = ${literalTs(localStackOutcomeSources)} as const;`,
+    `export type LocalStackOutcomeSource = typeof LOCAL_STACK_OUTCOME_SOURCES[number];`,
+    '',
+    `export const SDK_SEMANTIC_GAP_CLOSURE_TARGETS = ${literalTs(sdkSemanticGapClosureTargets)} as const;`,
+    `export type SdkSemanticGapClosureTarget = typeof SDK_SEMANTIC_GAP_CLOSURE_TARGETS[number];`,
     '',
     `export type ReferenceProviderParityClosureStatus =`,
     `  | 'implemented-through-wrapper'`,
@@ -1778,11 +1805,11 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export interface LocalStackScenarioPathSpec {`,
     `  id: string;`,
-    `  category: string;`,
+    `  category: LocalStackScenarioCategoryId;`,
     `  capability: OpenBoxCapabilityId;`,
     `  label: string;`,
-    `  axes: readonly string[];`,
-    `  requiredProofLevel: string;`,
+    `  axes: readonly LocalStackScenarioAxisId[];`,
+    `  requiredProofLevel: LocalStackProofLevel;`,
     `  localStackRequired: boolean;`,
     `  operationIds: readonly string[];`,
     `  evidencePatterns: readonly string[];`,
@@ -1796,15 +1823,15 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `}`,
     '',
     `export interface LocalStackCategoryAxisSpec {`,
-    `  category: string;`,
-    `  axes: readonly string[];`,
+    `  category: LocalStackScenarioCategoryId;`,
+    `  axes: readonly LocalStackScenarioAxisId[];`,
     `}`,
     '',
     `export interface LocalStackOutcomeSpec {`,
     `  id: string;`,
     `  label: string;`,
-    `  source: string;`,
-    `  minimumProofLevel: string;`,
+    `  source: LocalStackOutcomeSource;`,
+    `  minimumProofLevel: LocalStackProofLevel;`,
     `  operationIds: readonly string[];`,
     `  providerGuardCapabilities: readonly string[];`,
     `  exceptionCapabilities: readonly string[];`,
@@ -1814,16 +1841,16 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  id: string;`,
     `  description: string;`,
     `  requiredCapabilities: readonly OpenBoxCapabilityId[];`,
-    `  requiredCategories: readonly string[];`,
-    `  requiredAxes: readonly string[];`,
-    `  requiredLocalStackAxes: readonly string[];`,
+    `  requiredCategories: readonly LocalStackScenarioCategoryId[];`,
+    `  requiredAxes: readonly LocalStackScenarioAxisId[];`,
+    `  requiredLocalStackAxes: readonly LocalStackScenarioAxisId[];`,
     `  requiredCategoryAxes: readonly LocalStackCategoryAxisSpec[];`,
     `  localStackScenarioIds: readonly string[];`,
     `  providerOwnedScenarioIds: readonly string[];`,
     `  requiredOutcomeIds: readonly string[];`,
     `  requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];`,
     `  requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];`,
-    `  requiredSdkSemanticGapClosureTargets: readonly string[];`,
+    `  requiredSdkSemanticGapClosureTargets: readonly SdkSemanticGapClosureTarget[];`,
     `  providerGuardSharedProofPolicy: string;`,
     `  localStackAxisPolicy: string;`,
     `  rawSemanticGapPolicy: string;`,
@@ -4751,6 +4778,11 @@ function arrayOfRecords(value: unknown): Record<string, unknown>[] {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function enumMemberValues(namespace: Namespace, enumName: string): string[] {
+  const type = namespace.enums.get(enumName);
+  return type ? [...type.members.values()].map((member) => String(member.value ?? member.name)) : [];
 }
 
 /**

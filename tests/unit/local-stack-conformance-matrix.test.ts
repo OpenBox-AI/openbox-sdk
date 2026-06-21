@@ -10,12 +10,14 @@ import {
   localStackBlockIncludesScenarioMarkerForTesting,
   localStackBlockIncludesEvidencePatternForTesting,
   localStackTestBlockIncludesEvidencePatternForTesting,
+  localStackScenarioDomainRefsForTesting,
   providerCapabilityDomainRefsForTesting,
   providerGuardTestRefMatchesBlockForTesting,
   unknownScenarioProofMarkerRefsForTesting,
   type LocalStackConformanceMatrix,
   type OperationCoverage,
 } from '../helpers/local-stack-conformance';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 function operation(
   matrix: LocalStackConformanceMatrix,
@@ -58,6 +60,13 @@ describe('local-stack conformance matrix', () => {
     capabilityIds: providerCapabilitiesFixture.capabilityIds,
     providerIds: providerCapabilitiesFixture.providerIds,
     supportTiers: providerCapabilitiesFixture.supportTiers,
+  };
+  const localStackDomains = {
+    categoryIds: GOVERNANCE_SPEC_DOMAINS.localStackScenarioCategories,
+    axisIds: GOVERNANCE_SPEC_DOMAINS.localStackScenarioAxes,
+    proofLevels: GOVERNANCE_SPEC_DOMAINS.localStackProofLevels,
+    outcomeSources: GOVERNANCE_SPEC_DOMAINS.localStackOutcomeSources,
+    sdkSemanticGapClosureTargets: GOVERNANCE_SPEC_DOMAINS.sdkSemanticGapClosureTargets,
   };
 
   it('is derived from generated TypeSpec fixtures and current e2e files', () => {
@@ -402,6 +411,105 @@ describe('local-stack conformance matrix', () => {
         ['trace-logs'],
       ),
     ).toEqual(['stale-trace-logz:__test__.ts#__test__']);
+  });
+
+  it('fails generated local-stack category axis proof source and closure-target domain drift', () => {
+    expect(localStackDomains.categoryIds).toBe(
+      GOVERNANCE_SPEC_DOMAINS.localStackScenarioCategories,
+    );
+    expect(localStackDomains.axisIds).toBe(GOVERNANCE_SPEC_DOMAINS.localStackScenarioAxes);
+    expect(localStackDomains.proofLevels).toBe(GOVERNANCE_SPEC_DOMAINS.localStackProofLevels);
+    expect(localStackDomains.outcomeSources).toBe(
+      GOVERNANCE_SPEC_DOMAINS.localStackOutcomeSources,
+    );
+    expect(localStackDomains.sdkSemanticGapClosureTargets).toBe(
+      GOVERNANCE_SPEC_DOMAINS.sdkSemanticGapClosureTargets,
+    );
+
+    const refs = localStackScenarioDomainRefsForTesting({
+      contract: {
+        ...matrix.scenarioMatrix,
+        requiredCategories: [
+          ...matrix.scenarioMatrix.requiredCategories,
+          'category-domain-drift',
+        ],
+        requiredAxes: [...matrix.scenarioMatrix.requiredAxes, 'required-axis-domain-drift'],
+        requiredLocalStackAxes: [
+          ...matrix.scenarioMatrix.requiredLocalStackAxes,
+          'local-stack-axis-domain-drift',
+        ],
+        requiredCategoryAxes: [
+          ...matrix.scenarioMatrix.requiredCategoryAxes,
+          {
+            category: 'category-axis-category-domain-drift',
+            axes: ['category-axis-domain-drift'],
+          },
+        ],
+        requiredOutcomeSpecs: [
+          ...matrix.scenarioMatrix.requiredOutcomeSpecs,
+          {
+            ...matrix.scenarioMatrix.requiredOutcomeSpecs[0],
+            id: 'proof-level-domain-drift-outcome-spec',
+            minimumProofLevel: 'minimum-proof-level-domain-drift',
+          },
+        ],
+        requiredSdkSemanticGapClosureTargets: [
+          ...matrix.scenarioMatrix.requiredSdkSemanticGapClosureTargets,
+          'sdk-closure-target-domain-drift',
+        ],
+      } as any,
+      scenarioPaths: [
+        ...matrix.scenarioPaths,
+        {
+          id: 'local-stack-domain-drift-scenario',
+          category: 'scenario-category-domain-drift',
+          axes: ['scenario-axis-domain-drift'],
+          requiredProofLevel: 'scenario-proof-level-domain-drift',
+        } as any,
+      ],
+      outcomes: [
+        ...matrix.outcomes,
+        {
+          id: 'local-stack-domain-drift-outcome',
+          source: 'outcome-source-domain-drift',
+          minimumProofLevel: 'outcome-proof-level-domain-drift',
+        } as any,
+      ],
+      localStackDomains,
+    });
+
+    expect(refs).toEqual({
+      unknownScenarioCategoryRefs: [
+        'local-stack-domain-drift-scenario:scenario-category-domain-drift',
+      ],
+      unknownScenarioAxisRefs: [
+        'local-stack-domain-drift-scenario:scenario-axis-domain-drift',
+      ],
+      unknownScenarioProofLevelRefs: [
+        'local-stack-domain-drift-scenario:scenario-proof-level-domain-drift',
+      ],
+      unknownOutcomeSourceRefs: [
+        'local-stack-domain-drift-outcome:outcome-source-domain-drift',
+      ],
+      unknownOutcomeProofLevelRefs: [
+        'local-stack-domain-drift-outcome:outcome-proof-level-domain-drift',
+      ],
+      unknownScenarioMatrixCategoryRefs: [
+        'requiredCategories:category-domain-drift',
+        'requiredCategoryAxes:category-axis-category-domain-drift',
+      ],
+      unknownScenarioMatrixAxisRefs: [
+        'requiredAxes:required-axis-domain-drift',
+        'requiredCategoryAxes:category-axis-category-domain-drift:category-axis-domain-drift',
+        'requiredLocalStackAxes:local-stack-axis-domain-drift',
+      ],
+      unknownScenarioMatrixProofLevelRefs: [
+        'requiredOutcomeSpecs:proof-level-domain-drift-outcome-spec:minimumProofLevel:minimum-proof-level-domain-drift',
+      ],
+      unknownSdkSemanticGapClosureTargetRefs: [
+        'requiredSdkSemanticGapClosureTargets:sdk-closure-target-domain-drift',
+      ],
+    });
   });
 
   it('fails generated capability provider and tier references outside canonical domains', () => {
@@ -1246,6 +1354,15 @@ describe('local-stack conformance matrix', () => {
       unexpectedCategories: [],
       missingAxes: [],
       unexpectedAxes: [],
+      unknownScenarioCategoryRefs: [],
+      unknownScenarioAxisRefs: [],
+      unknownScenarioProofLevelRefs: [],
+      unknownOutcomeSourceRefs: [],
+      unknownOutcomeProofLevelRefs: [],
+      unknownScenarioMatrixCategoryRefs: [],
+      unknownScenarioMatrixAxisRefs: [],
+      unknownScenarioMatrixProofLevelRefs: [],
+      unknownSdkSemanticGapClosureTargetRefs: [],
       unknownScenarioCapabilityRefs: [],
       unknownOutcomeCapabilityRefs: [],
       unknownScenarioMatrixCapabilityRefs: [],

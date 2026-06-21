@@ -266,6 +266,15 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   unexpectedCategories: string[];
   missingAxes: string[];
   unexpectedAxes: string[];
+  unknownScenarioCategoryRefs: string[];
+  unknownScenarioAxisRefs: string[];
+  unknownScenarioProofLevelRefs: string[];
+  unknownOutcomeSourceRefs: string[];
+  unknownOutcomeProofLevelRefs: string[];
+  unknownScenarioMatrixCategoryRefs: string[];
+  unknownScenarioMatrixAxisRefs: string[];
+  unknownScenarioMatrixProofLevelRefs: string[];
+  unknownSdkSemanticGapClosureTargetRefs: string[];
   unknownScenarioCapabilityRefs: string[];
   unknownOutcomeCapabilityRefs: string[];
   unknownScenarioMatrixCapabilityRefs: string[];
@@ -436,6 +445,14 @@ export interface ProviderCapabilityDomains {
   supportTiers: readonly string[];
 }
 
+export interface LocalStackScenarioDomains {
+  categoryIds: readonly string[];
+  axisIds: readonly string[];
+  proofLevels: readonly string[];
+  outcomeSources: readonly string[];
+  sdkSemanticGapClosureTargets: readonly string[];
+}
+
 export type ProviderCapabilityDomainRefs = Pick<
   ScenarioMatrixCoverage,
   | 'unknownScenarioCapabilityRefs'
@@ -444,6 +461,19 @@ export type ProviderCapabilityDomainRefs = Pick<
   | 'unknownProviderGuardCapabilityRefs'
   | 'unknownProviderGuardProviderRefs'
   | 'unknownProviderGuardTierRefs'
+>;
+
+export type LocalStackScenarioDomainRefs = Pick<
+  ScenarioMatrixCoverage,
+  | 'unknownScenarioCategoryRefs'
+  | 'unknownScenarioAxisRefs'
+  | 'unknownScenarioProofLevelRefs'
+  | 'unknownOutcomeSourceRefs'
+  | 'unknownOutcomeProofLevelRefs'
+  | 'unknownScenarioMatrixCategoryRefs'
+  | 'unknownScenarioMatrixAxisRefs'
+  | 'unknownScenarioMatrixProofLevelRefs'
+  | 'unknownSdkSemanticGapClosureTargetRefs'
 >;
 
 interface TestBlock {
@@ -788,6 +818,13 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       capabilityIds: providerCapabilities.capabilityIds ?? [],
       providerIds: providerCapabilities.providerIds ?? [],
       supportTiers: providerCapabilities.supportTiers ?? [],
+    },
+    {
+      categoryIds: GOVERNANCE_SPEC_DOMAINS.localStackScenarioCategories,
+      axisIds: GOVERNANCE_SPEC_DOMAINS.localStackScenarioAxes,
+      proofLevels: GOVERNANCE_SPEC_DOMAINS.localStackProofLevels,
+      outcomeSources: GOVERNANCE_SPEC_DOMAINS.localStackOutcomeSources,
+      sdkSemanticGapClosureTargets: GOVERNANCE_SPEC_DOMAINS.sdkSemanticGapClosureTargets,
     },
   );
 
@@ -2638,6 +2675,7 @@ function summarizeScenarioMatrixContract(
   >,
   unknownScenarioProofMarkerRefs: string[],
   providerDomains: ProviderCapabilityDomains,
+  localStackDomains: LocalStackScenarioDomains,
 ): ScenarioMatrixCoverage {
   const resolvedContract = contract ?? {
     id: '__missing_local_stack_scenario_matrix__',
@@ -2803,6 +2841,12 @@ function summarizeScenarioMatrixContract(
     providerGuards,
     providerDomains,
   );
+  const localStackDomainRefs = summarizeLocalStackScenarioDomainRefs(
+    resolvedContract,
+    scenarioPaths,
+    outcomes,
+    localStackDomains,
+  );
   const missingLocalStackAxes = missing(resolvedContract.requiredLocalStackAxes, actualLocalStackAxes);
   const incompleteLocalStackAxes = missing(resolvedContract.requiredLocalStackAxes, provenLocalStackAxes);
   const categoryAxisCoverage = resolvedContract.requiredCategoryAxes
@@ -2922,6 +2966,15 @@ function summarizeScenarioMatrixContract(
     unexpectedCategories,
     missingAxes,
     unexpectedAxes,
+    localStackDomainRefs.unknownScenarioCategoryRefs,
+    localStackDomainRefs.unknownScenarioAxisRefs,
+    localStackDomainRefs.unknownScenarioProofLevelRefs,
+    localStackDomainRefs.unknownOutcomeSourceRefs,
+    localStackDomainRefs.unknownOutcomeProofLevelRefs,
+    localStackDomainRefs.unknownScenarioMatrixCategoryRefs,
+    localStackDomainRefs.unknownScenarioMatrixAxisRefs,
+    localStackDomainRefs.unknownScenarioMatrixProofLevelRefs,
+    localStackDomainRefs.unknownSdkSemanticGapClosureTargetRefs,
     providerDomainRefs.unknownScenarioCapabilityRefs,
     providerDomainRefs.unknownOutcomeCapabilityRefs,
     providerDomainRefs.unknownScenarioMatrixCapabilityRefs,
@@ -2977,6 +3030,7 @@ function summarizeScenarioMatrixContract(
     unexpectedCategories,
     missingAxes,
     unexpectedAxes,
+    ...localStackDomainRefs,
     ...providerDomainRefs,
     missingLocalStackAxes,
     incompleteLocalStackAxes,
@@ -3019,6 +3073,108 @@ type ProviderDomainContractSlice = Pick<
   | 'requiredSharedProviderGuardProofCapabilities'
   | 'requiredOutcomeSpecs'
 >;
+
+type LocalStackDomainContractSlice = Pick<
+  LocalStackScenarioMatrixContract,
+  | 'requiredCategories'
+  | 'requiredAxes'
+  | 'requiredLocalStackAxes'
+  | 'requiredCategoryAxes'
+  | 'requiredOutcomeSpecs'
+  | 'requiredSdkSemanticGapClosureTargets'
+>;
+
+function summarizeLocalStackScenarioDomainRefs(
+  contract: LocalStackDomainContractSlice,
+  scenarioPaths: ReadonlyArray<Pick<ScenarioPathCoverage, 'id' | 'category' | 'axes' | 'requiredProofLevel'>>,
+  outcomes: ReadonlyArray<Pick<CapabilityOutcomeCoverage, 'id' | 'source' | 'minimumProofLevel'>>,
+  localStackDomains: LocalStackScenarioDomains,
+): LocalStackScenarioDomainRefs {
+  const categoryIds = new Set(localStackDomains.categoryIds);
+  const axisIds = new Set(localStackDomains.axisIds);
+  const proofLevels = new Set(localStackDomains.proofLevels);
+  const outcomeSources = new Set(localStackDomains.outcomeSources);
+  const sdkClosureTargets = new Set(localStackDomains.sdkSemanticGapClosureTargets);
+
+  return {
+    unknownScenarioCategoryRefs: uniqueSorted(
+      scenarioPaths
+        .filter((entry) => !categoryIds.has(entry.category))
+        .map((entry) => `${entry.id}:${entry.category}`),
+    ),
+    unknownScenarioAxisRefs: uniqueSorted(
+      scenarioPaths.flatMap((entry) =>
+        entry.axes
+          .filter((axis) => !axisIds.has(axis))
+          .map((axis) => `${entry.id}:${axis}`),
+      ),
+    ),
+    unknownScenarioProofLevelRefs: uniqueSorted(
+      scenarioPaths
+        .filter((entry) => !proofLevels.has(entry.requiredProofLevel))
+        .map((entry) => `${entry.id}:${entry.requiredProofLevel}`),
+    ),
+    unknownOutcomeSourceRefs: uniqueSorted(
+      outcomes
+        .filter((entry) => !outcomeSources.has(entry.source))
+        .map((entry) => `${entry.id}:${entry.source}`),
+    ),
+    unknownOutcomeProofLevelRefs: uniqueSorted(
+      outcomes
+        .filter((entry) => !proofLevels.has(entry.minimumProofLevel))
+        .map((entry) => `${entry.id}:${entry.minimumProofLevel}`),
+    ),
+    unknownScenarioMatrixCategoryRefs: uniqueSorted([
+      ...contract.requiredCategories
+        .filter((category) => !categoryIds.has(category))
+        .map((category) => `requiredCategories:${category}`),
+      ...contract.requiredCategoryAxes
+        .filter((entry) => !categoryIds.has(entry.category))
+        .map((entry) => `requiredCategoryAxes:${entry.category}`),
+    ]),
+    unknownScenarioMatrixAxisRefs: uniqueSorted([
+      ...contract.requiredAxes
+        .filter((axis) => !axisIds.has(axis))
+        .map((axis) => `requiredAxes:${axis}`),
+      ...contract.requiredLocalStackAxes
+        .filter((axis) => !axisIds.has(axis))
+        .map((axis) => `requiredLocalStackAxes:${axis}`),
+      ...contract.requiredCategoryAxes.flatMap((entry) =>
+        entry.axes
+          .filter((axis) => !axisIds.has(axis))
+          .map((axis) => `requiredCategoryAxes:${entry.category}:${axis}`),
+      ),
+    ]),
+    unknownScenarioMatrixProofLevelRefs: uniqueSorted(
+      contract.requiredOutcomeSpecs
+        .filter((entry) => !proofLevels.has(entry.minimumProofLevel))
+        .map((entry) => `requiredOutcomeSpecs:${entry.id}:minimumProofLevel:${entry.minimumProofLevel}`),
+    ),
+    unknownSdkSemanticGapClosureTargetRefs: uniqueSorted(
+      contract.requiredSdkSemanticGapClosureTargets
+        .filter((target) => !sdkClosureTargets.has(target))
+        .map((target) => `requiredSdkSemanticGapClosureTargets:${target}`),
+    ),
+  };
+}
+
+export function localStackScenarioDomainRefsForTesting(
+  input: {
+    contract: LocalStackDomainContractSlice;
+    scenarioPaths: ReadonlyArray<
+      Pick<ScenarioPathCoverage, 'id' | 'category' | 'axes' | 'requiredProofLevel'>
+    >;
+    outcomes: ReadonlyArray<Pick<CapabilityOutcomeCoverage, 'id' | 'source' | 'minimumProofLevel'>>;
+    localStackDomains: LocalStackScenarioDomains;
+  },
+): LocalStackScenarioDomainRefs {
+  return summarizeLocalStackScenarioDomainRefs(
+    input.contract,
+    input.scenarioPaths,
+    input.outcomes,
+    input.localStackDomains,
+  );
+}
 
 function summarizeProviderCapabilityDomainRefs(
   contract: ProviderDomainContractSlice,

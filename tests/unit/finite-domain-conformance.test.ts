@@ -31,6 +31,7 @@ describe('finite-domain conformance ledger', () => {
       'guardrail-create-members',
       'guardrail-field-status-members',
       'guardrail-update-members',
+      'local-stack-scenario-matrix-domain-members',
       'openbox-capability-id-members',
       'organization-timezone-invalid-members',
       'organization-timezone-members',

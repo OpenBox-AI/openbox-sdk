@@ -36,6 +36,49 @@ export const OPENBOX_SUPPORT_TIERS = [
   "diagnose-only"
 ] as const;
 export type OpenBoxSupportTier = typeof OPENBOX_SUPPORT_TIERS[number];
+export const LOCAL_STACK_SCENARIO_CATEGORY_IDS = [
+  "approvals-hitl",
+  "behavioral",
+  "goal-drift",
+  "guardrails",
+  "opa",
+  "tracing",
+  "usage-cost",
+  "workflow"
+] as const;
+export type LocalStackScenarioCategoryId = typeof LOCAL_STACK_SCENARIO_CATEGORY_IDS[number];
+export const LOCAL_STACK_SCENARIO_AXIS_IDS = [
+  "cost",
+  "dbquery",
+  "failure",
+  "goal",
+  "guardrails",
+  "happy",
+  "matrix",
+  "opa",
+  "order",
+  "tool",
+  "usage"
+] as const;
+export type LocalStackScenarioAxisId = typeof LOCAL_STACK_SCENARIO_AXIS_IDS[number];
+export const LOCAL_STACK_PROOF_LEVELS = [
+  "none",
+  "smoke",
+  "negative-path",
+  "behavioral",
+  "conformance"
+] as const;
+export type LocalStackProofLevel = typeof LOCAL_STACK_PROOF_LEVELS[number];
+export const LOCAL_STACK_OUTCOME_SOURCES = [
+  "local-stack-e2e",
+  "provider-guard-fixture"
+] as const;
+export type LocalStackOutcomeSource = typeof LOCAL_STACK_OUTCOME_SOURCES[number];
+export const SDK_SEMANTIC_GAP_CLOSURE_TARGETS = [
+  "typescript",
+  "python"
+] as const;
+export type SdkSemanticGapClosureTarget = typeof SDK_SEMANTIC_GAP_CLOSURE_TARGETS[number];
 export type ReferenceProviderParityClosureStatus =
   | 'implemented-through-wrapper'
   | 'host-owned-observe-only'
@@ -246,11 +289,11 @@ export interface McpCapabilityGuardEntry {
 
 export interface LocalStackScenarioPathSpec {
   id: string;
-  category: string;
+  category: LocalStackScenarioCategoryId;
   capability: OpenBoxCapabilityId;
   label: string;
-  axes: readonly string[];
-  requiredProofLevel: string;
+  axes: readonly LocalStackScenarioAxisId[];
+  requiredProofLevel: LocalStackProofLevel;
   localStackRequired: boolean;
   operationIds: readonly string[];
   evidencePatterns: readonly string[];
@@ -264,15 +307,15 @@ export interface LocalStackOperationEvidenceSpec {
 }
 
 export interface LocalStackCategoryAxisSpec {
-  category: string;
-  axes: readonly string[];
+  category: LocalStackScenarioCategoryId;
+  axes: readonly LocalStackScenarioAxisId[];
 }
 
 export interface LocalStackOutcomeSpec {
   id: string;
   label: string;
-  source: string;
-  minimumProofLevel: string;
+  source: LocalStackOutcomeSource;
+  minimumProofLevel: LocalStackProofLevel;
   operationIds: readonly string[];
   providerGuardCapabilities: readonly string[];
   exceptionCapabilities: readonly string[];
@@ -282,16 +325,16 @@ export interface LocalStackScenarioMatrixContract {
   id: string;
   description: string;
   requiredCapabilities: readonly OpenBoxCapabilityId[];
-  requiredCategories: readonly string[];
-  requiredAxes: readonly string[];
-  requiredLocalStackAxes: readonly string[];
+  requiredCategories: readonly LocalStackScenarioCategoryId[];
+  requiredAxes: readonly LocalStackScenarioAxisId[];
+  requiredLocalStackAxes: readonly LocalStackScenarioAxisId[];
   requiredCategoryAxes: readonly LocalStackCategoryAxisSpec[];
   localStackScenarioIds: readonly string[];
   providerOwnedScenarioIds: readonly string[];
   requiredOutcomeIds: readonly string[];
   requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];
   requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];
-  requiredSdkSemanticGapClosureTargets: readonly string[];
+  requiredSdkSemanticGapClosureTargets: readonly SdkSemanticGapClosureTarget[];
   providerGuardSharedProofPolicy: string;
   localStackAxisPolicy: string;
   rawSemanticGapPolicy: string;
