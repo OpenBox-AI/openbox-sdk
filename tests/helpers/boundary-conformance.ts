@@ -818,10 +818,14 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     proofFile: 'tests/e2e/guardrails.test.ts',
     evidencePattern: 'EXHAUSTIVE_BOUNDARY_PROOF: GuardrailController_runTest covers every guardrail type and outcome',
     executablePatterns: [
-      'makeGuardrailRunTestConformanceCases()',
+      'const guardrailRunTestCases = makeGuardrailRunTestConformanceCases()',
       'GOVERNANCE_SPEC_DOMAINS.guardrailTypes',
       'GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses',
+      'expectedFieldStatuses',
       'observedStatuses',
+      'observedGuardrailTypeStatuses',
+      'observedGuardrailTypeStatusPairs',
+      'GOVERNANCE_SPEC_DOMAINS.guardrailTypes.length * expectedFieldStatuses.length',
     ],
   },
   {

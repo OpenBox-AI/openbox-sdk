@@ -456,8 +456,12 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
     evidencePattern: 'EXHAUSTIVE_BOUNDARY_PROOF: GuardrailController_runTest covers every guardrail type and outcome',
     executablePatterns: [
       'const observedStatuses = new Set<string>()',
-      'observedStatuses.add(String(body.data.field_results?.[0]?.status))',
+      'const observedStatus = String(body.data.field_results?.[0]?.status)',
+      'observedStatuses.add(observedStatus)',
+      'observedGuardrailTypeStatuses',
+      'observedGuardrailTypeStatusPairs',
       'GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses',
+      'expectedFieldStatuses',
       'expect([...observedStatuses].sort()).toEqual',
     ],
   },

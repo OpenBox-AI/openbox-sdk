@@ -336,11 +336,23 @@ describe('Guardrails', () => {
       'SCENARIO_PROOF: guardrail-block',
       'SCENARIO_PROOF: guardrail-redact',
     ]));
+    const guardrailRunTestCases = makeGuardrailRunTestConformanceCases();
+    const expectedFieldStatuses = [...GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses].sort();
+    expect(guardrailRunTestCases.map((testCase) => testCase.expected.fieldStatus).sort()).toEqual(
+      expectedFieldStatuses,
+    );
+    expect(guardrailRunTestCases).toHaveLength(expectedFieldStatuses.length);
+
     const observedStatuses = new Set<string>();
+    const observedGuardrailTypeStatuses = new Map<string, Set<string>>();
+    const observedGuardrailTypeStatusPairs = new Set<string>();
     const observedValidationResults = new Set<boolean>();
 
     for (const guardrailType of GOVERNANCE_SPEC_DOMAINS.guardrailTypes) {
-      for (const testCase of makeGuardrailRunTestConformanceCases()) {
+      const observedTypeStatuses = new Set<string>();
+      observedGuardrailTypeStatuses.set(guardrailType, observedTypeStatuses);
+
+      for (const testCase of guardrailRunTestCases) {
         const response = await client.post('/guardrails/run-test', {
           ...testCase.request,
           guardrail_type: guardrailType,
@@ -353,7 +365,10 @@ describe('Guardrails', () => {
         expect(body.data.field_results?.[0]).toMatchObject({
           status: testCase.expected.fieldStatus,
         });
-        observedStatuses.add(String(body.data.field_results?.[0]?.status));
+        const observedStatus = String(body.data.field_results?.[0]?.status);
+        observedStatuses.add(observedStatus);
+        observedTypeStatuses.add(observedStatus);
+        observedGuardrailTypeStatusPairs.add(`${guardrailType}:${observedStatus}`);
         expect(body.data.results?.[0]).toMatchObject({
           guardrail_type: guardrailType,
         });
@@ -363,13 +378,21 @@ describe('Guardrails', () => {
       }
     }
 
-    expect([...observedStatuses].sort()).toEqual(
-      [...GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses].sort(),
+    expect([...observedStatuses].sort()).toEqual(expectedFieldStatuses);
+    for (const guardrailType of GOVERNANCE_SPEC_DOMAINS.guardrailTypes) {
+      expect([...(observedGuardrailTypeStatuses.get(guardrailType) ?? [])].sort()).toEqual(
+        expectedFieldStatuses,
+      );
+    }
+    expect(observedGuardrailTypeStatusPairs.size).toBe(
+      GOVERNANCE_SPEC_DOMAINS.guardrailTypes.length * expectedFieldStatuses.length,
     );
     expect(observedStatuses).toContain('allowed');
     expect(observedStatuses).toContain('blocked');
     expect(observedStatuses).toContain('redacted');
     expect(observedStatuses).toContain('transformed');
+    expect(observedStatuses).toContain('skipped');
+    expect(observedValidationResults).toContain(true);
     expect(observedValidationResults).toContain(false);
   });
 
