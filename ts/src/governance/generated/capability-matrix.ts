@@ -3593,7 +3593,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "opa",
       "matrix"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "PolicyController_evaluate",
@@ -3830,7 +3830,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "opa"
     ],
-    "requiredProofLevel": "negative-path",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "evaluateGovernance"
@@ -4098,7 +4098,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "guardrails"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "GuardrailController_runTest"
@@ -4127,7 +4127,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "guardrails"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "GuardrailController_runTest"
@@ -4158,7 +4158,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "guardrails"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "GuardrailController_runTest",
@@ -4197,7 +4197,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "guardrails"
     ],
-    "requiredProofLevel": "negative-path",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "GuardrailController_runTest"
@@ -4226,7 +4226,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "order",
       "goal"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "evaluateGovernance"
@@ -5002,7 +5002,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "goal"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "evaluateGovernance"
@@ -5031,7 +5031,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "goal",
       "failure"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "AgentController_getRecentDriftEvents",
@@ -5089,7 +5089,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "goal",
       "failure"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "evaluateGovernance"
@@ -5119,7 +5119,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "AgentController_getSessions",
@@ -5156,7 +5156,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "AgentController_getSessionLogs",
@@ -5199,7 +5199,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "AgentController_getSessionReasoningTrace"
@@ -5227,7 +5227,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "tool"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": true,
     "operationIds": [
       "evaluateGovernance"

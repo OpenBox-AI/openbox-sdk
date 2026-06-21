@@ -141,6 +141,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.duplicateOperationPathPatternRefs).toEqual([]);
     expect(matrix.scenarioMatrix.operationRouteResolutionMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.ambiguousOperationRouteTieRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.underConformanceLocalStackRequiredProofLevelRefs).toEqual([]);
     expect(matrix.smokeHits).toEqual([]);
     expect(matrix.unresolvedMethodHits).toEqual([]);
     expect(matrix.unknownHits).toEqual([]);
@@ -1686,6 +1687,12 @@ describe('local-stack conformance matrix', () => {
       .filter((entry) => entry.localStackRequired && entry.proofLevel !== 'conformance')
       .map((entry) => `${entry.id}:${entry.proofLevel}`);
     expect(underConformedLocalStackScenarios).toEqual([]);
+
+    const underRequiredProofLocalStackScenarios = matrix.scenarioPaths
+      .filter((entry) => entry.localStackRequired && entry.requiredProofLevel !== 'conformance')
+      .map((entry) => `${entry.id}:${entry.requiredProofLevel}`);
+    expect(underRequiredProofLocalStackScenarios).toEqual([]);
+    expect(matrix.scenarioMatrix.underConformanceLocalStackRequiredProofLevelRefs).toEqual([]);
 
     const constrainBoundary = scenario(matrix, 'opa-constrain');
     expect(constrainBoundary.localStackRequired).toBe(true);

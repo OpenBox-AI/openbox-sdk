@@ -3165,7 +3165,7 @@
         "opa",
         "matrix"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "PolicyController_evaluate",
@@ -3402,7 +3402,7 @@
         "failure",
         "opa"
       ],
-      "requiredProofLevel": "negative-path",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "evaluateGovernance"
@@ -3670,7 +3670,7 @@
         "happy",
         "guardrails"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "GuardrailController_runTest"
@@ -3699,7 +3699,7 @@
         "failure",
         "guardrails"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "GuardrailController_runTest"
@@ -3730,7 +3730,7 @@
         "happy",
         "guardrails"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "GuardrailController_runTest",
@@ -3769,7 +3769,7 @@
         "failure",
         "guardrails"
       ],
-      "requiredProofLevel": "negative-path",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "GuardrailController_runTest"
@@ -3798,7 +3798,7 @@
         "order",
         "goal"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "evaluateGovernance"
@@ -4574,7 +4574,7 @@
         "happy",
         "goal"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "evaluateGovernance"
@@ -4603,7 +4603,7 @@
         "goal",
         "failure"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "AgentController_getRecentDriftEvents",
@@ -4661,7 +4661,7 @@
         "goal",
         "failure"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "evaluateGovernance"
@@ -4691,7 +4691,7 @@
       "axes": [
         "happy"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "AgentController_getSessions",
@@ -4728,7 +4728,7 @@
       "axes": [
         "happy"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "AgentController_getSessionLogs",
@@ -4771,7 +4771,7 @@
       "axes": [
         "happy"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "AgentController_getSessionReasoningTrace"
@@ -4799,7 +4799,7 @@
         "happy",
         "tool"
       ],
-      "requiredProofLevel": "behavioral",
+      "requiredProofLevel": "conformance",
       "localStackRequired": true,
       "operationIds": [
         "evaluateGovernance"

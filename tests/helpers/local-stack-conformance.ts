@@ -320,6 +320,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   unexpectedLocalStackScenarioIds: string[];
   missingProviderOwnedScenarioIds: string[];
   unexpectedProviderOwnedScenarioIds: string[];
+  underConformanceLocalStackRequiredProofLevelRefs: string[];
   unknownScenarioProofMarkerRefs: string[];
   duplicateScenarioPathRefs: string[];
   duplicateOutcomeRefs: string[];
@@ -2979,6 +2980,11 @@ function summarizeScenarioMatrixContract(
     actualProviderOwnedScenarioIds,
     resolvedContract.providerOwnedScenarioIds,
   );
+  const underConformanceLocalStackRequiredProofLevelRefs = scenarioPaths
+    .filter((entry) => entry.localStackRequired)
+    .filter((entry) => PROOF_ORDER[entry.requiredProofLevel] < PROOF_ORDER.conformance)
+    .map((entry) => `${entry.id}:${entry.requiredProofLevel}`)
+    .sort();
   const duplicateScenarioPathRefs = duplicates(scenarioPaths.map((entry) => entry.id));
   const duplicateOutcomeRefs = duplicates(outcomes.map((entry) => entry.id));
   const duplicateScenarioMatrixContractRefs = uniqueSorted([
@@ -3079,6 +3085,7 @@ function summarizeScenarioMatrixContract(
     unexpectedLocalStackScenarioIds,
     missingProviderOwnedScenarioIds,
     unexpectedProviderOwnedScenarioIds,
+    underConformanceLocalStackRequiredProofLevelRefs,
     unknownScenarioProofMarkerRefs,
     duplicateScenarioPathRefs,
     duplicateOutcomeRefs,
@@ -3132,6 +3139,7 @@ function summarizeScenarioMatrixContract(
     unexpectedLocalStackScenarioIds,
     missingProviderOwnedScenarioIds,
     unexpectedProviderOwnedScenarioIds,
+    underConformanceLocalStackRequiredProofLevelRefs,
     unknownScenarioProofMarkerRefs,
     duplicateScenarioPathRefs,
     duplicateOutcomeRefs,

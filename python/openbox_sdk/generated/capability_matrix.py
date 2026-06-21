@@ -3166,7 +3166,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "opa",
       "matrix"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "PolicyController_evaluate",
@@ -3403,7 +3403,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "opa"
     ],
-    "requiredProofLevel": "negative-path",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "evaluateGovernance"
@@ -3671,7 +3671,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "guardrails"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "GuardrailController_runTest"
@@ -3700,7 +3700,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "guardrails"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "GuardrailController_runTest"
@@ -3731,7 +3731,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "guardrails"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "GuardrailController_runTest",
@@ -3770,7 +3770,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "failure",
       "guardrails"
     ],
-    "requiredProofLevel": "negative-path",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "GuardrailController_runTest"
@@ -3799,7 +3799,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "order",
       "goal"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "evaluateGovernance"
@@ -4575,7 +4575,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "goal"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "evaluateGovernance"
@@ -4604,7 +4604,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "goal",
       "failure"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "AgentController_getRecentDriftEvents",
@@ -4662,7 +4662,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "goal",
       "failure"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "evaluateGovernance"
@@ -4692,7 +4692,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "AgentController_getSessions",
@@ -4729,7 +4729,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "AgentController_getSessionLogs",
@@ -4772,7 +4772,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "AgentController_getSessionReasoningTrace"
@@ -4800,7 +4800,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "tool"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "evaluateGovernance"
