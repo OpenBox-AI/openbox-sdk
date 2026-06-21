@@ -110,6 +110,8 @@ export interface RequestConstraintConformance {
       missing: number;
     };
     sdkGeneratedPreflightOnly: number;
+    unknownGeneratedEvidenceConstraintKeys: string[];
+    unknownSdkGeneratedPreflightOnlyConstraintKeys: string[];
   };
 }
 
@@ -136,26 +138,27 @@ const TRANSPORT_OR_FEATURE_GATED_OPERATIONS: ReadonlySet<string> = new Set(
   LOCAL_STACK_SCENARIO_MATRIX.transportOrFeatureGatedOperationIds,
 );
 
-const CORE_TELEMETRY_BODY_FIELDS = new Set([
-  'timestamp',
-  'input_tokens',
-  'output_tokens',
-  'total_tokens',
-  'cost_usd',
-  'span_count',
-  'start_time',
-  'end_time',
-  'duration_ns',
-  'http_status_code',
-  'server_port',
-  'rowcount',
-  'bytes_read',
-  'bytes_written',
-  'lines_count',
-]);
+const REQUEST_CONSTRAINT_EVIDENCE_IDS_BY_CONSTRAINT_KEY = new Map<string, string[]>();
+for (const spec of LOCAL_STACK_SCENARIO_MATRIX.requestConstraintEvidenceSpecs) {
+  for (const key of spec.requestConstraintKeys) {
+    const ids = REQUEST_CONSTRAINT_EVIDENCE_IDS_BY_CONSTRAINT_KEY.get(key) ?? [];
+    ids.push(spec.id);
+    REQUEST_CONSTRAINT_EVIDENCE_IDS_BY_CONSTRAINT_KEY.set(key, ids);
+  }
+}
+
+const SDK_GENERATED_PREFLIGHT_ONLY_CONSTRAINT_KEYS: ReadonlySet<string> = new Set(
+  LOCAL_STACK_SCENARIO_MATRIX.sdkGeneratedPreflightOnlyConstraintKeys,
+);
 
 export function buildRequestConstraintConformance(): RequestConstraintConformance {
   const constraints = extractGeneratedRequestConstraints();
+  const constraintKeys = new Set(constraints.map((entry) => entry.key));
+  const generatedEvidenceConstraintKeys = uniqueSorted(
+    LOCAL_STACK_SCENARIO_MATRIX.requestConstraintEvidenceSpecs.flatMap(
+      (entry) => entry.requestConstraintKeys,
+    ),
+  );
   const classified = constraints.map(classifyConstraint);
   const unclassified = classified
     .filter((entry): entry is RequestConstraint => !('disposition' in entry))
@@ -222,6 +225,13 @@ export function buildRequestConstraintConformance(): RequestConstraintConformanc
         missing: transportGatedConstraints.length * missingTransportGatedTargets,
       },
       sdkGeneratedPreflightOnly: byDisposition['sdk-generated-preflight'],
+      unknownGeneratedEvidenceConstraintKeys: generatedEvidenceConstraintKeys.filter(
+        (key) => !constraintKeys.has(key),
+      ),
+      unknownSdkGeneratedPreflightOnlyConstraintKeys:
+        LOCAL_STACK_SCENARIO_MATRIX.sdkGeneratedPreflightOnlyConstraintKeys.filter(
+          (key) => !constraintKeys.has(key),
+        ),
     },
   };
 }
@@ -413,7 +423,7 @@ function evidenceIdsForConstraint(constraint: RequestConstraint): string[] {
   const rawGapIds = new Set(expectedRawSemanticGapIds());
   return [
     ...domainKeysForConstraint(constraint).flatMap(evidenceIdsForDomainKey),
-    ...extraEvidenceIdsForConstraint(constraint),
+    ...(REQUEST_CONSTRAINT_EVIDENCE_IDS_BY_CONSTRAINT_KEY.get(constraint.key) ?? []),
   ].filter(unique).filter((id) => !rawGapIds.has(id)).sort();
 }
 
@@ -532,71 +542,8 @@ function evidenceIdsForDomainKey(domainKey: string): string[] {
   ];
 }
 
-function extraEvidenceIdsForConstraint(constraint: RequestConstraint): string[] {
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location === 'body.event_type'
-  ) {
-    return ['core-governance-invalid-finite-fields'];
-  }
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location === 'body.attempt' &&
-    ['format', 'integer', 'type'].includes(constraint.kind)
-  ) {
-    return ['core-governance-attempt-integer-request-boundary'];
-  }
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location === 'body.timestamp' &&
-    constraint.kind === 'type'
-  ) {
-    return ['core-governance-timestamp-type-request-boundary'];
-  }
-  if (
-    constraint.service === 'backend' &&
-    ['query.page', 'query.pattern', 'query.perPage'].includes(constraint.location)
-  ) {
-    return ['backend-query-pagination-search-request-boundaries'];
-  }
-  if (
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location.startsWith('body.') &&
-    constraint.location !== 'body.timestamp' &&
-    constraint.location !== 'body.cost_usd' &&
-    constraint.location !== 'body.event_type' &&
-    constraint.location !== 'body.attempt'
-  ) {
-    const field = constraint.location.split('.').filter((part) => part !== '*').at(-1);
-    if (field && CORE_TELEMETRY_BODY_FIELDS.has(field)) {
-      return ['core-governance-telemetry-numeric-request-boundaries'];
-    }
-  }
-  if (constraint.operationId === 'AgentController_getAgentEvaluations') {
-    return [];
-  }
-  return [];
-}
-
 function isSdkGeneratedPreflightConstraint(constraint: RequestConstraint): boolean {
-  if (
-    constraint.location === 'query.page' ||
-    constraint.location === 'query.perPage' ||
-    constraint.location === 'query.pattern'
-  ) {
-    return true;
-  }
-  if (
-    constraint.service === 'core' &&
-    constraint.operationId === 'evaluateGovernance' &&
-    constraint.location.startsWith('body.') &&
-    constraint.location !== 'body.event_type' &&
-    constraint.location !== 'body.attempt'
-  ) {
-    const field = constraint.location.split('.').filter((part) => part !== '*').at(-1);
-    return field ? CORE_TELEMETRY_BODY_FIELDS.has(field) : false;
-  }
-  return false;
+  return SDK_GENERATED_PREFLIGHT_ONLY_CONSTRAINT_KEYS.has(constraint.key);
 }
 
 function arrayEquals(left: readonly string[], right: readonly string[]): boolean {
@@ -608,4 +555,8 @@ function arrayEquals(left: readonly string[], right: readonly string[]): boolean
 
 function unique<T>(value: T, index: number, array: T[]): boolean {
   return array.indexOf(value) === index;
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }

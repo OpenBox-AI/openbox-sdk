@@ -22,6 +22,8 @@ describe('generated request constraint conformance ledger', () => {
       ]),
     );
     expect(ledger.unclassified).toEqual([]);
+    expect(ledger.summary.unknownGeneratedEvidenceConstraintKeys).toEqual([]);
+    expect(ledger.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys).toEqual([]);
     expect(ledger.summary.totalConstraints).toBe(ledger.constraints.length);
   });
 
@@ -110,6 +112,18 @@ describe('generated request constraint conformance ledger', () => {
       );
     }
     expect(ledger.summary.byDisposition['sdk-generated-preflight']).toBe(0);
+    expect(ledger.summary.sdkGeneratedPreflightOnly).toBe(
+      LOCAL_STACK_SCENARIO_MATRIX.sdkGeneratedPreflightOnlyConstraintKeys.length,
+    );
+    for (const spec of LOCAL_STACK_SCENARIO_MATRIX.requestConstraintEvidenceSpecs) {
+      expect(spec.requestConstraintKeys.length, spec.id).toBeGreaterThan(0);
+      for (const key of spec.requestConstraintKeys) {
+        expect(
+          ledger.constraints.find((entry) => entry.key === key)?.evidenceIds,
+          `${spec.id}:${key}`,
+        ).toContain(spec.id);
+      }
+    }
     expect(ledger.constraints.find(
       (entry) => entry.key === 'core:evaluateGovernance:body.attempt:format',
     )).toEqual(expect.objectContaining({

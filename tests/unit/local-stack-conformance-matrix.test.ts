@@ -91,6 +91,11 @@ const providerCapabilitiesFixture = JSON.parse(
       operationIds: string[];
     }>;
     transportOrFeatureGatedOperationIds: string[];
+    requestConstraintEvidenceSpecs: Array<{
+      id: string;
+      requestConstraintKeys: string[];
+    }>;
+    sdkGeneratedPreflightOnlyConstraintKeys: string[];
   };
 };
 
@@ -422,6 +427,10 @@ describe('local-stack conformance matrix', () => {
       unclassified: requestConstraints.unclassified.length,
       missingRawSemanticGapClosures:
         requestConstraints.summary.missingRawSemanticGapClosures.length,
+      unknownGeneratedRequestConstraintEvidenceRefs:
+        requestConstraints.summary.unknownGeneratedEvidenceConstraintKeys.length,
+      unknownSdkGeneratedPreflightOnlyConstraintRefs:
+        requestConstraints.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys.length,
       missingTransportGatedPublicWrapperClosures:
         requestConstraints.transportGatedPublicWrapperClosures.filter(
           (entry) => entry.status !== 'proven',
@@ -1685,6 +1694,12 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.transportOrFeatureGatedOperationIds).toEqual(
       providerCapabilitiesFixture.localStackScenarioMatrix.transportOrFeatureGatedOperationIds,
     );
+    expect(matrix.scenarioMatrix.requestConstraintEvidenceSpecs).toEqual(
+      providerCapabilitiesFixture.localStackScenarioMatrix.requestConstraintEvidenceSpecs,
+    );
+    expect(matrix.scenarioMatrix.sdkGeneratedPreflightOnlyConstraintKeys).toEqual(
+      providerCapabilitiesFixture.localStackScenarioMatrix.sdkGeneratedPreflightOnlyConstraintKeys,
+    );
     expect(matrix.scenarioMatrix.unknownTransportOrFeatureGatedOperationIds).toEqual([]);
     expect(
       matrix.outcomes.map((entry) => ({
@@ -1908,6 +1923,8 @@ describe('local-stack conformance matrix', () => {
       unclassifiedRequestConstraintRefs: [],
       sdkGeneratedPreflightOnlyConstraintRefs: [],
       missingRequestConstraintRawGapClosureRefs: [],
+      unknownGeneratedRequestConstraintEvidenceRefs: [],
+      unknownSdkGeneratedPreflightOnlyConstraintRefs: [],
       missingTransportGatedPublicWrapperClosureRefs: [],
       rawSemanticGapOutcomeIds: [
         'backend-approvals-hitl',
@@ -1979,6 +1996,8 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.unclassifiedRequestConstraintRefs).toEqual([]);
     expect(matrix.scenarioMatrix.sdkGeneratedPreflightOnlyConstraintRefs).toEqual([]);
     expect(matrix.scenarioMatrix.missingRequestConstraintRawGapClosureRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.unknownGeneratedRequestConstraintEvidenceRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.unknownSdkGeneratedPreflightOnlyConstraintRefs).toEqual([]);
     expect(matrix.scenarioMatrix.missingTransportGatedPublicWrapperClosureRefs).toEqual([]);
     expect(matrix.scenarioMatrix.semanticGapIds).toEqual(
       matrix.semanticGaps.map((entry) => entry.id).sort(),

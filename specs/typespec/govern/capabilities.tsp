@@ -343,6 +343,11 @@ namespace OpenboxGovern.Capabilities {
     operationIds: string[];
   }
 
+  model RequestConstraintEvidenceSpec {
+    id: string;
+    requestConstraintKeys: string[];
+  }
+
   model RawBackendCoreSemanticGapSpec {
     id: string;
     source: string;
@@ -374,6 +379,8 @@ namespace OpenboxGovern.Capabilities {
     requiredObjectiveIds: string[];
     requiredObjectiveSpecs: LocalStackObjectiveSpec[];
     transportOrFeatureGatedOperationIds: string[];
+    requestConstraintEvidenceSpecs: RequestConstraintEvidenceSpec[];
+    sdkGeneratedPreflightOnlyConstraintKeys: string[];
     rawBackendCoreSemanticGaps: RawBackendCoreSemanticGapSpec[];
     requiredSharedProviderGuardProofCapabilities: OpenBoxCapabilityId[];
     requiredSdkSemanticGapClosureTargets: SdkSemanticGapClosureTarget[];
@@ -1068,6 +1075,125 @@ namespace OpenboxGovern.Capabilities {
       "WebhookController_regenerateSecret",
       "WebhookController_update",
     ],
+    requestConstraintEvidenceSpecs: #[
+      #{ id: "backend-query-pagination-search-request-boundaries", requestConstraintKeys: #[
+        "backend:AgentController_getAgentLogs:query.page:minimum",
+        "backend:AgentController_getAgentLogs:query.perPage:minimum",
+        "backend:AgentController_getAgentTrustScoreEvents:query.page:minimum",
+        "backend:AgentController_getAgentTrustScoreEvents:query.perPage:minimum",
+        "backend:AgentController_getAgents:query.page:minimum",
+        "backend:AgentController_getAgents:query.perPage:minimum",
+        "backend:AgentController_getApprovalHistory:query.page:minimum",
+        "backend:AgentController_getApprovalHistory:query.perPage:minimum",
+        "backend:AgentController_getAssessments:query.page:minimum",
+        "backend:AgentController_getAssessments:query.perPage:minimum",
+        "backend:AgentController_getBehaviorRuleList:query.page:minimum",
+        "backend:AgentController_getBehaviorRuleList:query.perPage:minimum",
+        "backend:AgentController_getBehaviorViolations:query.page:minimum",
+        "backend:AgentController_getBehaviorViolations:query.perPage:minimum",
+        "backend:AgentController_getBehavioralRuleHistories:query.page:minimum",
+        "backend:AgentController_getBehavioralRuleHistories:query.perPage:minimum",
+        "backend:AgentController_getDriftEvents:query.page:minimum",
+        "backend:AgentController_getDriftEvents:query.perPage:minimum",
+        "backend:AgentController_getGuardrailViolationLogs:query.page:minimum",
+        "backend:AgentController_getGuardrailViolationLogs:query.perPage:minimum",
+        "backend:AgentController_getGuardrails:query.page:minimum",
+        "backend:AgentController_getGuardrails:query.perPage:minimum",
+        "backend:AgentController_getIssues:query.page:minimum",
+        "backend:AgentController_getIssues:query.perPage:minimum",
+        "backend:AgentController_getPendingApprovals:query.page:minimum",
+        "backend:AgentController_getPendingApprovals:query.perPage:minimum",
+        "backend:AgentController_getPolicies:query.page:minimum",
+        "backend:AgentController_getPolicies:query.perPage:minimum",
+        "backend:AgentController_getPolicyEvaluations:query.page:minimum",
+        "backend:AgentController_getPolicyEvaluations:query.perPage:minimum",
+        "backend:AgentController_getSessionLogs:query.page:minimum",
+        "backend:AgentController_getSessionLogs:query.perPage:minimum",
+        "backend:AgentController_getSessions:query.page:minimum",
+        "backend:AgentController_getSessions:query.perPage:minimum",
+        "backend:AgentController_getTrustTierChanges:query.page:minimum",
+        "backend:AgentController_getTrustTierChanges:query.perPage:minimum",
+        "backend:ApiKeyController_list:query.page:minimum",
+        "backend:ApiKeyController_list:query.perPage:minimum",
+        "backend:OrganizationController_getApprovals:query.page:minimum",
+        "backend:OrganizationController_getApprovals:query.perPage:minimum",
+        "backend:OrganizationController_getAuditLogs:query.page:minimum",
+        "backend:OrganizationController_getAuditLogs:query.perPage:minimum",
+        "backend:OrganizationController_getExportHistory:query.page:minimum",
+        "backend:OrganizationController_getExportHistory:query.perPage:minimum",
+        "backend:OrganizationController_getMembers:query.page:minimum",
+        "backend:OrganizationController_getMembers:query.perPage:minimum",
+        "backend:OrganizationController_getRecentDecisions:query.page:minimum",
+        "backend:OrganizationController_getRecentDecisions:query.perPage:minimum",
+        "backend:OrganizationController_getSessions:query.page:minimum",
+        "backend:OrganizationController_getSessions:query.perPage:minimum",
+        "backend:OrganizationController_getTeamMembers:query.page:minimum",
+        "backend:OrganizationController_getTeamMembers:query.perPage:minimum",
+        "backend:OrganizationController_getTeams:query.page:minimum",
+        "backend:OrganizationController_getTeams:query.perPage:minimum",
+        "backend:WebhookController_getDeliveryLogs:query.page:minimum",
+        "backend:WebhookController_getDeliveryLogs:query.perPage:minimum",
+        "backend:WebhookController_list:query.page:minimum",
+        "backend:WebhookController_list:query.perPage:minimum",
+      ] },
+      #{ id: "core-governance-attempt-integer-request-boundary", requestConstraintKeys: #[
+        "core:evaluateGovernance:body.attempt:format",
+        "core:evaluateGovernance:body.attempt:integer",
+        "core:evaluateGovernance:body.attempt:type",
+      ] },
+      #{ id: "core-governance-invalid-finite-fields", requestConstraintKeys: #[
+        "core:evaluateGovernance:body.event_type:enum",
+        "core:evaluateGovernance:body.event_type:type",
+      ] },
+      #{ id: "core-governance-telemetry-numeric-request-boundaries", requestConstraintKeys: #[
+        "core:evaluateGovernance:body.input_tokens:format",
+        "core:evaluateGovernance:body.input_tokens:integer",
+        "core:evaluateGovernance:body.input_tokens:type",
+        "core:evaluateGovernance:body.output_tokens:format",
+        "core:evaluateGovernance:body.output_tokens:integer",
+        "core:evaluateGovernance:body.output_tokens:type",
+        "core:evaluateGovernance:body.span_count:format",
+        "core:evaluateGovernance:body.span_count:integer",
+        "core:evaluateGovernance:body.span_count:type",
+        "core:evaluateGovernance:body.spans.*.bytes_read:format",
+        "core:evaluateGovernance:body.spans.*.bytes_read:integer",
+        "core:evaluateGovernance:body.spans.*.bytes_read:type",
+        "core:evaluateGovernance:body.spans.*.bytes_written:format",
+        "core:evaluateGovernance:body.spans.*.bytes_written:integer",
+        "core:evaluateGovernance:body.spans.*.bytes_written:type",
+        "core:evaluateGovernance:body.spans.*.duration_ns:format",
+        "core:evaluateGovernance:body.spans.*.duration_ns:integer",
+        "core:evaluateGovernance:body.spans.*.duration_ns:type",
+        "core:evaluateGovernance:body.spans.*.end_time:format",
+        "core:evaluateGovernance:body.spans.*.end_time:integer",
+        "core:evaluateGovernance:body.spans.*.end_time:type",
+        "core:evaluateGovernance:body.spans.*.events.*.timestamp:format",
+        "core:evaluateGovernance:body.spans.*.events.*.timestamp:integer",
+        "core:evaluateGovernance:body.spans.*.events.*.timestamp:type",
+        "core:evaluateGovernance:body.spans.*.http_status_code:format",
+        "core:evaluateGovernance:body.spans.*.http_status_code:integer",
+        "core:evaluateGovernance:body.spans.*.http_status_code:type",
+        "core:evaluateGovernance:body.spans.*.lines_count:format",
+        "core:evaluateGovernance:body.spans.*.lines_count:integer",
+        "core:evaluateGovernance:body.spans.*.lines_count:type",
+        "core:evaluateGovernance:body.spans.*.rowcount:format",
+        "core:evaluateGovernance:body.spans.*.rowcount:integer",
+        "core:evaluateGovernance:body.spans.*.rowcount:type",
+        "core:evaluateGovernance:body.spans.*.server_port:format",
+        "core:evaluateGovernance:body.spans.*.server_port:integer",
+        "core:evaluateGovernance:body.spans.*.server_port:type",
+        "core:evaluateGovernance:body.spans.*.start_time:format",
+        "core:evaluateGovernance:body.spans.*.start_time:integer",
+        "core:evaluateGovernance:body.spans.*.start_time:type",
+        "core:evaluateGovernance:body.total_tokens:format",
+        "core:evaluateGovernance:body.total_tokens:integer",
+        "core:evaluateGovernance:body.total_tokens:type",
+      ] },
+      #{ id: "core-governance-timestamp-type-request-boundary", requestConstraintKeys: #[
+        "core:evaluateGovernance:body.timestamp:type",
+      ] },
+    ],
+    sdkGeneratedPreflightOnlyConstraintKeys: #[],
     rawBackendCoreSemanticGaps: #[
       #{
         id: "approval-status-invalid-query-not-rejected",

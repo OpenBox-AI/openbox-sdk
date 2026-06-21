@@ -187,6 +187,11 @@ export interface LocalStackObjectiveSpec {
   operationIds: string[];
 }
 
+export interface RequestConstraintEvidenceSpec {
+  id: string;
+  requestConstraintKeys: string[];
+}
+
 export interface RawBackendCoreSemanticGapSpec {
   id: string;
   source: SemanticGapCoverage['source'];
@@ -218,6 +223,8 @@ export interface LocalStackScenarioMatrixContract {
   requiredObjectiveIds: string[];
   requiredObjectiveSpecs: LocalStackObjectiveSpec[];
   transportOrFeatureGatedOperationIds: string[];
+  requestConstraintEvidenceSpecs: RequestConstraintEvidenceSpec[];
+  sdkGeneratedPreflightOnlyConstraintKeys: string[];
   rawBackendCoreSemanticGaps: RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: string[];
   requiredSdkSemanticGapClosureTargets: string[];
@@ -345,6 +352,8 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   missingObjectiveIds: string[];
   objectiveSpecMismatchRefs: string[];
   unknownTransportOrFeatureGatedOperationIds: string[];
+  unknownGeneratedRequestConstraintEvidenceRefs: string[];
+  unknownSdkGeneratedPreflightOnlyConstraintRefs: string[];
   missingProviderCapabilityGuardProviderRefs: string[];
   unexpectedProviderCapabilityGuardProviderRefs: string[];
   providerGuardTierMismatchRefs: string[];
@@ -557,6 +566,8 @@ export interface LocalStackConformanceMatrix {
       sdkGeneratedPreflightOnly: number;
       unclassified: number;
       missingRawSemanticGapClosures: number;
+      unknownGeneratedRequestConstraintEvidenceRefs: number;
+      unknownSdkGeneratedPreflightOnlyConstraintRefs: number;
       missingTransportGatedPublicWrapperClosures: number;
       transportGatedPublicWrapperClosures: {
         constraintCount: number;
@@ -1069,6 +1080,10 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
         unclassified: requestConstraints.unclassified.length,
         missingRawSemanticGapClosures:
           requestConstraints.summary.missingRawSemanticGapClosures.length,
+        unknownGeneratedRequestConstraintEvidenceRefs:
+          requestConstraints.summary.unknownGeneratedEvidenceConstraintKeys.length,
+        unknownSdkGeneratedPreflightOnlyConstraintRefs:
+          requestConstraints.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys.length,
         missingTransportGatedPublicWrapperClosures:
           requestConstraints.transportGatedPublicWrapperClosures.filter(
             (entry) => entry.status !== 'proven',
@@ -3041,6 +3056,8 @@ function summarizeScenarioMatrixContract(
     requiredObjectiveIds: [],
     requiredObjectiveSpecs: [],
     transportOrFeatureGatedOperationIds: [],
+    requestConstraintEvidenceSpecs: [],
+    sdkGeneratedPreflightOnlyConstraintKeys: [],
     rawBackendCoreSemanticGaps: [],
     requiredSharedProviderGuardProofCapabilities: [],
     requiredSdkSemanticGapClosureTargets: [],
@@ -3284,6 +3301,12 @@ function summarizeScenarioMatrixContract(
   const missingRequestConstraintRawGapClosureRefs = [
     ...requestConstraints.summary.missingRawSemanticGapClosures,
   ].sort((left, right) => left.localeCompare(right));
+  const unknownGeneratedRequestConstraintEvidenceRefs = [
+    ...requestConstraints.summary.unknownGeneratedEvidenceConstraintKeys,
+  ].sort((left, right) => left.localeCompare(right));
+  const unknownSdkGeneratedPreflightOnlyConstraintRefs = [
+    ...requestConstraints.summary.unknownSdkGeneratedPreflightOnlyConstraintKeys,
+  ].sort((left, right) => left.localeCompare(right));
   const missingTransportGatedPublicWrapperClosureRefs =
     requestConstraints.transportGatedPublicWrapperClosures
       .filter((entry) => entry.status !== 'proven')
@@ -3402,6 +3425,17 @@ function summarizeScenarioMatrixContract(
     ...duplicates(resolvedContract.transportOrFeatureGatedOperationIds).map(
       (id) => `transportOrFeatureGatedOperationIds:${id}`,
     ),
+    ...duplicates(resolvedContract.requestConstraintEvidenceSpecs.map((entry) => entry.id)).map(
+      (id) => `requestConstraintEvidenceSpecs:${id}`,
+    ),
+    ...resolvedContract.requestConstraintEvidenceSpecs.flatMap((entry) =>
+      duplicates(entry.requestConstraintKeys).map(
+        (key) => `requestConstraintEvidenceSpecs:${entry.id}:${key}`,
+      ),
+    ),
+    ...duplicates(resolvedContract.sdkGeneratedPreflightOnlyConstraintKeys).map(
+      (id) => `sdkGeneratedPreflightOnlyConstraintKeys:${id}`,
+    ),
     ...duplicates(resolvedContract.requiredSharedProviderGuardProofCapabilities).map(
       (id) => `requiredSharedProviderGuardProofCapabilities:${id}`,
     ),
@@ -3514,6 +3548,8 @@ function summarizeScenarioMatrixContract(
     unclassifiedRequestConstraintRefs,
     sdkGeneratedPreflightOnlyConstraintRefs,
     missingRequestConstraintRawGapClosureRefs,
+    unknownGeneratedRequestConstraintEvidenceRefs,
+    unknownSdkGeneratedPreflightOnlyConstraintRefs,
     missingTransportGatedPublicWrapperClosureRefs,
     missingBackendCoreGapRemediationTargetIds,
     unexpectedBackendCoreGapRemediationTargetIds,
@@ -3586,6 +3622,8 @@ function summarizeScenarioMatrixContract(
     unclassifiedRequestConstraintRefs,
     sdkGeneratedPreflightOnlyConstraintRefs,
     missingRequestConstraintRawGapClosureRefs,
+    unknownGeneratedRequestConstraintEvidenceRefs,
+    unknownSdkGeneratedPreflightOnlyConstraintRefs,
     missingTransportGatedPublicWrapperClosureRefs,
   };
 }
