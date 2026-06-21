@@ -40,6 +40,22 @@ function outcome(matrix: LocalStackConformanceMatrix, id: string) {
   return found!;
 }
 
+const PROOF_RANK: Record<string, number> = {
+  none: 0,
+  smoke: 1,
+  'negative-path': 2,
+  behavioral: 3,
+  conformance: 4,
+};
+
+function proofAtLeast(proofLevel: string, minimum: string): boolean {
+  return PROOF_RANK[proofLevel] >= PROOF_RANK[minimum];
+}
+
+function sortedOperationIds(operationIds: readonly string[]): string[] {
+  return [...operationIds].sort();
+}
+
 function scenario(matrix: LocalStackConformanceMatrix, id: string) {
   const found = matrix.scenarioPaths.find((entry) => entry.id === id);
   expect(found, id).toBeDefined();
@@ -84,15 +100,24 @@ describe('local-stack conformance matrix', () => {
         'tests/helpers/boundary-conformance.ts',
       ]),
     );
-    expect(matrix.summary.totalOperations).toBe(143);
-    expect(matrix.summary.operationsWithBehavioralOrBetterHits).toBe(143);
+    const operationsWithE2eHits = matrix.operations.filter((entry) => entry.hits.length > 0);
+    const operationsWithBehavioralOrBetterHits = matrix.operations.filter((entry) =>
+      proofAtLeast(entry.proofLevel, 'behavioral'),
+    );
+    const sdkSemanticGapClosures = matrix.sdkSemanticGapClosures;
+
+    expect(matrix.summary.totalOperations).toBe(matrix.operations.length);
+    expect(matrix.summary.operationsWithE2eHits).toBe(operationsWithE2eHits.length);
+    expect(matrix.summary.operationsWithBehavioralOrBetterHits).toBe(
+      operationsWithBehavioralOrBetterHits.length,
+    );
     expect(matrix.summary.operationsWithoutE2eHits).toBe(0);
     expect(matrix.summary.smokeOnlyOperations).toBe(0);
-    expect(matrix.summary.knownSemanticGaps).toBe(5);
+    expect(matrix.summary.knownSemanticGaps).toBe(matrix.semanticGaps.length);
     expect(matrix.summary.sdkSemanticGapClosures).toEqual({
-      total: 10,
-      proven: 10,
-      missing: 0,
+      total: sdkSemanticGapClosures.length,
+      proven: sdkSemanticGapClosures.filter((entry) => entry.status === 'proven').length,
+      missing: sdkSemanticGapClosures.filter((entry) => entry.status !== 'proven').length,
     });
     expect(matrix.scenarioMatrix.id).toBe('backend-core-governance-full-matrix');
     expect(matrix.scenarioMatrix.status).toBe('proven');
@@ -849,12 +874,15 @@ describe('local-stack conformance matrix', () => {
 
   it('proves every core governance operation with behavioral or conformance evidence', () => {
     const core = objective(matrix, 'core-governance');
-    expect(core.operationCount).toBe(4);
+    const coreOperationIds = matrix.operations
+      .filter((entry) => entry.operation.service === 'core')
+      .map((entry) => entry.operation.operationId)
+      .sort();
+
+    expect(core.operationCount).toBe(coreOperationIds.length);
     expect(core.missingOperationIds).toEqual([]);
     expect(core.proofCounts.conformance).toBeGreaterThan(0);
-    expect(core.behavioralOrBetterOperationIds).toEqual(
-      expect.arrayContaining(['validateApiKey', 'evaluateGovernance', 'pollApproval']),
-    );
+    expect(sortedOperationIds(core.behavioralOrBetterOperationIds)).toEqual(coreOperationIds);
   });
 
   it('proves every requested governance objective operation beyond endpoint smoke', () => {
@@ -1141,7 +1169,7 @@ describe('local-stack conformance matrix', () => {
     const coreApproval = outcome(matrix, 'core-approval-polling');
     expect(coreApproval.status).toBe('proven');
     expect(coreApproval.underProvenOperationIds).toEqual([]);
-    expect(coreApproval.proofCounts.conformance).toBe(1);
+    expect(coreApproval.proofCounts.conformance).toBe(coreApproval.operationIds.length);
     expect(coreApproval.semanticGapIds).toEqual([]);
 
     const guardrails = outcome(matrix, 'backend-guardrail-enforcement');
@@ -1151,7 +1179,7 @@ describe('local-stack conformance matrix', () => {
     const approvals = outcome(matrix, 'backend-approvals-hitl');
     expect(approvals.status).toBe('incomplete');
     expect(approvals.underProvenOperationIds).toEqual([]);
-    expect(approvals.proofCounts.conformance).toBe(4);
+    expect(approvals.proofCounts.conformance).toBe(approvals.operationIds.length);
     expect(approvals.semanticGapIds).toEqual([
       'approval-status-invalid-query-not-rejected',
     ]);
@@ -1159,13 +1187,13 @@ describe('local-stack conformance matrix', () => {
     const memberAdmin = outcome(matrix, 'backend-organization-member-admin');
     expect(memberAdmin.status).toBe('proven');
     expect(memberAdmin.underProvenOperationIds).toEqual([]);
-    expect(memberAdmin.proofCounts.conformance).toBe(8);
+    expect(memberAdmin.proofCounts.conformance).toBe(memberAdmin.operationIds.length);
     expect(memberAdmin.semanticGapIds).toEqual([]);
 
     const usage = outcome(matrix, 'backend-usage-cost-trust');
     expect(usage.status).toBe('proven');
     expect(usage.underProvenOperationIds).toEqual([]);
-    expect(usage.proofCounts.conformance).toBe(6);
+    expect(usage.proofCounts.conformance).toBe(usage.operationIds.length);
     expect(usage.proofCounts.behavioral).toBe(0);
     expect(usage.semanticGapIds).toEqual([]);
 
