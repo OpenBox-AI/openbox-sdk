@@ -36,6 +36,7 @@ import {
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
 import { startGuardrailProviderStub } from '../helpers/guardrail-provider-stub';
+import { buildRequestConstraintConformance } from '../helpers/request-constraint-conformance';
 
 const execFileAsync = promisify(execFile);
 const OPA_CONTAINER_NAME = process.env.OPENBOX_E2E_OPA_CONTAINER ?? 'openbox-local-sdk-opa';
@@ -67,6 +68,16 @@ function coreOperation(operationId: string) {
   const operation = CORE_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
   expect(operation, operationId).toBeDefined();
   return operation!;
+}
+
+function rawCoreGovernanceConstraintsFromLedger(gapId: string) {
+  const ledger = buildRequestConstraintConformance();
+  return ledger.constraints
+    .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
+    .filter((entry) => entry.service === 'core')
+    .filter((entry) => entry.operationId === 'evaluateGovernance')
+    .filter((entry) => entry.semanticGapIds.includes(gapId))
+    .sort((left, right) => left.key.localeCompare(right.key));
 }
 
 function operationPath(path: string, params: Record<string, string>) {
@@ -276,6 +287,22 @@ describe('Core Governance API', () => {
     // rejects below-min attempt values.
     const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
+    const rawAttemptConstraints = rawCoreGovernanceConstraintsFromLedger(
+      'core-governance-attempt-min-not-rejected',
+    );
+    expect(rawAttemptConstraints.map((entry) => entry.key)).toEqual([
+      'core:evaluateGovernance:body.attempt:minimum',
+    ]);
+    expect(rawAttemptConstraints).toEqual([
+      expect.objectContaining({
+        service: 'core',
+        operationId: 'evaluateGovernance',
+        location: 'body.attempt',
+        kind: 'minimum',
+        value: 1,
+        semanticGapIds: ['core-governance-attempt-min-not-rejected'],
+      }),
+    ]);
     const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
       event_type: 'ActivityStarted',
       activity_id: `invalid-attempt-below-min-${Date.now()}`,
@@ -316,6 +343,22 @@ describe('Core Governance API', () => {
     // visible until Core rejects invalid timestamp formats.
     const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
+    const rawTimestampConstraints = rawCoreGovernanceConstraintsFromLedger(
+      'core-governance-timestamp-format-not-rejected',
+    );
+    expect(rawTimestampConstraints.map((entry) => entry.key)).toEqual([
+      'core:evaluateGovernance:body.timestamp:format',
+    ]);
+    expect(rawTimestampConstraints).toEqual([
+      expect.objectContaining({
+        service: 'core',
+        operationId: 'evaluateGovernance',
+        location: 'body.timestamp',
+        kind: 'format',
+        value: 'date-time',
+        semanticGapIds: ['core-governance-timestamp-format-not-rejected'],
+      }),
+    ]);
     const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
       timestamp: 'not-a-date-time',
       activity_id: `invalid-timestamp-format-${Date.now()}`,
@@ -348,6 +391,31 @@ describe('Core Governance API', () => {
     // until Core rejects invalid cost values.
     const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
+    const rawCostConstraints = rawCoreGovernanceConstraintsFromLedger(
+      'core-governance-cost-type-not-rejected',
+    );
+    expect(rawCostConstraints.map((entry) => entry.key)).toEqual([
+      'core:evaluateGovernance:body.cost_usd:format',
+      'core:evaluateGovernance:body.cost_usd:type',
+    ]);
+    expect(rawCostConstraints).toEqual([
+      expect.objectContaining({
+        service: 'core',
+        operationId: 'evaluateGovernance',
+        location: 'body.cost_usd',
+        kind: 'format',
+        value: 'double',
+        semanticGapIds: ['core-governance-cost-type-not-rejected'],
+      }),
+      expect.objectContaining({
+        service: 'core',
+        operationId: 'evaluateGovernance',
+        location: 'body.cost_usd',
+        kind: 'type',
+        value: 'number',
+        semanticGapIds: ['core-governance-cost-type-not-rejected'],
+      }),
+    ]);
     const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
       cost_usd: 'not-a-number',
       activity_id: `invalid-cost-usd-${Date.now()}`,

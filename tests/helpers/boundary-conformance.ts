@@ -1197,6 +1197,9 @@ export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
     evidencePattern: 'SEMANTIC_GAP_PROOF: core governance attempt below min is accepted by local stack',
     executablePatterns: [
       "coreOperation('evaluateGovernance')",
+      'const rawAttemptConstraints = rawCoreGovernanceConstraintsFromLedger(',
+      'core-governance-attempt-min-not-rejected',
+      'core:evaluateGovernance:body.attempt:minimum',
       'attempt: 0',
       'expect(response.status).toBe(200)',
       "expect(response.data).toHaveProperty('verdict')",
@@ -1213,6 +1216,9 @@ export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
     proofFile: 'tests/e2e/core-governance.test.ts',
     evidencePattern: 'SEMANTIC_GAP_PROOF: core governance timestamp format accepts invalid date-time values',
     executablePatterns: [
+      'const rawTimestampConstraints = rawCoreGovernanceConstraintsFromLedger(',
+      'core-governance-timestamp-format-not-rejected',
+      'core:evaluateGovernance:body.timestamp:format',
       'timestamp: \'not-a-date-time\'',
       'expect(response.status).toBe(200)',
       "expect(response.data).toHaveProperty('verdict')",
@@ -1229,6 +1235,10 @@ export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
     proofFile: 'tests/e2e/core-governance.test.ts',
     evidencePattern: 'SEMANTIC_GAP_PROOF: core governance cost accepts nonnumeric values',
     executablePatterns: [
+      'const rawCostConstraints = rawCoreGovernanceConstraintsFromLedger(',
+      'core-governance-cost-type-not-rejected',
+      'core:evaluateGovernance:body.cost_usd:format',
+      'core:evaluateGovernance:body.cost_usd:type',
       "cost_usd: 'not-a-number'",
       'expect(response.status).toBe(200)',
       "expect(response.data).toHaveProperty('verdict')",
