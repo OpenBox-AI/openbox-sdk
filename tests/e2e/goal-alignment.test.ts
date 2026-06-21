@@ -11,6 +11,10 @@ import {
 import { makeCreateAgentDto, makeGoalAlignmentConfigDto, makeGoalDriftDetectedConformanceCase } from '../helpers/fixtures';
 import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
 
+const LOCAL_STACK_THROTTLE_WINDOW_MS = 65_000;
+const GOAL_ALIGNMENT_BOUNDARY_PACE_MS = 750;
+const GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS = LOCAL_STACK_THROTTLE_WINDOW_MS + 60_000;
+
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
   expect(operation, operationId).toBeDefined();
@@ -25,6 +29,23 @@ function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.data)) return value.data;
   return [];
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function putGoalAlignmentConfig(
+  client: ReturnType<typeof getBackendClient>,
+  path: string,
+  config: Record<string, any>,
+) {
+  const body = fullResponse(await client.put(path, config));
+  if (body.status !== 429) return body;
+
+  expect(body.message).toContain('Too Many Requests');
+  await sleep(LOCAL_STACK_THROTTLE_WINDOW_MS);
+  return fullResponse(await client.put(path, config));
 }
 
 describe('Goal Alignment', () => {
@@ -46,12 +67,11 @@ describe('Goal Alignment', () => {
 
   it('PUT /agent/{agentId}/goal-alignment configures goal alignment', async () => {
     const dto = makeGoalAlignmentConfigDto();
-    const response = await client.put(`/agent/${agentId}/goal-alignment`, dto);
-    const body = fullResponse(response);
+    const body = await putGoalAlignmentConfig(client, `/agent/${agentId}/goal-alignment`, dto);
 
     expect(body.status).toBe(200);
     expect(body.data.goal_alignment_config).toMatchObject(dto);
-  });
+  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
 
   it('EXHAUSTIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite option product is accepted', async () => {
     // EXHAUSTIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite option product
@@ -63,13 +83,24 @@ describe('Goal Alignment', () => {
     expect(cases).toHaveLength(expectedGoalAlignmentFiniteConfigCaseCount());
 
     for (const testCase of cases) {
-      const response = await client.put(operationPath(operation.path, { agentId }), testCase.config);
-      const body = fullResponse(response);
+      let body = fullResponse(await client.put(
+        operationPath(operation.path, { agentId }),
+        testCase.config,
+      ));
+      if (body.status === 429) {
+        expect(body.message).toContain('Too Many Requests');
+        await sleep(LOCAL_STACK_THROTTLE_WINDOW_MS);
+        body = fullResponse(await client.put(
+          operationPath(operation.path, { agentId }),
+          testCase.config,
+        ));
+      }
 
       expect(body.status, testCase.id).toBe(200);
       expect(body.data.goal_alignment_config).toMatchObject(testCase.config);
+      await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
-  });
+  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
 
   it('NEGATIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite options reject out-of-domain values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: goal-alignment model, drift action, and
@@ -98,12 +129,12 @@ describe('Goal Alignment', () => {
     ];
 
     for (const testCase of cases) {
-      const response = await client.put(`/agent/${agentId}/goal-alignment`, testCase.config);
-      const body = fullResponse(response);
+      const body = await putGoalAlignmentConfig(client, `/agent/${agentId}/goal-alignment`, testCase.config);
 
       expect(body.status, testCase.id).toBe(422);
+      await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
-  });
+  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
 
   it('NEGATIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto threshold bounds are enforced', async () => {
     // NEGATIVE_BOUNDARY_PROOF: alignment_threshold accepts the TypeSpec min
@@ -111,20 +142,20 @@ describe('Goal Alignment', () => {
     const cases = makeGoalAlignmentThresholdBoundaryCases();
 
     for (const testCase of cases.valid) {
-      const response = await client.put(`/agent/${agentId}/goal-alignment`, testCase.config);
-      const body = fullResponse(response);
+      const body = await putGoalAlignmentConfig(client, `/agent/${agentId}/goal-alignment`, testCase.config);
 
       expect(body.status, testCase.id).toBe(200);
       expect(body.data.goal_alignment_config).toMatchObject(testCase.config);
+      await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
 
     for (const testCase of cases.invalid) {
-      const response = await client.put(`/agent/${agentId}/goal-alignment`, testCase.config);
-      const body = fullResponse(response);
+      const body = await putGoalAlignmentConfig(client, `/agent/${agentId}/goal-alignment`, testCase.config);
 
       expect(body.status, testCase.id).toBe(422);
+      await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
-  });
+  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
 
   it('GET /agent/{agentId}/goal-alignment/trend returns 200', async () => {
     const response = await client.get(`/agent/${agentId}/goal-alignment/trend`);

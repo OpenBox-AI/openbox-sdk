@@ -17,6 +17,10 @@ import {
   requiredBoundaryFieldCoverageKeys,
 } from '../helpers/boundary-conformance';
 
+function boundaryFieldKeys(fields: ReadonlyArray<{ modelName: string; fieldName: string }>) {
+  return fields.map((entry) => `${entry.modelName}.${entry.fieldName}`).sort();
+}
+
 describe('boundary conformance ledger', () => {
   it('derives constrained governance value classes from TypeSpec', () => {
     expect(AIVSS_NUMERIC_BOUNDARIES.map((entry) => entry.fieldName)).toEqual([
@@ -41,8 +45,21 @@ describe('boundary conformance ledger', () => {
     expect(makeGoalAlignmentFiniteConfigCases()).toHaveLength(
       expectedGoalAlignmentFiniteConfigCaseCount(),
     );
-    expect(GOVERNANCE_BOUNDARY_DOMAINS.trustThresholdFields).toHaveLength(6);
-    expect(GOVERNANCE_BOUNDARY_DOMAINS.backendStringLengthFields).toHaveLength(5);
+    expect(boundaryFieldKeys(GOVERNANCE_BOUNDARY_DOMAINS.trustThresholdFields)).toEqual([
+      'CreateBehaviorRuleDto.trust_threshold',
+      'CreateGuardrailDto.trust_threshold',
+      'CreatePolicyDto.trust_threshold',
+      'UpdateBehavioralRuleDto.trust_threshold',
+      'UpdateGuardrailDto.trust_threshold',
+      'UpdatePolicyDto.trust_threshold',
+    ]);
+    expect(boundaryFieldKeys(GOVERNANCE_BOUNDARY_DOMAINS.backendStringLengthFields)).toEqual([
+      'CreatePolicyDto.description',
+      'CreatePolicyDto.name',
+      'CreateTeamDto.description',
+      'CreateTeamDto.icon',
+      'CreateTeamDto.name',
+    ]);
     expect(GOVERNANCE_BOUNDARY_DOMAINS.backendArrayItemFields).toEqual([
       expect.objectContaining({
         modelName: 'RemoveMembersDto',
