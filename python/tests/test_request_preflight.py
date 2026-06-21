@@ -21,6 +21,23 @@ from openbox_sdk.generated.request_preflight import (
 Rule = dict[str, Any]
 Validator = Callable[[str, str, Mapping[str, Any] | None, Any], None]
 
+CASE_KINDS = [
+    "rules",
+    "valid",
+    "invalid",
+    "array_type",
+    "enum",
+    "enum_member",
+    "format",
+    "integer",
+    "max_items",
+    "max_length",
+    "maximum",
+    "min_items",
+    "minimum",
+    "type",
+]
+
 KNOWN_GOVERNANCE_GAP_CLOSURE_CASES: list[Rule] = [
     {
         "id": "approval-status-invalid-query-not-rejected",
@@ -89,6 +106,7 @@ def test_generated_python_request_preflight_matches_openapi_constraints() -> Non
 
 def test_python_backend_request_preflight_exhausts_every_generated_constraint() -> None:
     result = _exercise_rules(BACKEND_REQUEST_PREFLIGHT_RULES, validate_backend_request)
+    assert result == _expected_case_counts(BACKEND_REQUEST_PREFLIGHT_RULES)
     assert result["rules"] == len(BACKEND_REQUEST_PREFLIGHT_RULES)
     assert result["valid"] > 0
     assert result["invalid"] > 0
@@ -101,6 +119,7 @@ def test_python_backend_request_preflight_exhausts_every_generated_constraint() 
 
 def test_python_core_request_preflight_exhausts_every_generated_constraint() -> None:
     result = _exercise_rules(CORE_REQUEST_PREFLIGHT_RULES, validate_core_request)
+    assert result == _expected_case_counts(CORE_REQUEST_PREFLIGHT_RULES)
     assert result["rules"] == len(CORE_REQUEST_PREFLIGHT_RULES)
     assert result["valid"] > 0
     assert result["invalid"] > 0
@@ -460,22 +479,7 @@ async def test_python_public_backend_methods_block_transport_gated_constraints_b
 
 
 def _exercise_rules(rules: list[Rule], validate: Validator) -> dict[str, int]:
-    counts = {
-        "rules": 0,
-        "valid": 0,
-        "invalid": 0,
-        "array_type": 0,
-        "enum": 0,
-        "enum_member": 0,
-        "format": 0,
-        "integer": 0,
-        "max_items": 0,
-        "max_length": 0,
-        "maximum": 0,
-        "min_items": 0,
-        "minimum": 0,
-        "type": 0,
-    }
+    counts = _empty_case_counts()
     for rule in _normalize_rules(rules):
         counts["rules"] += 1
         rendered_path = _concrete_path(str(rule["path"]))
@@ -494,8 +498,7 @@ def _exercise_rules(rules: list[Rule], validate: Validator) -> dict[str, int]:
                     {query_rule["name"]: test_case["value"]},
                     None,
                 )
-                counts[str(test_case["kind"])] += 1
-                counts["invalid"] += 1
+                _record_invalid_case(counts, test_case)
 
         for body_rule in rule.get("body") or []:
             location = f"body.{'.'.join(body_rule['path'])}"
@@ -521,9 +524,45 @@ def _exercise_rules(rules: list[Rule], validate: Validator) -> dict[str, int]:
                     None,
                     _body_with_path_value(body_rule["path"], test_case["value"]),
                 )
-                counts[str(test_case["kind"])] += 1
-                counts["invalid"] += 1
+                _record_invalid_case(counts, test_case)
     return counts
+
+
+def _expected_case_counts(rules: list[Rule]) -> dict[str, int]:
+    counts = _empty_case_counts()
+    for rule in _normalize_rules(rules):
+        counts["rules"] += 1
+        for query_rule in rule.get("query") or []:
+            valid_values = _valid_values(query_rule)
+            counts["valid"] += len(valid_values)
+            if query_rule.get("enum") is not None:
+                counts["enum_member"] += len(valid_values)
+            for test_case in _invalid_cases(query_rule):
+                _record_invalid_case(counts, test_case)
+
+        for body_rule in rule.get("body") or []:
+            valid_values = _valid_values(body_rule)
+            counts["valid"] += len(valid_values)
+            if body_rule.get("enum") is not None:
+                counts["enum_member"] += len(valid_values)
+            for test_case in _invalid_cases(
+                body_rule,
+                include_array_type=True,
+                include_body_type=True,
+            ):
+                _record_invalid_case(counts, test_case)
+    return counts
+
+
+def _empty_case_counts() -> dict[str, int]:
+    return dict.fromkeys(CASE_KINDS, 0)
+
+
+def _record_invalid_case(counts: dict[str, int], test_case: Rule) -> None:
+    kind = str(test_case["kind"])
+    assert kind in counts, f"unexpected invalid request preflight case kind: {kind}"
+    counts[kind] += 1
+    counts["invalid"] += 1
 
 
 def _transport_gated_public_method_constraints() -> list[Rule]:
