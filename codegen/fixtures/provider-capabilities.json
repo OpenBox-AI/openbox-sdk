@@ -5374,9 +5374,7 @@
         "providerGuardCapabilities": [
           "guardrails"
         ],
-        "exceptionCapabilities": [
-          "guardrails"
-        ]
+        "exceptionCapabilities": []
       },
       {
         "id": "provider-adapter-approvals-hitl",
@@ -5387,9 +5385,7 @@
         "providerGuardCapabilities": [
           "approvals-hitl"
         ],
-        "exceptionCapabilities": [
-          "approvals-hitl"
-        ]
+        "exceptionCapabilities": []
       },
       {
         "id": "provider-adapter-tracing",
@@ -5400,9 +5396,7 @@
         "providerGuardCapabilities": [
           "tracing"
         ],
-        "exceptionCapabilities": [
-          "tracing"
-        ]
+        "exceptionCapabilities": []
       },
       {
         "id": "provider-adapter-usage-cost",
@@ -5426,9 +5420,7 @@
         "providerGuardCapabilities": [
           "opa-rules"
         ],
-        "exceptionCapabilities": [
-          "rules-instructions"
-        ]
+        "exceptionCapabilities": []
       }
     ],
     "requiredObjectiveSpecs": [

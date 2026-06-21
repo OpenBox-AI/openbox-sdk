@@ -1739,6 +1739,7 @@ describe('local-stack conformance matrix', () => {
     expect(providerUsage.status).toBe('proven');
     expect(providerUsage.missingProviderGuardCapabilities).toEqual([]);
     expect(providerUsage.missingProviderGuardTestRefs).toEqual([]);
+    expect(providerUsage.missingExceptionCapabilities).toEqual([]);
     expect(providerUsage.exceptionIds).toEqual(
       expect.arrayContaining([
         'codex:usage-cost:observe-only',
@@ -1764,6 +1765,7 @@ describe('local-stack conformance matrix', () => {
       expect(providerOutcome.status, providerOutcomeId).toBe('proven');
       expect(providerOutcome.missingProviderGuardCapabilities, providerOutcomeId).toEqual([]);
       expect(providerOutcome.missingProviderGuardTestRefs, providerOutcomeId).toEqual([]);
+      expect(providerOutcome.missingExceptionCapabilities, providerOutcomeId).toEqual([]);
       expect(providerOutcome.providerGuardProofBlockKeys, providerOutcomeId).toEqual(
         [...new Set(guardProofBlockKeys)].sort(),
       );
@@ -1980,6 +1982,7 @@ describe('local-stack conformance matrix', () => {
       missingLocalStackAxes: [],
       incompleteLocalStackAxes: [],
       outcomeSpecMismatchRefs: [],
+      missingOutcomeExceptionCapabilityRefs: [],
       missingObjectiveIds: [],
       objectiveSpecMismatchRefs: [],
       unknownTransportOrFeatureGatedOperationIds: [],

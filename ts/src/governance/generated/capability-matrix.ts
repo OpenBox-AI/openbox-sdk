@@ -5842,9 +5842,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "providerGuardCapabilities": [
         "guardrails"
       ],
-      "exceptionCapabilities": [
-        "guardrails"
-      ]
+      "exceptionCapabilities": []
     },
     {
       "id": "provider-adapter-approvals-hitl",
@@ -5855,9 +5853,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "providerGuardCapabilities": [
         "approvals-hitl"
       ],
-      "exceptionCapabilities": [
-        "approvals-hitl"
-      ]
+      "exceptionCapabilities": []
     },
     {
       "id": "provider-adapter-tracing",
@@ -5868,9 +5864,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "providerGuardCapabilities": [
         "tracing"
       ],
-      "exceptionCapabilities": [
-        "tracing"
-      ]
+      "exceptionCapabilities": []
     },
     {
       "id": "provider-adapter-usage-cost",
@@ -5894,9 +5888,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "providerGuardCapabilities": [
         "opa-rules"
       ],
-      "exceptionCapabilities": [
-        "rules-instructions"
-      ]
+      "exceptionCapabilities": []
     }
   ],
   "requiredObjectiveSpecs": [

@@ -138,6 +138,7 @@ export interface CapabilityOutcomeCoverage {
     provider: string;
     guardTest: string;
   }>;
+  missingExceptionCapabilities: string[];
   proofCounts: Record<ProofLevel, number>;
   underProvenOperationIds: string[];
   missingOperationIds: string[];
@@ -362,6 +363,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   missingLocalStackAxes: string[];
   incompleteLocalStackAxes: string[];
   outcomeSpecMismatchRefs: string[];
+  missingOutcomeExceptionCapabilityRefs: string[];
   missingObjectiveIds: string[];
   objectiveSpecMismatchRefs: string[];
   unknownTransportOrFeatureGatedOperationIds: string[];
@@ -2804,6 +2806,7 @@ function summarizeCapabilityOutcomes(
   const guardsByCapability = new Map(
     providerGuards.map((entry) => [entry.capability, entry]),
   );
+  const exceptionCapabilitiesWithLedger = new Set(exceptions.map((entry) => entry.capability));
 
   return outcomeSpecs.map((spec) => {
     const operationIds = [...(spec.operationIds ?? [])];
@@ -2855,6 +2858,9 @@ function summarizeCapabilityOutcomes(
       .filter((entry) => exceptionCapabilities.includes(entry.capability))
       .map((entry) => entry.id)
       .sort();
+    const missingExceptionCapabilities = exceptionCapabilities
+      .filter((capability) => !exceptionCapabilitiesWithLedger.has(capability))
+      .sort();
     const semanticGapIds = semanticGaps
       .filter((gap) =>
         gap.operationIds.some((operationId) => operationIds.includes(operationId)),
@@ -2873,6 +2879,7 @@ function summarizeCapabilityOutcomes(
       providerGuardProofBlockKeys,
       missingProviderGuardCapabilities,
       missingProviderGuardTestRefs,
+      missingExceptionCapabilities,
       proofCounts,
       underProvenOperationIds,
       missingOperationIds,
@@ -2883,6 +2890,7 @@ function summarizeCapabilityOutcomes(
         missingOperationIds.length === 0 &&
         missingProviderGuardCapabilities.length === 0 &&
         missingProviderGuardTestRefs.length === 0 &&
+        missingExceptionCapabilities.length === 0 &&
         semanticGapIds.length === 0
           ? 'proven'
           : 'incomplete',
@@ -3394,6 +3402,11 @@ function summarizeScenarioMatrixContract(
       ].filter((entry): entry is string => Boolean(entry));
     }),
   ].sort((left, right) => left.localeCompare(right));
+  const missingOutcomeExceptionCapabilityRefs = uniqueSorted(
+    outcomes.flatMap((entry) =>
+      entry.missingExceptionCapabilities.map((capability) => `${entry.id}:${capability}`),
+    ),
+  );
   const requiredObjectiveSpecIds = resolvedContract.requiredObjectiveSpecs
     .map((entry) => entry.id)
     .sort((left, right) => left.localeCompare(right));
@@ -3771,6 +3784,7 @@ function summarizeScenarioMatrixContract(
     missingLocalStackAxes,
     incompleteLocalStackAxes,
     outcomeSpecMismatchRefs,
+    missingOutcomeExceptionCapabilityRefs,
     missingObjectiveIds,
     objectiveSpecMismatchRefs,
     unknownTransportOrFeatureGatedOperationIds,
@@ -3860,6 +3874,7 @@ function summarizeScenarioMatrixContract(
     missingLocalStackAxes,
     incompleteLocalStackAxes,
     outcomeSpecMismatchRefs,
+    missingOutcomeExceptionCapabilityRefs,
     missingObjectiveIds,
     objectiveSpecMismatchRefs,
     unknownTransportOrFeatureGatedOperationIds,
