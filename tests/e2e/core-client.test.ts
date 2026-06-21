@@ -6,6 +6,7 @@ import {
   fullResponse,
   getTeamIds,
 } from '../helpers/api-client';
+import { CORE_ENDPOINT_MANIFEST } from '../../ts/src/core-client/generated/endpoint-manifest.js';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
 import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
@@ -16,6 +17,12 @@ function createCoreClient(apiKey: string, agentIdentity?: AgentIdentityForSignin
     apiKey,
     agentIdentity,
   });
+}
+
+function coreOperation(operationId: string) {
+  const operation = CORE_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
 }
 
 function expectRange(value: unknown, min: number, max: number, label: string) {
@@ -71,8 +78,11 @@ describe('OpenBoxCoreClient E2E', () => {
   // =========================================================================
 
   describe('health', () => {
-    it('returns the literal core health response', async () => {
+    it('CONFORMANCE: returns the literal core health response from the generated operation', async () => {
+      const operation = coreOperation('healthCheck');
       const result = await client.health();
+
+      expect(operation.path).toBe('/');
       expect(result).toEqual('hello world');
     });
   });

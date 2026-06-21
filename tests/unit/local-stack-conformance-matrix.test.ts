@@ -142,6 +142,7 @@ describe('local-stack conformance matrix', () => {
     expect(matrix.scenarioMatrix.operationRouteResolutionMismatchRefs).toEqual([]);
     expect(matrix.scenarioMatrix.ambiguousOperationRouteTieRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceLocalStackRequiredProofLevelRefs).toEqual([]);
+    expect(matrix.scenarioMatrix.underConformanceObjectiveOperationRefs).toEqual([]);
     expect(matrix.scenarioMatrix.underConformanceLocalStackOutcomeRefs).toEqual([]);
     expect(matrix.smokeHits).toEqual([]);
     expect(matrix.unresolvedMethodHits).toEqual([]);
@@ -904,14 +905,14 @@ describe('local-stack conformance matrix', () => {
       expect.arrayContaining([
         expect.objectContaining({
           file: 'tests/e2e/core-client.test.ts',
-          testName: 'returns the literal core health response',
+          testName: 'CONFORMANCE: returns the literal core health response from the generated operation',
           call: 'client.health()',
         }),
       ]),
     );
   });
 
-  it('proves every core governance operation with behavioral or conformance evidence', () => {
+  it('proves every core governance operation with conformance evidence', () => {
     const core = objective(matrix, 'core-governance');
     const coreOperationIds = matrix.operations
       .filter((entry) => entry.operation.service === 'core')
@@ -920,7 +921,9 @@ describe('local-stack conformance matrix', () => {
 
     expect(core.operationCount).toBe(coreOperationIds.length);
     expect(core.missingOperationIds).toEqual([]);
-    expect(core.proofCounts.conformance).toBeGreaterThan(0);
+    expect(core.underConformanceOperationIds).toEqual([]);
+    expect(sortedOperationIds(core.conformanceOperationIds)).toEqual(coreOperationIds);
+    expect(core.proofCounts.conformance).toBe(coreOperationIds.length);
     expect(sortedOperationIds(core.behavioralOrBetterOperationIds)).toEqual(coreOperationIds);
   });
 
@@ -947,6 +950,13 @@ describe('local-stack conformance matrix', () => {
         'OrganizationController_getApprovals',
       ]),
     );
+
+    for (const objectiveCoverage of matrix.objectives) {
+      expect(objectiveCoverage.underConformanceOperationIds, objectiveCoverage.id).toEqual([]);
+      expect(objectiveCoverage.proofCounts.conformance, objectiveCoverage.id).toBe(
+        objectiveCoverage.operationCount,
+      );
+    }
   });
 
   it('surfaces known finite and boundary semantic gaps in the matrix summary', () => {
@@ -1468,6 +1478,7 @@ describe('local-stack conformance matrix', () => {
       unexpectedLocalStackScenarioIds: [],
       missingProviderOwnedScenarioIds: [],
       unexpectedProviderOwnedScenarioIds: [],
+      underConformanceObjectiveOperationRefs: [],
       unknownScenarioProofMarkerRefs: [],
       duplicateScenarioPathRefs: [],
       duplicateOutcomeRefs: [],

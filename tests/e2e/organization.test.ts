@@ -89,9 +89,18 @@ describe('Organization', () => {
     orgId = getOrgId();
   });
 
-  it('GET /organization/{orgId} returns 200 with data', async () => {
-    const response = await client.get(`/organization/${orgId}`);
-    const body = fullResponse(response);
+  it('CONFORMANCE: GET /organization/{orgId} returns organization identity', async () => {
+    // CONFORMANCE_PROOF: organization identity read follows the generated
+    // operation path and asserts the local-stack organization identity.
+    const operation = backendOperation('OrganizationController_getOrganization');
+    let body = fullResponse(
+      await client.get(operationPath(operation.path, { organizationId: orgId })),
+    );
+    body = await afterLocalStackThrottleWindow(
+      body,
+      async () =>
+        fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId }))),
+    );
 
     expect(body.status).toBe(200);
     expect(body.data).toEqual(
@@ -100,7 +109,7 @@ describe('Organization', () => {
         displayName: expect.any(String),
       }),
     );
-  });
+  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
 
   it('GET /organization/{orgId}/settings returns organization settings', async () => {
     // CONFORMANCE_PROOF: organization settings read returns the local-stack
@@ -339,10 +348,11 @@ describe('Organization', () => {
     });
   });
 
-  it('GET /organization/{orgId}/dashboard returns 200', async () => {
+  it('CONFORMANCE: GET /organization/{orgId}/dashboard returns org dashboard rollups', async () => {
     // CONFORMANCE_PROOF: organization dashboard conformance asserts the
     // org-wide governance dashboard rollup shape instead of only status.
-    const response = await client.get(`/organization/${orgId}/dashboard`);
+    const operation = backendOperation('OrganizationController_getObservability');
+    const response = await client.get(operationPath(operation.path, { organizationId: orgId }));
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
