@@ -4465,7 +4465,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "usage",
       "matrix"
     ],
-    "requiredProofLevel": "behavioral",
+    "requiredProofLevel": "conformance",
     "localStackRequired": True,
     "operationIds": [
       "AgentController_getAgentsMetrics"

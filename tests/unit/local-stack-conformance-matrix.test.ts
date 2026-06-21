@@ -1154,8 +1154,8 @@ describe('local-stack conformance matrix', () => {
     const usage = outcome(matrix, 'backend-usage-cost-trust');
     expect(usage.status).toBe('proven');
     expect(usage.underProvenOperationIds).toEqual([]);
-    expect(usage.proofCounts.conformance).toBe(5);
-    expect(usage.proofCounts.behavioral).toBe(1);
+    expect(usage.proofCounts.conformance).toBe(6);
+    expect(usage.proofCounts.behavioral).toBe(0);
     expect(usage.semanticGapIds).toEqual([]);
 
     const providerUsage = outcome(matrix, 'provider-adapter-usage-cost');
@@ -1594,6 +1594,11 @@ describe('local-stack conformance matrix', () => {
     expect(scenario(matrix, 'trust-aivss-ledger').status).toBe('proven');
     expect(scenario(matrix, 'opa-constrain').status).toBe('proven');
     expect(scenario(matrix, 'usage-core-wire-boundary').status).toBe('proven');
+
+    const underConformedLocalStackScenarios = matrix.scenarioPaths
+      .filter((entry) => entry.localStackRequired && entry.proofLevel !== 'conformance')
+      .map((entry) => `${entry.id}:${entry.proofLevel}`);
+    expect(underConformedLocalStackScenarios).toEqual([]);
 
     const constrainBoundary = scenario(matrix, 'opa-constrain');
     expect(constrainBoundary.localStackRequired).toBe(true);

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { getBackendClient, fullResponse, getOrgId, getTeamIds } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
@@ -8,6 +9,12 @@ function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value?.data)) return value.data;
   return [];
+}
+
+function backendOperation(operationId: string) {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
 }
 
 describe('Observability & Monitoring', () => {
@@ -283,13 +290,14 @@ describe('Observability & Monitoring', () => {
     expect(Array.isArray(body.data) || Array.isArray(body.data.data)).toBe(true);
   });
 
-  it('GET /agent/metrics returns 200', async () => {
+  it('CONFORMANCE: GET /agent/metrics returns dashboard rollups', async () => {
     // CONFORMANCE_PROOF: backend metrics dashboard conformance asserts the
     // agent/guardrail/policy rollup sections and stable dashboard counters.
     expect(['SCENARIO_PROOF: backend-dashboard-metrics']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: backend-dashboard-metrics']),
     );
-    const response = await client.get('/agent/metrics');
+    const operation = backendOperation('AgentController_getAgentsMetrics');
+    const response = await client.get(operation.path);
     const body = fullResponse(response);
 
     expect(body.status).toBe(200);
