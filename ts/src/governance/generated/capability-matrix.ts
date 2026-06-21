@@ -321,6 +321,13 @@ export interface LocalStackOutcomeSpec {
   exceptionCapabilities: readonly string[];
 }
 
+export interface LocalStackObjectiveSpec {
+  id: string;
+  label: string;
+  minimumProofLevel: LocalStackProofLevel;
+  operationIds: readonly string[];
+}
+
 export interface RawBackendCoreSemanticGapSpec {
   id: string;
   source: string;
@@ -349,6 +356,8 @@ export interface LocalStackScenarioMatrixContract {
   providerOwnedScenarioIds: readonly string[];
   requiredOutcomeIds: readonly string[];
   requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];
+  requiredObjectiveIds: readonly string[];
+  requiredObjectiveSpecs: readonly LocalStackObjectiveSpec[];
   rawBackendCoreSemanticGaps: readonly RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];
   requiredSdkSemanticGapClosureTargets: readonly SdkSemanticGapClosureTarget[];
@@ -5675,6 +5684,14 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     "provider-adapter-usage-cost",
     "provider-adapter-opa-rules"
   ],
+  "requiredObjectiveIds": [
+    "core-governance",
+    "backend-guardrails",
+    "backend-policies",
+    "backend-approvals-hitl",
+    "backend-tracing-observability",
+    "backend-usage-cost-trust"
+  ],
   "requiredOutcomeSpecs": [
     {
       "id": "core-governance-verdicts",
@@ -5865,6 +5882,119 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       ],
       "exceptionCapabilities": [
         "rules-instructions"
+      ]
+    }
+  ],
+  "requiredObjectiveSpecs": [
+    {
+      "id": "core-governance",
+      "label": "Core governance operations",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "evaluateGovernance",
+        "healthCheck",
+        "pollApproval",
+        "validateApiKey"
+      ]
+    },
+    {
+      "id": "backend-guardrails",
+      "label": "Backend guardrail operations",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "AgentController_createGuardrail",
+        "AgentController_deleteGuardrails",
+        "AgentController_getGuardrail",
+        "AgentController_getGuardrailMetrics",
+        "AgentController_getGuardrailViolationLogs",
+        "AgentController_getGuardrails",
+        "AgentController_reorderGuardrail",
+        "AgentController_updateGuardrails",
+        "GuardrailController_runTest"
+      ]
+    },
+    {
+      "id": "backend-policies",
+      "label": "Backend policy operations",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "AgentController_createPolicy",
+        "AgentController_getCurrentPolicy",
+        "AgentController_getPolicesMetrics",
+        "AgentController_getPolicies",
+        "AgentController_getPolicy",
+        "AgentController_getPolicyEvaluations",
+        "AgentController_updatePolicy",
+        "PolicyController_evaluate"
+      ]
+    },
+    {
+      "id": "backend-approvals-hitl",
+      "label": "Backend approvals and HITL operations",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "AgentController_decideApproval",
+        "AgentController_getAgentApprovalsMetrics",
+        "AgentController_getApprovalHistory",
+        "AgentController_getPendingApprovals",
+        "OrganizationController_getApprovals",
+        "OrganizationController_getApprovalsMetrics",
+        "OrganizationController_getRecentDecisions",
+        "OrganizationController_getSlaPerformance",
+        "pollApproval"
+      ]
+    },
+    {
+      "id": "backend-tracing-observability",
+      "label": "Backend tracing and observability operations",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "AgentController_getActiveSessions",
+        "AgentController_getAgentLogs",
+        "AgentController_getDriftEvents",
+        "AgentController_getGuardrailViolationLogs",
+        "AgentController_getObservability",
+        "AgentController_getSession",
+        "AgentController_getSessionGoalAlignmentStats",
+        "AgentController_getSessionLogs",
+        "AgentController_getSessionReasoningTrace",
+        "AgentController_getSessions",
+        "AgentController_terminateSession",
+        "OrganizationController_deleteExport",
+        "OrganizationController_downloadExport",
+        "OrganizationController_exportAuditLogs",
+        "OrganizationController_getAuditLogById",
+        "OrganizationController_getAuditLogs",
+        "OrganizationController_getExportHistory",
+        "OrganizationController_getExportStatus",
+        "OrganizationController_getGovernanceFeed",
+        "OrganizationController_getObservability",
+        "OrganizationController_getSessions",
+        "OrganizationController_previewExport",
+        "WebhookController_getDeliveryLogs"
+      ]
+    },
+    {
+      "id": "backend-usage-cost-trust",
+      "label": "Backend usage, cost, and trust operations",
+      "minimumProofLevel": "conformance",
+      "operationIds": [
+        "AgentController_getAgentApprovalsMetrics",
+        "AgentController_getAgentTrustHistories",
+        "AgentController_getAgentTrustRecoveryStatus",
+        "AgentController_getAgentTrustScoreEvents",
+        "AgentController_getAgentsMetrics",
+        "AgentController_getAivssScore",
+        "AgentController_getBehaviorMetrics",
+        "AgentController_getGuardrailMetrics",
+        "AgentController_getInsightMetrics",
+        "AgentController_getPolicesMetrics",
+        "AgentController_getTrustTierChanges",
+        "AgentController_recalculateTrustScore",
+        "AgentController_updateAivssConfig",
+        "OrganizationController_getApprovalsMetrics",
+        "OrganizationController_getTrustDriftLanes",
+        "OrganizationController_getTrustTierTrends"
       ]
     }
   ],

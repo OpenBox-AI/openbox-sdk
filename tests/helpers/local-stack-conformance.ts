@@ -68,6 +68,9 @@ export interface OperationCoverage {
 
 export interface ObjectiveCoverage {
   id: string;
+  label: string;
+  minimumProofLevel: ProofLevel;
+  operationIds: string[];
   operationCount: number;
   proofCounts: Record<ProofLevel, number>;
   missingOperationIds: string[];
@@ -177,6 +180,13 @@ export interface LocalStackOutcomeSpec {
   exceptionCapabilities: string[];
 }
 
+export interface LocalStackObjectiveSpec {
+  id: string;
+  label: string;
+  minimumProofLevel: ProofLevel;
+  operationIds: string[];
+}
+
 export interface RawBackendCoreSemanticGapSpec {
   id: string;
   source: SemanticGapCoverage['source'];
@@ -205,6 +215,8 @@ export interface LocalStackScenarioMatrixContract {
   providerOwnedScenarioIds: string[];
   requiredOutcomeIds: string[];
   requiredOutcomeSpecs: LocalStackOutcomeSpec[];
+  requiredObjectiveIds: string[];
+  requiredObjectiveSpecs: LocalStackObjectiveSpec[];
   rawBackendCoreSemanticGaps: RawBackendCoreSemanticGapSpec[];
   requiredSharedProviderGuardProofCapabilities: string[];
   requiredSdkSemanticGapClosureTargets: string[];
@@ -329,6 +341,8 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   missingLocalStackAxes: string[];
   incompleteLocalStackAxes: string[];
   outcomeSpecMismatchRefs: string[];
+  missingObjectiveIds: string[];
+  objectiveSpecMismatchRefs: string[];
   missingProviderCapabilityGuardProviderRefs: string[];
   unexpectedProviderCapabilityGuardProviderRefs: string[];
   providerGuardTierMismatchRefs: string[];
@@ -680,36 +694,6 @@ const PROOF_ORDER: Record<ProofLevel, number> = {
   conformance: 4,
 };
 
-const OBJECTIVE_SELECTORS: Array<{
-  id: string;
-  select(operation: SpecOperation): boolean;
-}> = [
-  {
-    id: 'core-governance',
-    select: (operation) => operation.service === 'core' && /governance|auth\/validate|^\/$/i.test(operation.path),
-  },
-  {
-    id: 'backend-guardrails',
-    select: (operation) => /guardrail/i.test(`${operation.operationId} ${operation.path}`),
-  },
-  {
-    id: 'backend-policies',
-    select: (operation) => /polic/i.test(`${operation.operationId} ${operation.path}`),
-  },
-  {
-    id: 'backend-approvals-hitl',
-    select: (operation) => /approval/i.test(`${operation.operationId} ${operation.path}`),
-  },
-  {
-    id: 'backend-tracing-observability',
-    select: (operation) => /observability|logs|reasoning-trace|governance-feed|session/i.test(`${operation.operationId} ${operation.path}`),
-  },
-  {
-    id: 'backend-usage-cost-trust',
-    select: (operation) => /metrics|trust|aivss/i.test(`${operation.operationId} ${operation.path}`),
-  },
-];
-
 type OutcomeSpecInput = {
   id: string;
   label: string;
@@ -808,10 +792,11 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
     };
   });
   const smokeHits = summarizeSmokeHits(coverage);
-
-  const objectives = OBJECTIVE_SELECTORS.map(({ id, select }) =>
-    summarizeObjective(id, coverage.filter(({ operation }) => select(operation))),
+  const coverageByOperationId = new Map(
+    coverage.map((entry) => [entry.operation.operationId, entry]),
   );
+  const objectiveSpecs = providerCapabilities.localStackScenarioMatrix?.requiredObjectiveSpecs ?? [];
+  const objectives = objectiveSpecs.map((spec) => summarizeObjective(spec, coverageByOperationId));
 
   const providerGuards = summarizeProviderGuards(providerCapabilities, allBlocks);
   const exceptions = summarizeConformanceExceptions(providerCapabilities);
@@ -2289,7 +2274,17 @@ function summarizeSmokeHits(coverage: OperationCoverage[]): SmokeOperationHit[] 
     );
 }
 
-function summarizeObjective(id: string, coverage: OperationCoverage[]): ObjectiveCoverage {
+function summarizeObjective(
+  spec: LocalStackObjectiveSpec,
+  coverageByOperationId: Map<string, OperationCoverage>,
+): ObjectiveCoverage {
+  const operationIds = [...spec.operationIds].sort();
+  const coverage = operationIds
+    .map((operationId) => coverageByOperationId.get(operationId))
+    .filter((entry): entry is OperationCoverage => Boolean(entry));
+  const missingOperationIds = operationIds.filter(
+    (operationId) => !coverageByOperationId.has(operationId),
+  );
   const proofCounts: Record<ProofLevel, number> = {
     none: 0,
     smoke: 0,
@@ -2301,12 +2296,16 @@ function summarizeObjective(id: string, coverage: OperationCoverage[]): Objectiv
     proofCounts[entry.proofLevel]++;
   }
   return {
-    id,
-    operationCount: coverage.length,
+    id: spec.id,
+    label: spec.label,
+    minimumProofLevel: spec.minimumProofLevel,
+    operationIds,
+    operationCount: operationIds.length,
     proofCounts,
     missingOperationIds: coverage
       .filter((entry) => entry.proofLevel === 'none')
       .map((entry) => entry.operation.operationId)
+      .concat(missingOperationIds)
       .sort(),
     smokeOnlyOperationIds: coverage
       .filter((entry) => entry.proofLevel === 'smoke')
@@ -2321,8 +2320,9 @@ function summarizeObjective(id: string, coverage: OperationCoverage[]): Objectiv
       .map((entry) => entry.operation.operationId)
       .sort(),
     underConformanceOperationIds: coverage
-      .filter((entry) => PROOF_ORDER[entry.proofLevel] < PROOF_ORDER.conformance)
+      .filter((entry) => PROOF_ORDER[entry.proofLevel] < PROOF_ORDER[spec.minimumProofLevel])
       .map((entry) => entry.operation.operationId)
+      .concat(missingOperationIds)
       .sort(),
   };
 }
@@ -3036,6 +3036,8 @@ function summarizeScenarioMatrixContract(
     providerOwnedScenarioIds: [],
     requiredOutcomeIds: [],
     requiredOutcomeSpecs: [],
+    requiredObjectiveIds: [],
+    requiredObjectiveSpecs: [],
     rawBackendCoreSemanticGaps: [],
     requiredSharedProviderGuardProofCapabilities: [],
     requiredSdkSemanticGapClosureTargets: [],
@@ -3099,6 +3101,8 @@ function summarizeScenarioMatrixContract(
   );
   const outcomeIds = new Set(outcomes.map((entry) => entry.id));
   const outcomeById = new Map(outcomes.map((entry) => [entry.id, entry]));
+  const objectiveIds = new Set(objectives.map((entry) => entry.id));
+  const objectiveById = new Map(objectives.map((entry) => [entry.id, entry]));
   const requiredOutcomeIds = new Set(resolvedContract.requiredOutcomeIds);
   const incompleteScenarioIds = scenarioPaths
     .filter((entry) => entry.status !== 'proven')
@@ -3133,6 +3137,33 @@ function summarizeScenarioMatrixContract(
         sortedEqual(spec.exceptionCapabilities, outcome.exceptionCapabilities)
           ? undefined
           : `${spec.id}:exceptionCapabilities`,
+      ].filter((entry): entry is string => Boolean(entry));
+    }),
+  ].sort((left, right) => left.localeCompare(right));
+  const requiredObjectiveSpecIds = resolvedContract.requiredObjectiveSpecs
+    .map((entry) => entry.id)
+    .sort((left, right) => left.localeCompare(right));
+  const missingObjectiveIds = resolvedContract.requiredObjectiveIds
+    .filter((id) => !objectiveIds.has(id))
+    .sort();
+  const objectiveSpecMismatchRefs = [
+    ...missing(resolvedContract.requiredObjectiveIds, requiredObjectiveSpecIds).map(
+      (id) => `${id}:missing-generated-objective-spec`,
+    ),
+    ...unexpected(requiredObjectiveSpecIds, resolvedContract.requiredObjectiveIds).map(
+      (id) => `${id}:unexpected-generated-objective-spec`,
+    ),
+    ...resolvedContract.requiredObjectiveSpecs.flatMap((spec) => {
+      const objective = objectiveById.get(spec.id);
+      if (!objective) return [`${spec.id}:missing-objective-coverage`];
+      return [
+        spec.label === objective.label ? undefined : `${spec.id}:label`,
+        spec.minimumProofLevel === objective.minimumProofLevel
+          ? undefined
+          : `${spec.id}:minimumProofLevel`,
+        sortedEqual(spec.operationIds, objective.operationIds)
+          ? undefined
+          : `${spec.id}:operationIds`,
       ].filter((entry): entry is string => Boolean(entry));
     }),
   ].sort((left, right) => left.localeCompare(right));
@@ -3356,6 +3387,10 @@ function summarizeScenarioMatrixContract(
     ...duplicates(resolvedContract.requiredOutcomeSpecs.map((entry) => entry.id)).map(
       (id) => `requiredOutcomeSpecs:${id}`,
     ),
+    ...duplicates(resolvedContract.requiredObjectiveIds).map((id) => `requiredObjectiveIds:${id}`),
+    ...duplicates(resolvedContract.requiredObjectiveSpecs.map((entry) => entry.id)).map(
+      (id) => `requiredObjectiveSpecs:${id}`,
+    ),
     ...duplicates(resolvedContract.requiredSharedProviderGuardProofCapabilities).map(
       (id) => `requiredSharedProviderGuardProofCapabilities:${id}`,
     ),
@@ -3425,6 +3460,8 @@ function summarizeScenarioMatrixContract(
     missingLocalStackAxes,
     incompleteLocalStackAxes,
     outcomeSpecMismatchRefs,
+    missingObjectiveIds,
+    objectiveSpecMismatchRefs,
     missingProviderCapabilityGuardProviderRefs,
     unexpectedProviderCapabilityGuardProviderRefs,
     providerGuardTierMismatchRefs,
@@ -3497,6 +3534,8 @@ function summarizeScenarioMatrixContract(
     missingLocalStackAxes,
     incompleteLocalStackAxes,
     outcomeSpecMismatchRefs,
+    missingObjectiveIds,
+    objectiveSpecMismatchRefs,
     missingProviderCapabilityGuardProviderRefs,
     unexpectedProviderCapabilityGuardProviderRefs,
     providerGuardTierMismatchRefs,
@@ -3552,6 +3591,7 @@ type LocalStackDomainContractSlice = Pick<
   | 'requiredLocalStackAxes'
   | 'requiredCategoryAxes'
   | 'requiredOutcomeSpecs'
+  | 'requiredObjectiveSpecs'
   | 'requiredSdkSemanticGapClosureTargets'
 >;
 
@@ -3616,11 +3656,14 @@ function summarizeLocalStackScenarioDomainRefs(
           .map((axis) => `requiredCategoryAxes:${entry.category}:${axis}`),
       ),
     ]),
-    unknownScenarioMatrixProofLevelRefs: uniqueSorted(
-      contract.requiredOutcomeSpecs
+    unknownScenarioMatrixProofLevelRefs: uniqueSorted([
+      ...contract.requiredOutcomeSpecs
         .filter((entry) => !proofLevels.has(entry.minimumProofLevel))
         .map((entry) => `requiredOutcomeSpecs:${entry.id}:minimumProofLevel:${entry.minimumProofLevel}`),
-    ),
+      ...contract.requiredObjectiveSpecs
+        .filter((entry) => !proofLevels.has(entry.minimumProofLevel))
+        .map((entry) => `requiredObjectiveSpecs:${entry.id}:minimumProofLevel:${entry.minimumProofLevel}`),
+    ]),
     unknownSdkSemanticGapClosureTargetRefs: uniqueSorted(
       contract.requiredSdkSemanticGapClosureTargets
         .filter((target) => !sdkClosureTargets.has(target))

@@ -74,6 +74,7 @@ const providerCapabilitiesFixture = JSON.parse(
   providerIds: string[];
   supportTiers: string[];
   localStackScenarioMatrix: {
+    requiredObjectiveIds: string[];
     requiredOutcomeSpecs: Array<{
       id: string;
       label: string;
@@ -82,6 +83,12 @@ const providerCapabilitiesFixture = JSON.parse(
       operationIds: string[];
       providerGuardCapabilities: string[];
       exceptionCapabilities: string[];
+    }>;
+    requiredObjectiveSpecs: Array<{
+      id: string;
+      label: string;
+      minimumProofLevel: string;
+      operationIds: string[];
     }>;
   };
 };
@@ -802,6 +809,14 @@ describe('local-stack conformance matrix', () => {
             minimumProofLevel: 'minimum-proof-level-domain-drift',
           },
         ],
+        requiredObjectiveSpecs: [
+          ...matrix.scenarioMatrix.requiredObjectiveSpecs,
+          {
+            ...matrix.scenarioMatrix.requiredObjectiveSpecs[0],
+            id: 'proof-level-domain-drift-objective-spec',
+            minimumProofLevel: 'minimum-proof-level-domain-drift',
+          },
+        ],
         requiredSdkSemanticGapClosureTargets: [
           ...matrix.scenarioMatrix.requiredSdkSemanticGapClosureTargets,
           'sdk-closure-target-domain-drift',
@@ -853,6 +868,7 @@ describe('local-stack conformance matrix', () => {
         'requiredLocalStackAxes:local-stack-axis-domain-drift',
       ],
       unknownScenarioMatrixProofLevelRefs: [
+        'requiredObjectiveSpecs:proof-level-domain-drift-objective-spec:minimumProofLevel:minimum-proof-level-domain-drift',
         'requiredOutcomeSpecs:proof-level-domain-drift-outcome-spec:minimumProofLevel:minimum-proof-level-domain-drift',
       ],
       unknownSdkSemanticGapClosureTargetRefs: [
@@ -1278,6 +1294,23 @@ describe('local-stack conformance matrix', () => {
   });
 
   it('proves every requested governance objective operation beyond endpoint smoke', () => {
+    expect(matrix.scenarioMatrix.requiredObjectiveIds).toEqual(
+      providerCapabilitiesFixture.localStackScenarioMatrix.requiredObjectiveIds,
+    );
+    expect(matrix.scenarioMatrix.requiredObjectiveSpecs.map((entry) => entry.id)).toEqual(
+      matrix.scenarioMatrix.requiredObjectiveIds,
+    );
+    expect(
+      matrix.objectives.map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        minimumProofLevel: entry.minimumProofLevel,
+        operationIds: entry.operationIds,
+      })),
+    ).toEqual(providerCapabilitiesFixture.localStackScenarioMatrix.requiredObjectiveSpecs);
+    expect(matrix.scenarioMatrix.missingObjectiveIds).toEqual([]);
+    expect(matrix.scenarioMatrix.objectiveSpecMismatchRefs).toEqual([]);
+
     const guardrails = objective(matrix, 'backend-guardrails');
     const policies = objective(matrix, 'backend-policies');
     const approvals = objective(matrix, 'backend-approvals-hitl');
@@ -1829,6 +1862,8 @@ describe('local-stack conformance matrix', () => {
       missingLocalStackAxes: [],
       incompleteLocalStackAxes: [],
       outcomeSpecMismatchRefs: [],
+      missingObjectiveIds: [],
+      objectiveSpecMismatchRefs: [],
       missingProviderCapabilityGuardProviderRefs: [],
       unexpectedProviderCapabilityGuardProviderRefs: [],
       providerGuardTierMismatchRefs: [],
