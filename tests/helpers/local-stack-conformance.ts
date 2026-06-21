@@ -451,6 +451,31 @@ export interface LocalStackConformanceMatrix {
       incomplete: number;
       incompleteOutcomeIds: string[];
     };
+    backendCoreGaps: {
+      status: 'gap-free' | 'known-gaps';
+      known: number;
+      knownGapIds: string[];
+      generated: number;
+      generatedGapIds: string[];
+      remediationTargets: number;
+      remediationTargetIds: string[];
+      rawGapOutcomeRefs: Array<{
+        outcomeId: string;
+        semanticGapIds: string[];
+      }>;
+      affectedOperations: number;
+      affectedOperationIds: string[];
+      requestConstraints: number;
+      requestConstraintKeys: string[];
+      rawProofFiles: string[];
+      sdkClosureTargets: string[];
+      missingGeneratedGapIds: string[];
+      unexpectedGeneratedGapIds: string[];
+      missingRemediationTargetIds: string[];
+      unexpectedRemediationTargetIds: string[];
+      specMismatchRefs: string[];
+      missingRawProofConstraintKeyRefs: string[];
+    };
     scenarioPaths: {
       total: number;
       localStackRequired: number;
@@ -971,6 +996,18 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
       sdkSemanticGapClosureTargets: GOVERNANCE_SPEC_DOMAINS.sdkSemanticGapClosureTargets,
     },
   );
+  const backendCoreGapAffectedOperationIds = uniqueSorted(
+    backendCoreGapRemediationTargets.flatMap((entry) => entry.operationIds),
+  );
+  const backendCoreGapRequestConstraintKeys = uniqueSorted(
+    backendCoreGapRemediationTargets.flatMap((entry) => entry.requestConstraintKeys),
+  );
+  const backendCoreGapRawProofFiles = uniqueSorted(
+    backendCoreGapRemediationTargets.map((entry) => entry.rawProofFile),
+  );
+  const backendCoreGapSdkClosureTargets = uniqueSorted(
+    backendCoreGapRemediationTargets.flatMap((entry) => entry.sdkClosureTargets),
+  );
 
   return {
     generatedBy: 'tests/helpers/local-stack-conformance.ts',
@@ -1024,6 +1061,35 @@ export function buildLocalStackConformanceMatrix(repoRoot = process.cwd()): Loca
           .filter((entry) => entry.status === 'incomplete')
           .map((entry) => entry.id)
           .sort((left, right) => left.localeCompare(right)),
+      },
+      backendCoreGaps: {
+        status: scenarioMatrix.backendCoreGapStatus,
+        known: scenarioMatrix.knownBackendCoreGapIds.length,
+        knownGapIds: [...scenarioMatrix.knownBackendCoreGapIds],
+        generated: scenarioMatrix.generatedBackendCoreGapIds.length,
+        generatedGapIds: [...scenarioMatrix.generatedBackendCoreGapIds],
+        remediationTargets: scenarioMatrix.backendCoreGapRemediationTargetIds.length,
+        remediationTargetIds: [...scenarioMatrix.backendCoreGapRemediationTargetIds],
+        rawGapOutcomeRefs: scenarioMatrix.rawSemanticGapOutcomeRefs.map((entry) => ({
+          outcomeId: entry.outcomeId,
+          semanticGapIds: [...entry.semanticGapIds],
+        })),
+        affectedOperations: backendCoreGapAffectedOperationIds.length,
+        affectedOperationIds: backendCoreGapAffectedOperationIds,
+        requestConstraints: backendCoreGapRequestConstraintKeys.length,
+        requestConstraintKeys: backendCoreGapRequestConstraintKeys,
+        rawProofFiles: backendCoreGapRawProofFiles,
+        sdkClosureTargets: backendCoreGapSdkClosureTargets,
+        missingGeneratedGapIds: [...scenarioMatrix.missingGeneratedBackendCoreGapIds],
+        unexpectedGeneratedGapIds: [...scenarioMatrix.unexpectedGeneratedBackendCoreGapIds],
+        missingRemediationTargetIds: [
+          ...scenarioMatrix.missingBackendCoreGapRemediationTargetIds,
+        ],
+        unexpectedRemediationTargetIds: [
+          ...scenarioMatrix.unexpectedBackendCoreGapRemediationTargetIds,
+        ],
+        specMismatchRefs: [...scenarioMatrix.backendCoreGapSpecMismatchRefs],
+        missingRawProofConstraintKeyRefs: [...scenarioMatrix.missingRawProofConstraintKeyRefs],
       },
       scenarioPaths: {
         total: scenarioPaths.length,

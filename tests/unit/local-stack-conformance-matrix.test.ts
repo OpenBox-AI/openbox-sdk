@@ -56,6 +56,10 @@ function sortedOperationIds(operationIds: readonly string[]): string[] {
   return [...operationIds].sort();
 }
 
+function sortedUniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
 function scenario(matrix: LocalStackConformanceMatrix, id: string) {
   const found = matrix.scenarioPaths.find((entry) => entry.id === id);
   expect(found, id).toBeDefined();
@@ -128,6 +132,18 @@ describe('local-stack conformance matrix', () => {
         entry.markerOnlyProofBlockKeys.map((blockKey) => `${entry.id}:${blockKey}`),
       )
       .sort();
+    const backendCoreAffectedOperationIds = sortedUniqueStrings(
+      matrix.backendCoreGapRemediationTargets.flatMap((entry) => entry.operationIds),
+    );
+    const backendCoreRequestConstraintKeys = sortedUniqueStrings(
+      matrix.backendCoreGapRemediationTargets.flatMap((entry) => entry.requestConstraintKeys),
+    );
+    const backendCoreRawProofFiles = sortedUniqueStrings(
+      matrix.backendCoreGapRemediationTargets.map((entry) => entry.rawProofFile),
+    );
+    const backendCoreSdkClosureTargets = sortedUniqueStrings(
+      matrix.backendCoreGapRemediationTargets.flatMap((entry) => entry.sdkClosureTargets),
+    );
 
     expect(matrix.summary.totalOperations).toBe(matrix.operations.length);
     expect(matrix.summary.operationsWithE2eHits).toBe(operationsWithE2eHits.length);
@@ -154,6 +170,64 @@ describe('local-stack conformance matrix', () => {
       'backend-tracing-observability',
       'core-governance-verdicts',
     ]);
+    expect(matrix.summary.backendCoreGaps).toEqual({
+      status: matrix.scenarioMatrix.backendCoreGapStatus,
+      known: matrix.scenarioMatrix.knownBackendCoreGapIds.length,
+      knownGapIds: matrix.scenarioMatrix.knownBackendCoreGapIds,
+      generated: matrix.scenarioMatrix.generatedBackendCoreGapIds.length,
+      generatedGapIds: matrix.scenarioMatrix.generatedBackendCoreGapIds,
+      remediationTargets: matrix.scenarioMatrix.backendCoreGapRemediationTargetIds.length,
+      remediationTargetIds: matrix.scenarioMatrix.backendCoreGapRemediationTargetIds,
+      rawGapOutcomeRefs: matrix.scenarioMatrix.rawSemanticGapOutcomeRefs,
+      affectedOperations: backendCoreAffectedOperationIds.length,
+      affectedOperationIds: backendCoreAffectedOperationIds,
+      requestConstraints: backendCoreRequestConstraintKeys.length,
+      requestConstraintKeys: backendCoreRequestConstraintKeys,
+      rawProofFiles: backendCoreRawProofFiles,
+      sdkClosureTargets: backendCoreSdkClosureTargets,
+      missingGeneratedGapIds: matrix.scenarioMatrix.missingGeneratedBackendCoreGapIds,
+      unexpectedGeneratedGapIds: matrix.scenarioMatrix.unexpectedGeneratedBackendCoreGapIds,
+      missingRemediationTargetIds:
+        matrix.scenarioMatrix.missingBackendCoreGapRemediationTargetIds,
+      unexpectedRemediationTargetIds:
+        matrix.scenarioMatrix.unexpectedBackendCoreGapRemediationTargetIds,
+      specMismatchRefs: matrix.scenarioMatrix.backendCoreGapSpecMismatchRefs,
+      missingRawProofConstraintKeyRefs: matrix.scenarioMatrix.missingRawProofConstraintKeyRefs,
+    });
+    expect(matrix.summary.backendCoreGaps).toMatchObject({
+      status: 'known-gaps',
+      known: 5,
+      knownGapIds: [
+        'approval-status-invalid-query-not-rejected',
+        'backend-agent-evaluations-query-boundaries-not-rejected',
+        'core-governance-attempt-min-not-rejected',
+        'core-governance-cost-type-not-rejected',
+        'core-governance-timestamp-format-not-rejected',
+      ],
+      generated: 5,
+      remediationTargets: 5,
+      affectedOperations: 5,
+      affectedOperationIds: [
+        'AgentController_getAgentEvaluations',
+        'AgentController_getApprovalHistory',
+        'AgentController_getPendingApprovals',
+        'evaluateGovernance',
+        'OrganizationController_getApprovals',
+      ],
+      requestConstraints: 10,
+      rawProofFiles: [
+        'tests/e2e/approvals.test.ts',
+        'tests/e2e/core-governance.test.ts',
+        'tests/e2e/request-query-boundaries.test.ts',
+      ],
+      sdkClosureTargets: ['python', 'typescript'],
+      missingGeneratedGapIds: [],
+      unexpectedGeneratedGapIds: [],
+      missingRemediationTargetIds: [],
+      unexpectedRemediationTargetIds: [],
+      specMismatchRefs: [],
+      missingRawProofConstraintKeyRefs: [],
+    });
     expect(matrix.summary.scenarioPaths).toEqual({
       total: matrix.scenarioPaths.length,
       localStackRequired: matrix.scenarioPaths.filter((entry) => entry.localStackRequired).length,
