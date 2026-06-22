@@ -415,6 +415,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
     semanticGapIds: string[];
   }>;
   missingSemanticGapOutcomeRefs: string[];
+  duplicateSemanticGapOutcomeRefs: string[];
   unclosedSemanticGapIds: string[];
   missingRawProofConstraintKeyRefs: string[];
   unclassifiedRequestConstraintRefs: string[];
@@ -3461,6 +3462,9 @@ function summarizeScenarioMatrixContract(
     rawSemanticGapOutcomeRefs.flatMap((entry) => entry.semanticGapIds),
   );
   const missingSemanticGapOutcomeRefs = missing(semanticGapIds, semanticGapOutcomeIds);
+  const duplicateSemanticGapOutcomeRefs = duplicates(
+    rawSemanticGapOutcomeRefs.flatMap((entry) => entry.semanticGapIds),
+  );
   const unclosedSemanticGapIds = semanticGaps
     .filter((gap) =>
       resolvedContract.requiredSdkSemanticGapClosureTargets.some((target) =>
@@ -3830,6 +3834,7 @@ function summarizeScenarioMatrixContract(
     missingOutcomeIds,
     incompleteOutcomeIds,
     missingSemanticGapOutcomeRefs,
+    duplicateSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
     semanticGapLedgerMismatchRefs,
     duplicateSemanticGapRefs,
@@ -3926,6 +3931,7 @@ function summarizeScenarioMatrixContract(
     rawSemanticGapOutcomeIds,
     rawSemanticGapOutcomeRefs,
     missingSemanticGapOutcomeRefs,
+    duplicateSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
     missingRawProofConstraintKeyRefs,
     unclassifiedRequestConstraintRefs,
