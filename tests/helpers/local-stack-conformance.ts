@@ -414,6 +414,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
     outcomeId: string;
     semanticGapIds: string[];
   }>;
+  missingSemanticGapOutcomeRefs: string[];
   unclosedSemanticGapIds: string[];
   missingRawProofConstraintKeyRefs: string[];
   unclassifiedRequestConstraintRefs: string[];
@@ -3455,6 +3456,11 @@ function summarizeScenarioMatrixContract(
   const rawSemanticGapOutcomeIds = rawSemanticGapOutcomeRefs
     .map((entry) => entry.outcomeId)
     .sort();
+  const semanticGapIds = semanticGaps.map((entry) => entry.id).sort();
+  const semanticGapOutcomeIds = uniqueSorted(
+    rawSemanticGapOutcomeRefs.flatMap((entry) => entry.semanticGapIds),
+  );
+  const missingSemanticGapOutcomeRefs = missing(semanticGapIds, semanticGapOutcomeIds);
   const unclosedSemanticGapIds = semanticGaps
     .filter((gap) =>
       resolvedContract.requiredSdkSemanticGapClosureTargets.some((target) =>
@@ -3467,7 +3473,6 @@ function summarizeScenarioMatrixContract(
     )
     .map((gap) => gap.id)
     .sort();
-  const semanticGapIds = semanticGaps.map((entry) => entry.id).sort();
   const semanticGapLedgerMismatchRefs = summarizeSemanticGapLedgerMismatchRefs(semanticGaps);
   const generatedBackendCoreGapIds = resolvedContract.rawBackendCoreSemanticGaps
     .map((entry) => entry.id)
@@ -3824,6 +3829,7 @@ function summarizeScenarioMatrixContract(
     incompleteScenarioIds,
     missingOutcomeIds,
     incompleteOutcomeIds,
+    missingSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
     semanticGapLedgerMismatchRefs,
     duplicateSemanticGapRefs,
@@ -3919,6 +3925,7 @@ function summarizeScenarioMatrixContract(
     incompleteOutcomeIds,
     rawSemanticGapOutcomeIds,
     rawSemanticGapOutcomeRefs,
+    missingSemanticGapOutcomeRefs,
     unclosedSemanticGapIds,
     missingRawProofConstraintKeyRefs,
     unclassifiedRequestConstraintRefs,

@@ -2015,6 +2015,7 @@ describe('local-stack conformance matrix', () => {
       incompleteScenarioIds: [],
       missingOutcomeIds: [],
       incompleteOutcomeIds: [],
+      missingSemanticGapOutcomeRefs: [],
       semanticGapLedgerMismatchRefs: [],
       duplicateSemanticGapRefs: [],
       duplicateGeneratedBackendCoreGapRefs: [],
@@ -2122,6 +2123,7 @@ describe('local-stack conformance matrix', () => {
     expect(
       matrix.scenarioMatrix.rawSemanticGapOutcomeRefs.flatMap((entry) => entry.semanticGapIds).sort(),
     ).toEqual(matrix.scenarioMatrix.semanticGapIds);
+    expect(matrix.scenarioMatrix.missingSemanticGapOutcomeRefs).toEqual([]);
   });
 
   it('maps every backend/Core raw gap to generated remediation targets', () => {
