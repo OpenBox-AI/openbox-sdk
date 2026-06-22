@@ -2010,6 +2010,7 @@ describe('local-stack conformance matrix', () => {
       missingOperationEvidencePatternRefs: [],
       unknownOperationEvidencePatternRefs: [],
       duplicateOperationEvidencePatternRefs: [],
+      weakScenarioEvidencePatternRefs: [],
       missingGeneratedConformanceOperationRefs: [],
       incompleteScenarioIds: [],
       missingOutcomeIds: [],
@@ -2348,6 +2349,11 @@ describe('local-stack conformance matrix', () => {
       expect(providerOwned.status, id).toBe('proven');
       expect(providerOwned.proofSource, id).toBe('provider-guard-fixture');
       expect(providerOwned.proofLevel, id).toBe(providerOwned.requiredProofLevel);
+      expect(providerOwned.missingAssertedEvidence, id).toBe(false);
+      expect(providerOwned.weakEvidencePatterns, id).toEqual([]);
+      expect([...providerOwned.assertedEvidencePatterns].sort(), id).toEqual(
+        [...providerOwned.evidencePatterns].sort(),
+      );
       expect(providerOwned.providerGuardTestRefs, id).toEqual(providerGuard!.guardTestRefs);
       expect(providerOwned.missingProviderGuardTestRefs, id).toEqual([]);
       expect(providerOwned.providerGuardProofBlockKeys.length, id).toBe(

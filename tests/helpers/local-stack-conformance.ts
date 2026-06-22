@@ -404,6 +404,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   missingOperationEvidencePatternRefs: string[];
   unknownOperationEvidencePatternRefs: string[];
   duplicateOperationEvidencePatternRefs: string[];
+  weakScenarioEvidencePatternRefs: string[];
   missingGeneratedConformanceOperationRefs: string[];
   incompleteScenarioIds: string[];
   missingOutcomeIds: string[];
@@ -3010,9 +3011,9 @@ function summarizeScenarioPaths(
           !assertedEvidencePatternSet.has(pattern),
       )
       .sort();
-    const missingAssertedEvidence =
-      spec.localStackRequired &&
-      spec.evidencePatterns.some((pattern) => !assertedEvidencePatternSet.has(pattern));
+    const missingAssertedEvidence = spec.evidencePatterns.some(
+      (pattern) => !assertedEvidencePatternSet.has(pattern),
+    );
     const proofFiles = [...new Set(matchingBlocks.map((block) => block.file))].sort();
     const proofTestNames = [...new Set(matchingBlocks.map((block) => block.name))].sort();
     const proofBlockKeys = [...new Set(matchingBlocks.map(testBlockKey))].sort();
@@ -3744,6 +3745,11 @@ function summarizeScenarioMatrixContract(
       entry.duplicateOperationEvidencePatternIds.map((operationId) => `${entry.id}:${operationId}`),
     ),
   );
+  const weakScenarioEvidencePatternRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.weakEvidencePatterns.map((pattern) => `${entry.id}:${pattern}`),
+    ),
+  );
   const missingGeneratedConformanceOperationRefs = uniqueSorted(
     scenarioPaths
       .filter((entry) => entry.localStackRequired)
@@ -3813,6 +3819,7 @@ function summarizeScenarioMatrixContract(
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
+    weakScenarioEvidencePatternRefs,
     missingGeneratedConformanceOperationRefs,
     incompleteScenarioIds,
     missingOutcomeIds,
@@ -3905,6 +3912,7 @@ function summarizeScenarioMatrixContract(
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
+    weakScenarioEvidencePatternRefs,
     missingGeneratedConformanceOperationRefs,
     incompleteScenarioIds,
     missingOutcomeIds,
