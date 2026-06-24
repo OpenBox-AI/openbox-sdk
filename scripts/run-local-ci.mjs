@@ -17,4 +17,4 @@ function readLocalCiSteps() {
   return normalizeCommandSteps(localCi.steps, 'localCi.steps');
 }
 
-runSteps(readLocalCiSteps());
+await runSteps(readLocalCiSteps());

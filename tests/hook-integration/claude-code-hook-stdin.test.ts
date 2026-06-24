@@ -20,6 +20,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/claude-code.js';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
+import {
+  CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX,
+  requireProviderDriver,
+} from './fixtures/verdict-matrix.js';
 
 const OPENBOX = requireOpenBoxCli();
 const TEST_KEY = 'obx_test_0000000000000000000000000000000000000000000000';
@@ -148,6 +152,40 @@ describe('claude-code hook stdin/stdout', () => {
       expect(r.status, `permission_mode=${mode} failed: ${r.stderr}`).toBe(0);
       const out = r.parsed as { hookSpecificOutput?: { permissionDecision?: string } };
       expect(out?.hookSpecificOutput?.permissionDecision).toBe('deny');
+    }
+  });
+
+  it('generated hook-stdin drivers exercise the direct Claude hook contract', () => {
+    const root = planConfigDir({ coreUrl: DEAD_CORE });
+    expect(CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX.map((entry) => entry.id)).toEqual([
+      'file-read-approval',
+      'db-insert-block',
+      'db-update-approval',
+      'db-delete-halt',
+      'db-generic-block',
+      'file-delete-halt',
+    ]);
+
+    for (const entry of CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX) {
+      const driver = requireProviderDriver(entry, 'claude-code', 'hook-stdin');
+      const r = callHook(
+        {
+          hook_event_name: driver.event,
+          session_id: `s-${entry.id}`,
+          tool_name: driver.tool,
+          tool_input: entry.activityInput,
+        },
+        root,
+      );
+      expect(r.status, `${entry.id} failed: ${r.stderr}`).toBe(0);
+      const out = r.parsed as {
+        hookSpecificOutput?: {
+          permissionDecision?: string;
+          permissionDecisionReason?: string;
+        };
+      };
+      expect(out.hookSpecificOutput?.permissionDecision).toBe('deny');
+      expect(out.hookSpecificOutput?.permissionDecisionReason).toContain('[OpenBox]');
     }
   });
 

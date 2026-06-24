@@ -30,4 +30,4 @@ if (!check) {
   );
 }
 
-runSteps([check]);
+await runSteps([check]);

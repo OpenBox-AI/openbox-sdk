@@ -34,7 +34,7 @@ export interface HookSpec {
   style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean; verdictShape: string }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -48,21 +48,26 @@ export const HOOK_SPEC: HookSpec = {
   "events": [
     {
       "name": "UserPromptSubmit",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "decision-block"
     },
     {
       "name": "PreToolUse",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "permission-decision"
     },
     {
       "name": "PermissionRequest",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "permission-request"
     },
     {
-      "name": "PostToolUse"
+      "name": "PostToolUse",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "Stop"
+      "name": "Stop",
+      "verdictShape": "decision-block"
     }
   ]
 };
@@ -148,7 +153,7 @@ export function buildPreToolUsePayload(env: CodexEnvelope, toolName: string, sid
       "tool_name": getPath(env, "tool_name"),
       "tool_input": getPath(env, "tool_input"),
       "url": (getPath(env, "tool_input.url") ?? getPath(env, "tool_input.query")),
-      "http_method": "GET",
+      "http_method": (getPath(env, "tool_input.method") ?? getPath(env, "tool_input.http_method") ?? "GET"),
       "event_category": "http_request",
     };
     case "WebSearch":
@@ -156,7 +161,7 @@ export function buildPreToolUsePayload(env: CodexEnvelope, toolName: string, sid
       "tool_name": getPath(env, "tool_name"),
       "tool_input": getPath(env, "tool_input"),
       "url": (getPath(env, "tool_input.url") ?? getPath(env, "tool_input.query")),
-      "http_method": "GET",
+      "http_method": (getPath(env, "tool_input.method") ?? getPath(env, "tool_input.http_method") ?? "GET"),
       "event_category": "http_request",
     };
     case "Agent":

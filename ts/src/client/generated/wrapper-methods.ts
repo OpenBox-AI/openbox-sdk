@@ -972,10 +972,6 @@ export abstract class OpenBoxClientWrapperBase {
     return this.httpGet<ResponseOf<"/auth/profile", "get">>(`/auth/profile`);
   }
 
-  async getCsrfToken(): Promise<ResponseOf<"/auth/csrf", "get">> {
-    return this.httpGet<ResponseOf<"/auth/csrf", "get">>(`/auth/csrf`);
-  }
-
   async login(body: RequestBodyOf<"/auth/login", "post">): Promise<ResponseOf<"/auth/login", "post">> {
     return this.httpPost<ResponseOf<"/auth/login", "post">>(`/auth/login`, body);
   }
@@ -1036,8 +1032,8 @@ export abstract class OpenBoxClientWrapperBase {
     return this.httpPut<ResponseOf<"/agent/{agentId}", "put">>(`/agent/${agentId}`, body);
   }
 
-  async getAgentViolations(agentId: string, body: RequestBodyOf<"/agent/{agentId}/violations", "get">): Promise<ResponseOf<"/agent/{agentId}/violations", "get">> {
-    return this.httpGet<ResponseOf<"/agent/{agentId}/violations", "get">>(`/agent/${agentId}/violations`);
+  async getAgentViolations(agentId: string, query?: Record<string, unknown>): Promise<ResponseOf<"/agent/{agentId}/violations", "get">> {
+    return this.httpGet<ResponseOf<"/agent/{agentId}/violations", "get">>(`/agent/${agentId}/violations`, query);
   }
 
   async markFalsePositive(agentId: string, violationId: string, body: RequestBodyOf<"/agent/{agentId}/violations/{violationId}/false-positive", "patch">): Promise<ResponseOf<"/agent/{agentId}/violations/{violationId}/false-positive", "patch">> {

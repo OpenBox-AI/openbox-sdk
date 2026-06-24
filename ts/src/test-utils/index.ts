@@ -15,9 +15,20 @@ export {
 // `BackendClient` body parameter; downstream "spin up a deterministic
 // test agent" tooling consumes these instead of hand-rolling JSON.
 export {
+  makeApprovalExpirationConformanceCase,
   makeCreateAgentDto,
   makeCreateGuardrailDto,
   makeCreatePolicyDto,
+  makeEvaluateRegoConformanceCase,
+  makeGoalDriftDetectedConformanceCase,
+  makeGoalSignalOrderConformanceCase,
+  makeGuardrailRunTestConformanceCases,
+  makeGuardrailServiceUnavailableConformanceCase,
+  makeOpaAliasDecisionConformanceCase,
+  makeOpaUnsupportedConstrainConformanceCase,
+  makeOpaUnavailableFailClosedConformanceCase,
+  makeOpaVerdictMatrixConformanceCase,
+  makeRequireApprovalPolicyConformanceCase,
   makeCreateBehaviorRuleDto,
   makeUpdateAgentDto,
   makeGovernanceEvent,

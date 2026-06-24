@@ -148,7 +148,7 @@ export function createOpenBoxLangChainMiddleware({
     );
     await swallow(() => session.workflowStarted());
     await swallow(() =>
-      (session as any).onChainStart({
+      session.onChainStart({
         input: [{ runtime: 'copilotkit', framework: 'langchain' }],
       }),
     );
@@ -267,7 +267,7 @@ export function createOpenBoxLangChainMiddleware({
         return withGovernedAssistantOutput(response, responseGate.safe);
       } catch (error) {
         await swallow(() =>
-          (session as any).onLlmError({ output: errorOutput(error) }),
+          session.onLlmError({ output: errorOutput(error) }),
         );
         await swallow(() => session.workflowFailed(error));
         throw error;
@@ -323,7 +323,7 @@ export function createOpenBoxLangChainMiddleware({
         return outputGate.safe;
       } catch (error) {
         await swallow(() =>
-          (session as any).onToolError({
+          session.onToolError({
             output: { toolName: request.toolCall?.name, ...errorOutput(error) },
           }),
         );

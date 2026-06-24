@@ -913,22 +913,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/csrf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["AuthController_getCsrf"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/forgot-password": {
         parameters: {
             query?: never;
@@ -2036,7 +2020,14 @@ export interface components {
             id: string;
             /** Format: double */
             score?: number;
+            /** Format: double */
+            trust_score?: number;
+            /** Format: int32 */
+            trust_tier?: number;
             severity?: string;
+            change_type?: string;
+            change_reason?: string | null;
+            evaluated_by?: string;
             timestamp?: string;
         } & {
             [key: string]: unknown;
@@ -2046,10 +2037,23 @@ export interface components {
             roles: string[];
         };
         AuditExport: {
-            id: string;
+            /** @description Export identifier. List/history rows use `id`; create/status rows use `exportId`. */
+            id?: string;
+            exportId?: string;
             export_name?: string;
+            exportName?: string;
             status?: string;
+            message?: string;
+            /** Format: int32 */
+            totalRecords?: number;
+            /** Format: int32 */
+            processedRecords?: number;
             created_at?: string;
+            updated_at?: string;
+            completed_at?: string | null;
+            createdAt?: string;
+            completedAt?: string | null;
+            errorMessage?: string | null;
         } & {
             [key: string]: unknown;
         };
@@ -2106,9 +2110,8 @@ export interface components {
             /** Format: int32 */
             priority: number;
             /** @enum {string} */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][] | null;
-            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
             /** Format: int32 */
             time_window: number;
             /** Format: int32 */
@@ -2128,16 +2131,6 @@ export interface components {
             trust_threshold?: number | null;
         } & {
             [key: string]: unknown;
-        };
-        BehaviorRuleMatchCondition: {
-            field: string;
-            op: string;
-            value?: unknown;
-        };
-        BehaviorRuleStateCondition: {
-            /** @enum {string} */
-            semantic_type: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            match?: components["schemas"]["BehaviorRuleMatchCondition"][];
         };
         ChangeBehaviorRuleStatusDto: {
             /** @description New status */
@@ -2160,7 +2153,9 @@ export interface components {
             /** @description Description of the agent */
             description?: string;
             /** @description Configuration object for the agent */
-            config?: Record<string, never>;
+            config?: {
+                [key: string]: unknown;
+            };
             /** @description Array of team IDs */
             team_ids: string[];
             /** @description Array of tags for categorizing the agent */
@@ -2229,11 +2224,9 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            /** @description Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
-            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][];
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             /** @description States (multiple select) */
-            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -2263,7 +2256,7 @@ export interface components {
              */
             trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         CreateGuardrailDto: {
             /**
@@ -2301,6 +2294,7 @@ export interface components {
             orgId?: string;
             contactName: string;
             contactEmail: string;
+            recaptchaToken: string;
             contactPhone?: string;
             address?: string;
             websiteUrl?: string;
@@ -2316,16 +2310,20 @@ export interface components {
             /** @description The Rego policy code */
             rego_code: string;
             /** @description The Rego test input */
-            input: Record<string, never>;
+            input: {
+                [key: string]: unknown;
+            };
             /** @description Additional configuration for the policy */
-            config?: Record<string, never>;
+            config?: {
+                [key: string]: unknown;
+            };
             /**
              * @description Controls whether violations affect trust score and severity. none = excluded from trust evaluation.
              * @enum {string}
              */
             trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         CreateTeamDto: {
             /** @description Team name */
@@ -2357,7 +2355,7 @@ export interface components {
             /** @description HMAC secret for HTTP channel (auto-generated if omitted) */
             secret?: string;
             /** @description Event types to subscribe to */
-            event_types: string[];
+            event_types: ("governance.verdict.block" | "governance.verdict.halt" | "governance.verdict.require_approval" | "governance.verdict.constrain" | "approval.decided" | "approval.expired" | "trust_score.decreased" | "compliance.export.ready" | "compliance.attestation.expiring")[];
             /** @description Agent IDs to filter (null/omitted = all agents) */
             agent_ids?: string[];
             /** @description Description */
@@ -2398,7 +2396,9 @@ export interface components {
             /** @description Rego policy code */
             policy: string;
             /** @description Input data */
-            input: Record<string, never>;
+            input: {
+                [key: string]: unknown;
+            };
         };
         ExportAuditLogsDto: {
             /** @description Name for this export, such as "December 2024 Security Events". */
@@ -2496,19 +2496,20 @@ export interface components {
             /** Format: int32 */
             violations_today: number;
             /** Format: double */
-            protection_rate: number;
+            protection_rate: number | null;
             /** Format: double */
             avg_response_time_ms: number;
             /** @description Time-series for violations; backend returns the row shape opaquely. */
             violations_trend: {
                 [key: string]: unknown;
             }[];
-            /** @description {[type]: rate} aggregate. */
+            /** @description Backend dashboard row shape for trigger-rate buckets. */
             trigger_rate_by_type: {
-                [key: string]: number;
-            };
+                [key: string]: unknown;
+            }[];
+            /** @description Backend may return stringified percentile values from SQL aggregates. */
             latency_percentiles: {
-                [key: string]: number;
+                [key: string]: unknown;
             };
             /** Format: double */
             evaluations_per_sec: number;
@@ -2549,7 +2550,9 @@ export interface components {
             password: string;
             recaptchaToken: string;
         };
-        LogoutDto: Record<string, never>;
+        LogoutDto: {
+            refreshToken: string;
+        };
         MarkFalsePositiveDto: {
             /** @description Source type of violations */
             sourceType: string;
@@ -2606,9 +2609,9 @@ export interface components {
             /** Format: int32 */
             expired_today: number;
             /** Format: double */
-            avg_time: number;
+            avg_time: number | null;
             /** Format: double */
-            avg_change: number;
+            avg_change: number | null;
         };
         /**
          * @description `getOrgApprovals` returns `{ approvals, metrics }` (after the
@@ -2640,8 +2643,7 @@ export interface components {
         };
         Organization: {
             id: string;
-            name: string;
-            domain?: string;
+            displayName?: string;
         } & {
             [key: string]: unknown;
         };
@@ -2683,7 +2685,7 @@ export interface components {
             /** Format: int32 */
             total_evaluations: number;
             /** Format: double */
-            compliance_rate: number;
+            compliance_rate: number | null;
             /** Format: double */
             avg_latency_ms: number;
             decision_distribution: {
@@ -2743,7 +2745,9 @@ export interface components {
             /** Format: int32 */
             alignment_percentage: number;
         };
-        RefreshDto: Record<string, never>;
+        RefreshDto: {
+            refreshToken: string;
+        };
         RemoveMembersDto: {
             /** @description Array of User IDs to remove from organization */
             memberIds: string[];
@@ -2879,24 +2883,39 @@ export interface components {
         };
         TrustEvent: {
             id: string;
+            agent_id?: string;
             event_type?: string;
             /** Format: double */
             impact?: number;
+            /** Format: double */
+            trust_score?: number;
+            /** Format: int32 */
+            trust_tier?: number;
+            /** Format: double */
+            previous_score?: number | null;
+            /** Format: int32 */
+            previous_tier?: number | null;
+            change_type?: string;
+            change_reason?: string | null;
+            evaluated_by?: string;
             timestamp?: string;
         } & {
             [key: string]: unknown;
         };
         TrustHistory: {
+            time?: string;
             /** Format: double */
-            trust_score: number;
-            tier?: string;
+            score?: number;
+            /** Format: double */
+            trust_score?: number;
+            tier?: number | string;
             timestamp?: string;
         } & {
             [key: string]: unknown;
         };
         /** @description Per-penalty row inside TrustRecoveryStatus.recovery.penalties. */
         TrustPenalty: {
-            penalty_id: string;
+            penalty_id?: string;
             component: string;
             trust_impact: string;
             /** Format: double */
@@ -2905,6 +2924,8 @@ export interface components {
             session_position: number;
             /** Format: int32 */
             sessions_until_cleared: number;
+            /** Format: double */
+            progress_percent?: number;
         };
         /**
          * @description Trust-recovery status from /agent/{id}/trust/recovery-status. When
@@ -2930,9 +2951,21 @@ export interface components {
         };
         TrustTierChange: {
             id: string;
+            agent_id?: string;
             from_tier?: string;
             to_tier?: string;
             reason?: string;
+            /** Format: double */
+            trust_score?: number;
+            /** Format: int32 */
+            trust_tier?: number;
+            /** Format: double */
+            previous_score?: number | null;
+            /** Format: int32 */
+            previous_tier?: number | null;
+            change_type?: string;
+            change_reason?: string | null;
+            evaluated_by?: string;
             timestamp?: string;
         } & {
             [key: string]: unknown;
@@ -2953,7 +2986,9 @@ export interface components {
             /** @description Description of the agent */
             description?: string;
             /** @description Configuration object for the agent */
-            config?: Record<string, never>;
+            config?: {
+                [key: string]: unknown;
+            };
             /** @description Array of tags for categorizing the agent */
             tags?: string[];
             /** @description Array of team IDs */
@@ -2994,11 +3029,9 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            /** @description Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
-            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][];
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             /** @description States (multiple select) */
-            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
+            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -3028,7 +3061,7 @@ export interface components {
              */
             trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
             /** @description Change log */
             change_log: string;
         };
@@ -3090,7 +3123,7 @@ export interface components {
              */
             trust_impact?: "none" | "low" | "medium" | "high";
             /** @description Max triggers in rolling window before penalty applies. null = use system default. */
-            trust_threshold?: Record<string, never>;
+            trust_threshold?: number | null;
         };
         UpdateTeamDto: Record<string, never>;
         UpdateWebhookDto: {
@@ -3104,7 +3137,7 @@ export interface components {
             /** @description Webhook endpoint URL */
             url?: string;
             /** @description Event types to subscribe to */
-            event_types?: string[];
+            event_types?: ("governance.verdict.block" | "governance.verdict.halt" | "governance.verdict.require_approval" | "governance.verdict.constrain" | "approval.decided" | "approval.expired" | "trust_score.decreased" | "compliance.export.ready" | "compliance.attestation.expiring")[];
             /** @description Agent IDs to filter (empty array = all agents) */
             agent_ids?: string[];
             /** @description Active status */
@@ -3159,7 +3192,7 @@ export interface components {
             /** @enum {string} */
             channel: "http" | "slack";
             url: string;
-            event_types: string[];
+            event_types: ("governance.verdict.block" | "governance.verdict.halt" | "governance.verdict.require_approval" | "governance.verdict.constrain" | "approval.decided" | "approval.expired" | "trust_score.decreased" | "compliance.export.ready" | "compliance.attestation.expiring")[];
             agent_ids?: string[] | null;
             is_active?: boolean;
             description?: string;
@@ -3171,7 +3204,7 @@ export interface components {
         WebhookDelivery: {
             id: string;
             webhook_id: string;
-            event_type?: string;
+            event_type?: ("governance.verdict.block" | "governance.verdict.halt" | "governance.verdict.require_approval" | "governance.verdict.constrain" | "approval.decided" | "approval.expired" | "trust_score.decreased" | "compliance.export.ready" | "compliance.attestation.expiring") | string;
             status?: string;
             /** Format: int32 */
             status_code?: number;
@@ -3664,7 +3697,7 @@ export interface operations {
                 /** @description Filter by status */
                 is_active?: boolean;
                 /** @description Filter by trigger */
-                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             };
             header?: never;
             path: {
@@ -3733,7 +3766,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BehaviorRule"][];
+                    "application/json": components["schemas"]["BehaviorRule"];
                 };
             };
         };
@@ -4037,8 +4070,6 @@ export interface operations {
                 page?: number;
                 /** @description Number of items per page */
                 perPage?: number;
-                /** @description Processing stage of the guardrail */
-                processing_stage?: string;
             };
             header?: never;
             path: {
@@ -4480,7 +4511,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Policy"][];
+                    "application/json": components["schemas"]["Policy"];
                 };
             };
         };
@@ -4929,18 +4960,23 @@ export interface operations {
     };
     AgentController_getAgentEvaluations: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Page number (starts from 0) */
+                page?: number;
+                /** @description Number of items per page */
+                perPage?: number;
+                /** @description Filter violations by pattern */
+                pattern?: string;
+                /** @description Source type of violations */
+                sourceType?: string;
+            };
             header?: never;
             path: {
                 agentId: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GetAgentViolationsDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description The request has succeeded. */
             200: {
@@ -5121,24 +5157,6 @@ export interface operations {
                 "application/json": components["schemas"]["ChangePasswordDto"];
             };
         };
-        responses: {
-            /** @description There is no content to send for this request, but the headers may be useful. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    AuthController_getCsrf: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description There is no content to send for this request, but the headers may be useful. */
             204: {

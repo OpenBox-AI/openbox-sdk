@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Command } from 'commander';
@@ -17,6 +17,25 @@ function tempDir(name: string): string {
   const dir = mkdtempSync(join(tmpdir(), name));
   temps.push(dir);
   return dir;
+}
+
+function readJson(file: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
+}
+
+function expectRuntimeConfig(
+  file: string,
+  runtimeKey: string,
+  coreUrl: string,
+  approvalMode: string,
+): void {
+  const config = readJson(file);
+  expect(config.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(config.OPENBOX_CORE_URL).toBe(coreUrl);
+  expect(config.approvalMode).toBe(approvalMode);
+  expect(config.governanceTimeout).toBe('21');
+  expect(config.hitlMaxWait).toBe(120);
+  expect(config.hitlPollInterval).toBe(3);
 }
 
 afterEach(() => {
@@ -145,6 +164,64 @@ describe('minimal install command', () => {
     await runInstallCli(['uninstall', 'codex', '--cwd', project]);
     expect(existsSync(plugin)).toBe(false);
     expect(existsSync(join(project, '.agents', 'skills', 'openbox'))).toBe(false);
+  });
+
+  it('writes shared agent runtime settings from top-level install flags for each host', async () => {
+    const runtimeKey = `obx_test_${'d'.repeat(48)}`;
+    const coreUrl = 'http://127.0.0.1:8086';
+    const cursorProject = tempDir('openbox-install-runtime-cursor-');
+    const claudeProject = tempDir('openbox-install-runtime-claude-');
+    const codexProject = tempDir('openbox-install-runtime-codex-');
+    const cursorPlugin = join(cursorProject, '.cursor', 'plugins', 'local', 'openbox');
+
+    const runtimeFlags = [
+      '--runtime-api-key',
+      runtimeKey,
+      '--core-url',
+      coreUrl,
+      '--governance-timeout',
+      '21',
+      '--hitl-max-wait',
+      '120',
+      '--hitl-poll-interval',
+      '3',
+    ];
+
+    await runInstallCli([
+      'install',
+      'cursor',
+      '--cwd',
+      cursorProject,
+      '--plugin-target',
+      cursorPlugin,
+      '--approval-mode',
+      'inline',
+      ...runtimeFlags,
+    ]);
+    await runInstallCli([
+      'install',
+      'claude-code',
+      '--scope',
+      'project',
+      '--cwd',
+      claudeProject,
+      '--approval-mode',
+      'remote',
+      ...runtimeFlags,
+    ]);
+    await runInstallCli([
+      'install',
+      'codex',
+      '--cwd',
+      codexProject,
+      '--approval-mode',
+      'defer',
+      ...runtimeFlags,
+    ]);
+
+    expectRuntimeConfig(join(cursorProject, '.cursor-hooks', 'config.json'), runtimeKey, coreUrl, 'inline');
+    expectRuntimeConfig(join(claudeProject, '.claude-hooks', 'config.json'), runtimeKey, coreUrl, 'remote');
+    expectRuntimeConfig(join(codexProject, '.codex-hooks', 'config.json'), runtimeKey, coreUrl, 'defer');
   });
 
   it('rejects old direct Cursor install flags', async () => {

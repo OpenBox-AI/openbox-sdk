@@ -1,97 +1,89 @@
-// Shared verdict-matrix fixture consumed by every host-runtime
-// integration test (claude-code headless runner, cursor wdio
-// suite). Each case names a planted behavior rule in the local
-// stack (`openbox-local/scripts/bootstrap-rules.json`) and pins
-// the verdict + outcome the SDK's evaluator is expected to return
-// when the rule fires.
-//
-// Adding a host-runtime test means consuming this array and
-// translating each `spanType` + `activityInput` pair into the
-// host-specific tool invocation. Adding a new case means adding
-// the rule to the bootstrap manifest and a row here.
+import {
+  LOCAL_GOVERNANCE_HOST_PORTABLE_VERDICT_MATRIX,
+  LOCAL_GOVERNANCE_LOCAL_ONLY_VERDICT_MATRIX,
+  LOCAL_GOVERNANCE_UNDRIVABLE_TRIGGERS as GENERATED_LOCAL_GOVERNANCE_UNDRIVABLE_TRIGGERS,
+  LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES,
+  type LocalGovernanceOutcome,
+  type LocalGovernanceProviderDriver,
+  type LocalGovernanceSpanType,
+  type LocalGovernanceVerdict,
+  type LocalGovernanceVerdictMatrixCase,
+} from '../../../ts/src/governance/capability-matrix.js';
 
-export type SpanType =
-  | 'llm'
-  | 'file_read'
-  | 'file_write'
-  | 'shell'
-  | 'http'
-  | 'db'
-  | 'mcp';
+export type SpanType = LocalGovernanceSpanType;
+export type Verdict = LocalGovernanceVerdict;
+export type Outcome = LocalGovernanceOutcome;
+export type BehaviorRuleTrigger = LocalGovernanceVerdictMatrixCase['expectedTrigger'];
+export type VerdictMatrixCase = LocalGovernanceVerdictMatrixCase;
+export type ProviderDriver = LocalGovernanceProviderDriver;
 
-export type Verdict =
-  | 'allow'
-  | 'constrain'
-  | 'require_approval'
-  | 'block'
-  | 'halt';
+export const VERDICT_MATRIX = LOCAL_GOVERNANCE_HOST_PORTABLE_VERDICT_MATRIX;
+export const LOCAL_ONLY_VERDICT_MATRIX = LOCAL_GOVERNANCE_LOCAL_ONLY_VERDICT_MATRIX;
+export const LOCAL_GOVERNANCE_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES;
+export const LOCAL_GOVERNANCE_UNDRIVABLE_TRIGGERS =
+  GENERATED_LOCAL_GOVERNANCE_UNDRIVABLE_TRIGGERS;
+export const CLAUDE_CODE_HOOK_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'claude-code', 'hook') !== undefined,
+);
+export const CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'claude-code', 'hook-stdin') !== undefined,
+);
+export const CLAUDE_CODE_MCP_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'claude-code', 'mcp') !== undefined,
+);
+export const CODEX_HOOK_STDIN_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'codex', 'hook-stdin') !== undefined,
+);
+export const CURSOR_HOOK_STDIN_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'cursor', 'hook-stdin') !== undefined,
+);
+export const OPENAI_AGENTS_SDK_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'openai-agents-sdk', 'sdk-wrapper') !== undefined,
+);
+export const OPENAI_AGENTS_SDK_MCP_REQUIRED_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'openai-agents-sdk', 'mcp-required') !== undefined,
+);
+export const ANTHROPIC_AGENT_SDK_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'anthropic-agent-sdk', 'sdk-wrapper') !== undefined,
+);
+export const ANTHROPIC_AGENT_SDK_MCP_REQUIRED_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'anthropic-agent-sdk', 'mcp-required') !== undefined,
+);
+export const COPILOTKIT_RUNTIME_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'copilotkit', 'runtime-adapter') !== undefined,
+);
+export const COPILOTKIT_MCP_REQUIRED_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'copilotkit', 'mcp-required') !== undefined,
+);
+export const N8N_RUNTIME_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'n8n', 'runtime-helper') !== undefined,
+);
+export const MCP_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter(
+  (entry) => providerDriver(entry, 'mcp', 'mcp') !== undefined,
+);
 
-export type Outcome = 'allow' | 'require_approval' | 'deny';
-
-export interface VerdictMatrixCase {
-  /** Short human-readable label. */
-  name: string;
-  /** SDK `SpanType` enum value the case drives. */
-  spanType: SpanType;
-  /** Free-form input passed to the SDK's `checkGovernance` (or to
-   *  the equivalent host-mediated tool invocation). */
-  activityInput: Record<string, unknown>;
-  /** Bootstrap rule name expected to match. */
-  expectedRule: string;
-  /** Backend verdict the rule emits. */
-  expectedVerdict: Verdict;
-  /** Resolved outcome after the SDK translates verdict to
-   *  pass / pending / fail. */
-  expectedOutcome: Outcome;
+export function providerDriver(
+  c: VerdictMatrixCase,
+  provider: string,
+  surface: string,
+): ProviderDriver | undefined {
+  return c.providerDrivers?.find(
+    (entry) => entry.provider === provider && entry.surface === surface,
+  );
 }
 
-export const VERDICT_MATRIX: readonly VerdictMatrixCase[] = [
-  {
-    name: 'db query is constrained (score lowered, action allowed)',
-    spanType: 'db',
-    activityInput: { query: 'SELECT 1' },
-    expectedRule: 'e2e-constrain-db',
-    expectedVerdict: 'constrain',
-    expectedOutcome: 'allow',
-  },
-  {
-    name: 'llm completion requires approval',
-    spanType: 'llm',
-    activityInput: { prompt: 'summarize this' },
-    expectedRule: 'e2e-approve-llm',
-    expectedVerdict: 'require_approval',
-    expectedOutcome: 'require_approval',
-  },
-  {
-    name: 'file_read requires approval',
-    spanType: 'file_read',
-    activityInput: { file_path: '/etc/hostname' },
-    expectedRule: 'e2e-approve-read',
-    expectedVerdict: 'require_approval',
-    expectedOutcome: 'require_approval',
-  },
-  {
-    name: 'shell execution is blocked',
-    spanType: 'shell',
-    activityInput: { command: 'echo hello' },
-    expectedRule: 'e2e-deny-shell',
-    expectedVerdict: 'block',
-    expectedOutcome: 'deny',
-  },
-  {
-    name: 'file_write is blocked',
-    spanType: 'file_write',
-    activityInput: { file_path: '/tmp/blocked.txt' },
-    expectedRule: 'e2e-deny-write',
-    expectedVerdict: 'block',
-    expectedOutcome: 'deny',
-  },
-  {
-    name: 'http POST halts',
-    spanType: 'http',
-    activityInput: { method: 'POST', url: 'https://example.com/blocked' },
-    expectedRule: 'e2e-halt-http',
-    expectedVerdict: 'halt',
-    expectedOutcome: 'deny',
-  },
-] as const;
+export function requireProviderDriver(
+  c: VerdictMatrixCase,
+  provider: string,
+  surface: string,
+): ProviderDriver {
+  const driver = providerDriver(c, provider, surface);
+  if (!driver) {
+    throw new Error(`Missing ${provider}/${surface} driver for ${c.id}`);
+  }
+  return driver;
+}
+
+export function shouldSeedRule(c: VerdictMatrixCase): boolean {
+  return (c as { seedRule?: boolean }).seedRule !== false;
+}

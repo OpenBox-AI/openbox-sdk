@@ -12,7 +12,6 @@ using OpenBox.Workflow;
 @sdkMethodNames(#{
   AppController_getHello: "health",
   AuthController_getProfile: "getProfile",
-  AuthController_getCsrf: "getCsrfToken",
   AuthController_login: "login",
   AuthController_logout: "logout",
   AuthController_forgotPassword: "forgotPassword",

@@ -36,6 +36,7 @@ import {
   emitN8nNodePreExecute,
   emitN8nNodePostExecute,
 } from '../../ts/src/runtime/n8n/index.js';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -89,6 +90,55 @@ function expectNoInlineSpanFields(
 }
 
 describe('govern() lifecycle invariants', () => {
+  test('EXHAUSTIVE_SPEC_PROOF: generated govern runtime normalizes every legacy Core action member', async () => {
+    const expectedArms: Record<string, WorkflowVerdict['arm']> = {
+      allow: 'allow',
+      constrain: 'constrain',
+      require_approval: 'require_approval',
+      block: 'block',
+      halt: 'halt',
+      continue: 'allow',
+      stop: 'halt',
+    };
+    expect(Object.keys(expectedArms).sort()).toEqual(
+      [...GOVERNANCE_SPEC_DOMAINS.coreLegacyActions].sort(),
+    );
+
+    const events: GovernanceEventPayload[] = [];
+    const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      events.push(payload);
+      const action = String(payload.activity_type ?? '').replace(/^legacy-action-/, '');
+      return {
+        governance_event_id: `evt_${action || 'lifecycle'}`,
+        action: action in expectedArms ? action : 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    const mock: MockCore = {
+      events,
+      evaluate,
+      pollApproval: vi.fn(async () => ({
+        id: 'evt_test',
+        action: 'allow',
+      })),
+    };
+    const observed = new Map<string, WorkflowVerdict['arm']>();
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.default },
+      async (session) => {
+        for (const action of GOVERNANCE_SPEC_DOMAINS.coreLegacyActions) {
+          const verdict = await session.activity('SignalReceived', `legacy-action-${action}`, {
+            input: [{ action }],
+          });
+          observed.set(action, verdict.arm);
+        }
+      },
+    );
+
+    expect(Object.fromEntries(observed)).toEqual(expectedArms);
+  });
+
   test('success path emits exactly one WorkflowStarted + WorkflowCompleted', async () => {
     const mock = createMockCore('allow');
     await govern(
@@ -247,14 +297,16 @@ describe('activity pairing', () => {
         (hook.spans?.[0] as Record<string, unknown> | undefined)?.activity_id,
       ).toBe(parent.activity_id);
     }
+    expect(firstHook.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(firstHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(firstHook.spans?.[0]).toMatchObject({
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(secondHook.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(secondHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(secondHook.spans?.[0]).toMatchObject({
-      semantic_type: 'mcp_tool_call',
       attributes: expect.objectContaining({
         'mcp.method': 'callTool',
         'mcp.operation': 'read',
@@ -661,10 +713,11 @@ describe('activity pairing', () => {
     expect(completedHook?.activity_type).toBe(completedParent.activity_type);
     expect(completedHook?.span_count).toBe(1);
     const span = completedHook?.spans?.[0] as Record<string, unknown> | undefined;
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       name: 'openbox.n8n.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
       model_id: 'gemini-2.5-flash',
       provider: 'google',
@@ -848,11 +901,12 @@ describe('activity pairing', () => {
     expect(completedHook?.hook_trigger).toBe(true);
     expect(completedHook?.activity_id).toBe(completedParent.activity_id);
     expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completedHook?.spans?.[0]).toMatchObject({
       activity_id: completedParent.activity_id,
       name: 'n8n.CRM Upsert',
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       duration_ns: 25_000_000,
       status: { code: 'ERROR', description: 'CRM timeout' },

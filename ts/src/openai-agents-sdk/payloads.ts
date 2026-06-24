@@ -55,10 +55,12 @@ export function toolActivityType(
 ): string {
   const spanType = spanTypeFor(toolName, toolInput);
   if (spanType === 'file_read') return defaultActivity.read;
+  if (spanType === 'file_open') return defaultActivity.read;
   if (spanType === 'file_write') return defaultActivity.write;
   if (spanType === 'file_delete') return defaultActivity.fileDelete;
   if (spanType === 'shell') return defaultActivity.shell;
   if (spanType === 'http') return defaultActivity.httpRequest;
+  if (spanType === 'db') return defaultActivity.databaseQuery;
   if (spanType === 'mcp') return defaultActivity.mcpToolCall;
   if (toolName === 'Agent' || toolName === 'Task') return defaultActivity.agentSpawn;
   return OPENAI_AGENTS_ACTIVITY_TYPES.TOOL_STARTED;
@@ -83,6 +85,9 @@ export function toolSpan(
     tool_output: toolOutput,
     url: httpTargetFor(toolInput),
     method: httpMethodFor(toolInput),
+    db_system: dbSystemFor(toolName, toolInput),
+    db_operation: dbOperationFor(toolInput),
+    db_statement: dbStatementFor(toolInput),
   });
   const callFields = toolCallFields(call);
   if (Object.keys(callFields).length > 0) {
@@ -93,6 +98,16 @@ export function toolSpan(
     Object.assign(span, callFields);
   }
   return [span as unknown as SpanData];
+}
+
+export function runPromptSpan(input: unknown): SpanData[] | undefined {
+  const prompt = promptTextForRunInput(input);
+  return [
+    buildSpan('openai-agents-sdk', 'llm', {
+      stage: 'started',
+      ...(prompt ? { prompt } : {}),
+    }) as unknown as SpanData,
+  ];
 }
 
 export function toolActivityInput(
@@ -139,6 +154,7 @@ export function runTelemetryFields(
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'hasToolCalls'
   | 'finishReason'
 > {
@@ -153,6 +169,7 @@ export function runTelemetryFields(
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
+    costUsd: usage?.costUsd,
     hasToolCalls: rawResponses.some(responseHasToolCalls),
     finishReason: finishReasonFromResult(resultRecord, rawResponses),
   };
@@ -265,15 +282,21 @@ function spanTypeFor(
   toolInput: Record<string, unknown>,
 ): SpanType | null {
   const lower = toolName.toLowerCase();
+  if (lower === 'agent' || lower === 'task') return null;
   if (lower.includes('read') || toolInput.read === true) return 'file_read';
+  if (
+    (lower === 'open' || lower.includes('file_open') || lower.includes('open_file') || toolInput.open === true) &&
+    filePathFor(toolInput)
+  ) return 'file_open';
   if (lower.includes('write') || lower.includes('edit')) return 'file_write';
   if (lower.includes('delete') || lower.includes('remove'))
     return 'file_delete';
   if (lower.includes('bash') || lower.includes('shell') || toolInput.command)
     return 'shell';
   if (lower.includes('web') || toolInput.url || toolInput.uri) return 'http';
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (lower.startsWith('mcp') || lower.includes('mcp')) return 'mcp';
-  return null;
+  return 'llm_tool_call';
 }
 
 function filePathFor(toolInput: Record<string, unknown>): string | undefined {
@@ -296,6 +319,109 @@ function httpMethodFor(toolInput: Record<string, unknown>): string {
       toolInput.http_method,
       toolInput.httpMethod,
     )?.toUpperCase() ?? 'GET'
+  );
+}
+
+function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(
+    toolInput.db_statement,
+    toolInput.dbStatement,
+    toolInput.statement,
+    toolInput.sql,
+    toolInput.query,
+  );
+}
+
+const SQL_VERBS = [
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+] as const;
+
+function dbOperationFromStatement(statement: string | undefined): string | undefined {
+  if (!statement) return undefined;
+  const normalized = statement.trim().toUpperCase();
+  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
+}
+
+function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
+  const explicit = firstString(
+    toolInput.db_system,
+    toolInput.dbSystem,
+    toolInput.system,
+    toolInput.database_system,
+  );
+  if (explicit) return explicit;
+  const lowerName = toolName.toLowerCase();
+  if (lowerName.includes('sqlite')) return 'sqlite';
+  if (lowerName.includes('mysql')) return 'mysql';
+  if (lowerName.includes('postgres')) return 'postgresql';
+  return 'postgresql';
+}
+
+function dbOperationFor(toolInput: Record<string, unknown>): string {
+  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
+  const explicitOperation = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation,
+  )?.toUpperCase();
+  if (
+    explicitOperation &&
+    explicitOperation !== 'QUERY' &&
+    explicitOperation !== 'UNKNOWN'
+  ) {
+    return explicitOperation;
+  }
+  return statementOperation ?? explicitOperation ?? 'QUERY';
+}
+
+function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {
+  if (!toolName.startsWith('mcp__')) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksDatabase =
+    lowerName.includes('db') ||
+    lowerName.includes('sql') ||
+    lowerName.includes('database') ||
+    lowerName.includes('postgres') ||
+    lowerName.includes('mysql') ||
+    lowerName.includes('sqlite');
+  if (!nameLooksDatabase) return false;
+  return Boolean(dbStatementFor(toolInput)) ||
+    lowerName.includes('query') ||
+    lowerName.includes('execute') ||
+    lowerName.includes('select');
+}
+
+export function promptTextForRunInput(input: unknown): string | undefined {
+  if (input === undefined || input === null) return undefined;
+  if (typeof input === 'string') return input.trim() || undefined;
+  if (Array.isArray(input)) {
+    const text = input.map(promptTextForRunInput).filter(Boolean).join(' ').trim();
+    return text || undefined;
+  }
+  const record = objectRecord(input);
+  const messages = Object.prototype.hasOwnProperty.call(record, 'messages')
+    ? promptTextForRunInput(record.messages)
+    : undefined;
+  const content = Object.prototype.hasOwnProperty.call(record, 'content')
+    ? promptTextForRunInput(record.content)
+    : undefined;
+  return firstString(
+    record.prompt,
+    record.input,
+    record.text,
+    content,
+    messages,
   );
 }
 

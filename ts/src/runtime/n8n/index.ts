@@ -8,8 +8,12 @@ import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
 import { EVENT } from '../../governance/events.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
+  buildSpan,
+  stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
   withSpanActivityId,
+  type SpanInput,
+  type SpanType,
 } from '../../governance/spans.js';
 import {
   assistantOutputTelemetryFields,
@@ -82,9 +86,19 @@ export interface N8nNodePostExecutePayloadInput {
   durationMs?: number;
 }
 
+export interface N8nGovernanceCheckPayloadInput {
+  activityId?: string;
+  spanType: SpanType;
+  activityInput: SpanInput & Record<string, unknown>;
+  nodeName?: string;
+  sessionId?: string;
+  prompt?: string;
+}
+
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
 type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'activity' | 'openActivity'>;
 type NodePostExecuteCapableN8nSession = Pick<N8nSession, 'nodePostExecute'>;
+type GovernanceCheckCapableN8nSession = Pick<N8nSession, 'nodePreExecute'>;
 
 interface PendingNodeActivity {
   activityId: string;
@@ -295,7 +309,7 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
   const startTime = timeToUnixNano(input.startTime) ?? nowUnixNano();
   const endTime = timeToUnixNano(input.endTime) ?? nowUnixNano();
   const error = errorDescription(input.error);
-  return {
+  return stripServerComputedSemantic({
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: `n8n.${toolName}`,
@@ -311,11 +325,9 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
     events: [],
     error: error ?? null,
     stage: 'completed',
-    semantic_type: 'llm_tool_call',
     attributes: cleanRecord({
       'gen_ai.system': 'n8n',
       'openbox.n8n.node_name': input.nodeName,
-      'openbox.semantic_type': 'llm_tool_call',
       'openbox.span_type': 'function',
       ...nodeToolAttributes(toolName),
     }),
@@ -328,7 +340,7 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
       output: input.output,
     }),
     result: input.output,
-  };
+  });
 }
 
 function stableStringify(value: unknown): string {
@@ -424,6 +436,32 @@ export function buildN8nNodePreExecutePayload(
   };
 }
 
+export function buildN8nGovernanceCheckPayload(
+  input: N8nGovernanceCheckPayloadInput,
+): GovernedPayload {
+  const prompt = input.prompt?.trim() ??
+    (typeof input.activityInput.prompt === 'string'
+      ? input.activityInput.prompt.trim()
+      : undefined);
+  const nodeName = trimmed(input.nodeName) ?? 'OpenBox Governance';
+  return {
+    activityId: input.activityId,
+    input: nodeActivityInput({
+      ...input.activityInput,
+      event_category: 'governance_check',
+      node_name: nodeName,
+      span_type: input.spanType,
+      prompt,
+    }),
+    sessionId: input.sessionId,
+    prompt,
+    ...nodeToolTelemetry(nodeName),
+    spans: [
+      buildSpan('n8n', input.spanType, input.activityInput),
+    ],
+  };
+}
+
 export async function emitN8nNodePreExecute(
   session: NodePreExecuteCapableN8nSession,
   input: N8nNodePreExecutePayloadInput,
@@ -449,6 +487,13 @@ export async function emitN8nNodePreExecute(
     });
   }
   return opened.verdict;
+}
+
+export async function emitN8nGovernanceCheck(
+  session: GovernanceCheckCapableN8nSession,
+  input: N8nGovernanceCheckPayloadInput,
+): Promise<WorkflowVerdict> {
+  return session.nodePreExecute(buildN8nGovernanceCheckPayload(input));
 }
 
 export function buildN8nLlmCompletionPayload(

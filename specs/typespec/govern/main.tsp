@@ -605,11 +605,11 @@ model GovernedPayload {
 
   /**
    * Spans describing the underlying operation. REQUIRED for behavior-rule
-   * matching: core's classifier reads each span's `semantic_type` plus the
-   * gate attributes (`http.method`, `http.url`, `file.path`, `db.system`,
-   * `gen_ai.system`, `shell.command`) and resolves the trigger the rule
-   * was created against. Without spans, behavior rules silently never
-   * fire; the verdict falls through to default-allow with
+   * matching: SDKs emit typed root fields and classifier gate attributes
+   * (`http.method`, `http.url`, `file.path`, `db.system`, `gen_ai.system`,
+   * `shell.command`); Core computes each span's `semantic_type` and
+   * resolves the trigger the rule was created against. Without spans,
+   * behavior rules silently never fire; the verdict falls through to default-allow with
    * `policy_id="00000000-0000-0000-0000-000000000000"`. See
    * `skill/references/span-reference.md` for span shapes by semantic type.
    */

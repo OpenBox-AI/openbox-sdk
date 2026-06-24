@@ -67,6 +67,10 @@ export interface OpenBoxAnthropicAgentSDKConfig {
    * These hooks are disabled by default because they replace host behavior.
    */
   includeOptInHooks?: boolean;
+  /** Strict AGE compliance: action governance requires a prompt/query/workflow goal. */
+  requireGoalContext?: boolean;
+  /** Background/scheduled workflow objective used when prompt hooks are absent. */
+  defaultGoal?: string;
   /**
    * Root directory for managed WorktreeCreate paths.
    * Defaults to .openbox/worktrees under the current process cwd.

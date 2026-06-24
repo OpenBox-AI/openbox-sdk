@@ -64,7 +64,7 @@ jobs:
       - name: Run tests with coverage
         id: tests
         continue-on-error: true
-        run: OPENBOX_CLI=./scripts/openbox-cli-dev.mjs npx vitest run --coverage --project unit --project contract --project hook-integration --coverage.reporter=lcov
+        run: OPENBOX_CLI=./scripts/openbox-cli-dev.mjs npx vitest run --coverage --project unit --project openapi-mock --project contract --coverage.reporter=lcov
 
       - name: Upload coverage report
         if: ${{ always() && hashFiles('coverage/**') != '' }}

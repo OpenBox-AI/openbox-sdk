@@ -71,4 +71,4 @@ if (selected.length !== 1) {
   throw new Error('Usage: node scripts/run-spec-command.mjs <command-id>');
 }
 
-runSteps([readSpecCommand(selected[0])]);
+await runSteps([readSpecCommand(selected[0])]);

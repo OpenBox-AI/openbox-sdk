@@ -108,16 +108,7 @@ describe('fetchRulesProjection', () => {
           description: 'Reject risky tool use',
           priority: 90,
           trigger: 'llm_tool_call',
-          trigger_match: [
-            { field: 'tool_name', op: 'contains', value: 'danger' },
-          ],
-          states: [
-            'llm_tool_call',
-            {
-              semantic_type: 'file_read',
-              match: [{ field: 'file_path', op: 'contains', value: '/private' }],
-            },
-          ],
+          states: ['llm_tool_call', 'file_read'],
           time_window: 60,
           verdict: 3,
           reject_message: 'Do not call this tool',
@@ -145,16 +136,7 @@ describe('fetchRulesProjection', () => {
       description: 'Reject risky tool use',
       rendererHints: {
         trigger: 'llm_tool_call',
-        triggerMatch: [
-          { field: 'tool_name', op: 'contains', value: 'danger' },
-        ],
-        states: [
-          'llm_tool_call',
-          {
-            semantic_type: 'file_read',
-            match: [{ field: 'file_path', op: 'contains', value: '/private' }],
-          },
-        ],
+        states: ['llm_tool_call', 'file_read'],
         priority: 90,
         verdict: 3,
         timeWindow: 60,
@@ -163,8 +145,7 @@ describe('fetchRulesProjection', () => {
       },
     });
     expect(projection.rules[0].body).toContain('Reject message: Do not call this tool');
-    expect(projection.rules[0].body).toContain('Trigger match: `tool_name contains \"danger\"`');
-    expect(projection.rules[0].body).toContain('`file_read` where `file_path contains \"/private\"`');
+    expect(projection.rules[0].body).toContain('States: `llm_tool_call`, `file_read`');
   });
 
   it('sorts rules by id for deterministic output', async () => {

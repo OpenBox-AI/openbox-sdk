@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { error, output, row, success, summary } from '../output.js';
 import { isMachineMode } from '../non-interactive.js';
+import type { ConfigureCodexRuntimeOptions } from '../../runtime/codex/index.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -18,6 +19,75 @@ function parseMatcherPairs(pairs: string[] | undefined): Record<string, string> 
     matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
   }
   return Object.keys(matchers).length > 0 ? matchers : undefined;
+}
+
+function parsePositiveInt(value: string | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    error(`${label}: expected a positive integer`);
+    bailWith(EXIT.USAGE);
+  }
+  return parsed;
+}
+
+function parseRuntimeOptions(opts: {
+  cwd?: string;
+  runtimeApiKey?: string;
+  agentId?: string;
+  coreUrl?: string;
+  approvalMode?: string;
+  governanceTimeout?: string;
+  hitlMaxWait?: string;
+  hitlPollInterval?: string;
+}): ConfigureCodexRuntimeOptions | undefined {
+  if (
+    opts.runtimeApiKey === undefined &&
+    opts.agentId === undefined &&
+    opts.coreUrl === undefined &&
+    opts.approvalMode === undefined &&
+    opts.governanceTimeout === undefined &&
+    opts.hitlMaxWait === undefined &&
+    opts.hitlPollInterval === undefined
+  ) {
+    return undefined;
+  }
+  const approvalMode = opts.approvalMode;
+  if (
+    approvalMode !== undefined &&
+    approvalMode !== 'inline' &&
+    approvalMode !== 'remote' &&
+    approvalMode !== 'defer'
+  ) {
+    error(`--approval-mode: invalid value '${approvalMode}'; expected inline, remote, or defer`);
+    bailWith(EXIT.USAGE);
+  }
+  return {
+    cwd: opts.cwd,
+    apiKey: opts.runtimeApiKey,
+    agentId: opts.agentId,
+    coreUrl: opts.coreUrl,
+    approvalMode: approvalMode as ConfigureCodexRuntimeOptions['approvalMode'],
+    governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
+    hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
+    hitlPollInterval: parsePositiveInt(opts.hitlPollInterval, '--hitl-poll-interval'),
+  };
+}
+
+async function configureRuntimeIfRequested(opts: {
+  cwd?: string;
+  runtimeApiKey?: string;
+  agentId?: string;
+  coreUrl?: string;
+  approvalMode?: string;
+  governanceTimeout?: string;
+  hitlMaxWait?: string;
+  hitlPollInterval?: string;
+}): Promise<void> {
+  const runtime = parseRuntimeOptions(opts);
+  if (!runtime) return;
+  const { configureCodexRuntime } = await import('../../runtime/codex/index.js');
+  configureCodexRuntime(runtime);
 }
 
 export function registerCodexCommands(program: Command) {
@@ -40,9 +110,26 @@ export function registerCodexCommands(program: Command) {
     .command('install')
     .description('Install project-local Codex hooks')
     .option('--cwd <dir>', 'Project root for project-local install')
-    .action(async (opts: { cwd?: string }) => {
+    .option('--runtime-api-key <key>', 'Agent runtime key written to project .codex-hooks/config.json')
+    .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--core-url <url>', 'Core/runtime policy endpoint written to project .codex-hooks/config.json')
+    .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
+    .option('--governance-timeout <seconds>', 'Governance request timeout in seconds')
+    .option('--hitl-max-wait <seconds>', 'Maximum human-approval wait in seconds')
+    .option('--hitl-poll-interval <seconds>', 'Human-approval polling interval in seconds')
+    .action(async (opts: {
+      cwd?: string;
+      runtimeApiKey?: string;
+      agentId?: string;
+      coreUrl?: string;
+      approvalMode?: string;
+      governanceTimeout?: string;
+      hitlMaxWait?: string;
+      hitlPollInterval?: string;
+    }) => {
       const { installCodex } = await import('../../runtime/codex/index.js');
       installCodex({ cwd: opts.cwd });
+      await configureRuntimeIfRequested(opts);
       success('Codex hooks installed');
     });
 
@@ -93,6 +180,13 @@ export function registerCodexCommands(program: Command) {
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into the Codex marketplace')
     .option('--skip-repo-skill', 'Do not install .agents/skills/openbox')
     .option('--skip-marketplace', 'Do not write .agents/plugins/marketplace.json')
+    .option('--runtime-api-key <key>', 'Agent runtime key written to project .codex-hooks/config.json')
+    .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--core-url <url>', 'Core/runtime policy endpoint written to project .codex-hooks/config.json')
+    .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
+    .option('--governance-timeout <seconds>', 'Governance request timeout in seconds')
+    .option('--hitl-max-wait <seconds>', 'Maximum human-approval wait in seconds')
+    .option('--hitl-poll-interval <seconds>', 'Human-approval polling interval in seconds')
     .option(
       '--matcher <pair>',
       "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
@@ -105,9 +199,17 @@ export function registerCodexCommands(program: Command) {
       symlink?: string;
       skipRepoSkill?: boolean;
       skipMarketplace?: boolean;
+      runtimeApiKey?: string;
+      agentId?: string;
+      coreUrl?: string;
+      approvalMode?: string;
+      governanceTimeout?: string;
+      hitlMaxWait?: string;
+      hitlPollInterval?: string;
       matcher: string[];
     }) => {
       const { installCodexPlugin } = await import('../../runtime/codex/index.js');
+      const runtime = parseRuntimeOptions(opts);
       const target = installCodexPlugin({
         cwd: opts.cwd,
         target: opts.target,
@@ -115,6 +217,7 @@ export function registerCodexCommands(program: Command) {
         matchers: parseMatcherPairs(opts.matcher),
         skipRepoSkill: opts.skipRepoSkill,
         skipMarketplace: opts.skipMarketplace,
+        runtime,
       });
       success(`installed Codex plugin at ${target}`);
     });

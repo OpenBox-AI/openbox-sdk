@@ -13,6 +13,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/cursor.js';
+import {
+  validateAgentIdentityConfig,
+  type AgentIdentityConfig,
+} from '../../core-client/index.js';
+import { normalizeServiceUrl } from '../../env/connection.js';
+import { validateApiKeyFormat } from '../../env/index.js';
+import { recallAgentKey } from '../../file-tokens/agent-keys.js';
 import type { RulesProjection } from '../../governance/rules-projection.js';
 import {
   OPENBOX_CURSOR_RULE_HEADER_MARKER,
@@ -33,6 +40,7 @@ const EXPECTED_AGENT_FILES = ['openbox-reviewer.md'] as const;
 const EXPECTED_REPO_RULE_FILES = ['openbox-governance.mdc'] as const;
 
 export type CursorPluginCheckStatus = 'pass' | 'fail' | 'skip';
+export type CursorApprovalMode = 'inline' | 'remote';
 
 export interface CursorPluginCheck {
   name: string;
@@ -65,6 +73,8 @@ export interface InstallCursorPluginOptions {
   rulesProjection?: RulesProjection;
   /** Skip creating the hook runtime config template. Defaults to false. */
   skipRuntimeConfig?: boolean;
+  /** Optional project-local runtime configuration for the installed plugin. */
+  runtime?: ConfigureCursorRuntimeOptions;
 }
 
 export interface VerifyCursorPluginOptions {
@@ -83,6 +93,27 @@ export interface InstallCursorRepoOptions {
   rulesProjection?: RulesProjection;
   /** Skip creating the hook runtime config template. Defaults to false. */
   skipRuntimeConfig?: boolean;
+  /** Optional project-local runtime configuration for the installed repo mode. */
+  runtime?: ConfigureCursorRuntimeOptions;
+}
+
+export interface ConfigureCursorRuntimeOptions {
+  /** Project root for the Cursor runtime config. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Agent runtime key written as OPENBOX_API_KEY. */
+  apiKey?: string;
+  /** Resolve the runtime key from the project-local agent-key cache. */
+  agentId?: string;
+  /** Core/runtime policy endpoint written as OPENBOX_CORE_URL. */
+  coreUrl?: string;
+  /** Signed agent identity written as OPENBOX_AGENT_DID/OPENBOX_AGENT_PRIVATE_KEY. */
+  agentIdentity?: AgentIdentityConfig;
+  approvalMode?: CursorApprovalMode;
+  governanceTimeout?: number;
+  hitlMaxWait?: number;
+  hitlPollInterval?: number;
+  hitlEnabled?: boolean;
+  verbose?: boolean;
 }
 
 export interface VerifyCursorRepoOptions {
@@ -107,6 +138,10 @@ export function cursorPluginTargetDir(cwd = process.cwd()): string {
 
 export function cursorRuntimeConfigDir(cwd = process.cwd()): string {
   return path.join(cwd, '.cursor-hooks');
+}
+
+export function cursorRuntimeConfigFile(cwd = process.cwd()): string {
+  return path.join(cursorRuntimeConfigDir(cwd), 'config.json');
 }
 
 export function cursorRepoSkillTargetDir(cwd = process.cwd()): string {
@@ -197,15 +232,91 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   mkdirSync(configDir, { recursive: true });
   const file = path.join(configDir, 'config.json');
   if (existsSync(file)) return;
-  const example = {
+  writeFileSync(file, JSON.stringify(defaultRuntimeConfig(), null, 2) + '\n', {
+    mode: 0o600,
+    encoding: 'utf-8',
+  });
+}
+
+function defaultRuntimeConfig(): Record<string, unknown> {
+  return {
     hitlEnabled: true,
     hitlMaxWait: 300,
     verbose: false,
   };
-  writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {
+}
+
+function requirePositiveInteger(value: number | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive integer`);
+  }
+  return value;
+}
+
+function normalizeApprovalMode(value: CursorApprovalMode | undefined): CursorApprovalMode | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'inline' || value === 'remote') return value;
+  throw new Error('approvalMode must be one of: inline, remote');
+}
+
+function resolveRuntimeKey(options: ConfigureCursorRuntimeOptions): string | undefined {
+  if (options.apiKey) return options.apiKey;
+  if (!options.agentId) return undefined;
+  const record = recallAgentKey(options.agentId);
+  if (!record?.runtimeKey) {
+    throw new Error(`No cached runtime key for agent ${options.agentId}`);
+  }
+  return record.runtimeKey;
+}
+
+export function configureCursorRuntime(options: ConfigureCursorRuntimeOptions = {}): string {
+  const cwd = options.cwd ?? process.cwd();
+  const configFile = cursorRuntimeConfigFile(cwd);
+  const existing = existsSync(configFile) ? (readJson(configFile) ?? {}) : {};
+  const next: Record<string, unknown> = {
+    ...defaultRuntimeConfig(),
+    ...existing,
+  };
+
+  const apiKey = resolveRuntimeKey(options);
+  if (apiKey !== undefined) {
+    const format = validateApiKeyFormat(apiKey);
+    if (format !== true) throw new Error(format);
+    next.OPENBOX_API_KEY = apiKey;
+  }
+
+  if (options.coreUrl !== undefined) {
+    next.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
+  }
+
+  if (options.agentIdentity !== undefined) {
+    const agentIdentity = validateAgentIdentityConfig(options.agentIdentity);
+    next.OPENBOX_AGENT_DID = agentIdentity.did;
+    next.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
+  }
+
+  const approvalMode = normalizeApprovalMode(options.approvalMode);
+  if (approvalMode !== undefined) next.approvalMode = approvalMode;
+
+  const governanceTimeout = requirePositiveInteger(options.governanceTimeout, 'governanceTimeout');
+  if (governanceTimeout !== undefined) next.governanceTimeout = String(governanceTimeout);
+
+  const hitlMaxWait = requirePositiveInteger(options.hitlMaxWait, 'hitlMaxWait');
+  if (hitlMaxWait !== undefined) next.hitlMaxWait = hitlMaxWait;
+
+  const hitlPollInterval = requirePositiveInteger(options.hitlPollInterval, 'hitlPollInterval');
+  if (hitlPollInterval !== undefined) next.hitlPollInterval = hitlPollInterval;
+
+  if (options.hitlEnabled !== undefined) next.hitlEnabled = options.hitlEnabled;
+  if (options.verbose !== undefined) next.verbose = options.verbose;
+
+  mkdirSync(path.dirname(configFile), { recursive: true });
+  writeFileSync(configFile, JSON.stringify(next, null, 2) + '\n', {
     mode: 0o600,
     encoding: 'utf-8',
   });
+  return configFile;
 }
 
 function cursorHooksJson(
@@ -367,6 +478,9 @@ export function installCursorPlugin(
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
     }
+    if (options.runtime) {
+      configureCursorRuntime({ ...options.runtime, cwd });
+    }
     return target;
   }
   const out = exportCursorPlugin({
@@ -376,6 +490,9 @@ export function installCursorPlugin(
   });
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
+  }
+  if (options.runtime) {
+    configureCursorRuntime({ ...options.runtime, cwd });
   }
   return out;
 }
@@ -412,6 +529,9 @@ export function installCursorRepoMode(
   copyDir(findSkillDir(), cursorRepoSkillTargetDir(cwd));
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
+  }
+  if (options.runtime) {
+    configureCursorRuntime({ ...options.runtime, cwd });
   }
   return path.join(cwd, '.cursor');
 }

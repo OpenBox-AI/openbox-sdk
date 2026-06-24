@@ -13,11 +13,18 @@
 // because core's evaluator runs OPA against the agent's policies, not
 // the org's.
 
-import { OpenBoxCoreClient, type GovernanceVerdictResponse } from '../core-client/index.js';
+import { randomUUID } from 'node:crypto';
+import { stampSource } from '../approvals/source.js';
+import {
+  DefaultSession,
+  OpenBoxCoreClient,
+  type AgentIdentityConfig,
+  type GovernanceVerdictResponse,
+  type WorkflowVerdict,
+} from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { recallAgentKey } from '../file-tokens/agent-keys.js';
 import { resolveAgentIdentity, resolveConnection } from '../env/index.js';
-import { EVENT } from './events.js';
 import {
   buildSpan,
   withSpanActivityId,
@@ -38,13 +45,28 @@ export interface CheckGovernanceOptions {
   apiKey?: string;
   /** Override the core base URL. Defaults to explicit OPENBOX_CORE_URL. */
   coreUrl?: string;
+  /** Runtime/source label stamped on emitted spans. Defaults to `sdk`. */
+  source?: string;
+  /** Existing host/OpenBox session identifier for goal-bound checks. */
+  sessionId?: string;
+  /** User/session/workflow goal used by AGE before the governed action. */
+  goal?: string;
+  /** Strict mode: reject governed actions when no goal can be resolved. */
+  requireGoalContext?: boolean;
+  /** Explicit signed agent identity for signing_required compliance proof. */
+  agentIdentity?: AgentIdentityConfig;
 }
 
 const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const llamaIndexActivity = PRESET_ACTIVITY_TYPES.llamaindex;
+const autogenActivity = PRESET_ACTIVITY_TYPES.autogen;
 
 const ACTIVITY_TYPE_MAP: Record<SpanType, string> = {
   llm: defaultActivity.prompt,
+  llm_embedding: llamaIndexActivity.embedding,
+  llm_tool_call: autogenActivity.toolCallRequestEvent,
   file_read: defaultActivity.read,
+  file_open: defaultActivity.read,
   file_write: defaultActivity.write,
   file_delete: defaultActivity.fileDelete,
   shell: defaultActivity.shell,
@@ -52,10 +74,6 @@ const ACTIVITY_TYPE_MAP: Record<SpanType, string> = {
   db: defaultActivity.databaseQuery,
   mcp: defaultActivity.mcpToolCall,
 };
-
-function hex(len: number): string {
-  return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
 
 function isRuntimeKey(k: string | undefined): k is string {
   return !!k && (k.startsWith('obx_live_') || k.startsWith('obx_test_'));
@@ -89,17 +107,23 @@ function resolveCoreUrl(coreUrlOverride?: string): string {
   return resolveConnection().coreUrl;
 }
 
-function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
-  const arm: unknown = response.verdict ?? response.action;
-  const normalized =
-    typeof arm === 'string' ? arm.trim().toLowerCase().replace(/-/g, '_') : arm;
-  return (
-    normalized === 'allow' ||
-    normalized === 'continue' ||
-    normalized === 'constrain' ||
-    normalized === 0 ||
-    normalized === 1
-  );
+function verdictResponse(verdict: WorkflowVerdict): GovernanceVerdictResponse {
+  return {
+    verdict: verdict.arm,
+    action: verdict.arm,
+    reason: verdict.reason,
+    risk_score: verdict.riskScore,
+    approval_id: verdict.approvalId,
+    governance_event_id: verdict.governanceEventId,
+    approval_expiration_time: verdict.approvalExpiresAt,
+    policy_id: verdict.policyId,
+    behavioral_violations: verdict.behavioralViolations,
+    constraints: verdict.constraints,
+    metadata: verdict.metadata,
+    fallback_used: verdict.fallbackUsed,
+    guardrails_result: verdict.guardrailsResult as never,
+    age_result: verdict.ageResult,
+  } as GovernanceVerdictResponse;
 }
 
 /**
@@ -120,47 +144,56 @@ export async function checkGovernance(
 ): Promise<GovernanceVerdictResponse> {
   const apiKey = resolveApiKey(opts);
   const coreUrl = resolveCoreUrl(opts.coreUrl);
-  const activityId = hex(32);
+  const source = opts.source?.trim() || 'sdk';
+  const goal = opts.goal?.trim();
+  if (opts.requireGoalContext && !goal) {
+    throw new Error(
+      'OpenBox goal context is required for AGE alignment; pass goal or bind to a session with a seeded goal.',
+    );
+  }
+  const activityId = randomUUID();
+  const sessionId = opts.sessionId?.trim() || randomUUID();
   const span = withSpanActivityId(
-    buildSpan('sdk', opts.spanType, opts.activityInput as SpanInput),
+    buildSpan(source, opts.spanType, opts.activityInput as SpanInput),
     activityId,
   );
-  const payload = {
-    source: 'workflow-telemetry',
-    event_type: EVENT.START,
-    workflow_id: hex(32),
-    run_id: hex(32),
-    workflow_type: 'SdkCheck',
-    task_queue: 'sdk',
-    activity_id: activityId,
-    activity_type: ACTIVITY_TYPE_MAP[opts.spanType] || opts.spanType,
-    activity_input: [opts.activityInput],
-    timestamp: new Date().toISOString(),
-    hook_trigger: true,
-    spans: [span],
-    span_count: 1,
-    attempt: 1,
-  };
+  const agentIdentity = opts.agentIdentity ?? resolveAgentIdentity();
   const client = new OpenBoxCoreClient({
     apiUrl: coreUrl,
     apiKey,
-    agentIdentity: resolveAgentIdentity(),
+    ...(agentIdentity ? { agentIdentity } : {}),
   });
-  const {
-    spans: _parentSpans,
-    span_count: _parentSpanCount,
-    hook_trigger: _parentHookTrigger,
-    ...parentFields
-  } = payload;
-  const parentPayload = {
-    ...parentFields,
-    hook_trigger: false,
-  };
-  const parentVerdict = await client.evaluate(
-    parentPayload as unknown as Parameters<typeof client.evaluate>[0],
+  const session = new DefaultSession({
+    core: client,
+    workflowType: 'SdkCheck',
+    taskQueue: source,
+    inlineApproval: true,
+    registerExitHandlers: false,
+    attached: true,
+  });
+  await session.workflowStarted();
+  if (goal) {
+    await session.activity(
+      'SignalReceived',
+      defaultActivity.goalSignal,
+      {
+        sessionId,
+        input: [stampSource({ prompt: goal, event_category: 'agent_goal' }, source)],
+        signalName: defaultActivity.goalSignal,
+        signalArgs: goal,
+        prompt: goal,
+      },
+    );
+  }
+  const verdict = await session.observeActivity(
+    'ActivityStarted',
+    ACTIVITY_TYPE_MAP[opts.spanType] || opts.spanType,
+    {
+      activityId,
+      sessionId,
+      input: [stampSource(opts.activityInput, source)],
+      spans: [span],
+    },
   );
-  const hookVerdict = await client.evaluate(
-    payload as unknown as Parameters<typeof client.evaluate>[0],
-  );
-  return isAllowishVerdict(parentVerdict) ? hookVerdict : parentVerdict;
+  return verdictResponse(verdict);
 }

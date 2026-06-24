@@ -5,11 +5,10 @@ import { join } from 'node:path';
 
 import { createOpenBoxApprovalClient } from '../../ts/src/copilotkit/react-approval-client.ts';
 import { hookEventLabel, HOOK_EVENT_LABELS } from '../../ts/src/governance/hook-event-labels.ts';
-import { PRESET_ACTIVITY_TYPES } from '../../ts/src/core-client/generated/govern.js';
 import {
-  buildMcpGovernanceSpan,
-  MCP_ACTIVITY_TYPE_MAP,
-} from '../../ts/src/runtime/mcp/governance-span.ts';
+  buildSpan,
+  type SpanType,
+} from '../../ts/src/governance/spans.ts';
 
 const temps: string[] = [];
 const originalStdinIsTTY = process.stdin.isTTY;
@@ -126,7 +125,7 @@ describe('low-branch utility coverage', () => {
     expect(hookEventLabel(known)).toBe(HOOK_EVENT_LABELS[known]);
   });
 
-  it('builds MCP governance spans for each supported span type and default fallbacks', () => {
+  it('builds shared governance spans for each MCP-supported span type and default fallbacks', () => {
     const cases = [
       ['llm', { prompt: 'hi' }, 'llm.chat.completion'],
       ['file_read', { file_path: '/tmp/read.txt' }, 'file.read'],
@@ -139,26 +138,18 @@ describe('low-branch utility coverage', () => {
     ] as const;
 
     for (const [spanType, input, name] of cases) {
-      const span = buildMcpGovernanceSpan(spanType, input);
+      const span = buildSpan('mcp', spanType as SpanType, input);
       expect(span.name).toBe(name);
+      expect(span.module).toBe('mcp');
+      expect(span).not.toHaveProperty('semantic_type');
       expect(String(span.span_id)).toMatch(/^[0-9a-f]{16}$/);
       expect(String(span.trace_id)).toMatch(/^[0-9a-f]{32}$/);
       expect(span.status).toEqual({ code: 'UNSET', description: null });
     }
 
-    expect(buildMcpGovernanceSpan('http', {}).name).toBe('GET ');
-    expect(buildMcpGovernanceSpan('db', {}).db_operation).toBe('SELECT');
-    expect(buildMcpGovernanceSpan('mcp', {}).function).toBe('mcp.call');
-    expect(MCP_ACTIVITY_TYPE_MAP).toMatchObject({
-      llm: PRESET_ACTIVITY_TYPES.default.prompt,
-      file_read: PRESET_ACTIVITY_TYPES.default.read,
-      file_write: PRESET_ACTIVITY_TYPES.default.write,
-      file_delete: PRESET_ACTIVITY_TYPES.default.fileDelete,
-      shell: PRESET_ACTIVITY_TYPES.default.shell,
-      http: PRESET_ACTIVITY_TYPES.default.httpRequest,
-      db: PRESET_ACTIVITY_TYPES.default.databaseQuery,
-      mcp: PRESET_ACTIVITY_TYPES.default.mcpToolCall,
-    });
+    expect(buildSpan('mcp', 'http', {}).name).toBe('GET ');
+    expect(buildSpan('mcp', 'db', {}).db_operation).toBe('SELECT');
+    expect(buildSpan('mcp', 'mcp', {}).function).toBe('mcp.call');
   });
 
   it('covers prompt and MCP mapper skip and halt branches', async () => {

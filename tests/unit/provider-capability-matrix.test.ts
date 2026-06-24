@@ -10,40 +10,61 @@ import { HOOK_SPEC as CLAUDE_HOOK_SPEC } from '../../ts/src/core-client/generate
 import { HOOK_SPEC as CODEX_HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/codex.js';
 import { HOOK_SPEC as CURSOR_HOOK_SPEC } from '../../ts/src/core-client/generated/runtime/cursor.js';
 import {
+  BEHAVIOR_RULE_CAPABILITY_GUARDS,
   GOAL_SIGNAL_GUARDS,
   GUARDRAIL_CAPABILITY_GUARDS,
   HITL_CAPABILITY_GUARDS,
   HOOK_CAPABILITY_GUARDS,
   INSTALL_DOCTOR_CAPABILITY_GUARDS,
+  CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE,
+  CLAUDE_CODE_GOVERNANCE_AUDIT,
+  CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
+  CLAUDE_CODE_SURFACE_MATRIX,
+  GUARDRAILS_HUB_RECORDING_SURFACE,
+  LOCAL_STACK_OUTCOME_SOURCES,
+  LOCAL_STACK_PROOF_LEVELS,
+  LOCAL_STACK_SCENARIO_AXIS_IDS,
+  LOCAL_STACK_SCENARIO_CATEGORY_IDS,
+  LOCAL_STACK_SCENARIO_PATHS,
+  LOCAL_STACK_SCENARIO_MATRIX,
+  LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES,
   MCP_CAPABILITY_GUARDS,
   OPENBOX_CAPABILITY_IDS,
+  GOVERNANCE_CHECKLIST_LIMITATIONS,
+  GOVERNANCE_CHECKLIST_SCORE,
   POLICY_EVALUATION_GUARDS,
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
   MCP_SKILL_REFERENCE_SURFACES,
   MCP_TOOL_SURFACES,
   N8N_INTEGRATION_SURFACE,
+  OPA_EVALUATION_MATRIX,
   PLUGIN_CAPABILITY_GUARDS,
   PROVIDER_CAPABILITY_MATRIX,
   REFERENCE_PROVIDER_PARITY_CLOSURES,
   REFERENCE_PROVIDER_RUNTIME_AUDIT,
+  GOVERNANCE_CHECKLIST_ROWS,
   PROVIDER_EVENT_CATALOG,
   OPENBOX_PROVIDER_IDS,
   OPENBOX_SUPPORT_TIERS,
   PROVIDER_PLUGIN_COMPONENTS,
   PUBLIC_INTEGRATION_SUPPORT,
   RULES_INSTRUCTION_CAPABILITY_GUARDS,
+  SDK_SEMANTIC_GAP_CLOSURE_TARGETS,
   SKILL_CAPABILITY_GUARDS,
   SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
   TRACING_CAPABILITY_GUARDS,
   USAGE_COST_CAPABILITY_GUARDS,
   USAGE_NORMALIZATION_SURFACE,
   type OpenBoxProviderId,
+  type GovernanceChecklistRowEntry,
   type ReferenceProviderParityClosureStatus,
   type ReferenceProviderRuntimePromotionDecision,
 } from '../../ts/src/governance/capability-matrix.js';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 const PROVIDERS: readonly OpenBoxProviderId[] = OPENBOX_PROVIDER_IDS;
+const CHECKLIST_ROWS: readonly GovernanceChecklistRowEntry[] = GOVERNANCE_CHECKLIST_ROWS;
 
 function readProviderCapabilityFixture(): Record<string, unknown> {
   return JSON.parse(
@@ -51,10 +72,20 @@ function readProviderCapabilityFixture(): Record<string, unknown> {
   ) as Record<string, unknown>;
 }
 
+function sortedUniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function csvCell(value: unknown): string {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
 const GUARD_COVERAGE_GROUPS = [
   { name: 'approvals-hitl', guards: HITL_CAPABILITY_GUARDS },
   { name: 'opa-rules', guards: POLICY_EVALUATION_GUARDS },
   { name: 'guardrails', guards: GUARDRAIL_CAPABILITY_GUARDS },
+  { name: 'behavior-rules', guards: BEHAVIOR_RULE_CAPABILITY_GUARDS },
   { name: 'usage-cost', guards: USAGE_COST_CAPABILITY_GUARDS },
   { name: 'tracing', guards: TRACING_CAPABILITY_GUARDS },
   { name: 'install-doctor', guards: INSTALL_DOCTOR_CAPABILITY_GUARDS },
@@ -77,16 +108,126 @@ function normalizeGuardProofText(value: string): string {
     .toLowerCase();
 }
 
+function stripCodeComments(source: string): string {
+  let out = '';
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let index = 0; index < source.length; index++) {
+    const ch = source[index];
+    const next = source[index + 1];
+    if (quote) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      while (index < source.length && source[index] !== '\n') index++;
+      out += '\n';
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      index += 2;
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) {
+        index++;
+      }
+      index++;
+      out += ' ';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function extractEnabledTestBlocks(source: string): Array<{ title: string; source: string }> {
+  const out: Array<{ title: string; source: string }> = [];
+  const skippedRanges = findSkippedDescribeRanges(source);
+  const testRe = /\b(?:it|test)\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  for (const match of source.matchAll(testRe)) {
+    const start = match.index ?? 0;
+    if (skippedRanges.some((range) => start >= range.start && start < range.end)) continue;
+    const arrowIndex = source.indexOf('=>', start);
+    if (arrowIndex === -1) continue;
+    const bodyStart = source.indexOf('{', arrowIndex);
+    if (bodyStart === -1) continue;
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd === -1) continue;
+    out.push({ title: match[2], source: source.slice(start, bodyEnd + 1) });
+  }
+  return out;
+}
+
+function findSkippedDescribeRanges(source: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const describeSkipRe = /\bdescribe\.skip\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  for (const match of source.matchAll(describeSkipRe)) {
+    const start = match.index ?? 0;
+    const arrowIndex = source.indexOf('=>', start);
+    if (arrowIndex === -1) continue;
+    const bodyStart = source.indexOf('{', arrowIndex);
+    if (bodyStart === -1) continue;
+    const bodyEnd = findMatchingBrace(source, bodyStart);
+    if (bodyEnd !== -1) ranges.push({ start, end: bodyEnd + 1 });
+  }
+  return ranges;
+}
+
+function findMatchingBrace(source: string, start: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let index = start; index < source.length; index++) {
+    const ch = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{') depth++;
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
 function expectGuardTestResolves(label: string, guardTest: string): void {
   const [file, anchor] = guardTest.split('#');
   expect(file, `${label} guardTest file`).toMatch(/^tests\/.+\.test\.ts$/);
   expect(anchor, `${label} guardTest anchor`).toBeTruthy();
 
   const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+  const normalizedAnchor = normalizeGuardProofText(anchor);
+  const matchingBlock = extractEnabledTestBlocks(source).find((block) => {
+    const normalizedTitle = normalizeGuardProofText(block.title);
+    return normalizedTitle.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedTitle);
+  });
+  expect(matchingBlock, `${label} guardTest enabled test block ${guardTest}`).toBeDefined();
   expect(
-    normalizeGuardProofText(source),
-    `${label} guardTest anchor ${guardTest}`,
-  ).toContain(normalizeGuardProofText(anchor));
+    stripCodeComments(matchingBlock?.source ?? ''),
+    `${label} guardTest executable assertions ${guardTest}`,
+  ).toMatch(/\bexpect(?:\.|\()/);
 }
 
 describe('provider capability matrix', () => {
@@ -98,13 +239,44 @@ describe('provider capability matrix', () => {
     expect(OPENBOX_CAPABILITY_IDS).toEqual(fixture.capabilityIds);
     expect(OPENBOX_PROVIDER_IDS).toEqual(fixture.providerIds);
     expect(OPENBOX_SUPPORT_TIERS).toEqual(fixture.supportTiers);
+    expect(LOCAL_STACK_SCENARIO_CATEGORY_IDS).toEqual(
+      GOVERNANCE_SPEC_DOMAINS.localStackScenarioCategories,
+    );
+    expect(LOCAL_STACK_SCENARIO_AXIS_IDS).toEqual(GOVERNANCE_SPEC_DOMAINS.localStackScenarioAxes);
+    expect(LOCAL_STACK_PROOF_LEVELS).toEqual(GOVERNANCE_SPEC_DOMAINS.localStackProofLevels);
+    expect(LOCAL_STACK_OUTCOME_SOURCES).toEqual(GOVERNANCE_SPEC_DOMAINS.localStackOutcomeSources);
+    expect(SDK_SEMANTIC_GAP_CLOSURE_TARGETS).toEqual(
+      GOVERNANCE_SPEC_DOMAINS.sdkSemanticGapClosureTargets,
+    );
     expect(PROVIDER_CAPABILITY_MATRIX).toEqual(fixture.providerCapabilityMatrix);
+    expect(GOVERNANCE_CHECKLIST_LIMITATIONS).toEqual(
+      fixture.governanceChecklistLimitations,
+    );
+    expect(GOVERNANCE_CHECKLIST_ROWS).toEqual(fixture.governanceChecklistRows);
+    expect(GOVERNANCE_CHECKLIST_SCORE).toEqual(fixture.governanceChecklistScore);
     expect(REFERENCE_PROVIDER_PARITY_CLOSURES).toEqual(
       fixture.referenceProviderParityClosures,
     );
     expect(REFERENCE_PROVIDER_RUNTIME_AUDIT).toEqual(fixture.referenceProviderRuntimeAudit);
     expect(PROVIDER_EVENT_CATALOG).toEqual(fixture.providerEventCatalog);
     expect(PROVIDER_PLUGIN_COMPONENTS).toEqual(fixture.providerPluginComponents);
+    const claudeCodeGovernanceAuditSurface = fixture.claudeCodeGovernanceAuditSurface as {
+      audit: unknown;
+      surfaces: unknown;
+      sdkCapabilities: unknown;
+    };
+    expect(CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE).toEqual(
+      claudeCodeGovernanceAuditSurface,
+    );
+    expect(CLAUDE_CODE_GOVERNANCE_AUDIT).toEqual(
+      claudeCodeGovernanceAuditSurface.audit,
+    );
+    expect(CLAUDE_CODE_SURFACE_MATRIX).toEqual(
+      claudeCodeGovernanceAuditSurface.surfaces,
+    );
+    expect(CLAUDE_CODE_SDK_CAPABILITY_MATRIX).toEqual(
+      claudeCodeGovernanceAuditSurface.sdkCapabilities,
+    );
     expect(PUBLIC_INTEGRATION_SUPPORT).toEqual(fixture.publicIntegrationSupport);
     expect(GOAL_SIGNAL_GUARDS).toEqual(fixture.goalSignalGuards);
     expect(USAGE_COST_CAPABILITY_GUARDS).toEqual(fixture.usageCostCapabilityGuards);
@@ -112,6 +284,11 @@ describe('provider capability matrix', () => {
     expect(TRACING_CAPABILITY_GUARDS).toEqual(fixture.tracingCapabilityGuards);
     expect(HITL_CAPABILITY_GUARDS).toEqual(fixture.hitlCapabilityGuards);
     expect(GUARDRAIL_CAPABILITY_GUARDS).toEqual(fixture.guardrailCapabilityGuards);
+    expect(BEHAVIOR_RULE_CAPABILITY_GUARDS).toEqual(fixture.behaviorRuleCapabilityGuards);
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE).toEqual(
+      fixture.guardrailsHubRecordingSurface,
+    );
+    expect(OPA_EVALUATION_MATRIX).toEqual(fixture.opaEvaluationMatrix);
     expect(POLICY_EVALUATION_GUARDS).toEqual(fixture.policyEvaluationGuards);
     expect(RULES_INSTRUCTION_CAPABILITY_GUARDS).toEqual(
       fixture.rulesInstructionCapabilityGuards,
@@ -124,11 +301,315 @@ describe('provider capability matrix', () => {
     expect(SKILL_CAPABILITY_GUARDS).toEqual(fixture.skillCapabilityGuards);
     expect(MCP_CAPABILITY_GUARDS).toEqual(fixture.mcpCapabilityGuards);
     expect(INSTALL_DOCTOR_CAPABILITY_GUARDS).toEqual(fixture.installDoctorCapabilityGuards);
+    expect(LOCAL_STACK_SCENARIO_PATHS).toEqual(fixture.localStackScenarioPaths);
+    expect(LOCAL_STACK_SCENARIO_MATRIX).toEqual(fixture.localStackScenarioMatrix);
     expect(MCP_TOOL_SURFACES).toEqual(fixture.mcpToolSurfaces);
     expect(MCP_PROMPT_SURFACES).toEqual(fixture.mcpPromptSurfaces);
     expect(MCP_RESOURCE_TEMPLATE_SURFACES).toEqual(fixture.mcpResourceTemplateSurfaces);
     expect(MCP_SKILL_REFERENCE_SURFACES).toEqual(fixture.mcpSkillReferenceSurfaces);
     expect(N8N_INTEGRATION_SURFACE).toEqual(fixture.n8nIntegrationSurface);
+  });
+
+  it('keeps governance checklist scoring honest by excluding explicit limitations', () => {
+    const expectedLimitationIds = [
+      'CLAUDE-062',
+      'CODEX-015',
+      'CODEX-019',
+      'CURSOR-074',
+      'CURSOR-077',
+      'OAI-010',
+      'MCP-018',
+      'MCP-050',
+      'COPILOT-017',
+      'N8N-012',
+      'N8N-016',
+    ];
+    const scoredRows = GOVERNANCE_CHECKLIST_SCORE.filter((entry) => entry.scope === 'scored');
+    const implementationTotal = GOVERNANCE_CHECKLIST_SCORE.find(
+      (entry) => entry.area === 'Implementation Total',
+    );
+    const implementationRows = CHECKLIST_ROWS.filter(
+      (entry) => entry.area !== 'Universal contract requirements',
+    );
+
+    expect(GOVERNANCE_CHECKLIST_LIMITATIONS).toHaveLength(expectedLimitationIds.length);
+    expect(
+      GOVERNANCE_CHECKLIST_LIMITATIONS.map((entry) => entry.checklistId).sort(),
+    ).toEqual([...expectedLimitationIds].sort());
+    expect(
+      new Set(GOVERNANCE_CHECKLIST_LIMITATIONS.map((entry) => entry.checklistId)).size,
+    ).toBe(GOVERNANCE_CHECKLIST_LIMITATIONS.length);
+    for (const limitation of GOVERNANCE_CHECKLIST_LIMITATIONS) {
+      const row = CHECKLIST_ROWS.find(
+        (entry) => entry.id === limitation.checklistId,
+      );
+      expect(row, `${limitation.checklistId} detailed row`).toBeDefined();
+      expect(row?.status, `${limitation.checklistId} row status`).toBe('limitation');
+      expect(row?.scored, `${limitation.checklistId} row scored`).toBe(false);
+      expect(row?.provider, `${limitation.checklistId} row provider`).toBe(
+        limitation.provider,
+      );
+      expect(row?.boundaryOwner, `${limitation.checklistId} row boundary`).toBe(
+        limitation.boundaryOwner,
+      );
+      expect(OPENBOX_PROVIDER_IDS, `${limitation.checklistId} provider`).toContain(
+        limitation.provider,
+      );
+      expect(['host', 'caller'], `${limitation.checklistId} boundaryOwner`).toContain(
+        limitation.boundaryOwner,
+      );
+      expect(limitation.scored, `${limitation.checklistId} scored`).toBe(false);
+      expect(limitation.limitation.length, `${limitation.checklistId} limitation`).toBeGreaterThan(
+        40,
+      );
+      expect(
+        limitation.openboxContract.length,
+        `${limitation.checklistId} openboxContract`,
+      ).toBeGreaterThan(60);
+    }
+
+    expect(scoredRows.length).toBeGreaterThan(0);
+    for (const row of scoredRows) {
+      expect(row.total, `${row.area} total math`).toBe(
+        row.done + row.limitations + row.missing,
+      );
+      expect(row.scoredTotal, `${row.area} scoredTotal`).toBe(row.done);
+      expect(row.scoredDone, `${row.area} scoredDone`).toBe(row.scoredTotal);
+      expect(row.scoredDonePercent, `${row.area} scoredDonePercent`).toBe('100.0%');
+      expect(row.missing, `${row.area} missing`).toBe(0);
+    }
+
+    expect(CHECKLIST_ROWS).toHaveLength(639);
+    expect(new Set(CHECKLIST_ROWS.map((entry) => entry.id)).size).toBe(
+      CHECKLIST_ROWS.length,
+    );
+    for (const score of GOVERNANCE_CHECKLIST_SCORE) {
+      if (score.area === 'Implementation Total') continue;
+      const areaRows = CHECKLIST_ROWS.filter(
+        (entry) => entry.area === score.area,
+      );
+      expect(areaRows, `${score.area} detailed rows`).toHaveLength(score.total);
+      if (score.scope === 'universal') {
+        expect(areaRows.every((entry) => entry.status === 'universal')).toBe(true);
+        expect(areaRows.every((entry) => entry.scored === false)).toBe(true);
+        continue;
+      }
+      const done = areaRows.filter((entry) => entry.status === 'done').length;
+      const limitations = areaRows.filter((entry) => entry.status === 'limitation').length;
+      const missing = areaRows.filter((entry) => entry.status === 'missing').length;
+      const scored = areaRows.filter((entry) => entry.scored).length;
+      expect(done, `${score.area} done detailed rows`).toBe(score.done);
+      expect(limitations, `${score.area} limitation detailed rows`).toBe(score.limitations);
+      expect(missing, `${score.area} missing detailed rows`).toBe(score.missing);
+      expect(scored, `${score.area} scored detailed rows`).toBe(score.scoredTotal);
+    }
+
+    expect(implementationTotal).toBeDefined();
+    const implementationScore = implementationTotal!;
+    expect(implementationScore.limitations).toBe(GOVERNANCE_CHECKLIST_LIMITATIONS.length);
+    expect(implementationRows).toHaveLength(implementationScore.total);
+    expect(implementationRows.filter((entry) => entry.status === 'done')).toHaveLength(
+      implementationScore.done,
+    );
+    expect(
+      implementationRows.filter((entry) => entry.status === 'limitation'),
+    ).toHaveLength(implementationScore.limitations);
+    expect(implementationRows.filter((entry) => entry.status === 'missing')).toHaveLength(
+      implementationScore.missing,
+    );
+    expect(implementationScore.total).toBe(583);
+    expect(implementationScore.done).toBe(572);
+    expect(implementationScore.scoredTotal).toBe(572);
+    expect(implementationScore.scoredDone).toBe(572);
+  });
+
+  it('keeps repo-local governance checklist artifacts synced to generated constants', () => {
+    const markdown = readFileSync(
+      resolve(process.cwd(), 'docs/governance-artifacts/capability-checklist.md'),
+      'utf8',
+    );
+    const csv = readFileSync(
+      resolve(process.cwd(), 'docs/governance-artifacts/summary.csv'),
+      'utf8',
+    );
+    const detailedCsv = readFileSync(
+      resolve(process.cwd(), 'docs/governance-artifacts/capability-checklist.csv'),
+      'utf8',
+    );
+    const expectedCsvRows = [
+      [
+        'Area',
+        'Total',
+        'Done',
+        'Limitations',
+        'Missing',
+        'Scored Total',
+        'Scored Done',
+        'Scored Done %',
+      ],
+      ...GOVERNANCE_CHECKLIST_SCORE.map((row) => [
+        row.area,
+        String(row.total),
+        row.scope === 'universal' ? 'n/a' : String(row.done),
+        row.scope === 'universal' ? 'n/a' : String(row.limitations),
+        row.scope === 'universal' ? 'n/a' : String(row.missing),
+        row.scope === 'universal' ? 'n/a' : String(row.scoredTotal),
+        row.scope === 'universal' ? 'n/a' : String(row.scoredDone),
+        row.scoredDonePercent,
+      ]),
+    ];
+    const expectedCsv = expectedCsvRows.map((row) => row.map(csvCell).join(',')).join('\n') + '\n';
+    const expectedDetailedCsvRows = [
+      [
+        'Area',
+        'Group',
+        'ID',
+        'Status',
+        'Scored',
+        'Provider',
+        'Boundary Owner',
+        'Requirement',
+      ],
+      ...CHECKLIST_ROWS.map((row) => [
+        row.area,
+        row.group,
+        row.id,
+        row.status,
+        row.scored,
+        row.provider ?? '',
+        row.boundaryOwner ?? '',
+        row.requirement,
+      ]),
+    ];
+    const expectedDetailedCsv =
+      expectedDetailedCsvRows.map((row) => row.map(csvCell).join(',')).join('\n') + '\n';
+
+    expect(csv).toBe(expectedCsv);
+    expect(detailedCsv).toBe(expectedDetailedCsv);
+    expect(markdown).toContain('AUTO-GENERATED by scripts/write-governance-checklist.mjs');
+    expect(markdown).toContain('Detailed rows are emitted from `governanceChecklistRows`.');
+    for (const row of GOVERNANCE_CHECKLIST_SCORE) {
+      expect(markdown, row.area).toContain(`### ${row.area}`);
+      expect(markdown, row.area).toContain(`- Total: ${row.total}`);
+    }
+    for (const row of CHECKLIST_ROWS) {
+      expect(markdown, row.id).toContain(`${row.id} - `);
+    }
+    for (const limitation of GOVERNANCE_CHECKLIST_LIMITATIONS) {
+      const limitationLine = `- Limitation: ${limitation.limitation}`;
+      expect(markdown, limitation.checklistId).toContain(
+        `### ${limitation.checklistId}`,
+      );
+      expect(markdown, limitation.checklistId).toContain(
+        `- Boundary owner: ${limitation.boundaryOwner}`,
+      );
+      expect(markdown.replace(/\n  /g, ' '), limitation.checklistId).toContain(
+        limitationLine,
+      );
+    }
+  });
+
+  it('does not use stale conditional provider-exposure wording in generated capability text', () => {
+    const serialized = JSON.stringify({
+      providerCapabilityMatrix: PROVIDER_CAPABILITY_MATRIX,
+      governanceChecklistLimitations: GOVERNANCE_CHECKLIST_LIMITATIONS,
+      governanceChecklistRows: GOVERNANCE_CHECKLIST_ROWS,
+      governanceChecklistScore: GOVERNANCE_CHECKLIST_SCORE,
+      referenceProviderParityClosures: REFERENCE_PROVIDER_PARITY_CLOSURES,
+      referenceProviderRuntimeAudit: REFERENCE_PROVIDER_RUNTIME_AUDIT,
+      usageCostCapabilityGuards: USAGE_COST_CAPABILITY_GUARDS,
+      subagentsAgentsCapabilityGuards: SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
+      mcpCapabilityGuards: MCP_CAPABILITY_GUARDS,
+      localStackScenarioPaths: LOCAL_STACK_SCENARIO_PATHS,
+    });
+
+    expect(serialized).not.toMatch(
+      /when [^"]*(?:expos|surfaced|supplied|represented|available|present)/i,
+    );
+    expect(serialized).not.toMatch(
+      /(?:exposes? (?:it|them)|surfaced by|where available|where present|when supplied)/i,
+    );
+    expect(serialized).not.toMatch(
+      /(?:reference provider does not expose|does not expose an OpenBox-owned surface|reference surface exposes|not exposed by hooks|exposes enough)/i,
+    );
+  });
+
+  it('pins OPA evaluation matrix to spec-owned canonical surfaces', () => {
+    const localStackScenarioIds = new Set<string>(
+      LOCAL_STACK_SCENARIO_PATHS.map((entry) => entry.id),
+    );
+    const expectedVerdicts = GOVERNANCE_SPEC_DOMAINS.coreVerdicts
+      .filter((verdict) => verdict !== 'constrain')
+      .sort();
+
+    expect(OPA_EVALUATION_MATRIX.source).toBe('specs/typespec/govern/capabilities.tsp');
+    expect(sortedUniqueStrings(OPA_EVALUATION_MATRIX.decisionScenarios.map((entry) => entry.expectedVerdict))).toEqual(
+      expectedVerdicts,
+    );
+    expect(sortedUniqueStrings(OPA_EVALUATION_MATRIX.decisionScenarios.map((entry) => entry.expectedAction))).toEqual(
+      expectedVerdicts,
+    );
+    expect(OPA_EVALUATION_MATRIX.decisionScenarios.map((entry) => entry.scenarioId).sort()).toEqual([
+      'opa-allow',
+      'opa-block',
+      'opa-halt',
+      'opa-require-approval',
+    ]);
+    expect(OPA_EVALUATION_MATRIX.governedSurfaces.length).toBeGreaterThan(20);
+    expect(
+      new Set(
+        OPA_EVALUATION_MATRIX.governedSurfaces.map(
+          (entry) => `${entry.scenarioId}:${entry.activityType}:${entry.semanticType}`,
+        ),
+      ).size,
+    ).toBe(OPA_EVALUATION_MATRIX.governedSurfaces.length);
+
+    const matrixScenarioIds = sortedUniqueStrings([
+      ...OPA_EVALUATION_MATRIX.decisionScenarios.map((entry) => entry.scenarioId),
+      ...OPA_EVALUATION_MATRIX.governedSurfaces.map((entry) => entry.scenarioId),
+      ...OPA_EVALUATION_MATRIX.aliasCases.map((entry) => entry.scenarioId),
+      OPA_EVALUATION_MATRIX.unsupportedConstrain.scenarioId,
+      OPA_EVALUATION_MATRIX.unavailableFailClosed.scenarioId,
+      'opa-decision-aliases',
+    ]);
+    expect(matrixScenarioIds.filter((id) => !localStackScenarioIds.has(id))).toEqual([]);
+
+    const serialized = JSON.stringify(OPA_EVALUATION_MATRIX);
+    expect(serialized).not.toMatch(/\/tmp\/openbox-sdk/);
+    expect(serialized).toContain('fixtures/openbox-sdk-readme.md');
+    expect(OPA_EVALUATION_MATRIX.unsupportedConstrain.expectedVerdict).toBe('allow');
+    expect(OPA_EVALUATION_MATRIX.unavailableFailClosed.unavailableVerdict).toBe('halt');
+  });
+
+  it('routes non-native embedding governance through MCP-required drivers', () => {
+    const embeddingCase = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.find(
+      (entry) => entry.id === 'llm-embedding-approval',
+    );
+    expect(embeddingCase).toMatchObject({
+      spanType: 'llm_embedding',
+      expectedTrigger: 'llm_embedding',
+      expectedVerdict: 'require_approval',
+    });
+
+    for (const provider of ['openai-agents-sdk', 'anthropic-agent-sdk', 'copilotkit'] as const) {
+      const drivers = embeddingCase?.providerDrivers?.filter(
+        (entry) => entry.provider === provider,
+      );
+      expect(drivers, provider).toEqual([
+        expect.objectContaining({
+          provider,
+          surface: 'mcp-required',
+          event: 'tools/call',
+          tool: 'check_governance',
+        }),
+      ]);
+      expect(drivers?.map((entry) => String(entry.surface)), provider).not.toContain(
+        'sdk-wrapper',
+      );
+      expect(drivers?.map((entry) => String(entry.surface)), provider).not.toContain(
+        'runtime-adapter',
+      );
+    }
   });
 
   it('declares every required capability for every provider', () => {
@@ -140,6 +621,33 @@ describe('provider capability matrix', () => {
       for (const entry of entries) {
         expect(entry.rationale.length, `${provider}/${entry.capability} rationale`).toBeGreaterThan(20);
       }
+    }
+  });
+
+  it('keeps provider capability rows rectangular, unique, and domain-valid', () => {
+    const expectedKeys = PROVIDERS.flatMap((provider) =>
+      OPENBOX_CAPABILITY_IDS.map((capability) => `${provider}/${capability}`),
+    ).sort();
+    const actualKeys = PROVIDER_CAPABILITY_MATRIX
+      .map((entry) => `${entry.provider}/${entry.capability}`)
+      .sort();
+
+    expect(PROVIDER_CAPABILITY_MATRIX.length).toBe(
+      OPENBOX_PROVIDER_IDS.length * OPENBOX_CAPABILITY_IDS.length,
+    );
+    expect(actualKeys).toEqual(expectedKeys);
+    expect([...new Set(actualKeys)]).toEqual(actualKeys);
+
+    for (const entry of PROVIDER_CAPABILITY_MATRIX) {
+      expect(OPENBOX_PROVIDER_IDS, `${entry.provider}/${entry.capability} provider`).toContain(
+        entry.provider,
+      );
+      expect(OPENBOX_CAPABILITY_IDS, `${entry.provider}/${entry.capability} capability`).toContain(
+        entry.capability,
+      );
+      expect(OPENBOX_SUPPORT_TIERS, `${entry.provider}/${entry.capability} tier`).toContain(
+        entry.tier,
+      );
     }
   });
 
@@ -313,6 +821,42 @@ describe('provider capability matrix', () => {
     }
   });
 
+  it('pins behavior-rules support claims to explicit Core-owned trigger guards', () => {
+    const behaviorCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
+      .filter((entry) => entry.capability === 'behavior-rules' && entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+    const nativeGuardProviders = BEHAVIOR_RULE_CAPABILITY_GUARDS
+      .filter((entry) => entry.tier === 'native')
+      .map((entry) => entry.provider)
+      .sort();
+
+    expect(nativeGuardProviders).toEqual(behaviorCapabilityProviders);
+    expect(new Set(nativeGuardProviders).size).toBe(nativeGuardProviders.length);
+
+    const targetHosts: readonly OpenBoxProviderId[] = ['claude-code', 'cursor', 'codex'];
+    for (const provider of targetHosts) {
+      expect(nativeGuardProviders, `${provider} behavior-rule guard`).toContain(provider);
+      const guard = BEHAVIOR_RULE_CAPABILITY_GUARDS.find((entry) => entry.provider === provider);
+      expect(guard?.localStackProof, `${provider} localStackProof`).toContain('local Core');
+    }
+
+    for (const guard of BEHAVIOR_RULE_CAPABILITY_GUARDS) {
+      expect(guard.triggerSurfaces.length, `${guard.provider} triggerSurfaces`).toBeGreaterThan(30);
+      expect(guard.spanCoverage, `${guard.provider} spanCoverage`).toMatch(/span/i);
+      expect(guard.coreContract, `${guard.provider} coreContract`).toContain('Core/backend');
+      expect(guard.coreContract, `${guard.provider} coreContract`).toMatch(/owns behavior-rule trigger matching/i);
+      expect(guard.verdictEnforcement, `${guard.provider} verdictEnforcement`).toMatch(
+        /verdict|allow|block|halt|deny|approval/i,
+      );
+      expect(guard.verdictEnforcement, `${guard.provider} verdictEnforcement`).toMatch(
+        /without local predicate evaluation|never computes behavior decisions/i,
+      );
+      expect(guard.localStackProof, `${guard.provider} localStackProof`).toMatch(/^tests\/.+\.test\.ts /);
+      expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
   it('pins native guardrail support claims to explicit guardrail guard coverage', () => {
     const nativeCapabilityProviders = PROVIDER_CAPABILITY_MATRIX
       .filter((entry) => entry.capability === 'guardrails' && entry.tier === 'native')
@@ -332,6 +876,116 @@ describe('provider capability matrix', () => {
       expect(guard.redactionBehavior.length, `${guard.provider} redactionBehavior`).toBeGreaterThan(30);
       expect(guard.failClosedBehavior, `${guard.provider} failClosedBehavior`).toMatch(/fail|block|deny|halt|throw/i);
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
+    }
+  });
+
+  it('pins Guardrails Hub recording to spec-owned corpus and deterministic samples', () => {
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.source).toBe(
+      'specs/typespec/govern/capabilities.tsp',
+    );
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.recorderScript).toBe(
+      'scripts/record-guardrails-hub.mjs',
+    );
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.provenanceCommand).toBe(
+      'node scripts/record-guardrails-hub.mjs --provenance',
+    );
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.defaultSampleCount).toBe(5);
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.requiredValidatorModulePrefix).toBe(
+      'guardrails_grhub_',
+    );
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.forbiddenValidatorModulePrefixes).toContain(
+      'src.guardrails.local',
+    );
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.cases.every((entry) => entry.sampleCount === 5)).toBe(
+      true,
+    );
+    expect(GUARDRAILS_HUB_RECORDING_SURFACE.cases.every((entry) => entry.variants.length >= 2)).toBe(
+      true,
+    );
+    const hubVariants = GUARDRAILS_HUB_RECORDING_SURFACE.cases.flatMap((entry) =>
+      entry.variants.map((variant) => ({ entry, variant })),
+    );
+    expect(new Set(hubVariants.map(({ entry, variant }) => `${entry.id}/${variant.id}`)).size).toBe(
+      hubVariants.length,
+    );
+    for (const entry of GUARDRAILS_HUB_RECORDING_SURFACE.cases) {
+      expect(sortedUniqueStrings(entry.variants.map((variant) => variant.expectedSemanticStatus))).toEqual([
+        'allowed',
+        'violation',
+      ]);
+    }
+    expect(
+      sortedUniqueStrings(GUARDRAILS_HUB_RECORDING_SURFACE.cases.map((entry) => entry.guardrailType)),
+    ).toEqual([...GOVERNANCE_SPEC_DOMAINS.guardrailTypes].sort());
+    expect(
+      sortedUniqueStrings(hubVariants.map(({ variant }) => variant.expectedSemanticStatus)),
+    ).toEqual(['allowed', 'violation']);
+
+    const recordedPath = resolve(
+      process.cwd(),
+      GUARDRAILS_HUB_RECORDING_SURFACE.fixturePath,
+    );
+    const recordedText = readFileSync(recordedPath, 'utf8');
+    expect(recordedText).not.toMatch(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+
+    const recorded = JSON.parse(recordedText) as {
+      schemaVersion: number;
+      status: 'not-recorded' | 'recorded';
+      generatedBy: string;
+      policyId: string;
+      recordingRequired?: boolean;
+      provenance?: { source?: string; validators?: Array<{ module?: string }> };
+      records: Array<{
+        caseId: string;
+        variantId: string;
+        sampleCount: number;
+        stable: boolean;
+        samples: Array<{ semanticStatus: string }>;
+      }>;
+    };
+    expect(recorded.schemaVersion).toBe(1);
+    expect(recorded.generatedBy).toBe(GUARDRAILS_HUB_RECORDING_SURFACE.recorderScript);
+    expect(recorded.policyId).toBe(GUARDRAILS_HUB_RECORDING_SURFACE.id);
+
+    if (recorded.status === 'not-recorded') {
+      expect(recorded.recordingRequired).toBe(true);
+      expect(recorded.records).toEqual([]);
+      return;
+    }
+
+    expect(recorded.provenance?.source).toBe('guardrails-hub');
+    expect(
+      recorded.provenance?.validators?.every((validator) =>
+        String(validator.module).startsWith(
+          GUARDRAILS_HUB_RECORDING_SURFACE.requiredValidatorModulePrefix,
+        ),
+      ),
+    ).toBe(true);
+    const variantByRef = new Map<
+      string,
+      {
+        entry: (typeof GUARDRAILS_HUB_RECORDING_SURFACE.cases)[number];
+        variant: (typeof GUARDRAILS_HUB_RECORDING_SURFACE.cases)[number]['variants'][number];
+      }
+    >(
+      GUARDRAILS_HUB_RECORDING_SURFACE.cases.flatMap((entry) =>
+        entry.variants.map((variant) => [`${entry.id}/${variant.id}`, { entry, variant }] as const),
+      ),
+    );
+    expect(recorded.records.map((entry) => `${entry.caseId}/${entry.variantId}`).sort()).toEqual(
+      [...variantByRef.keys()].sort(),
+    );
+    for (const record of recorded.records) {
+      const recordRef = `${record.caseId}/${record.variantId}`;
+      const expected = variantByRef.get(recordRef);
+      expect(expected, recordRef).toBeDefined();
+      expect(record.sampleCount, recordRef).toBe(expected?.entry.sampleCount);
+      expect(record.stable, recordRef).toBe(true);
+      expect(record.samples, recordRef).toHaveLength(expected?.entry.sampleCount ?? 0);
+      expect(
+        record.samples.every((sample) => sample.semanticStatus === expected?.variant.expectedSemanticStatus),
+        recordRef,
+      ).toBe(true);
     }
   });
 
@@ -358,8 +1012,13 @@ describe('provider capability matrix', () => {
       expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('input_tokens');
       expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('output_tokens');
       expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain('total_tokens');
+      expect(guard.normalizedFields, `${guard.provider} normalizedFields`).toContain(
+        'cost_usd is forwarded from explicit',
+      );
       expect(guard.sharedNormalizer, `${guard.provider} sharedNormalizer`).toMatch(/normalizeOpenBoxUsage|openBoxUsageTelemetryFields|buildSpan|buildAssistantOutputSpan|assistantOutputTelemetryFields/);
       expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toContain('OpenBox Core');
+      expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toMatch(/reports token usage|Core remains/);
+      expect(guard.costPolicyBoundary, `${guard.provider} costPolicyBoundary`).toMatch(/never computes|never locally enforce/);
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
     }
     expect(USAGE_NORMALIZATION_SURFACE.canonicalFields).toEqual(
@@ -645,8 +1304,8 @@ describe('provider capability matrix', () => {
       expect(generatedPlusIntentionalExclusions).toEqual([...catalog.upstreamKnownEvents].sort());
     }
     expect(
-      PROVIDER_EVENT_CATALOG.find((entry) => entry.provider === 'anthropic-agent-sdk')?.upstreamKnownEvents.slice().sort(),
-    ).toEqual([...ANTHROPIC_AGENT_HOOK_EVENTS].sort());
+      PROVIDER_EVENT_CATALOG.find((entry) => entry.provider === 'anthropic-agent-sdk')?.upstreamKnownEvents,
+    ).toEqual([...ANTHROPIC_AGENT_HOOK_EVENTS]);
   });
 
   it('pins hook support claims to explicit hook surface coverage', () => {

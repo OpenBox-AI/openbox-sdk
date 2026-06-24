@@ -93,4 +93,4 @@ if (selected.length !== 1) {
   throw new Error('Usage: node scripts/run-root-pipeline.mjs <pipeline-id>');
 }
 
-runSteps(readPipelineSteps(selected[0]));
+await runSteps(readPipelineSteps(selected[0]));

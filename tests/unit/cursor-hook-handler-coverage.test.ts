@@ -7,6 +7,9 @@ let validateApiKeyCalls = 0;
 let socketConnects = 0;
 let stdinIteratorSpy: any;
 let mockApprovalMode: 'remote' | 'inline' = 'remote';
+let mockRequireGoalContext = false;
+let mockDefaultGoal: string | undefined;
+let mockPeekGoal: unknown = { goal: 'existing goal' };
 let socketUnavailable = false;
 let socketTimesOut = false;
 let socketCloseThrows = false;
@@ -97,15 +100,24 @@ vi.mock('../../ts/src/runtime/cursor/config.js', () => ({
     sendStartEvent: true,
     sendActivityStartEvent: true,
     maxBodySize: null,
+    requireGoalContext: mockRequireGoalContext,
+    defaultGoal: mockDefaultGoal,
   })),
 }));
 
 vi.mock('../../ts/src/runtime/cursor/session-resolver.js', () => ({
   resolveSession: vi.fn((_env: any) => ({
     activity: vi.fn(async () => activityVerdict),
+    openActivity: vi.fn(async () => ({
+      activityId: 'cursor-handler-activity',
+      verdict: activityVerdict,
+    })),
     workflowStarted: vi.fn(async () => undefined),
     workflowCompleted: vi.fn(async () => undefined),
   })),
+  peekGoal: vi.fn(() => mockPeekGoal),
+  recordGoal: vi.fn(),
+  markStarted: vi.fn(),
   markHalted: vi.fn(),
   clearSession: vi.fn(),
 }));
@@ -119,6 +131,9 @@ beforeEach(() => {
   socketConnects = 0;
   socketEvents.length = 0;
   mockApprovalMode = 'remote';
+  mockRequireGoalContext = false;
+  mockDefaultGoal = undefined;
+  mockPeekGoal = { goal: 'existing goal' };
   socketUnavailable = false;
   socketTimesOut = false;
   socketCloseThrows = false;
@@ -331,6 +346,10 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     await runCursorHook();
     const session = {
       activity: vi.fn(async () => ({ arm: 'allow' })),
+      openActivity: vi.fn(async () => ({
+        activityId: 'cursor-live-handler-activity',
+        verdict: { arm: 'allow' },
+      })),
       workflowStarted: vi.fn(async () => undefined),
       workflowCompleted: vi.fn(async () => undefined),
     };
@@ -342,7 +361,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       command: 'pwd',
       file_path: '/tmp/openbox-cursor-handler-outside.txt',
       cwd: '/tmp',
-      workspace_roots: ['/workspace/project'],
+      workspace_roots: ['/project/root'],
       server_name: 'openbox',
       tool_name: 'Shell',
       tool_input: { command: 'pwd', cwd: '/tmp' },
@@ -378,6 +397,9 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       activity: vi.fn(async () => {
         throw new Error('mapper failed');
       }),
+      openActivity: vi.fn(async () => {
+        throw new Error('mapper failed');
+      }),
     };
     await expect(
       adapterOptions.handlers.subagentStart(base, failingSession),
@@ -385,6 +407,75 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       arm: 'block',
       reason: expect.stringContaining('mapper failed'),
     });
+  });
+
+  it('fails closed when Core returns a fallback allow for a decision hook', async () => {
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    await runCursorHook();
+    const session = {
+      activity: vi.fn(async () => ({ arm: 'allow' })),
+      openActivity: vi.fn(async () => ({
+        activityId: 'cursor-fallback-activity',
+        verdict: {
+          arm: 'allow',
+          riskScore: 0,
+          fallbackUsed: true,
+        },
+      })),
+      workflowStarted: vi.fn(async () => undefined),
+      workflowCompleted: vi.fn(async () => undefined),
+    };
+
+    await expect(
+      adapterOptions.handlers.beforeShellExecution(
+        {
+          conversation_id: 'cursor-fallback',
+          generation_id: 'cursor-fallback-generation',
+          hook_event_name: 'beforeShellExecution',
+          command: 'pwd',
+          cwd: '/tmp',
+        },
+        session,
+      ),
+    ).resolves.toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('governance fallback used'),
+    });
+  });
+
+  it('fails closed in strict goal mode when a permission gate has no session goal', async () => {
+    mockRequireGoalContext = true;
+    mockPeekGoal = null;
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    await runCursorHook();
+    const session = {
+      activity: vi.fn(async () => ({ arm: 'allow' })),
+      openActivity: vi.fn(async () => ({
+        activityId: 'cursor-strict-goal',
+        verdict: { arm: 'allow' },
+      })),
+      workflowStarted: vi.fn(async () => undefined),
+      workflowCompleted: vi.fn(async () => undefined),
+    };
+
+    await expect(
+      adapterOptions.handlers.beforeShellExecution(
+        {
+          conversation_id: 'cursor-strict',
+          generation_id: 'cursor-strict-generation',
+          hook_event_name: 'beforeShellExecution',
+          command: 'pwd',
+          cwd: '/tmp',
+        },
+        session,
+      ),
+    ).resolves.toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('goal context is required'),
+    });
+    expect(session.openActivity).not.toHaveBeenCalled();
   });
 
   it('writes fail-closed deny output when no API key is configured', async () => {

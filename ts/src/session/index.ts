@@ -10,7 +10,10 @@ export {
   markHaltedByKey,
   isSessionStartedByKey,
   markStartedByKey,
+  recordGoalByKey,
+  peekGoalByKey,
   clearSessionByKey,
   type SharedSessionConfig,
+  type SessionGoalRecord,
 } from './resolver.js';
 export { SessionStore } from './store.js';

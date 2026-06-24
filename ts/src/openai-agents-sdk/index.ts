@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
   AgentHooks as OpenAIAgentHooks,
+  defineOutputGuardrail,
+  defineToolInputGuardrail,
+  defineToolOutputGuardrail,
   run as openaiAgentsRun,
   tool as openaiAgentsTool,
 } from '@openai/agents';
@@ -34,6 +37,56 @@ import {
 } from './payloads.js';
 import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
+
+type OpenAIAgentHooksInstance = OpenAIAgentHooks<unknown, 'text'>;
+type OpenAIAgentHookEventName = Parameters<
+  OpenAIAgentHooksInstance['on']
+>[0];
+type OpenBoxAgentHookHandlers = {
+  onAgentStart(
+    runContext: unknown,
+    agent: unknown,
+    turnInput?: unknown,
+  ): Promise<void>;
+  onAgentEnd(
+    runContext: unknown,
+    agentOrOutput: unknown,
+    maybeOutput?: unknown,
+  ): Promise<void>;
+  onAgentHandoff(
+    runContext: unknown,
+    fromAgent: unknown,
+    toAgent?: unknown,
+  ): Promise<void>;
+  onAgentToolStart(
+    runContext: unknown,
+    agentOrTool: unknown,
+    maybeToolOrDetails?: unknown,
+    maybeDetails?: unknown,
+  ): Promise<void>;
+  onAgentToolEnd(
+    runContext: unknown,
+    agentOrTool: unknown,
+    maybeToolOrResult?: unknown,
+    maybeResultOrDetails?: unknown,
+    maybeDetails?: unknown,
+  ): Promise<void>;
+};
+type OpenBoxAgentHooks = OpenAIAgentHooksInstance & OpenBoxAgentHookHandlers;
+type OpenAIApprovalRunContext = {
+  isToolApproved?: (approval: { toolName: string; callId: string }) => boolean | undefined;
+};
+type OpenBoxToolPreflight = {
+  verdict: WorkflowVerdict;
+};
+
+const OPENAI_AGENT_HOOK_EVENTS = {
+  start: 'agent_start',
+  end: 'agent_end',
+  handoff: 'agent_handoff',
+  toolStart: 'agent_tool_start',
+  toolEnd: 'agent_tool_end',
+} as const satisfies Record<string, OpenAIAgentHookEventName>;
 
 export {
   DEFAULT_OPENAI_AGENTS_TASK_QUEUE,
@@ -75,8 +128,32 @@ export function createOpenBoxAgentsTool(
   const toolFactory = (options.toolFactory ??
     openaiAgentsTool) as AgentsToolFactory;
   const originalExecute = toolConfig.execute;
+  const originalNeedsApproval = toolConfig.needsApproval;
+  const sessionId = sessionIdFor(options, toolConfig.name);
+  const preflightVerdicts = new Map<string, OpenBoxToolPreflight>();
   const wrappedConfig = {
     ...toolConfig,
+    ...(context.approvalMode === 'interrupt'
+      ? {
+          needsApproval: async (
+            runContext: unknown,
+            input: unknown,
+            callId?: string,
+          ) => {
+            const toolCallId = callId ?? randomUUID();
+            const opened = await manager.openTool(
+              sessionId,
+              toolConfig.name,
+              input,
+              { callId: toolCallId },
+            );
+            preflightVerdicts.set(toolCallId, { verdict: opened.verdict });
+            if (opened.verdict.arm === 'require_approval') return true;
+            if (opened.verdict.arm === 'block' || opened.verdict.arm === 'halt') return false;
+            return invokeOriginalNeedsApproval(originalNeedsApproval, runContext, input, callId);
+          },
+        }
+      : {}),
     execute: async (...args: unknown[]) => {
       const input = args[0];
       const runContext = args[1];
@@ -85,18 +162,25 @@ export function createOpenBoxAgentsTool(
         callId: toolCallIdFromDetails(details) ?? randomUUID(),
         details,
       };
-      const sessionId = sessionIdFor(options, toolConfig.name);
-      const opened = await manager.openTool(
+      const preflight = preflightVerdicts.get(call.callId);
+      preflightVerdicts.delete(call.callId);
+      const opened = preflight ?? await manager.openTool(
         sessionId,
         toolConfig.name,
         input,
         call,
       );
-      const governedInput = inputForVerdict(
-        input,
-        opened.verdict,
-        context.approvalMode,
-      );
+      const approvedByOpenAI =
+        context.approvalMode === 'interrupt' &&
+        opened.verdict.arm === 'require_approval' &&
+        openAIToolApprovalState(runContext, toolConfig.name, call.callId) === true;
+      const governedInput = approvedByOpenAI
+        ? input
+        : inputForVerdict(
+            input,
+            opened.verdict,
+            context.approvalMode,
+          );
       try {
         const output = await originalExecute(
           governedInput,
@@ -161,10 +245,10 @@ export async function runWithOpenBox(
 
 export function createOpenBoxAgentHooks(
   options: OpenBoxAgentsAgentHooksOptions = {},
-): unknown {
-  const hooks = new OpenAIAgentHooks() as any;
+): OpenBoxAgentHooks {
+  const hooks = new OpenAIAgentHooks();
   const context = createOpenBoxAgentsRuntimeContext(options);
-  if (!context.enabled) return hooks;
+  if (!context.enabled) return hooks as OpenBoxAgentHooks;
   const manager = new OpenBoxAgentsSessionManager(context);
   const sessionId = sessionIdFor(options, 'agent-hooks');
 
@@ -223,11 +307,11 @@ export function createOpenBoxAgentHooks(
     },
   };
 
-  hooks.on('agent_start', handlers.onAgentStart);
-  hooks.on('agent_end', handlers.onAgentEnd);
-  hooks.on('agent_handoff', handlers.onAgentHandoff);
-  hooks.on('agent_tool_start', handlers.onAgentToolStart);
-  hooks.on('agent_tool_end', handlers.onAgentToolEnd);
+  hooks.on(OPENAI_AGENT_HOOK_EVENTS.start, handlers.onAgentStart);
+  hooks.on(OPENAI_AGENT_HOOK_EVENTS.end, handlers.onAgentEnd);
+  hooks.on(OPENAI_AGENT_HOOK_EVENTS.handoff, handlers.onAgentHandoff);
+  hooks.on(OPENAI_AGENT_HOOK_EVENTS.toolStart, handlers.onAgentToolStart);
+  hooks.on(OPENAI_AGENT_HOOK_EVENTS.toolEnd, handlers.onAgentToolEnd);
   return Object.assign(hooks, handlers);
 }
 
@@ -335,42 +419,42 @@ export function openBoxInputGuardrail(
 export function openBoxOutputGuardrail(
   options: OpenBoxAgentsGuardrailOptions = {},
 ) {
-  return {
-    name: options.name ?? 'openbox-output-guardrail',
-    execute: async (args: { agentOutput?: unknown; [key: string]: unknown }) => {
-      const verdict = await observeGuardrail(options, 'output', args.agentOutput ?? args);
-      return nativeGuardrailOutput(verdict);
-    },
+  const name = options.name ?? 'openbox-output-guardrail';
+  const execute = async (args: unknown) => {
+    const record = objectRecord(args);
+    const verdict = await observeGuardrail(options, 'output', record.agentOutput ?? args);
+    return nativeGuardrailOutput(verdict);
   };
+  return Object.assign(defineOutputGuardrail({ name, execute }), { execute });
 }
 
 export function openBoxToolInputGuardrail(
   options: OpenBoxAgentsGuardrailOptions = {},
 ) {
-  return {
-    type: 'tool_input' as const,
+  return defineToolInputGuardrail({
     name: options.name ?? 'openbox-tool-input-guardrail',
-    run: async (data: { toolCall?: unknown; [key: string]: unknown }) => {
-      const verdict = await observeGuardrail(options, 'tool_input', data.toolCall ?? data);
+    run: async (data: unknown) => {
+      const record = objectRecord(data);
+      const verdict = await observeGuardrail(options, 'tool_input', record.toolCall ?? data);
       return nativeToolGuardrailOutput(verdict, 'OpenBox rejected tool input');
     },
-  };
+  });
 }
 
 export function openBoxToolOutputGuardrail(
   options: OpenBoxAgentsGuardrailOptions = {},
 ) {
-  return {
-    type: 'tool_output' as const,
+  return defineToolOutputGuardrail({
     name: options.name ?? 'openbox-tool-output-guardrail',
-    run: async (data: { output?: unknown; toolCall?: unknown; [key: string]: unknown }) => {
+    run: async (data: unknown) => {
+      const record = objectRecord(data);
       const verdict = await observeGuardrail(options, 'tool_output', {
-        toolCall: data.toolCall,
-        output: data.output,
+        toolCall: record.toolCall,
+        output: record.output,
       });
       return nativeToolGuardrailOutput(verdict, 'OpenBox rejected tool output');
     },
-  };
+  });
 }
 
 export function createOpenBoxAgentsSDK(config: OpenBoxAgentsSDKConfig = {}) {
@@ -563,6 +647,7 @@ function generationTelemetry(
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
+    costUsd: usage?.costUsd,
     hasToolCalls: arrayFrom(spanData.output).some((item) => {
       const itemType = firstString(objectRecord(item).type)?.toLowerCase();
       return itemType === 'function_call' || itemType?.includes('tool') === true;
@@ -656,7 +741,7 @@ function arrayFrom(value: unknown): unknown[] {
 function inputForVerdict(
   input: unknown,
   verdict: WorkflowVerdict,
-  approvalMode: 'wait' | 'error',
+  approvalMode: 'wait' | 'error' | 'interrupt',
 ): unknown {
   if (verdict.arm === 'allow') return input;
   if (verdict.arm === 'constrain') {
@@ -685,7 +770,7 @@ function inputForVerdict(
 function outputForVerdict(
   output: unknown,
   verdict: WorkflowVerdict | undefined,
-  approvalMode: 'wait' | 'error',
+  approvalMode: 'wait' | 'error' | 'interrupt',
 ): unknown {
   if (!verdict || verdict.arm === 'allow') return output;
   if (verdict.arm === 'constrain') {
@@ -781,4 +866,27 @@ function toolCallIdFromDetails(
   return typeof callId === 'string' && callId.trim().length > 0
     ? callId.trim()
     : undefined;
+}
+
+async function invokeOriginalNeedsApproval(
+  needsApproval: unknown,
+  runContext: unknown,
+  input: unknown,
+  callId: string | undefined,
+): Promise<boolean> {
+  if (typeof needsApproval === 'function') {
+    return Boolean(await needsApproval(runContext, input, callId));
+  }
+  return needsApproval === true;
+}
+
+function openAIToolApprovalState(
+  runContext: unknown,
+  toolName: string,
+  callId: string,
+): boolean | undefined {
+  const checker = (runContext as OpenAIApprovalRunContext | undefined)
+    ?.isToolApproved;
+  if (typeof checker !== 'function') return undefined;
+  return checker.call(runContext, { toolName, callId });
 }

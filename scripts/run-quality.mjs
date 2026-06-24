@@ -30,4 +30,4 @@ if (!command) {
   );
 }
 
-runSteps([command]);
+await runSteps([command]);

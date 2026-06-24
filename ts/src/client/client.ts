@@ -85,6 +85,7 @@ export class OpenBoxApiError extends Error implements ApiError {
 // Client
 // ---------------------------------------------------------------------------
 
+import { validateBackendRequest } from './generated/request-preflight.js';
 import { OpenBoxClientWrapperBase } from './generated/wrapper-methods.js';
 
 export class OpenBoxClient extends OpenBoxClientWrapperBase {
@@ -500,6 +501,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
     // Sits at the request() layer so generated methods AND any
     // hand-written shadow that calls http* hits the same gate.
     this.checkPathPermissions(method, path);
+    validateBackendRequest(method, path, options?.params, options?.data);
 
     await this.ensureValidToken();
 

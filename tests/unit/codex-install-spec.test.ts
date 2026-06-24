@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -123,6 +123,21 @@ describe('codex HOOK_SPEC', () => {
 
     const hooks = JSON.parse(readFileSync(path.join(out, 'hooks', 'hooks.json'), 'utf-8')) as any;
     expect(hooks.hooks.PreToolUse[0].matcher).toBe('Bash|Write');
+    const manifest = JSON.parse(readFileSync(path.join(out, '.codex-plugin', 'plugin.json'), 'utf-8')) as {
+      mcp?: unknown;
+      mcpServers?: unknown;
+    };
+    expect(manifest.mcpServers).toBe('./.mcp.json');
+    expect(manifest.mcp).toBeUndefined();
+    expect(statSync(path.join(out, 'bin', 'openbox-cli.mjs')).mode & 0o111).toBeGreaterThan(0);
+    const mcp = JSON.parse(readFileSync(path.join(out, '.mcp.json'), 'utf-8')) as {
+      mcpServers: { openbox: { args?: string[]; command?: string; cwd?: string } };
+    };
+    expect(mcp.mcpServers.openbox).toEqual({
+      command: './bin/openbox-cli.mjs',
+      args: ['mcp', 'serve'],
+      cwd: '.',
+    });
     expect(verifyCodexPlugin({ target: out }).every((check) => check.status === 'pass')).toBe(true);
 
     const target = installCodexPlugin({ cwd });

@@ -15,6 +15,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/claude-code.js';
 import {
+  validateAgentIdentityConfig,
+  type AgentIdentityConfig,
+} from '../../core-client/index.js';
+import { normalizeServiceUrl } from '../../env/connection.js';
+import { validateApiKeyFormat } from '../../env/index.js';
+import { recallAgentKey } from '../../file-tokens/agent-keys.js';
+import {
   renderClaudeInstructionsMarkdown,
   type RulesProjection,
 } from '../../governance/rules-projection.js';
@@ -71,6 +78,7 @@ const PLUGIN_MCP_SERVER = {
 
 export type ClaudeCodePluginScope = 'project';
 export type ClaudeCodePluginCheckStatus = 'pass' | 'fail';
+export type ClaudeCodeApprovalMode = 'inline' | 'remote' | 'defer';
 
 export interface ClaudeCodePluginCheck {
   name: string;
@@ -109,6 +117,27 @@ export interface InstallClaudeCodePluginOptions {
   rulesProjection?: RulesProjection;
   /** Skip creating the hook runtime config template. Defaults to false. */
   skipRuntimeConfig?: boolean;
+  /** Optional project-local runtime configuration for the installed plugin. */
+  runtime?: ConfigureClaudeCodeRuntimeOptions;
+}
+
+export interface ConfigureClaudeCodeRuntimeOptions {
+  /** Project root for the Claude Code runtime config. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Agent runtime key written as OPENBOX_API_KEY. */
+  apiKey?: string;
+  /** Resolve the runtime key from the project-local agent-key cache. */
+  agentId?: string;
+  /** Core/runtime policy endpoint written as OPENBOX_CORE_URL. */
+  coreUrl?: string;
+  /** Signed agent identity written as OPENBOX_AGENT_DID/OPENBOX_AGENT_PRIVATE_KEY. */
+  agentIdentity?: AgentIdentityConfig;
+  approvalMode?: ClaudeCodeApprovalMode;
+  governanceTimeout?: number;
+  hitlMaxWait?: number;
+  hitlPollInterval?: number;
+  hitlEnabled?: boolean;
+  verbose?: boolean;
 }
 
 export interface VerifyClaudeCodePluginOptions {
@@ -307,13 +336,7 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   mkdirSync(configDir, { recursive: true });
   const file = path.join(configDir, 'config.json');
   if (existsSync(file)) return;
-  const example = {
-    hitlEnabled: true,
-    hitlMaxWait: 300,
-    worktreeRoot: '.openbox/worktrees',
-    verbose: false,
-  };
-  writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {
+  writeFileSync(file, JSON.stringify(defaultRuntimeConfig(), null, 2) + '\n', {
     mode: 0o600,
     encoding: 'utf-8',
   });
@@ -323,6 +346,92 @@ export function claudeCodeRuntimeConfigDir(
   cwd = process.cwd(),
 ): string {
   return path.join(cwd, '.claude-hooks');
+}
+
+export function claudeCodeRuntimeConfigFile(cwd = process.cwd()): string {
+  return path.join(claudeCodeRuntimeConfigDir(cwd), 'config.json');
+}
+
+function defaultRuntimeConfig(): Record<string, unknown> {
+  return {
+    hitlEnabled: true,
+    hitlMaxWait: 300,
+    worktreeRoot: '.openbox/worktrees',
+    verbose: false,
+  };
+}
+
+function requirePositiveInteger(value: number | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive integer`);
+  }
+  return value;
+}
+
+function normalizeApprovalMode(value: ClaudeCodeApprovalMode | undefined): ClaudeCodeApprovalMode | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'inline' || value === 'remote' || value === 'defer') return value;
+  throw new Error('approvalMode must be one of: inline, remote, defer');
+}
+
+function resolveRuntimeKey(options: ConfigureClaudeCodeRuntimeOptions): string | undefined {
+  if (options.apiKey) return options.apiKey;
+  if (!options.agentId) return undefined;
+  const record = recallAgentKey(options.agentId);
+  if (!record?.runtimeKey) {
+    throw new Error(`No cached runtime key for agent ${options.agentId}`);
+  }
+  return record.runtimeKey;
+}
+
+export function configureClaudeCodeRuntime(options: ConfigureClaudeCodeRuntimeOptions = {}): string {
+  const cwd = options.cwd ?? process.cwd();
+  const configFile = claudeCodeRuntimeConfigFile(cwd);
+  const existing = existsSync(configFile) ? (readJson(configFile) ?? {}) : {};
+  const next: Record<string, unknown> = {
+    ...defaultRuntimeConfig(),
+    ...existing,
+  };
+
+  const apiKey = resolveRuntimeKey(options);
+  if (apiKey !== undefined) {
+    const format = validateApiKeyFormat(apiKey);
+    if (format !== true) throw new Error(format);
+    next.OPENBOX_API_KEY = apiKey;
+  }
+
+  if (options.coreUrl !== undefined) {
+    next.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
+  }
+
+  if (options.agentIdentity !== undefined) {
+    const agentIdentity = validateAgentIdentityConfig(options.agentIdentity);
+    next.OPENBOX_AGENT_DID = agentIdentity.did;
+    next.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
+  }
+
+  const approvalMode = normalizeApprovalMode(options.approvalMode);
+  if (approvalMode !== undefined) next.approvalMode = approvalMode;
+
+  const governanceTimeout = requirePositiveInteger(options.governanceTimeout, 'governanceTimeout');
+  if (governanceTimeout !== undefined) next.governanceTimeout = String(governanceTimeout);
+
+  const hitlMaxWait = requirePositiveInteger(options.hitlMaxWait, 'hitlMaxWait');
+  if (hitlMaxWait !== undefined) next.hitlMaxWait = hitlMaxWait;
+
+  const hitlPollInterval = requirePositiveInteger(options.hitlPollInterval, 'hitlPollInterval');
+  if (hitlPollInterval !== undefined) next.hitlPollInterval = hitlPollInterval;
+
+  if (options.hitlEnabled !== undefined) next.hitlEnabled = options.hitlEnabled;
+  if (options.verbose !== undefined) next.verbose = options.verbose;
+
+  mkdirSync(path.dirname(configFile), { recursive: true });
+  writeFileSync(configFile, JSON.stringify(next, null, 2) + '\n', {
+    mode: 0o600,
+    encoding: 'utf-8',
+  });
+  return configFile;
 }
 
 function hookEvents(includeOptInHooks = false): typeof HOOK_SPEC.events {
@@ -660,6 +769,9 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
     }
+    if (options.runtime) {
+      configureClaudeCodeRuntime({ ...options.runtime, cwd });
+    }
     scrubLegacyClaudeCodeSettingsHooks(cwd);
     scrubLegacyOpenBoxProjectMcp(cwd);
     return target;
@@ -672,6 +784,9 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
   });
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(claudeCodeRuntimeConfigDir(cwd));
+  }
+  if (options.runtime) {
+    configureClaudeCodeRuntime({ ...options.runtime, cwd });
   }
   scrubLegacyClaudeCodeSettingsHooks(cwd);
   scrubLegacyOpenBoxProjectMcp(cwd);

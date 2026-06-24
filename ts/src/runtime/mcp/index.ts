@@ -19,17 +19,12 @@ import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
 import { OpenBoxClient } from "../../client/index.js";
-import {
-  OpenBoxCoreClient,
-  type AgentIdentityConfig,
-  type GovernanceVerdictResponse,
-} from "../../core-client/index.js";
 import { loadApiKey } from "../../file-tokens/index.js";
 import { listConfig } from "../../config/index.js";
 import { setMcpClientName } from "./config.js";
 import { resolveAgentIdentity, resolveConnection } from "../../env/index.js";
 import { recallAgentKey } from "../../file-tokens/agent-keys.js";
-import { stampSource } from "../../approvals/source.js";
+import { checkGovernance } from "../../governance/check.js";
 import { verifyCursorInstall } from "../cursor/install.js";
 import {
   claudeCodeRuntimeDiagnostics,
@@ -37,10 +32,7 @@ import {
   verifyClaudeCodeInstall,
 } from "../claude-code/doctor.js";
 import { verifyCodexInstall } from "../codex/install.js";
-import { buildMcpGovernanceSpan, MCP_ACTIVITY_TYPE_MAP } from "./governance-span.js";
 import { claudeCodeGovernanceSummary } from "../claude-code/governance-matrix.js";
-import { EVENT } from "../../governance/events.js";
-import { withSpanActivityId, type SpanType } from "../../governance/spans.js";
 import {
   MCP_PROMPT_SURFACES,
   MCP_RESOURCE_TEMPLATE_SURFACES,
@@ -91,6 +83,16 @@ export async function runMcpServer(options: RunMcpServerOptions = {}): Promise<v
       agentIdentity,
       governancePolicy: "fail_closed",
       approvalMode: "remote",
+      requireGoalContext: ["1", "true", "yes"].includes(
+        String(
+          process.env.OPENBOX_REQUIRE_GOAL_CONTEXT ??
+          process.env.OPENBOX_GOAL_ALIGNMENT_REQUIRED ??
+          process.env.ENABLE_ALIGNMENT_CHECK ??
+          config.OPENBOX_REQUIRE_GOAL_CONTEXT ??
+          config.OPENBOX_GOAL_ALIGNMENT_REQUIRED ??
+          "false",
+        ).trim().toLowerCase(),
+      ),
     };
   }
 
@@ -147,6 +149,26 @@ export async function runMcpServer(options: RunMcpServerOptions = {}): Promise<v
 
   function sourceLabel(): string {
     return callerName?.toLowerCase().includes("cursor") ? "cursor-mcp" : "mcp";
+  }
+
+  function governanceActivityInput(value: unknown): Record<string, unknown> {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+          }
+        } catch {
+          // Fall through to a scalar wrapper below.
+        }
+      }
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+    return { value };
   }
 
   function approvalRows(payload: unknown): unknown[] {
@@ -450,79 +472,6 @@ registerOpenBoxTool("get_trust_score", "Get an agent's current trust score and t
   return { content: [{ type: "text", text: JSON.stringify(ts, null, 2) }] };
 });
 
-function isAllowishVerdict(response: GovernanceVerdictResponse): boolean {
-  const arm: unknown = response.verdict ?? response.action;
-  const normalized =
-    typeof arm === "string" ? arm.trim().toLowerCase().replace(/-/g, "_") : arm;
-  return (
-    normalized === "allow" ||
-    normalized === "continue" ||
-    normalized === "constrain" ||
-    normalized === 0 ||
-    normalized === 1
-  );
-}
-
-async function coreEvaluate(
-  apiKey: string,
-  spanType: string,
-  activityInput: Record<string, unknown>,
-  coreUrl: string,
-  source: string,
-  agentIdentity?: AgentIdentityConfig,
-) {
-  const activityId = crypto.randomUUID();
-  const span = withSpanActivityId(
-    buildMcpGovernanceSpan(spanType as SpanType, activityInput),
-    activityId,
-  );
-  const payload = {
-    source,
-    event_type: EVENT.START,
-    workflow_id: crypto.randomUUID(),
-    run_id: crypto.randomUUID(),
-    workflow_type: "MCPCheck",
-    task_queue: "mcp",
-    activity_id: activityId,
-    activity_type: MCP_ACTIVITY_TYPE_MAP[spanType] || spanType,
-    activity_input: [stampSource(activityInput, source)],
-    timestamp: new Date().toISOString(),
-    hook_trigger: true,
-    spans: [span],
-    span_count: 1,
-    attempt: 1,
-  };
-  // Through the SDK so we get the API key format validation, the 35s
-  // timeout default (above core's 30s WorkflowExecutionTimeout so real
-  // server errors surface instead of AbortController-cancelling), and
-  // any future client-side improvements automatically. Cast through
-  // unknown because GovernanceEventPayload uses richer types than the
-  // loose record we've assembled here; the wire shape is the same and
-  // core re-validates everything server-side.
-  const client = new OpenBoxCoreClient({
-    apiUrl: coreUrl,
-    apiKey,
-    agentIdentity,
-  });
-  const {
-    spans: _parentSpans,
-    span_count: _parentSpanCount,
-    hook_trigger: _parentHookTrigger,
-    ...parentFields
-  } = payload;
-  const parentPayload = {
-    ...parentFields,
-    hook_trigger: false,
-  };
-  const parentVerdict = await client.evaluate(
-    parentPayload as unknown as Parameters<typeof client.evaluate>[0],
-  );
-  const hookVerdict = await client.evaluate(
-    payload as unknown as Parameters<typeof client.evaluate>[0],
-  );
-  return isAllowishVerdict(parentVerdict) ? hookVerdict : parentVerdict;
-}
-
 async function resolveApiKey(agentId: string | undefined): Promise<string> {
   let apiKey = process.env.OPENBOX_API_KEY;
   if (!apiKey && agentId) {
@@ -556,21 +505,29 @@ async function resolveApiKey(agentId: string | undefined): Promise<string> {
 
 registerOpenBoxTool("check_governance", "Evaluate an action against governance rules. The tool builds the span shape required for behavioral rule matching. When the response carries verdict=require_approval, an approval row is materialized server-side. The expiration window comes from whichever surface produced the verdict. For behavior_rule-driven verdicts, the value is `behavior_rule.approval_timeout`, which is user-settable. For OPA-policy-driven verdicts, the value is the core server default of around 30 minutes; OPA policies have no `approval_timeout` field, so use a behavior_rule when the window matters.", {
   agent_id: z.string().optional().describe("Agent ID. Used to resolve the API key when OPENBOX_API_KEY is unset."),
-  span_type: z.enum(["llm", "file_read", "file_write", "file_delete", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
+  session_id: z.string().optional().describe("OpenBox/host session id. Use the same value across checks to keep goal alignment bound to one logical session."),
+  goal: z.string().optional().describe("User/session/workflow goal. Required in strict goal-alignment mode unless the host has already seeded an OpenBox session goal."),
+  span_type: z.enum(["llm", "llm_embedding", "llm_tool_call", "file_read", "file_open", "file_write", "file_delete", "shell", "http", "db", "mcp"]).describe("Type of action to evaluate."),
   activity_input: z.any().describe("Action input payload. Examples: { prompt: '...' }, { file_path: '...' }, { command: '...' }."),
-}, async ({ agent_id, span_type, activity_input }) => {
+  require_goal_context: z.boolean().optional().describe("Override strict goal-context enforcement for this check."),
+}, async ({ agent_id, session_id, goal, span_type, activity_input, require_goal_context }) => {
   try {
     const runtime = resolveRuntime();
     const apiKey = await resolveApiKey(agent_id);
-    const input = (typeof activity_input === "object" && activity_input) ? activity_input : { value: activity_input };
-    const result = await coreEvaluate(
+    const input = governanceActivityInput(activity_input);
+    const result = await checkGovernance({
+      agentId: agent_id,
       apiKey,
-      span_type,
-      input as Record<string, unknown>,
-      runtime.coreUrl,
-      sourceLabel(),
-      runtime.agentIdentity,
-    );
+      coreUrl: runtime.coreUrl,
+      spanType: span_type,
+      activityInput: input as Record<string, unknown>,
+      source: sourceLabel(),
+      sessionId: typeof session_id === "string" ? session_id : undefined,
+      goal: typeof goal === "string" ? goal : undefined,
+      requireGoalContext: typeof require_goal_context === "boolean"
+        ? require_goal_context
+        : runtimeState().requireGoalContext,
+    });
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   } catch (err: any) {
     return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };

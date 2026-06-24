@@ -350,7 +350,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
   it('routes a known tool to openActivity() with the right activity_type', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
-    const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, session_id: 'S3' };
+    const env: any = { tool_name: 'Read', tool_input: { file_path: '/project/main.ts' }, session_id: 'S3' };
     const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('openActivity');
@@ -365,7 +365,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     expect(session.calls.length).toBeGreaterThan(0);
   });
 
-  it('classifies database MCP tools as DatabaseQuery with database_query spans', async () => {
+  it('classifies database MCP tools as DatabaseQuery with SQL-derived DB spans', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = {
@@ -381,8 +381,9 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.args[0]).toBe('DatabaseQuery');
     const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('database_query');
-    expect(span?.db_operation).toBe('QUERY');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span?.db_operation).toBe('SELECT');
     expect(span?.db_statement).toBe('SELECT 1 AS openbox_real_db_probe');
   });
 
@@ -400,7 +401,8 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('http_post');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span?.http_method).toBe('POST');
     expect(span?.http_url).toBe('https://example.test/blocked');
   });
@@ -408,7 +410,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
   it('halt verdict triggers markHalted (no throw)', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession({ arm: 'halt' });
-    const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/x.ts' }, session_id: 'halt-session' };
+    const env: any = { tool_name: 'Read', tool_input: { file_path: '/project/x.ts' }, session_id: 'halt-session' };
     const cfg: any = { sessionDir: dir };
     const v = await handlePreToolUse(env, session, cfg);
     expect(v?.arm).toBe('halt');
@@ -419,7 +421,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
   it('fires COMPLETE activity for known tools', async () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
-    const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, tool_response: 'ok', session_id: 'S5' };
+    const env: any = { tool_name: 'Read', tool_input: { file_path: '/project/main.ts' }, tool_response: 'ok', session_id: 'S5' };
     const cfg: any = { sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
@@ -431,7 +433,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     const session = recordingSession();
     const env: any = {
       tool_name: 'Read',
-      tool_input: { file_path: '/Users/me/main.ts' },
+      tool_input: { file_path: '/project/main.ts' },
       tool_response: 'ok',
       session_id: 'S5-skip',
     };
@@ -486,7 +488,8 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     const cfg: any = { sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('http_patch');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span?.http_method).toBe('PATCH');
     expect(span?.http_url).toBe('https://example.test/complete');
   });
@@ -508,12 +511,13 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     expect(payload.toolType).toBe('shell');
     expect(span).toMatchObject({
       name: 'ShellExecution',
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
   });
 });
 
@@ -563,7 +567,8 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     const cfg: any = { sessionDir: dir };
     await handlePermissionRequest(env, session, cfg);
     const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('http_delete');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span?.http_method).toBe('DELETE');
     expect(span?.http_url).toBe('https://example.test/permission');
   });
@@ -586,12 +591,13 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     expect(payload.toolType).toBe('shell');
     expect(span).toMatchObject({
       name: 'ShellExecution',
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
   });
 });
 
@@ -627,7 +633,7 @@ describe('runtime/cursor/side-effects', () => {
 });
 
 describe('runtime/cursor/mappers/pre-tool-use', () => {
-  it('short-circuits unknown tools and routine in-workspace file touches', async () => {
+  it('short-circuits unknown tools and routine in-project file touches', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     for (const env of [
@@ -653,7 +659,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     }
   });
 
-  it('governs metadata paths instead of treating them as routine workspace reads', async () => {
+  it('governs metadata paths instead of treating them as routine project reads', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     const session = recordingSession();

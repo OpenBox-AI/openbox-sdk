@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -13,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/codex.js';
+import { configureCodexRuntime, type ConfigureCodexRuntimeOptions } from './install.js';
 import {
   renderCodexAgentsMarkdown,
   renderCodexCommandRules,
@@ -28,14 +30,17 @@ const EXPECTED_PLUGIN_FILES = [
   'AGENTS.md',
   '.codex/rules/openbox.rules',
   'assets',
+  'bin/openbox-cli.mjs',
   'hooks/hooks.json',
   'skills/openbox/SKILL.md',
 ] as const;
 
 const MCP_SERVER = {
-  command: 'openbox',
+  command: './bin/openbox-cli.mjs',
   args: ['mcp', 'serve'],
+  cwd: '.',
 } as const;
+const PLUGIN_CLI_RUNNER = 'bin/openbox-cli.mjs';
 
 export type CodexPluginCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -61,6 +66,8 @@ export interface InstallCodexPluginOptions {
   rulesProjection?: RulesProjection;
   skipRepoSkill?: boolean;
   skipMarketplace?: boolean;
+  /** Optional project-local runtime configuration for the installed plugin. */
+  runtime?: ConfigureCodexRuntimeOptions;
 }
 
 export interface VerifyCodexPluginOptions {
@@ -194,7 +201,7 @@ function pluginManifest(version: string): Record<string, unknown> {
       'OpenBox AI governance for Codex: hooks, MCP tools, guardrails, policy checks, approvals, and reusable skills.',
     skills: './skills/',
     hooks: './hooks/hooks.json',
-    mcp: './.mcp.json',
+    mcpServers: './.mcp.json',
     interface: {
       displayName: 'OpenBox AI Governance',
       shortDescription: 'Govern Codex actions through OpenBox Core.',
@@ -247,6 +254,66 @@ function commandRules(projection = defaultRulesProjection()): string {
   return renderCodexCommandRules(projection);
 }
 
+function writePluginCliRunner(file: string): void {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    [
+      '#!/usr/bin/env node',
+      "import { existsSync } from 'node:fs';",
+      "import path from 'node:path';",
+      "import { spawnSync } from 'node:child_process';",
+      '',
+      'const args = process.argv.slice(2);',
+      '',
+      'function projectRoots() {',
+      '  const roots = [];',
+      '  if (process.env.CODEX_PROJECT_DIR) roots.push(process.env.CODEX_PROJECT_DIR);',
+      '  roots.push(process.cwd());',
+      '  const out = [];',
+      '  for (const root of roots) {',
+      '    let cur = path.resolve(root);',
+      '    for (let i = 0; i < 8; i += 1) {',
+      '      if (!out.includes(cur)) out.push(cur);',
+      '      const parent = path.dirname(cur);',
+      '      if (parent === cur) break;',
+      '      cur = parent;',
+      '    }',
+      '  }',
+      '  return out;',
+      '}',
+      '',
+      'function candidateFromProjectNodeModules() {',
+      '  for (const root of projectRoots()) {',
+      "    const candidate = path.join(root, 'node_modules', '@openbox-ai', 'openbox-sdk', 'dist', 'cli', 'index.js');",
+      '    if (existsSync(candidate)) return candidate;',
+      '  }',
+      '  return undefined;',
+      '}',
+      '',
+      'const cli = candidateFromProjectNodeModules();',
+      'if (!cli) {',
+      "  console.error('OpenBox SDK CLI not found for project-scoped Codex plugin. Install @openbox-ai/openbox-sdk in the project.');",
+      '  process.exit(127);',
+      '}',
+      '',
+      'const result = spawnSync(process.execPath, [cli, ...args], {',
+      "  stdio: 'inherit',",
+      '  env: process.env,',
+      '});',
+      '',
+      'if (result.error) {',
+      '  console.error(result.error.message);',
+      '  process.exit(127);',
+      '}',
+      'process.exit(result.status ?? 1);',
+      '',
+    ].join('\n'),
+    'utf-8',
+  );
+  chmodSync(file, 0o755);
+}
+
 export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
   const out = safeOutDir(options.out);
   if (existsSync(out)) {
@@ -267,6 +334,7 @@ export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
   mkdirSync(path.join(out, '.codex', 'rules'), { recursive: true });
   writeFileSync(path.join(out, '.codex', 'rules', 'openbox.rules'), commandRules(projection), 'utf-8');
   mkdirSync(path.join(out, 'assets'), { recursive: true });
+  writePluginCliRunner(path.join(out, PLUGIN_CLI_RUNNER));
   return out;
 }
 
@@ -293,6 +361,9 @@ export function installCodexPlugin(options: InstallCodexPluginOptions = {}): str
   }
   if (!options.skipMarketplace) {
     writeCodexMarketplace(cwd);
+  }
+  if (options.runtime) {
+    configureCodexRuntime({ ...options.runtime, cwd });
   }
   return target;
 }
@@ -397,17 +468,18 @@ function checkHooks(file: string): CodexPluginCheck {
 function checkMcp(file: string): CodexPluginCheck {
   const json = readJson(file);
   const openbox = (json?.mcpServers as Record<string, unknown> | undefined)?.openbox as
-    | { args?: unknown; command?: unknown }
+    | { args?: unknown; command?: unknown; cwd?: unknown }
     | undefined;
   const ok =
     openbox?.command === MCP_SERVER.command &&
     Array.isArray(openbox.args) &&
-    JSON.stringify(openbox.args) === JSON.stringify(MCP_SERVER.args);
+    JSON.stringify(openbox.args) === JSON.stringify(MCP_SERVER.args) &&
+    openbox.cwd === MCP_SERVER.cwd;
   return {
     name: 'plugin-mcp',
     status: ok ? 'pass' : 'fail',
     path: file,
-    detail: ok ? 'openbox mcp serve' : 'openbox server entry missing or malformed',
+    detail: ok ? './bin/openbox-cli.mjs mcp serve' : 'openbox server entry missing or malformed',
   };
 }
 

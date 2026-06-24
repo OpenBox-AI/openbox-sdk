@@ -12,7 +12,12 @@ import {
 } from '../../core-client/index.js';
 import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
-import { resolveSession } from './session-resolver.js';
+import {
+  markStarted,
+  peekGoal,
+  recordGoal,
+  resolveSession,
+} from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
 
 const hookLog = makeHookLog('cursor');
@@ -105,9 +110,52 @@ function isDecisionCapable(eventName: string | undefined): boolean {
     CURSOR_PERMISSION_EVENTS.has(String(eventName ?? ''));
 }
 
+function requiresGoalContext(env: CursorEnvelope): boolean {
+  return isDecisionCapable(env.hook_event_name) &&
+    String(env.hook_event_name ?? '') !== 'beforeSubmitPrompt';
+}
+
+function ensureGoalContext(env: CursorEnvelope, cfg: ReturnType<typeof loadConfig>): void {
+  if (!cfg.requireGoalContext || !requiresGoalContext(env)) return;
+  if (peekGoal(env.conversation_id, cfg)) return;
+  const configuredGoal = cfg.defaultGoal?.trim();
+  if (configuredGoal) {
+    recordGoal(env.conversation_id, cfg, configuredGoal, 'workflow_config');
+    return;
+  }
+  throw new Error(
+    'OpenBox goal context is required for AGE alignment, but this Cursor session has no prompt/query/workflow goal.',
+  );
+}
+
 function reasonFromError(prefix: string, err?: unknown): string {
   const detail = err instanceof Error ? err.message : String(err ?? '');
   return detail ? `${prefix}: ${detail}` : prefix;
+}
+
+function verdictUsesFallback(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
+    ? record.metadata as Record<string, unknown>
+    : {};
+  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
+    ? record.ageResult as Record<string, unknown>
+    : {};
+  return record.fallbackUsed === true
+    || metadata.age_fallback_used === true
+    || ageResult.fallback_used === true;
+}
+
+async function ensureWorkflowStartedForDecision(
+  env: CursorEnvelope,
+  session: any,
+  cfg: ReturnType<typeof loadConfig>,
+): Promise<void> {
+  if (!isDecisionCapable(env.hook_event_name)) return;
+
+  await session.workflowStarted();
+  markStarted(env.conversation_id, cfg);
 }
 
 function guarded(
@@ -118,7 +166,19 @@ function guarded(
 ): HookHandler {
   return logged(event, verdictKind, async (env, session) => {
     try {
-      return await fn(env, session);
+      await ensureWorkflowStartedForDecision(env, session, cfg);
+      ensureGoalContext(env, cfg);
+      const verdict = await fn(env, session);
+      if (
+        verdict &&
+        isDecisionCapable(env.hook_event_name) &&
+        verdictUsesFallback(verdict) &&
+        verdict.arm !== 'block' &&
+        verdict.arm !== 'halt'
+      ) {
+        return failClosedVerdict('OpenBox governance fallback used while processing Cursor hook');
+      }
+      return verdict;
     } catch (err) {
       const reason = reasonFromError('OpenBox governance failed while processing Cursor hook', err);
       if (cfg.verbose) console.error(`[openbox cursor] ${reason}`);

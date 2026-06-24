@@ -15,8 +15,8 @@ npm install @openbox-ai/openbox-sdk
 
 ## Runtime Governance
 
-Use `@openbox-ai/openbox-sdk/core-client` for runtime governance. The key is an agent
-runtime key such as `obx_live_*` or `obx_test_*`.
+Use `@openbox-ai/openbox-sdk/core-client` for runtime governance. The key is an
+agent runtime key such as `obx_live_*` or `obx_test_*`.
 
 ```ts
 import { OpenBoxCoreClient, govern, presets } from "@openbox-ai/openbox-sdk/core-client";
@@ -37,8 +37,9 @@ await govern({ core, preset: presets.default }, async (session) => {
 
 ## Backend API
 
-Use `@openbox-ai/openbox-sdk` or `@openbox-ai/openbox-sdk/client` for Backend/API setup, admin, and
-readiness work. The key is an org/API key such as `obx_key_*`.
+Use `@openbox-ai/openbox-sdk` or `@openbox-ai/openbox-sdk/client` for
+Backend/API setup, admin, and readiness work. The key is an org/API key such as
+`obx_key_*`.
 
 ```ts
 import { OpenBoxClient } from "@openbox-ai/openbox-sdk";
@@ -60,7 +61,7 @@ Key split:
 | --- | --- |
 | `@openbox-ai/openbox-sdk` | Root facade and Backend client |
 | `@openbox-ai/openbox-sdk/client` | Backend client |
-| `@openbox-ai/openbox-sdk/core-client` | Core client, `govern()`, presets, redaction helpers |
+| `@openbox-ai/openbox-sdk/core-client` | Core client and govern helpers |
 | `@openbox-ai/openbox-sdk/types` | Generated DTO namespaces |
 | `@openbox-ai/openbox-sdk/runtime/*` | Optional runtime adapters |
 
@@ -84,6 +85,9 @@ reads the TypeSpec-emitted target manifest and currently covers TypeScript and
 Python from the shared TypeSpec emitter.
 The repository layout and generation boundaries are documented in
 [`docs/repo-structure.md`](./docs/repo-structure.md).
+See the
+[governance harness](./docs/governance-compliance-harness.md)
+for Claude Code, Cursor, and Codex proof coverage.
 
 ## License
 

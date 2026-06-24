@@ -11,6 +11,8 @@ import {
   OPENAI_AGENTS_ACTIVITY_TYPES,
   compactPayload,
   objectRecord,
+  promptTextForRunInput,
+  runPromptSpan,
   runAssistantOutputSpan,
   toolActivityInput,
   toolActivityType,
@@ -44,6 +46,7 @@ type RunTelemetry = Pick<
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'hasToolCalls'
   | 'finishReason'
 >;
@@ -66,7 +69,7 @@ export class OpenBoxAgentsSessionManager {
         taskQueue: this.context.taskQueue,
         registerExitHandlers: false,
         attached: true,
-        inlineApproval: this.context.approvalMode === 'error',
+        inlineApproval: this.context.approvalMode !== 'wait',
       }),
       started: false,
       goalSignaled: false,
@@ -99,6 +102,7 @@ export class OpenBoxAgentsSessionManager {
             compactPayload({ session_id: sessionId, input }, 'run_start'),
           ],
           sessionId,
+          spans: runPromptSpan(input),
         },
       );
     }
@@ -111,7 +115,13 @@ export class OpenBoxAgentsSessionManager {
     input: unknown,
   ): Promise<void> {
     if (managed.goalSignaled) return;
-    const prompt = typeof input === 'string' ? input.trim() : undefined;
+    const prompt = promptTextForRunInput(input) ?? this.context.defaultGoal?.trim();
+    if (!prompt && this.context.requireGoalContext) {
+      throw new Error(
+        'OpenBox goal context is required for AGE alignment, but this OpenAI Agents SDK run has no prompt/query/workflow goal.',
+      );
+    }
+    if (!prompt && input === undefined) return;
     await managed.session.activity(
       EVENT.SIGNAL,
       OPENAI_AGENTS_ACTIVITY_TYPES.GOAL_SIGNAL,
@@ -183,6 +193,9 @@ export class OpenBoxAgentsSessionManager {
     const activityType = toolActivityType(toolName, toolInput);
     const callFields = toolCallFields(call);
     const managed = await this.ensureStarted(sessionId);
+    if (this.context.requireGoalContext && !managed.goalSignaled) {
+      await this.emitGoalSignal(managed, sessionId, undefined);
+    }
     const opened = await managed.session.openActivity(activityType, {
       activityId: call.callId,
       input: toolActivityInput(

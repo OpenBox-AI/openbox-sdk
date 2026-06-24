@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { getBackendClient, getCoreClient, fullResponse } from '../helpers/api-client';
 
+function backendOperation(operationId: string) {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
+}
+
 describe('Health Endpoints', () => {
-  it('GET /health returns status 200 with "Success"', async () => {
+  it('CONFORMANCE: GET /health returns generated backend health response', async () => {
     const client = getBackendClient();
-    const response = await client.get('/health');
+    const operation = backendOperation('AppController_getHello');
+    const response = await client.get(operation.path);
     const body = fullResponse(response);
 
+    expect(operation.path).toBe('/health');
     expect(body.status).toBe(200);
     expect(body.data).toBe('Success');
   });

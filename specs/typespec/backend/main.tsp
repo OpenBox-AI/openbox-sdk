@@ -24,7 +24,9 @@ model LoginDto {
   recaptchaToken: string;
 }
 
-model LogoutDto {}
+model LogoutDto {
+  refreshToken: string;
+}
 
 model ForgotPasswordDto {
   email: string;
@@ -42,7 +44,9 @@ model ChangePasswordDto {
   orgId: string;
 }
 
-model RefreshDto {}
+model RefreshDto {
+  refreshToken: string;
+}
 
 model BaseSecurityDto {
   /** Attack Vector: 1-4 (Network to Physical) */
@@ -146,7 +150,7 @@ model CreateAgentDto {
   description?: string;
 
   /** Configuration object for the agent */
-  config?: {};
+  config?: Record<unknown>;
 
   /** Array of team IDs */
   team_ids: string[];
@@ -190,7 +194,7 @@ model UpdateAgentDto {
   description?: string;
 
   /** Configuration object for the agent */
-  config?: {};
+  config?: Record<unknown>;
 
   /** Array of tags for categorizing the agent */
   tags?: string[];
@@ -260,7 +264,7 @@ model CreateGuardrailDto {
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-  trust_threshold?: numeric | null;
+  @minValue(1) trust_threshold?: numeric | null;
 }
 
 model UpdateGuardrailDto {
@@ -289,7 +293,7 @@ model UpdateGuardrailDto {
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default. */
-  trust_threshold?: numeric | null;
+  @minValue(1) trust_threshold?: numeric | null;
 }
 
 model ReorderGuardrailDto {
@@ -308,16 +312,16 @@ model CreatePolicyDto {
   rego_code: string;
 
   /** The Rego test input */
-  input: {};
+  input: Record<unknown>;
 
   /** Additional configuration for the policy */
-  config?: {};
+  config?: Record<unknown>;
 
   /** Controls whether violations affect trust score and severity. none = excluded from trust evaluation. */
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-  trust_threshold?: {};
+  @minValue(1) trust_threshold?: numeric | null;
 }
 
 model UpdatePolicyDto {
@@ -327,7 +331,7 @@ model UpdatePolicyDto {
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default. */
-  trust_threshold?: {};
+  @minValue(1) trust_threshold?: numeric | null;
 }
 
 model CreateBehaviorRuleDto {
@@ -342,9 +346,6 @@ model CreateBehaviorRuleDto {
 
   /** Trigger event */
   trigger: BehaviorRuleTrigger;
-
-  /** Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
-  trigger_match?: BehaviorRuleMatchCondition[];
 
   /** States (multiple select) */
   states: BehaviorRuleStateInput[];
@@ -373,7 +374,7 @@ model CreateBehaviorRuleDto {
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-  trust_threshold?: {};
+  @minValue(1) trust_threshold?: numeric | null;
 }
 
 model ChangeBehaviorRuleStatusDto {
@@ -394,9 +395,6 @@ model UpdateBehavioralRuleDto {
   /** Trigger event */
   trigger: BehaviorRuleTrigger;
 
-  /** Trigger predicate conditions on the trigger span. Omit for type-only triggers. */
-  trigger_match?: BehaviorRuleMatchCondition[];
-
   /** States (multiple select) */
   states: BehaviorRuleStateInput[];
 
@@ -424,7 +422,7 @@ model UpdateBehavioralRuleDto {
   trust_impact?: "none" | "low" | "medium" | "high";
 
   /** Max triggers in rolling window before penalty applies. null = use system default based on trust_impact. */
-  trust_threshold?: {};
+  @minValue(1) trust_threshold?: numeric | null;
 
   /** Change log */
   change_log: string;
@@ -442,7 +440,7 @@ model EvaluateRegoDto {
   policy: string;
 
   /** Input data */
-  input: {};
+  input: Record<unknown>;
 }
 
 model CreateWebhookDto {
@@ -459,7 +457,7 @@ model CreateWebhookDto {
   secret?: string;
 
   /** Event types to subscribe to */
-  event_types: string[];
+  event_types: WebhookEventType[];
 
   /** Agent IDs to filter (null/omitted = all agents) */
   agent_ids?: string[];
@@ -479,7 +477,7 @@ model UpdateWebhookDto {
   url?: string;
 
   /** Event types to subscribe to */
-  event_types?: string[];
+  event_types?: WebhookEventType[];
 
   /** Agent IDs to filter (empty array = all agents) */
   agent_ids?: string[];
@@ -496,6 +494,7 @@ model CreateOrganizationDto {
   orgId?: string;
   contactName: string;
   contactEmail: string;
+  recaptchaToken: string;
   contactPhone?: string;
   address?: string;
   websiteUrl?: string;
@@ -790,11 +789,6 @@ op AppController_getHello(): Body<string>;
 op AuthController_getProfile(): Body<UserProfile>;
 
 @tag("Auth")
-@route("/auth/csrf")
-@get
-op AuthController_getCsrf(): NoContentResponse;
-
-@tag("Auth")
 @route("/auth/login")
 @post
 op AuthController_login(@body body: LoginDto): Body<TokenPair>;
@@ -894,7 +888,18 @@ op AgentController_updateAgent(@path agentId: string, @body body: UpdateAgentDto
 @get
 op AgentController_getAgentEvaluations(
   @path agentId: string,
-  @body body: GetAgentViolationsDto,
+
+  /** Page number (starts from 0) */
+  @minValue(0) @query(#{ explode: true }) page?: numeric,
+
+  /** Number of items per page */
+  @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
+
+  /** Filter violations by pattern */
+  @maxLength(255) @query(#{ explode: true }) pattern?: string,
+
+  /** Source type of violations */
+  @query(#{ explode: true }) sourceType?: string,
 ): Body<PaginatedResponse<Violation>>;
 
 @tag("Agent")
@@ -983,9 +988,6 @@ op AgentController_getGuardrails(
 
   /** Number of items per page */
   @minValue(1) @query(#{ explode: true }) perPage?: numeric = 10,
-
-  /** Processing stage of the guardrail */
-  @query(#{ explode: true }) processing_stage?: string,
 ): Body<PaginatedResponse<Guardrail>>;
 
 @tag("Agent")
@@ -1096,7 +1098,7 @@ op AgentController_getPolicesMetrics(
 @tag("Agent")
 @route("/agent/{agentId}/policies/current")
 @get
-op AgentController_getCurrentPolicy(@path agentId: string): Body<Policy[]>;
+op AgentController_getCurrentPolicy(@path agentId: string): Body<Policy>;
 
 @tag("Agent")
 @route("/agent/{agentId}/policies/{policyId}")
@@ -1297,7 +1299,7 @@ op AgentController_createBehaviorRule(
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/current")
 @get
-op AgentController_getCurrentBehaviorRule(@path agentId: string): Body<BehaviorRule[]>;
+op AgentController_getCurrentBehaviorRule(@path agentId: string): Body<BehaviorRule>;
 
 @tag("Agent")
 @route("/agent/{agentId}/behavior-rule/{behaviorRuleId}")

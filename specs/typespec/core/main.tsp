@@ -145,8 +145,8 @@ model GovernanceEventPayload {
   /** Set on `WorkflowStarted` for child workflows. */
   parent_workflow_id?: string;
 
-  /** Set on `WorkflowCompleted`/`WorkflowFailed`. */
-  status?: "completed" | "failed" | "cancelled" | "terminated";
+  /** Set on `WorkflowCompleted`/`WorkflowFailed`; Core accepts free-form status strings. */
+  status?: string;
 
   /** Set on Activity* and SignalReceived events. */
   activity_id?: string;
@@ -164,9 +164,8 @@ model GovernanceEventPayload {
   @minValue(1) attempt?: int32;
 
   /**
-   * Activity input payload. The Go server accepts any JSON value
-   * but the SDKs always wrap as an array (`[{...}]`); passing a
-   * bare object yields a 422 from the validation layer.
+   * Activity input payload. The Core server accepts array-wrapped SDK
+   * inputs (`[{...}]`) and legacy bare object payloads.
    *
    */
   @oneOf activity_input?: unknown[] | {};
@@ -291,19 +290,21 @@ model SpanData {
 
   /**
    * Server-computed bucket. Examples: `http_get`, `llm_completion`,
-   * `database_select`, `file_read`, `shell_execution`. SDK can
-   * pre-compute and send; server overrides if mismatched.
+   * `database_select`, `file_read`, `internal`. SDKs should omit this for
+   * live evaluations and let Core compute it from typed span fields;
+   * persisted backend reads include the computed value.
    *
    */
   semantic_type?: string;
 
-  stage?: "started" | "completed" = "completed";
+  /** SDKs conventionally emit `started` or `completed`; Core accepts free-form stage strings. */
+  stage?: string = "completed";
 
   /** Free-form payload. Map for attestation; string for file ops. */
   data?: unknown;
 
-  /** SDK v2 hook source. */
-  hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";
+  /** SDK v2 hook source. Core accepts free-form hook type strings. */
+  hook_type?: string;
 
   /** Per-span dedup keys. */
   attribute_key_identifiers?: string[];
@@ -338,7 +339,8 @@ model SpanData {
 }
 
 model SpanStatus {
-  code: "OK" | "ERROR" | "UNSET";
+  /** SDKs conventionally emit OTel-like OK/ERROR/UNSET; Core accepts free-form status codes. */
+  code: string;
   description?: string;
 }
 
@@ -425,7 +427,7 @@ model GovernanceVerdictResponse {
 
 /** SDK-facing guardrail report; one entry per guardrail type that ran. */
 model GuardrailsResult {
-  input_type: "activity_input" | "activity_output" | "signal_args";
+  input_type: "activity_input" | "activity_output";
 
   /**
    * Redacted or transformed payload as decided by the guardrail

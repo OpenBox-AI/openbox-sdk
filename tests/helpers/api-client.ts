@@ -72,6 +72,7 @@ async function makeRequest(
 // `expect(body.status).toBe(422)` style tests still work.
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client';
 import { signAgentIdentityRequest } from '../../ts/src/core-client/core-client.js';
+import { RequestPreflightError } from '../../ts/src/client/generated/request-preflight.js';
 
 /**
  * Subclass that exposes OpenBoxClient's `protected` HTTP methods to the
@@ -112,6 +113,46 @@ async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: n
   }
 }
 
+async function viaSdkOrRawBackend<T>(
+  call: () => Promise<T>,
+  fallback: () => Promise<{ data: any; status: number }>,
+): Promise<{ data: any; status: number }> {
+  try {
+    return await viaSdk(call);
+  } catch (err) {
+    if (err instanceof RequestPreflightError) {
+      return fallback();
+    }
+    throw err;
+  }
+}
+
+async function makeBackendRequest(
+  method: string,
+  url: string,
+  apiKey: string,
+  data?: any,
+): Promise<{ data: any; status: number }> {
+  const body = data === undefined ? undefined : JSON.stringify(data);
+  const opts: RequestInit = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+      'X-Openbox-Client': 'openbox-e2e-server-boundary',
+    },
+    signal: AbortSignal.timeout(25000),
+  };
+  if (body !== undefined) opts.body = body;
+
+  const response = await fetch(url, opts);
+  const contentType = response.headers.get('content-type');
+  const responseBody = contentType?.includes('application/json')
+    ? await response.json()
+    : await response.text();
+  return { data: responseBody, status: response.status };
+}
+
 /** Backend API client. Routes through OpenBoxClient so tests dogfood
  *  the SDK transport layer end-to-end. Uses X-API-Key auth: every
  *  non-mobile surface (CLI, MCP, IDE extension, MCP server, hooks)
@@ -133,23 +174,42 @@ export function getBackendClient(): HttpClient {
     apiUrl: baseURL,
     apiKey,
     clientName: 'openbox-e2e',
+    // E2E negative-path tests intentionally exercise validation and throttler
+    // failures. Do not retry local-stack 429/500 responses here; retries turn
+    // deterministic backend statuses into Vitest timeouts.
+    retry: { maxRetries: 0 },
   });
 
   return {
     async get(path: string) {
-      return viaSdk(() => sdk.publicGet(path));
+      return viaSdkOrRawBackend(
+        () => sdk.publicGet(path),
+        () => makeBackendRequest('GET', baseURL + path, apiKey),
+      );
     },
     async post(path: string, data?: any) {
-      return viaSdk(() => sdk.publicPost(path, data));
+      return viaSdkOrRawBackend(
+        () => sdk.publicPost(path, data),
+        () => makeBackendRequest('POST', baseURL + path, apiKey, data),
+      );
     },
     async put(path: string, data?: any) {
-      return viaSdk(() => sdk.publicPut(path, data));
+      return viaSdkOrRawBackend(
+        () => sdk.publicPut(path, data),
+        () => makeBackendRequest('PUT', baseURL + path, apiKey, data),
+      );
     },
     async patch(path: string, data?: any) {
-      return viaSdk(() => sdk.publicPatch(path, data));
+      return viaSdkOrRawBackend(
+        () => sdk.publicPatch(path, data),
+        () => makeBackendRequest('PATCH', baseURL + path, apiKey, data),
+      );
     },
     async delete(path: string, data?: any) {
-      return viaSdk(() => sdk.publicDelete(path, data));
+      return viaSdkOrRawBackend(
+        () => sdk.publicDelete(path, data),
+        () => makeBackendRequest('DELETE', baseURL + path, apiKey, data),
+      );
     },
   };
 }

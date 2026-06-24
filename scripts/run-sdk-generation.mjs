@@ -52,4 +52,4 @@ function readSdkGenerationSteps() {
   return normalizeCommandSteps(fixture.sdkGeneration.steps, 'sdkGeneration.steps');
 }
 
-runSteps(readSdkGenerationSteps());
+await runSteps(readSdkGenerationSteps());

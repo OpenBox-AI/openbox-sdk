@@ -1,6 +1,24 @@
-import { readdirSync, readFileSync, statSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { describe, expect, test } from 'vitest';
+
+interface CommandStep {
+  id: string;
+  label: string;
+  command: string;
+  args?: string[];
+  workingDirectory: string;
+  env?: Record<string, string>;
+}
+
+interface ParallelStepGroup {
+  id: string;
+  label: string;
+  parallel: true;
+  steps: CommandStep[];
+}
+
+type PipelineStep = CommandStep | ParallelStepGroup;
 
 interface SdkTargetsFixture {
   generatedBy: string;
@@ -9,40 +27,20 @@ interface SdkTargetsFixture {
   generatedArtifacts: {
     generatedRoots: string[];
     generatedFiles: string[];
+    driftCheckFiles?: string[];
     nestedGeneratedFiles: Array<{
       root: string;
       suffixes: string[];
     }>;
   };
   codegenBuild: {
-    steps: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    steps: CommandStep[];
   };
   sdkGeneration: {
-    steps: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    steps: CommandStep[];
   };
   specCommands: {
-    commands: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    commands: CommandStep[];
   };
   serviceDrift: {
     script: string;
@@ -68,56 +66,42 @@ interface SdkTargetsFixture {
     pipelines: Array<{
       id: string;
       label: string;
-      steps: Array<{
-        id: string;
-        label: string;
-        command: string;
-        args?: string[];
-        workingDirectory: string;
-        env?: Record<string, string>;
-      }>;
+      steps: PipelineStep[];
     }>;
   };
   testSuites: {
     defaultSuites: string[];
-    suites: Array<{
+    suites: PipelineStep[];
+  };
+  localStackProofLanes: {
+    policy: string;
+    lanes: Array<{
       id: string;
       label: string;
+      kind: string;
+      suiteId: string;
       command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
+      parallelSafe: boolean;
+      localStackRequired: boolean;
+      isolation: string;
+      requiredEnv: string[];
+      proofFiles: string[];
+      coverage: {
+        checklistAreas: string[];
+        providers: string[];
+        domains: string[];
+        subsystems: string[];
+      };
     }>;
   };
   bundleBuild: {
-    steps: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    steps: CommandStep[];
   };
   qualityCommands: {
-    commands: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    commands: CommandStep[];
   };
   generatedChecks: {
-    commands: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    commands: CommandStep[];
   };
   packageSurface: {
     packageName: string;
@@ -160,28 +144,14 @@ interface SdkTargetsFixture {
     }>;
   };
   securityAudit: {
-    commands: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    commands: CommandStep[];
     secretScanExcludes: Array<{
       path: string;
       reason: string;
     }>;
   };
   localCi: {
-    steps: Array<{
-      id: string;
-      label: string;
-      command: string;
-      args?: string[];
-      workingDirectory: string;
-      env?: Record<string, string>;
-    }>;
+    steps: PipelineStep[];
   };
   targets: Array<{
     id: string;
@@ -202,10 +172,32 @@ function readSdkTargetsFixture(): SdkTargetsFixture {
   ) as SdkTargetsFixture;
 }
 
+function isParallelGroup(step: PipelineStep): step is ParallelStepGroup {
+  return 'steps' in step;
+}
+
+function isCommandStep(step: PipelineStep | undefined): step is CommandStep {
+  return step !== undefined && !isParallelGroup(step);
+}
+
+function flattenPipelineSteps(steps: PipelineStep[]): PipelineStep[] {
+  const out: PipelineStep[] = [];
+  for (const step of steps) {
+    out.push(step);
+    if (isParallelGroup(step)) {
+      out.push(...flattenPipelineSteps(step.steps));
+    }
+  }
+  return out;
+}
+
 function listFilesRecursive(root: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(root).sort()) {
     const path = join(root, entry);
+    if (path.split('/').includes('__pycache__') || path.endsWith('.pyc')) {
+      continue;
+    }
     const stat = statSync(path);
     if (stat.isDirectory()) {
       out.push(...listFilesRecursive(path));
@@ -245,12 +237,18 @@ describe('SDK target validation manifest', () => {
       'codegen/method-names.json',
       'codegen/method-permissions.json',
       'codegen/fixtures/cli-auth.json',
+      'codegen/fixtures/boundary-domains.json',
       'codegen/fixtures/env-resolution.json',
       'codegen/fixtures/govern-protocol.json',
+      'codegen/fixtures/governance-domains.json',
       'codegen/fixtures/provider-capabilities.json',
       'codegen/fixtures/sdk-manifests.json',
       'codegen/fixtures/sdk-targets.json',
+      'docs/governance-artifacts/capability-checklist.md',
+      'docs/governance-artifacts/capability-checklist.csv',
+      'docs/governance-artifacts/summary.csv',
     ]);
+    expect(fixture.generatedArtifacts.driftCheckFiles).toEqual(['package.json']);
     expect(fixture.generatedArtifacts.nestedGeneratedFiles).toEqual([
       { root: 'ts/src', suffixes: ['.ts', '.d.ts'] },
     ]);
@@ -320,6 +318,20 @@ describe('SDK target validation manifest', () => {
         label: 'TypeSpec contract compile',
         command: 'npm',
         args: ['run', 'specs:compile'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'sync-package-scripts',
+        label: 'Sync package scripts',
+        command: 'node',
+        args: ['scripts/sync-package-scripts.mjs'],
+        workingDirectory: '.',
+      },
+      {
+        id: 'write-governance-checklist',
+        label: 'Write governance checklist artifacts',
+        command: 'node',
+        args: ['scripts/write-governance-checklist.mjs'],
         workingDirectory: '.',
       },
     ]);
@@ -419,7 +431,7 @@ describe('SDK target validation manifest', () => {
     expect(fixture.serviceDrift.policy).toContain('must not author SDK artifacts');
   });
 
-  test('declares root build and check pipelines outside package scripts', () => {
+  test('declares root build, check, and local-stack pipelines outside package scripts', () => {
     const fixture = readSdkTargetsFixture();
     const packageJson = JSON.parse(
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
@@ -434,9 +446,13 @@ describe('SDK target validation manifest', () => {
     expect(packageJson.scripts['check:sdks']).toBe(
       'node scripts/run-root-pipeline.mjs check-sdks',
     );
+    expect(packageJson.scripts['ci:local-stack']).toBe(
+      'node scripts/run-root-pipeline.mjs local-stack',
+    );
     expect(fixture.rootPipelines.pipelines.map((pipeline) => pipeline.id)).toEqual([
       'build',
       'check-sdks',
+      'local-stack',
     ]);
     expect(pipelines.build?.steps.map((step) => step.id)).toEqual([
       'generate-sdks',
@@ -446,6 +462,112 @@ describe('SDK target validation manifest', () => {
       'generate-sdks',
       'validate-targets',
     ]);
+    expect(pipelines['local-stack']?.steps.map((step) => step.id)).toEqual([
+      'ci-local',
+      'live-governance-lanes',
+      'live-platform-e2e',
+    ]);
+    const governanceLanes = pipelines['local-stack']?.steps.at(1);
+    if (!governanceLanes || !isParallelGroup(governanceLanes)) {
+      throw new Error('live-governance-lanes must be a parallel group');
+    }
+    expect(governanceLanes.steps.map((step) => step.id)).toEqual([
+      'hook-claude-host',
+      'hook-claude-stdin-local-stack',
+      'hook-codex-local-stack',
+      'hook-cursor-local-stack',
+      'openai-agents-sdk-local-stack',
+      'anthropic-agent-sdk-local-stack',
+      'copilotkit-local-stack',
+      'n8n-local-stack',
+      'kms-signing-local-stack',
+      'live-governance-e2e',
+      'local-llamafirewall',
+    ]);
+    expect(governanceLanes.steps.at(0)).toEqual({
+      id: 'hook-claude-host',
+      label: 'Live Claude host governance tests',
+      command: 'npm',
+      args: ['run', 'test:hook-claude-host'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(1)).toEqual({
+      id: 'hook-claude-stdin-local-stack',
+      label: 'Live Claude hook stdin governance tests',
+      command: 'npm',
+      args: ['run', 'test:hook-claude-stdin-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(2)).toEqual({
+      id: 'hook-codex-local-stack',
+      label: 'Live Codex hook governance tests',
+      command: 'npm',
+      args: ['run', 'test:hook-codex-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(3)).toEqual({
+      id: 'hook-cursor-local-stack',
+      label: 'Live Cursor hook governance tests',
+      command: 'npm',
+      args: ['run', 'test:hook-cursor-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(4)).toEqual({
+      id: 'openai-agents-sdk-local-stack',
+      label: 'Live OpenAI Agents SDK governance tests',
+      command: 'npm',
+      args: ['run', 'test:openai-agents-sdk-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(5)).toEqual({
+      id: 'anthropic-agent-sdk-local-stack',
+      label: 'Live Anthropic Agent SDK governance tests',
+      command: 'npm',
+      args: ['run', 'test:anthropic-agent-sdk-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(6)).toEqual({
+      id: 'copilotkit-local-stack',
+      label: 'Live CopilotKit governance tests',
+      command: 'npm',
+      args: ['run', 'test:copilotkit-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(7)).toEqual({
+      id: 'n8n-local-stack',
+      label: 'Live n8n governance tests',
+      command: 'npm',
+      args: ['run', 'test:n8n-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(8)).toEqual({
+      id: 'kms-signing-local-stack',
+      label: 'Live local KMS signing governance tests',
+      command: 'npm',
+      args: ['run', 'test:kms-signing-local-stack'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(9)).toEqual({
+      id: 'live-governance-e2e',
+      label: 'Live governance local-stack e2e',
+      command: 'npm',
+      args: ['run', 'test:e2e:governance'],
+      workingDirectory: '.',
+    });
+    expect(governanceLanes.steps.at(10)).toEqual({
+      id: 'local-llamafirewall',
+      label: 'Local LlamaFirewall e2e',
+      command: 'npm',
+      args: ['run', 'test:e2e:llamafirewall'],
+      workingDirectory: '.',
+    });
+    expect(pipelines['local-stack']?.steps.at(2)).toEqual({
+      id: 'live-platform-e2e',
+      label: 'Live platform local-stack e2e',
+      command: 'npm',
+      args: ['run', 'test:e2e:platform'],
+      workingDirectory: '.',
+    });
     expect(pipelines['check-sdks']?.steps.at(-1)).toEqual({
       id: 'validate-targets',
       label: 'Validate SDK targets',
@@ -465,38 +587,292 @@ describe('SDK target validation manifest', () => {
 
     expect(packageJson.scripts.test).toBe('node scripts/run-tests.mjs');
     expect(packageJson.scripts['test:unit']).toBe('node scripts/run-tests.mjs unit');
+    expect(packageJson.scripts['test:openapi-mock']).toBe(
+      'node scripts/run-tests.mjs openapi-mock',
+    );
+    expect(packageJson.scripts['test:specmatic']).toBeUndefined();
+    expect(packageJson.scripts['test:karate']).toBeUndefined();
     expect(packageJson.scripts['test:contract']).toBe('node scripts/run-tests.mjs contract');
+    expect(packageJson.scripts['test:providers']).toBe(
+      'node scripts/run-tests.mjs provider-adapters',
+    );
+    expect(packageJson.scripts['test:hook-install']).toBe(
+      'node scripts/run-tests.mjs hook-install',
+    );
+    expect(packageJson.scripts['test:hook-runtime']).toBe(
+      'node scripts/run-tests.mjs hook-runtime',
+    );
+    expect(packageJson.scripts['test:mcp-protocol']).toBe(
+      'node scripts/run-tests.mjs mcp-protocol',
+    );
+    expect(packageJson.scripts['test:hook-claude-host']).toBe(
+      'node scripts/run-tests.mjs hook-claude-host',
+    );
+    expect(packageJson.scripts['test:openai-agents-sdk-local-stack']).toBe(
+      'node scripts/run-tests.mjs openai-agents-sdk-local-stack',
+    );
+    expect(packageJson.scripts['test:anthropic-agent-sdk-local-stack']).toBe(
+      'node scripts/run-tests.mjs anthropic-agent-sdk-local-stack',
+    );
+    expect(packageJson.scripts['test:copilotkit-local-stack']).toBe(
+      'node scripts/run-tests.mjs copilotkit-local-stack',
+    );
+    expect(packageJson.scripts['test:n8n-local-stack']).toBe(
+      'node scripts/run-tests.mjs n8n-local-stack',
+    );
+    expect(packageJson.scripts['test:kms-signing-local-stack']).toBe(
+      'node scripts/run-tests.mjs kms-signing-local-stack',
+    );
     expect(packageJson.scripts['test:hook-integration']).toBe(
       'node scripts/run-tests.mjs hook-integration',
     );
-    expect(fixture.testSuites.defaultSuites).toEqual([
+    expect(packageJson.scripts['test:e2e']).toBe('node scripts/run-tests.mjs e2e');
+    expect(packageJson.scripts['test:e2e:governance']).toBe(
+      'node scripts/run-tests.mjs local-stack-alignment e2e-governance-domains e2e-governance-policies e2e-governance-request-query-boundaries e2e-governance-core e2e-governance-faults',
+    );
+    expect(packageJson.scripts['test:e2e:platform']).toBe(
+      'node scripts/run-tests.mjs e2e-platform',
+    );
+    expect(packageJson.scripts['test:e2e:opa-unavailable']).toBe(
+      'node scripts/run-isolated-opa-unavailable.mjs',
+    );
+    expect(fixture.testSuites.defaultSuites).toEqual(['unit', 'openapi-mock', 'contract']);
+    expect(fixture.testSuites.suites.map((suite) => suite.id)).toEqual([
       'unit',
+      'openapi-mock',
       'contract',
+      'provider-adapters',
+      'hook-install',
+      'hook-runtime',
+      'mcp-protocol',
+      'hook-claude-host',
+      'hook-claude-headless-write',
+      'hook-claude-headless-shell',
+      'hook-claude-stdin-local-stack',
+      'hook-claude-events-tool',
+      'hook-claude-events-lifecycle',
+      'hook-claude-subagent',
+      'hook-claude-host-rest',
+      'hook-codex-local-stack',
+      'hook-cursor-local-stack',
+      'openai-agents-sdk-local-stack',
+      'anthropic-agent-sdk-local-stack',
+      'copilotkit-local-stack',
+      'n8n-local-stack',
+      'kms-signing-local-stack',
+      'local-llamafirewall',
       'hook-integration',
+      'local-stack-alignment',
+      'e2e-governance-domains',
+      'e2e-governance-policies',
+      'e2e-governance-request-query-boundaries',
+      'e2e-governance-core',
+      'e2e-governance-faults',
+      'e2e-platform',
+      'e2e',
     ]);
-    expect(fixture.testSuites.suites).toEqual([
-      {
-        id: 'unit',
-        label: 'Unit tests',
-        command: 'npx',
-        args: ['vitest', 'run', '--project', 'unit'],
-        workingDirectory: '.',
-      },
-      {
-        id: 'contract',
-        label: 'Contract tests',
-        command: 'npx',
-        args: ['vitest', 'run', '--project', 'contract'],
-        workingDirectory: '.',
-      },
-      {
-        id: 'hook-integration',
-        label: 'Hook integration tests',
-        command: 'npx',
-        args: ['vitest', 'run', '--project', 'hook-integration'],
-        workingDirectory: '.',
-      },
+    const hookInstall = fixture.testSuites.suites.find((suite) => suite.id === 'hook-install');
+    if (!isCommandStep(hookInstall)) throw new Error('hook-install must be a command step');
+    expect(hookInstall.args).toEqual(
+      expect.arrayContaining([
+        'tests/hook-integration/claude-code-install.test.ts',
+        'tests/hook-integration/install-cursor-integration.test.ts',
+      ]),
+    );
+    const hookClaudeHost = fixture.testSuites.suites.find(
+      (suite) => suite.id === 'hook-claude-host',
+    );
+    if (!isCommandStep(hookClaudeHost)) throw new Error('hook-claude-host must be a command step');
+    expect(hookClaudeHost.args).toEqual(
+      expect.arrayContaining([
+        'hook-claude-headless-write',
+        'hook-claude-headless-shell',
+        'hook-claude-events-tool',
+        'hook-claude-events-lifecycle',
+        'hook-claude-subagent',
+        'hook-claude-host-rest',
+      ]),
+    );
+    const governanceDomains = fixture.testSuites.suites.find(
+      (suite) => suite.id === 'e2e-governance-domains',
+    );
+    if (!governanceDomains || !isParallelGroup(governanceDomains)) {
+      throw new Error('e2e-governance-domains must be a parallel group');
+    }
+    expect(governanceDomains.steps.map((step) => step.id)).toEqual([
+      'e2e-governance-approvals',
+      'e2e-governance-audit-logs',
+      'e2e-governance-behavior-rules',
+      'e2e-governance-goal-alignment',
+      'e2e-governance-guardrails',
+      'e2e-governance-observability',
+      'e2e-governance-sdk-preflight-closures',
+      'e2e-governance-sessions',
+      'e2e-governance-trust',
+      'e2e-governance-violations',
     ]);
+    expect(governanceDomains.steps.map((step) => step.env?.OPENBOX_E2E_DOMAIN)).toEqual([
+      'approvals',
+      'audit-logs',
+      'behavior-rules',
+      'goal-alignment',
+      'guardrails',
+      'observability',
+      'sdk-preflight-closures',
+      'sessions',
+      'trust',
+      'violations',
+    ]);
+    const governanceFaults = fixture.testSuites.suites.find(
+      (suite) => suite.id === 'e2e-governance-faults',
+    );
+    if (!governanceFaults || !isParallelGroup(governanceFaults)) {
+      throw new Error('e2e-governance-faults must be a parallel group');
+    }
+    expect(governanceFaults.steps.map((step) => step.id)).toEqual([
+      'isolated-opa-unavailable',
+      'isolated-guardrail-unavailable',
+      'isolated-age-unavailable',
+    ]);
+  });
+
+  test('declares independently runnable local-stack governance proof lanes', () => {
+    const fixture = readSdkTargetsFixture();
+    const lanes = fixture.localStackProofLanes.lanes;
+    const suiteIds = new Set(flattenPipelineSteps(fixture.testSuites.suites).map((step) => step.id));
+
+    expect(fixture.localStackProofLanes.policy).toContain('independently runnable');
+    expect(fixture.localStackProofLanes.policy).toContain('must not stop shared local services');
+    expect(lanes.map((lane) => lane.id)).toEqual([
+      'sdk-direct-governance',
+      'approvals-governance',
+      'audit-logs-governance',
+      'behavior-rules-governance',
+      'goal-alignment-governance',
+      'guardrails-pii-governance',
+      'observability-governance',
+      'sessions-governance',
+      'trust-age-governance',
+      'violations-governance',
+      'opa-rego-governance',
+      'request-query-boundaries-governance',
+      'claude-code-host-governance',
+      'claude-code-stdin-governance',
+      'codex-governance',
+      'cursor-governance',
+      'mcp-protocol-governance',
+      'openai-agents-sdk-governance',
+      'anthropic-agent-sdk-governance',
+      'copilotkit-governance',
+      'n8n-governance',
+      'kms-signing-governance',
+      'llamafirewall-governance',
+      'isolated-opa-unavailable',
+      'isolated-guardrail-unavailable',
+      'isolated-age-unavailable',
+      'platform-local-stack-e2e',
+    ]);
+    expect(new Set(lanes.map((lane) => lane.id)).size).toBe(lanes.length);
+
+    for (const lane of lanes) {
+      expect(suiteIds.has(lane.suiteId), `${lane.id} suite ${lane.suiteId}`).toBe(true);
+      expect(lane.command).toBe(`npm run local-stack:lane -- ${lane.id}`);
+      expect(typeof lane.parallelSafe).toBe('boolean');
+      expect(typeof lane.localStackRequired).toBe('boolean');
+      expect(lane.isolation.length).toBeGreaterThan(3);
+      expect(lane.proofFiles.length, lane.id).toBeGreaterThan(0);
+      for (const proofFile of lane.proofFiles) {
+        expect(existsSync(resolve(process.cwd(), proofFile)), `${lane.id} proof ${proofFile}`).toBe(true);
+      }
+      if (lane.localStackRequired) {
+        expect(lane.requiredEnv, lane.id).toEqual(
+          expect.arrayContaining([
+            'OPENBOX_API_URL',
+            'OPENBOX_CORE_URL',
+            'OPENBOX_BACKEND_API_KEY',
+          ]),
+        );
+      } else {
+        expect(lane.requiredEnv, lane.id).toEqual([]);
+      }
+      expect(Object.values(lane.coverage).every(Array.isArray), lane.id).toBe(true);
+    }
+
+    const coveredAreas = new Set(lanes.flatMap((lane) => lane.coverage.checklistAreas));
+    expect([...coveredAreas].sort()).toEqual(
+      expect.arrayContaining([
+        'SDK Direct Governance',
+        'Claude Code Governance',
+        'Codex Governance',
+        'Cursor Governance',
+        'MCP Protocol Governance',
+        'OpenAI Agent SDK Governance',
+        'Anthropic Agent SDK Governance',
+        'CopilotKit Governance',
+        'n8n Governance',
+      ]),
+    );
+
+    const providers = new Set(lanes.flatMap((lane) => lane.coverage.providers));
+    expect([...providers].sort()).toEqual(
+      expect.arrayContaining([
+        'anthropic-agent-sdk',
+        'claude-code',
+        'codex',
+        'copilotkit',
+        'cursor',
+        'mcp',
+        'n8n',
+        'openai-agents-sdk',
+      ]),
+    );
+
+    const domains = new Set(lanes.flatMap((lane) => lane.coverage.domains));
+    expect([...domains].sort()).toEqual(
+      expect.arrayContaining([
+        'age',
+        'approvals',
+        'audit-logs',
+        'backend/core',
+        'behavior-rules',
+        'goal-alignment',
+        'guardrails',
+        'kms',
+        'observability',
+        'opa',
+        'platform',
+        'rego',
+        'request-query-boundaries',
+        'sessions',
+        'trust',
+        'violations',
+      ]),
+    );
+
+    const subsystems = new Set(lanes.flatMap((lane) => lane.coverage.subsystems));
+    expect([...subsystems].sort()).toEqual(
+      expect.arrayContaining([
+        'AGE',
+        'KMS/local signing/attestation',
+        'LlamaFirewall',
+        'OPA/Rego policy',
+        'PII/redaction',
+        'approval/HITL',
+        'audit logs',
+        'behavior rules',
+        'cost',
+        'fail closed',
+        'fault handling',
+        'goal alignment',
+        'guardrails',
+        'hooks',
+        'mcp',
+        'session state',
+        'tool',
+        'tracing/spans',
+        'usage',
+      ]),
+    );
   });
 
   test('declares bundle build stages outside package scripts', () => {
@@ -647,29 +1023,30 @@ describe('SDK target validation manifest', () => {
     );
 
     expect(packageJson.scripts).toEqual(expectedScripts);
-    expect(fixture.packageScripts.scripts.map((script) => script.kind)).toEqual([
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'lifecycle-alias',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-      'compatibility-alias',
-      'spec-runner',
-      'spec-runner',
-      'spec-runner',
-    ]);
+    expect(
+      fixture.packageScripts.scripts.every((script) =>
+        ['spec-runner', 'lifecycle-alias', 'compatibility-alias'].includes(script.kind),
+      ),
+    ).toBe(true);
+    expect(
+      fixture.packageScripts.scripts
+        .filter((script) => script.kind === 'lifecycle-alias')
+        .map((script) => script.name),
+    ).toEqual(['prepublishOnly']);
+    expect(
+      fixture.packageScripts.scripts
+        .filter((script) => script.kind === 'compatibility-alias')
+        .map((script) => script.name),
+    ).toEqual(['specs:all']);
+    expect(Object.keys(packageJson.scripts)).toEqual(
+      expect.arrayContaining([
+        'guardrails:hub:provenance',
+        'guardrails:hub:record',
+        'guardrails:hub:replay',
+        'local:llamafirewall',
+        'local-stack:lane',
+      ]),
+    );
     expect(
       Object.keys(packageJson.scripts).filter((script) =>
         /:(python|py|typescript|ts|js)$/.test(script),
@@ -697,6 +1074,22 @@ describe('SDK target validation manifest', () => {
     });
     expect(inventory.find((entry) => entry.path === 'scripts/openbox-cli-dev.mjs')).toMatchObject({
       category: 'developer-launcher',
+    });
+    expect(
+      inventory.find((entry) => entry.path === 'scripts/local-llamafirewall-server.py'),
+    ).toMatchObject({
+      category: 'local-stack-adapter',
+    });
+    expect(
+      inventory.find((entry) => entry.path === 'scripts/start-llamafirewall.mjs'),
+    ).toMatchObject({
+      category: 'local-stack-launcher',
+    });
+    expect(
+      inventory.find((entry) => entry.path === 'scripts/run-local-stack-lane.mjs'),
+    ).toMatchObject({
+      category: 'spec-runner',
+      canonicalSurface: 'localStackProofLanes.lanes',
     });
     expect(inventory.find((entry) => entry.path === 'scripts/lib/spec-steps.mjs')).toMatchObject({
       category: 'runner-framework',
@@ -738,22 +1131,61 @@ describe('SDK target validation manifest', () => {
     const fixture = readSdkTargetsFixture();
 
     expect(fixture.localCi.steps.map((step) => step.id)).toEqual([
+      'generated-drift',
       'check-sdks',
+      'host-integration-lanes',
       'coverage',
       'build',
-      'generated-drift',
+      'post-build-quality',
+    ]);
+    const hostIntegration = fixture.localCi.steps.find((step) => step.id === 'host-integration-lanes');
+    if (!hostIntegration || !isParallelGroup(hostIntegration)) {
+      throw new Error('host-integration-lanes must be a parallel group');
+    }
+    expect(hostIntegration.steps.map((step) => step.id)).toEqual([
+      'hook-install',
+      'hook-runtime',
+      'mcp-protocol',
+    ]);
+    const postBuild = fixture.localCi.steps.find((step) => step.id === 'post-build-quality');
+    if (!postBuild || !isParallelGroup(postBuild)) {
+      throw new Error('post-build-quality must be a parallel group');
+    }
+    expect(postBuild.steps.map((step) => step.id)).toEqual([
       'generated-banners',
       'openapi-lint',
       'npm-audit',
       'security-audit',
     ]);
-    expect(fixture.localCi.steps.find((step) => step.id === 'coverage')?.env).toEqual({
+    const coverage = fixture.localCi.steps.find((step) => step.id === 'coverage');
+    if (!isCommandStep(coverage)) throw new Error('coverage must be a command step');
+    expect(coverage.env).toEqual({
       OPENBOX_CLI: './scripts/openbox-cli-dev.mjs',
     });
-    expect(fixture.localCi.steps.find((step) => step.id === 'build')?.env).toEqual({
+    expect(coverage.args).toEqual([
+      'vitest',
+      'run',
+      '--coverage',
+      '--project',
+      'unit',
+      '--project',
+      'openapi-mock',
+      '--project',
+      'contract',
+      '--coverage.reporter=lcov',
+    ]);
+    const build = fixture.localCi.steps.find((step) => step.id === 'build');
+    if (!isCommandStep(build)) throw new Error('build must be a command step');
+    expect(build.env).toEqual({
       NODE_OPTIONS: '--max-old-space-size=4096',
     });
-    expect(fixture.localCi.steps.every((step) => step.workingDirectory === '.')).toBe(true);
+    expect(
+      fixture.localCi.steps.every((step) =>
+        isParallelGroup(step)
+          ? step.steps.every((child) => child.workingDirectory === '.')
+          : step.workingDirectory === '.',
+      ),
+    ).toBe(true);
   });
 
   test('keeps root validation generic while target commands remain native', () => {

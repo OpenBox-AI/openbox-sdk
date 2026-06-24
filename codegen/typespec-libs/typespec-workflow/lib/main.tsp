@@ -313,6 +313,7 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *     tracingCapabilityGuards: #[#{ provider, tier, traceSurface, spanCoverage, spanEmission, sourceAttribution, guardTest }, ...],
  *     hitlCapabilityGuards: #[#{ provider, tier, requireApprovalSurface, sourceAttribution, nativeSurface, fallbackSurface, guardTest, failClosedBehavior }, ...],
  *     guardrailCapabilityGuards: #[#{ provider, tier, governedSurfaces, coreContract, redactionBehavior, failClosedBehavior, guardTest }, ...],
+ *     guardrailsHubRecordingSurface: #{ id, recorderScript, fixturePath, recordEnv, tokenEnv, defaultSampleCount, cases: #[#{ id, guardrailType, sampleCount, variants }] },
  *     policyEvaluationGuards: #[#{ provider, tier, authority, sdkResponsibility, allowedLocalWork, forbiddenLocalWork, guardTest }, ...],
  *     rulesInstructionCapabilityGuards: #[#{ provider, tier, projectionSurface, sourceOfTruth, allowedProjectionWork, forbiddenLocalWork, hostBoundary, guardTest }, ...],
  *     hookCapabilityGuards: #[#{ provider, tier, hookSurface, eventCoverage, enforcementBoundary, fallbackOrOutOfScope, guardTest }, ...],
@@ -429,6 +430,8 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     },
  *     rootPipelines: #{
  *       pipelines: #[#{ id, label, steps }, ...],
+ *       // `steps` accepts command steps plus explicit parallel groups:
+ *       // #{ id, label, parallel: true, steps: #[commandStep, ...] }
  *     },
  *     testSuites: #{
  *       defaultSuites: #[...],
@@ -454,6 +457,8 @@ extern dec sdkMethodNames(target: Namespace, methodNames: valueof Record<unknown
  *     },
  *     localCi: #{
  *       steps: #[#{ id, label, command, args, workingDirectory, env }, ...],
+ *       // Also accepts explicit parallel groups:
+ *       // #{ id, label, parallel: true, steps: #[commandStep, ...] }
  *     },
  *     targets: #[
  *       #{

@@ -65,7 +65,7 @@ export interface HookSpec {
   style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean; verdictShape: string }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -79,70 +79,90 @@ export const HOOK_SPEC: HookSpec = {
   "events": [
     {
       "name": "beforeSubmitPrompt",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-continue"
     },
     {
       "name": "beforeReadFile",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
       "name": "beforeShellExecution",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
       "name": "beforeMCPExecution",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
       "name": "preToolUse",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
-      "name": "afterAgentResponse"
+      "name": "afterAgentResponse",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterAgentThought"
+      "name": "afterAgentThought",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterShellExecution"
+      "name": "afterShellExecution",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterFileEdit"
+      "name": "afterFileEdit",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterMCPExecution"
+      "name": "afterMCPExecution",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "postToolUse"
+      "name": "postToolUse",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "postToolUseFailure"
+      "name": "postToolUseFailure",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "sessionStart"
+      "name": "sessionStart",
+      "verdictShape": "none"
     },
     {
-      "name": "stop"
+      "name": "stop",
+      "verdictShape": "none"
     },
     {
       "name": "beforeTabFileRead",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
-      "name": "afterTabFileEdit"
+      "name": "afterTabFileEdit",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "sessionEnd"
+      "name": "sessionEnd",
+      "verdictShape": "none"
     },
     {
-      "name": "preCompact"
+      "name": "preCompact",
+      "verdictShape": "cursor-observe"
     },
     {
       "name": "subagentStart",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
-      "name": "subagentStop"
+      "name": "subagentStop",
+      "verdictShape": "cursor-observe"
     }
   ]
 };

@@ -695,7 +695,7 @@ export function $providerCapabilities(
     return;
   }
   const record = value as Record<string, unknown>;
-  for (const key of ['capabilityIds', 'providers', 'capabilities', 'referenceProviderParityClosures', 'referenceProviderRuntimeAudit', 'goalSignalGuards', 'usageCostCapabilityGuards', 'usageNormalization', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'eventCatalog', 'pluginComponents', 'publicIntegrations', 'mcpTools', 'mcpPrompts', 'mcpResourceTemplates', 'mcpSkillReferences', 'n8nIntegration']) {
+  for (const key of ['capabilityIds', 'providers', 'capabilities', 'governanceChecklistLimitations', 'governanceChecklistRows', 'governanceChecklistScore', 'referenceProviderParityClosures', 'referenceProviderRuntimeAudit', 'goalSignalGuards', 'usageCostCapabilityGuards', 'usageNormalization', 'tracingCapabilityGuards', 'hitlCapabilityGuards', 'guardrailCapabilityGuards', 'guardrailsHubRecordingSurface', 'policyEvaluationGuards', 'rulesInstructionCapabilityGuards', 'hookCapabilityGuards', 'subagentsAgentsCapabilityGuards', 'pluginCapabilityGuards', 'skillCapabilityGuards', 'mcpCapabilityGuards', 'installDoctorCapabilityGuards', 'localStackScenarioPaths', 'localStackScenarioMatrix', 'eventCatalog', 'pluginComponents', 'publicIntegrations', 'mcpTools', 'mcpPrompts', 'mcpResourceTemplates', 'mcpSkillReferences', 'n8nIntegration']) {
     if (!(key in record)) {
       reportDiagnostic(context.program, {
         code: 'invalid-provider-capabilities',
@@ -900,32 +900,82 @@ function validateCommandStepArray(
   }
 
   for (const [index, rawStep] of rawSteps.entries()) {
-    if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) {
+    if (!validateCommandStepRecord(context, target, `${fieldPath} ${index}`, rawStep)) return false;
+  }
+
+  return true;
+}
+
+function validateCommandStepRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  fieldPath: string,
+  rawStep: unknown,
+): boolean {
+  if (!isRecord(rawStep)) {
+    reportInvalidSdkTargets(context, target, `${fieldPath} must be a record`);
+    return false;
+  }
+  const step = rawStep as Record<string, unknown>;
+  for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+    if (!isNonEmptyString(step[field])) {
+      reportInvalidSdkTargets(context, target, `${fieldPath}.${field} must be a non-empty string`);
+      return false;
+    }
+  }
+  if (step.args !== undefined && !isStringArray(step.args)) {
+    reportInvalidSdkTargets(context, target, `${fieldPath}.args must be a string array`);
+    return false;
+  }
+  if (step.env !== undefined) {
+    if (!isRecord(step.env)) {
+      reportInvalidSdkTargets(context, target, `${fieldPath}.env must be a record`);
+      return false;
+    }
+    for (const [name, value] of Object.entries(step.env as Record<string, unknown>)) {
+      if (!isNonEmptyString(name) || typeof value !== 'string') {
+        reportInvalidSdkTargets(context, target, `${fieldPath}.env must map strings to strings`);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function validatePipelineStepArray(
+  context: DecoratorContext,
+  target: Namespace,
+  fieldPath: string,
+  rawSteps: unknown,
+): boolean {
+  if (!Array.isArray(rawSteps) || rawSteps.length === 0) {
+    reportInvalidSdkTargets(context, target, `${fieldPath} must be a non-empty array`);
+    return false;
+  }
+
+  for (const [index, rawStep] of rawSteps.entries()) {
+    if (!isRecord(rawStep)) {
       reportInvalidSdkTargets(context, target, `${fieldPath} ${index} must be a record`);
       return false;
     }
     const step = rawStep as Record<string, unknown>;
-    for (const field of ['id', 'label', 'command', 'workingDirectory']) {
+    if (step.steps === undefined) {
+      if (!validateCommandStepRecord(context, target, `${fieldPath} ${index}`, step)) return false;
+      continue;
+    }
+    for (const field of ['id', 'label']) {
       if (!isNonEmptyString(step[field])) {
         reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.${field} must be a non-empty string`);
         return false;
       }
     }
-    if (step.args !== undefined && !isStringArray(step.args)) {
-      reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.args must be a string array`);
+    if (step.parallel !== true) {
+      reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.parallel must be true`);
       return false;
     }
-    if (step.env !== undefined) {
-      if (!step.env || typeof step.env !== 'object' || Array.isArray(step.env)) {
-        reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.env must be a record`);
-        return false;
-      }
-      for (const [name, value] of Object.entries(step.env as Record<string, unknown>)) {
-        if (!isNonEmptyString(name) || typeof value !== 'string') {
-          reportInvalidSdkTargets(context, target, `${fieldPath} ${index}.env must map strings to strings`);
-          return false;
-        }
-      }
+    if (!validateCommandStepArray(context, target, `${fieldPath} ${index}.steps`, step.steps)) {
+      return false;
     }
   }
 
@@ -1327,7 +1377,7 @@ function validateLocalCiRecord(
   }
 
   const localCi = rawLocalCi as Record<string, unknown>;
-  return validateCommandStepArray(context, target, 'localCi.steps', localCi.steps);
+  return validatePipelineStepArray(context, target, 'localCi.steps', localCi.steps);
 }
 
 function validateTestSuitesRecord(
@@ -1346,7 +1396,7 @@ function validateTestSuitesRecord(
     reportInvalidSdkTargets(context, target, 'testSuites.defaultSuites must be a non-empty string array');
     return false;
   }
-  if (!validateCommandStepArray(context, target, 'testSuites.suites', testSuites.suites)) {
+  if (!validatePipelineStepArray(context, target, 'testSuites.suites', testSuites.suites)) {
     return false;
   }
 
@@ -1539,7 +1589,7 @@ function validateRootPipelinesRecord(
       return false;
     }
     ids.add(pipeline.id as string);
-    if (!validateCommandStepArray(context, target, `rootPipelines.pipelines ${index}.steps`, pipeline.steps)) {
+    if (!validatePipelineStepArray(context, target, `rootPipelines.pipelines ${index}.steps`, pipeline.steps)) {
       return false;
     }
   }
@@ -1755,6 +1805,93 @@ function validateScriptInventoryRecord(
   return true;
 }
 
+function validateLocalStackProofLanesRecord(
+  context: DecoratorContext,
+  target: Namespace,
+  rawLocalStackProofLanes: unknown,
+): boolean {
+  if (!isRecord(rawLocalStackProofLanes)) {
+    reportInvalidSdkTargets(context, target, 'localStackProofLanes must be a record');
+    return false;
+  }
+
+  const localStackProofLanes = rawLocalStackProofLanes;
+  if (!isNonEmptyString(localStackProofLanes.policy)) {
+    reportInvalidSdkTargets(context, target, 'localStackProofLanes.policy must be a non-empty string');
+    return false;
+  }
+  if (!Array.isArray(localStackProofLanes.lanes) || localStackProofLanes.lanes.length === 0) {
+    reportInvalidSdkTargets(context, target, 'localStackProofLanes.lanes must be a non-empty array');
+    return false;
+  }
+
+  const laneIds = new Set<string>();
+  for (const [index, rawLane] of localStackProofLanes.lanes.entries()) {
+    if (!isRecord(rawLane)) {
+      reportInvalidSdkTargets(context, target, `localStackProofLanes.lanes ${index} must be a record`);
+      return false;
+    }
+    const lane = rawLane;
+    for (const field of ['id', 'label', 'kind', 'suiteId', 'command', 'isolation']) {
+      if (!isNonEmptyString(lane[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `localStackProofLanes.lanes ${index}.${field} must be a non-empty string`,
+        );
+        return false;
+      }
+    }
+    const laneId = lane.id as string;
+    if (laneIds.has(laneId)) {
+      reportInvalidSdkTargets(context, target, `localStackProofLanes.lanes duplicate id ${laneId}`);
+      return false;
+    }
+    laneIds.add(laneId);
+    for (const field of ['parallelSafe', 'localStackRequired']) {
+      if (typeof lane[field] !== 'boolean') {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `localStackProofLanes.lanes ${index}.${field} must be a boolean`,
+        );
+        return false;
+      }
+    }
+    for (const field of ['requiredEnv', 'proofFiles']) {
+      if (!isStringArray(lane[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `localStackProofLanes.lanes ${index}.${field} must be a string array`,
+        );
+        return false;
+      }
+    }
+    const coverage = lane.coverage;
+    if (!isRecord(coverage)) {
+      reportInvalidSdkTargets(
+        context,
+        target,
+        `localStackProofLanes.lanes ${index}.coverage must be a record`,
+      );
+      return false;
+    }
+    for (const field of ['checklistAreas', 'providers', 'domains', 'subsystems']) {
+      if (!isStringArray(coverage[field])) {
+        reportInvalidSdkTargets(
+          context,
+          target,
+          `localStackProofLanes.lanes ${index}.coverage.${field} must be a string array`,
+        );
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function validateCleanArtifactsRecord(
   context: DecoratorContext,
   target: Namespace,
@@ -1833,6 +1970,10 @@ export function $sdkTargets(
         return;
       }
     }
+    if (artifacts.driftCheckFiles !== undefined && !isStringArray(artifacts.driftCheckFiles)) {
+      reportInvalidSdkTargets(context, target, 'generatedArtifacts.driftCheckFiles must be a string array');
+      return;
+    }
 
     const nested = artifacts.nestedGeneratedFiles;
     if (nested !== undefined) {
@@ -1876,6 +2017,12 @@ export function $sdkTargets(
 
   if (record.scriptInventory !== undefined) {
     if (!validateScriptInventoryRecord(context, target, record.scriptInventory)) {
+      return;
+    }
+  }
+
+  if (record.localStackProofLanes !== undefined) {
+    if (!validateLocalStackProofLanesRecord(context, target, record.localStackProofLanes)) {
       return;
     }
   }

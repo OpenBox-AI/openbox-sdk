@@ -8,24 +8,29 @@
 //     decide_approval, plus the recipe / overview tools);
 //   - tools/call check_governance round-trips against the local
 //     stack and returns a verdict (require_approval for file_read
-//     /etc/hostname per the bootstrap rule).
+//     the spec-owned file_read fixture path per the bootstrap rule).
 //
 // The MCP transport is line-delimited JSON; we send one request
 // per write, then read until a matching response id arrives. The
 // server stays alive between calls (one process per test), which
 // mirrors how the LLM host actually uses it.
 //
-// Live round-trip cases run when this machine has the normal local
-// e2e-agent cache or canonical runtime credentials.
+// Live round-trip cases use the same isolated runtime prepared for the
+// current local governance run.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
+import { MCP_VERDICT_MATRIX, shouldSeedRule } from './fixtures/verdict-matrix.js';
+import {
+  ensureLocalGovernanceMatrix,
+  localGovernanceMatrixConfigured,
+  normalizeMatrixVerdict,
+} from './helpers/local-governance-matrix.js';
 
 const OPENBOX = requireOpenBoxCli();
-const E2E_AGENT_NAME = 'e2e-agent';
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 
 /** Locate the org X-API-Key (`obx_key_*`) the MCP server needs to
@@ -110,51 +115,26 @@ class McpClient {
   }
 }
 
-function resolveAgentId(): string | undefined {
-  if (process.env.OPENBOX_AGENT_ID) return process.env.OPENBOX_AGENT_ID;
-  const keysFile = path.join(PROJECT_OPENBOX, 'agent-keys');
-  if (!existsSync(keysFile)) return undefined;
-  try {
-    const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
-      string,
-      { agentId: string; agentName: string }
-    >;
-    return Object.values(cache).find((r) => r.agentName === E2E_AGENT_NAME)?.agentId;
-  } catch {
-    return undefined;
-  }
-}
-
-function hasCachedRuntimeKey(agentId: string | undefined): boolean {
-  if (process.env.OPENBOX_API_KEY) return true;
-  if (!agentId) return false;
-  const keysFile = path.join(PROJECT_OPENBOX, 'agent-keys');
-  if (!existsSync(keysFile)) return false;
-  try {
-    const cache = JSON.parse(readFileSync(keysFile, 'utf-8')) as Record<
-      string,
-      { agentId: string; runtimeKey?: string }
-    >;
-    return Object.values(cache).some((r) => r.agentId === agentId && !!r.runtimeKey);
-  } catch {
-    return false;
-  }
-}
-
 const orgKey = resolveOrgApiKey();
 const SHOULD_RUN = !!orgKey;
-const LIVE = localHarnessEnabled() && hasCachedRuntimeKey(resolveAgentId());
+const LIVE = localGovernanceMatrixConfigured();
 
 describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
   let client: McpClient;
+  let localRuntime: Awaited<ReturnType<typeof ensureLocalGovernanceMatrix>> | undefined;
 
   beforeAll(async () => {
+    localRuntime = LIVE ? await ensureLocalGovernanceMatrix() : undefined;
     // The MCP server needs explicit URLs plus an org X-API-Key to
     // reach the backend. The org key comes from project `.openbox/tokens`. Both are required
     // or the server exits with a credentials error before
     // initialize completes.
     client = new McpClient(
-      { OPENBOX_API_KEY: orgKey!, OPENBOX_BACKEND_API_KEY: orgKey! },
+      {
+        ...(localRuntime ? { OPENBOX_API_KEY: localRuntime.runtimeKey } : {}),
+        ...(localRuntime ? { OPENBOX_API_URL: localRuntime.apiUrl, OPENBOX_CORE_URL: localRuntime.coreUrl } : {}),
+        OPENBOX_BACKEND_API_KEY: orgKey!,
+      },
       [],
     );
     const init = await client.call('initialize', {
@@ -164,7 +144,7 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
     });
     expect(init.error, init.error?.message).toBeUndefined();
     client.notify('notifications/initialized');
-  }, 20_000);
+  }, 90_000);
 
   afterAll(() => {
     client?.close();
@@ -206,9 +186,42 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
   });
 
   describe.runIf(LIVE)('against the local stack', () => {
+    for (const c of MCP_VERDICT_MATRIX) {
+      it(`tools/call check_governance matches ${c.expectedRule}`, async () => {
+        const agentId = localRuntime?.agentId;
+        expect(agentId, 'local governance runtime did not resolve an agent').toBeDefined();
+        const r = await client.call('tools/call', {
+          name: 'check_governance',
+          arguments: {
+            agent_id: agentId,
+            span_type: c.spanType,
+            activity_input: c.activityInput,
+          },
+        });
+        expect(r.error, r.error?.message).toBeUndefined();
+        const result = r.result as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError, result.content?.[0]?.text).not.toBe(true);
+        const text = result.content?.[0]?.text ?? '';
+        const inner = JSON.parse(text) as {
+          verdict?: number | string;
+          action?: number | string;
+          outcome?: string;
+          reason?: string;
+        };
+        const verdict = normalizeMatrixVerdict(inner.verdict ?? inner.action ?? inner.outcome);
+        expect(verdict, `unexpected verdict for ${c.expectedRule}: ${text.slice(0, 500)}`).toBe(c.expectedVerdict);
+        if (shouldSeedRule(c)) {
+          expect(
+            String(inner.reason ?? '').includes(c.expectedRule),
+            `expected reason to include ${c.expectedRule}; got ${text.slice(0, 500)}`,
+          ).toBe(true);
+        }
+      });
+    }
+
     it('tools/call check_governance for a blocked file_write returns a verdict', async () => {
-      const agentId = resolveAgentId();
-      expect(agentId, 'no e2e-agent on this host').toBeDefined();
+      const agentId = localRuntime?.agentId;
+      expect(agentId, 'local governance runtime did not resolve an agent').toBeDefined();
       const r = await client.call('tools/call', {
         name: 'check_governance',
         arguments: {
@@ -245,9 +258,8 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
       }
     });
 
-    it('tools/call list_pending_approvals returns the e2e-agent queue', async () => {
-      const agentId = resolveAgentId();
-      expect(agentId).toBeDefined();
+    it('tools/call list_pending_approvals returns the local runtime queue', async () => {
+      expect(localRuntime?.agentId).toBeDefined();
       const r = await client.call('tools/call', {
         name: 'list_pending_approvals',
         arguments: {},
@@ -259,18 +271,3 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
     });
   });
 });
-
-function localHarnessEnabled(): boolean {
-  const markerPath = path.join(PROJECT_OPENBOX, 'test-harness.json');
-  if (!existsSync(markerPath)) return false;
-  try {
-    const marker = JSON.parse(readFileSync(markerPath, 'utf-8')) as {
-      localMcp?: boolean;
-      local_mcp?: boolean;
-      enabled?: boolean;
-    };
-    return marker.localMcp === true || marker.local_mcp === true || marker.enabled === true;
-  } catch {
-    return false;
-  }
-}

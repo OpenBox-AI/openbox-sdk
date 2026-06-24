@@ -117,7 +117,7 @@ describe('createClaudeCodeAdapter', () => {
     );
   });
 
-  test('permission-decision require_approval → permissionDecision:"ask"', async () => {
+  test('permission-decision require_approval -> permissionDecision:"ask"', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
       core: makeMockCore(),
@@ -128,6 +128,11 @@ describe('createClaudeCodeAdapter', () => {
       ...adapterIO(cap, JSON.stringify(baseEnv)),
     }).run();
     const out = JSON.parse(cap.stdout[0]);
+    expect(out).toMatchObject({
+      hookSpecificOutput: {
+        permissionDecision: 'ask',
+      },
+    });
     expect(out.hookSpecificOutput.permissionDecision).toBe('ask');
   });
 

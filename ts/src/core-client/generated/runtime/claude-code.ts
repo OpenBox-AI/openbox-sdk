@@ -123,7 +123,7 @@ export interface HookSpec {
   style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean; verdictShape: string }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -137,102 +137,132 @@ export const HOOK_SPEC: HookSpec = {
   "events": [
     {
       "name": "PreToolUse",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "permission-decision"
     },
     {
-      "name": "PostToolUse"
+      "name": "PostToolUse",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "PostToolUseFailure"
+      "name": "PostToolUseFailure",
+      "verdictShape": "additional-context"
     },
     {
-      "name": "PostToolBatch"
+      "name": "PostToolBatch",
+      "verdictShape": "decision-block"
     },
     {
       "name": "UserPromptSubmit",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "decision-block"
     },
     {
       "name": "UserPromptExpansion",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "decision-block"
     },
     {
       "name": "PermissionRequest",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "permission-request"
     },
     {
-      "name": "PermissionDenied"
+      "name": "PermissionDenied",
+      "verdictShape": "permission-denied-retry"
     },
     {
-      "name": "Setup"
+      "name": "Setup",
+      "verdictShape": "none"
     },
     {
-      "name": "InstructionsLoaded"
+      "name": "InstructionsLoaded",
+      "verdictShape": "none"
     },
     {
-      "name": "PreCompact"
+      "name": "PreCompact",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "PostCompact"
+      "name": "PostCompact",
+      "verdictShape": "none"
     },
     {
-      "name": "SessionStart"
+      "name": "SessionStart",
+      "verdictShape": "none"
     },
     {
       "name": "SessionEnd",
       "timeout": 86400,
-      "installDefault": false
+      "installDefault": false,
+      "verdictShape": "none"
     },
     {
-      "name": "SubagentStart"
+      "name": "SubagentStart",
+      "verdictShape": "none"
     },
     {
-      "name": "SubagentStop"
+      "name": "SubagentStop",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "TaskCreated"
+      "name": "TaskCreated",
+      "verdictShape": "continue-block"
     },
     {
-      "name": "TaskCompleted"
+      "name": "TaskCompleted",
+      "verdictShape": "continue-block"
     },
     {
-      "name": "Stop"
+      "name": "Stop",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "StopFailure"
+      "name": "StopFailure",
+      "verdictShape": "none"
     },
     {
-      "name": "TeammateIdle"
+      "name": "TeammateIdle",
+      "verdictShape": "continue-block"
     },
     {
-      "name": "Notification"
+      "name": "Notification",
+      "verdictShape": "none"
     },
     {
-      "name": "MessageDisplay"
+      "name": "MessageDisplay",
+      "verdictShape": "none"
     },
     {
-      "name": "ConfigChange"
+      "name": "ConfigChange",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "CwdChanged"
+      "name": "CwdChanged",
+      "verdictShape": "none"
     },
     {
-      "name": "FileChanged"
+      "name": "FileChanged",
+      "verdictShape": "none"
     },
     {
       "name": "WorktreeCreate",
       "timeout": 86400,
-      "installDefault": false
+      "installDefault": false,
+      "verdictShape": "worktree-path"
     },
     {
-      "name": "WorktreeRemove"
+      "name": "WorktreeRemove",
+      "verdictShape": "none"
     },
     {
       "name": "Elicitation",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "elicitation-response"
     },
     {
-      "name": "ElicitationResult"
+      "name": "ElicitationResult",
+      "verdictShape": "elicitation-response"
     }
   ]
 };

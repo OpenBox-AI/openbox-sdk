@@ -792,7 +792,8 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         activity_input: { tool_name: 'list_agents' },
       });
       expect(bodies.join('\n')).toContain('"_openbox_source":"cursor-mcp"');
-      expect(bodies.join('\n')).toContain('"source":"cursor-mcp"');
+      expect(bodies.join('\n')).toContain('"task_queue":"cursor-mcp"');
+      expect(bodies.join('\n')).toContain('"module":"cursor-mcp"');
     });
   });
 
@@ -803,7 +804,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         if (String(url).includes('/api/v1/governance/evaluate')) {
           bodies.push(String(init?.body ?? ''));
           const verdict =
-            bodies.length === 1
+            bodies.length === 2
               ? { verdict: 'block', action: 'block', reason: 'parent blocked' }
               : { verdict: 'allow', action: 'allow', reason: 'hook persisted' };
           return new Response(JSON.stringify(verdict), {
@@ -830,9 +831,16 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         verdict: 'block',
         reason: 'parent blocked',
       });
-      expect(bodies).toHaveLength(2);
-      const parent = JSON.parse(bodies[0]);
-      const hook = JSON.parse(bodies[1]);
+      expect(bodies).toHaveLength(3);
+      const workflowStarted = JSON.parse(bodies[0]);
+      const parent = JSON.parse(bodies[1]);
+      const hook = JSON.parse(bodies[2]);
+      expect(workflowStarted).toMatchObject({
+        event_type: 'WorkflowStarted',
+        workflow_type: 'SdkCheck',
+        task_queue: 'mcp',
+        hook_trigger: false,
+      });
       expect(parent).toMatchObject({
         event_type: 'ActivityStarted',
         activity_type: 'MCPToolCall',
@@ -846,19 +854,70 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         hook_trigger: true,
         span_count: 1,
       });
+      expect(parent.workflow_id).toBe(workflowStarted.workflow_id);
+      expect(parent.run_id).toBe(workflowStarted.run_id);
       expect(hook.workflow_id).toBe(parent.workflow_id);
       expect(hook.run_id).toBe(parent.run_id);
       expect(hook.activity_id).toBe(parent.activity_id);
       expect(hook.spans[0]).toMatchObject({
         activity_id: parent.activity_id,
-        semantic_type: 'mcp_tool_call',
-        attributes: {
+        attributes: expect.objectContaining({
           'mcp.method': 'callTool',
           'mcp.operation': 'danger_tool',
           'mcp.server_id': 'unknown',
           'openbox.tool.name': 'danger_tool',
           'tool.name': 'danger_tool',
+        }),
+      });
+      expect(hook.spans[0]).not.toHaveProperty('semantic_type');
+      expect(hook.spans[0].attributes).not.toHaveProperty('openbox.semantic_type');
+    });
+  });
+
+  it('check_governance parses stringified JSON activity_input from MCP clients', async () => {
+    await withMcpEnv(async () => {
+      const bodies: string[] = [];
+      vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/v1/governance/evaluate')) {
+          bodies.push(String(init?.body ?? ''));
+          return new Response(JSON.stringify({ verdict: 'allow', action: 'allow' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ status: 200, data: { data: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+      const { runMcpServer } = await import('../../ts/src/runtime/mcp');
+      await runMcpServer();
+      const tool = captured.find((t) => t.name === 'check_governance')!;
+      await tool.cb({
+        agent_id: 'agent-1',
+        span_type: 'http',
+        activity_input: '{"method":"POST","url":"https://example.com/blocked"}',
+      });
+
+      expect(bodies).toHaveLength(3);
+      const parent = JSON.parse(bodies[1]);
+      const hook = JSON.parse(bodies[2]);
+      expect(parent.activity_input).toEqual([
+        {
+          method: 'POST',
+          url: 'https://example.com/blocked',
+          _openbox_source: 'mcp',
         },
+      ]);
+      expect(parent.activity_input[0]).not.toHaveProperty('value');
+      expect(hook.spans[0]).toMatchObject({
+        name: 'POST https://example.com/blocked',
+        http_method: 'POST',
+        http_url: 'https://example.com/blocked',
+        attributes: expect.objectContaining({
+          'http.method': 'POST',
+          'http.url': 'https://example.com/blocked',
+        }),
       });
     });
   });
@@ -898,8 +957,8 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         },
       });
 
-      expect(bodies).toHaveLength(2);
-      const hook = JSON.parse(bodies[1]);
+      expect(bodies).toHaveLength(3);
+      const hook = JSON.parse(bodies[2]);
       expect(hook).toMatchObject({
         event_type: 'ActivityStarted',
         activity_type: 'PromptSubmission',
@@ -908,7 +967,6 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       });
       const span = hook.spans[0];
       expect(span).toMatchObject({
-        semantic_type: 'llm_completion',
         model: 'gpt-4o-mini',
         input_tokens: 5,
         output_tokens: 3,
@@ -921,6 +979,8 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
           'openbox.usage.cost_usd': 0.002,
         }),
       });
+      expect(span).not.toHaveProperty('semantic_type');
+      expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
       expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
         input_tokens: 5,
         output_tokens: 3,
@@ -937,7 +997,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         if (String(url).includes('/api/v1/governance/evaluate')) {
           bodies.push(String(init?.body ?? ''));
           const verdict =
-            bodies.length === 1
+            bodies.length === 2
               ? { verdict: ' CONTINUE ', action: 'CONTINUE', reason: 'parent allowed' }
               : { verdict: 'block', action: 'block', reason: 'hook blocked' };
           return new Response(JSON.stringify(verdict), {
@@ -963,7 +1023,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         verdict: 'block',
         reason: 'hook blocked',
       });
-      expect(bodies).toHaveLength(2);
+      expect(bodies).toHaveLength(3);
     });
   });
 });

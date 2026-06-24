@@ -2,9 +2,9 @@
 //
 // `buildSpan(host, type, input)` (ts/src/governance/spans.ts) is
 // what every adapter funnels through to send a behavior-routable
-// envelope. The classifier on the backend matches behavior rules
-// on `semantic_type` and the OTel-style attributes (`file.path`,
-// `http.method`, `shell.command`, `gen_ai.system`). If those
+// envelope. The classifier on the backend derives `semantic_type`
+// from the OTel-style attributes (`file.path`, `http.method`,
+// `shell.command`, `gen_ai.system`) and root fields. If those
 // fields are wrong, behavior rules silently no-op and the
 // adapter looks like it's doing nothing. The matrix tests catch
 // some of that end-to-end; this file pins the contract directly.
@@ -26,9 +26,15 @@ import {
 } from '../../ts/src/session/resolver.js';
 
 describe('buildSpan content per SpanType', () => {
+  function expectCoreComputedSemantic(span: Record<string, unknown>) {
+    expect(span).not.toHaveProperty('semantic_type');
+    const attrs = span.attributes as Record<string, unknown>;
+    expect(attrs).not.toHaveProperty('openbox.semantic_type');
+  }
+
   it('llm spans carry POST + openai URL + gen_ai.system=host + module=host', () => {
     const span = buildSpan('claude-code', 'llm', { prompt: 'hi' });
-    expect(span.semantic_type).toBe('llm_completion');
+    expectCoreComputedSemantic(span);
     expect(span.module).toBe('claude-code');
     const attrs = span.attributes as Record<string, unknown>;
     expect(attrs['gen_ai.system']).toBe('claude-code');
@@ -55,7 +61,7 @@ describe('buildSpan content per SpanType', () => {
 
   it('file_read spans carry file.path + file.operation=read + module=host', () => {
     const span = buildSpan('claude-code', 'file_read', { file_path: '/etc/hostname' });
-    expect(span.semantic_type).toBe('file_read');
+    expectCoreComputedSemantic(span);
     expect(span.module).toBe('claude-code');
     expect(span.file_path).toBe('/etc/hostname');
     expect(span.file_mode).toBe('r');
@@ -66,7 +72,7 @@ describe('buildSpan content per SpanType', () => {
 
   it('file_write spans carry file.path + file.operation=write', () => {
     const span = buildSpan('claude-code', 'file_write', { file_path: '/tmp/x' });
-    expect(span.semantic_type).toBe('file_write');
+    expectCoreComputedSemantic(span);
     expect(span.module).toBe('claude-code');
     expect(span.file_mode).toBe('w');
     const attrs = span.attributes as Record<string, unknown>;
@@ -76,7 +82,7 @@ describe('buildSpan content per SpanType', () => {
 
   it('file_delete spans carry file.path + file.operation=delete', () => {
     const span = buildSpan('claude-code', 'file_delete', { file_path: '/tmp/x' });
-    expect(span.semantic_type).toBe('file_delete');
+    expectCoreComputedSemantic(span);
     expect(span.module).toBe('claude-code');
     const attrs = span.attributes as Record<string, unknown>;
     expect(attrs['file.operation']).toBe('delete');
@@ -84,7 +90,7 @@ describe('buildSpan content per SpanType', () => {
 
   it('shell spans carry shell.command + cwd, classify as internal', () => {
     const span = buildSpan('claude-code', 'shell', { command: 'echo hi', cwd: '/tmp' });
-    expect(span.semantic_type).toBe('internal');
+    expectCoreComputedSemantic(span);
     expect(span.module).toBe('claude-code');
     const attrs = span.attributes as Record<string, unknown>;
     expect(attrs['shell.command']).toBe('echo hi');
@@ -96,7 +102,7 @@ describe('buildSpan content per SpanType', () => {
       tool_name: 'check_governance',
       tool_input: { foo: 'bar' },
     });
-    expect(span.semantic_type).toBe('mcp_tool_call');
+    expectCoreComputedSemantic(span);
     expect(span.module).toBe('claude-code');
     const attrs = span.attributes as Record<string, unknown>;
     expect(attrs['mcp.method']).toBe('callTool');
@@ -105,11 +111,12 @@ describe('buildSpan content per SpanType', () => {
     expect(attrs['mcp.input']).toEqual({ foo: 'bar' });
   });
 
-  it('http spans set semantic_type per method and stamp the URL', () => {
+  it('http spans carry method and URL fields for Core classification', () => {
     const get = buildSpan('claude-code', 'http', { method: 'GET', url: 'https://example.com' });
-    expect(get.semantic_type).toBe('http_get');
+    expectCoreComputedSemantic(get);
+    expect(get.http_method).toBe('GET');
     const post = buildSpan('claude-code', 'http', { method: 'POST', url: 'https://example.com' });
-    expect(post.semantic_type).toBe('http_post');
+    expectCoreComputedSemantic(post);
     const attrs = post.attributes as Record<string, unknown>;
     expect(attrs['http.method']).toBe('POST');
     expect(attrs['http.url']).toBe('https://example.com');

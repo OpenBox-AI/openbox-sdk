@@ -18,12 +18,23 @@ import type {
   EmitContext,
   Interface,
   Model,
+  ModelProperty,
   Namespace,
   Operation,
   Program,
   Type,
 } from '@typespec/compiler';
-import { resolvePath, getDoc } from '@typespec/compiler';
+import {
+  resolvePath,
+  getDoc,
+  getFormat,
+  getMaxItems,
+  getMaxLength,
+  getMaxValue,
+  getMinItems,
+  getMinValue,
+  getTypeName,
+} from '@typespec/compiler';
 import { listHttpOperationsIn } from '@typespec/http';
 import {
   getEnvVar,
@@ -90,6 +101,8 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitEnvConformanceFixture(program, repoRoot);
   emitCliConformanceFixture(program, repoRoot);
   emitGovernProtocolConformanceFixture(program, repoRoot);
+  emitGovernanceDomainFixture(program, repoRoot);
+  emitBoundaryDomainFixture(program, repoRoot);
   emitSdkTargetsFixture(program, repoRoot);
   emitExtensionSpec(program, project, repoRoot);
   emitSdkManifestConformanceFixture(program, repoRoot);
@@ -98,6 +111,18 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   emitPythonSdk(program, repoRoot);
   emitAdapters(program, project, repoRoot);
   await emitOpenApiWireTypes(repoRoot);
+  emitOpenApiRequestPreflight(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxBackend.json',
+    'ts/src/client/generated/request-preflight.ts',
+    'validateBackendRequest',
+  );
+  emitOpenApiRequestPreflight(
+    repoRoot,
+    'specs/generated/openapi3/OpenboxCore.json',
+    'ts/src/core-client/generated/request-preflight.ts',
+    'validateCoreRequest',
+  );
   emitWrapperMethods(program, project, repoRoot, {
     namespaceName: 'OpenboxBackend',
     outRel: 'ts/src/client/generated/wrapper-methods.ts',
@@ -122,16 +147,19 @@ export async function $onEmit(context: EmitContext): Promise<void> {
     resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'capability-matrix.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'governance', 'generated', 'rules-projection.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'core-types.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'request-preflight.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'claude-code.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'codex.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'core-client', 'generated', 'runtime', 'cursor.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'types', 'generated', 'backend.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'types', 'generated', 'core.ts'),
+    resolvePath(repoRoot, 'ts', 'src', 'client', 'generated', 'request-preflight.ts'),
     resolvePath(repoRoot, 'ts', 'src', 'env', 'generated', 'env-bindings.ts'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', '__init__.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'backend_client.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'core_client.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'permissions.py'),
+    resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'request_preflight.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'schemas.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'capability_matrix.py'),
     resolvePath(repoRoot, 'python', 'openbox_sdk', 'generated', 'sdk_targets.py'),
@@ -176,6 +204,401 @@ async function emitOpenApiWireType(
     cwd: repoRoot,
   });
   writeFileSync(resolvePath(repoRoot, outRel), `${BANNER}${astToString(ast).trimEnd()}\n`);
+}
+
+interface OpenApiDocument {
+  paths?: Record<string, Record<string, OpenApiOperation>>;
+  components?: {
+    schemas?: Record<string, OpenApiSchema>;
+  };
+}
+
+interface OpenApiOperation {
+  operationId?: string;
+  parameters?: OpenApiParameter[];
+  requestBody?: {
+    content?: Record<string, { schema?: OpenApiSchema }>;
+  };
+}
+
+interface OpenApiParameter {
+  name?: string;
+  in?: string;
+  schema?: OpenApiSchema;
+}
+
+interface OpenApiSchema {
+  $ref?: string;
+  type?: string;
+  format?: string;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  maxLength?: number;
+  properties?: Record<string, OpenApiSchema>;
+  items?: OpenApiSchema;
+  allOf?: OpenApiSchema[];
+  oneOf?: OpenApiSchema[];
+  anyOf?: OpenApiSchema[];
+}
+
+interface RequestPreflightRule {
+  operationId: string;
+  method: string;
+  path: string;
+  pathPattern: string;
+  query?: QueryPreflightRule[];
+  body?: BodyPreflightRule[];
+}
+
+interface QueryPreflightRule {
+  name: string;
+  type?: string;
+  format?: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  maxLength?: number;
+  integer?: boolean;
+}
+
+interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
+  path: string[];
+  minItems?: number;
+  maxItems?: number;
+}
+
+function emitOpenApiRequestPreflight(
+  repoRoot: string,
+  openApiRel: string,
+  outRel: string,
+  functionName: string,
+): void {
+  const openApi = JSON.parse(
+    readFileSync(resolvePath(repoRoot, openApiRel), 'utf8'),
+  ) as OpenApiDocument;
+  const rules = collectRequestPreflightRules(openApi);
+  const source = [
+    BANNER.trimEnd(),
+    '',
+    emitRequestPreflightRuntime(functionName, rules),
+  ].join('\n');
+  writeFileSync(resolvePath(repoRoot, outRel), `${source.trimEnd()}\n`);
+}
+
+function collectRequestPreflightRules(openApi: OpenApiDocument): RequestPreflightRule[] {
+  const out: RequestPreflightRule[] = [];
+  const methods = new Set(['get', 'post', 'put', 'patch', 'delete']);
+  for (const [path, item] of Object.entries(openApi.paths ?? {})) {
+    for (const [method, operation] of Object.entries(item)) {
+      if (!methods.has(method) || !operation?.operationId) continue;
+      const query = collectQueryPreflightRules(operation.parameters ?? [], openApi);
+      const bodySchema = operation.requestBody?.content?.['application/json']?.schema;
+      const body = bodySchema
+        ? collectBodyPreflightRules(resolveOpenApiSchema(bodySchema, openApi), openApi, [])
+        : [];
+      if (query.length === 0 && body.length === 0) continue;
+      out.push({
+        operationId: operation.operationId,
+        method: method.toUpperCase(),
+        path,
+        pathPattern: openApiPathRegexSource(path),
+        query: query.length > 0 ? query : undefined,
+        body: body.length > 0 ? body : undefined,
+      });
+    }
+  }
+  return out.sort((left, right) => {
+    const byOperation = left.operationId.localeCompare(right.operationId);
+    return byOperation !== 0 ? byOperation : left.method.localeCompare(right.method);
+  });
+}
+
+function collectQueryPreflightRules(
+  parameters: OpenApiParameter[],
+  openApi: OpenApiDocument,
+): QueryPreflightRule[] {
+  return parameters
+    .filter((parameter) => parameter.in === 'query' && parameter.name && parameter.schema)
+    .map((parameter) => {
+      const schema = resolveOpenApiSchema(parameter.schema!, openApi);
+      return queryRuleFromSchema(parameter.name!, schema);
+    })
+    .filter((rule): rule is QueryPreflightRule => Boolean(rule))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function collectBodyPreflightRules(
+  schema: OpenApiSchema | undefined,
+  openApi: OpenApiDocument,
+  path: string[],
+  seenRefs = new Set<string>(),
+): BodyPreflightRule[] {
+  if (!schema) return [];
+  const resolved = resolveOpenApiSchema(schema, openApi, seenRefs);
+  const out: BodyPreflightRule[] = [];
+  const current = bodyRuleFromSchema(path, resolved);
+  if (current) out.push(current);
+
+  for (const branch of [
+    ...(resolved.allOf ?? []),
+    ...(resolved.oneOf ?? []),
+    ...(resolved.anyOf ?? []),
+  ]) {
+    out.push(...collectBodyPreflightRules(branch, openApi, path, new Set(seenRefs)));
+  }
+
+  for (const [key, property] of Object.entries(resolved.properties ?? {})) {
+    out.push(...collectBodyPreflightRules(property, openApi, [...path, key], new Set(seenRefs)));
+  }
+
+  if (resolved.items && path.length > 0) {
+    out.push(...collectBodyPreflightRules(resolved.items, openApi, [...path, '*'], new Set(seenRefs)));
+  }
+
+  return out;
+}
+
+function queryRuleFromSchema(name: string, schema: OpenApiSchema): QueryPreflightRule | null {
+  const base = constraintRuleFromSchema(schema);
+  return base ? { name, ...base } : null;
+}
+
+function bodyRuleFromSchema(path: string[], schema: OpenApiSchema): BodyPreflightRule | null {
+  if (path.length === 0) return null;
+  const base = constraintRuleFromSchema(schema);
+  return base ? { path, ...base } : null;
+}
+
+function constraintRuleFromSchema(
+  schema: OpenApiSchema,
+): Omit<QueryPreflightRule, 'name'> | null {
+  const enumValues = (schema.enum ?? [])
+    .filter((value): value is string => typeof value === 'string');
+  const rule: Omit<QueryPreflightRule, 'name'> & {
+    minItems?: number;
+    maxItems?: number;
+  } = {};
+  const hasConstraint =
+    Boolean(schema.format) ||
+    enumValues.length > 0 ||
+    typeof schema.minimum === 'number' ||
+    typeof schema.maximum === 'number' ||
+    typeof schema.maxLength === 'number' ||
+    typeof schema.minItems === 'number' ||
+    typeof schema.maxItems === 'number' ||
+    schema.type === 'integer';
+  if (!hasConstraint) return null;
+  if (schema.type) rule.type = schema.type;
+  if (schema.format) rule.format = schema.format;
+  if (enumValues.length > 0) rule.enum = enumValues;
+  if (typeof schema.minimum === 'number') rule.minimum = schema.minimum;
+  if (typeof schema.maximum === 'number') rule.maximum = schema.maximum;
+  if (typeof schema.maxLength === 'number') rule.maxLength = schema.maxLength;
+  if (typeof schema.minItems === 'number') rule.minItems = schema.minItems;
+  if (typeof schema.maxItems === 'number') rule.maxItems = schema.maxItems;
+  if (schema.type === 'integer') rule.integer = true;
+  return rule;
+}
+
+function resolveOpenApiSchema(
+  schema: OpenApiSchema,
+  openApi: OpenApiDocument,
+  seenRefs = new Set<string>(),
+): OpenApiSchema {
+  if (!schema.$ref) return schema;
+  if (seenRefs.has(schema.$ref)) return schema;
+  seenRefs.add(schema.$ref);
+  const prefix = '#/components/schemas/';
+  if (!schema.$ref.startsWith(prefix)) return schema;
+  const name = schema.$ref.slice(prefix.length);
+  const resolved = openApi.components?.schemas?.[name];
+  return resolved ? resolveOpenApiSchema(resolved, openApi, seenRefs) : schema;
+}
+
+function openApiPathRegexSource(path: string): string {
+  const escaped = path
+    .split(/(\{[^}]+\})/g)
+    .map((part) =>
+      part.startsWith('{') && part.endsWith('}')
+        ? '[^/]+'
+        : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    )
+    .join('');
+  return `^${escaped}$`;
+}
+
+function emitRequestPreflightRuntime(functionName: string, rules: RequestPreflightRule[]): string {
+  return `interface QueryPreflightRule {
+  readonly name: string;
+  readonly type?: string;
+  readonly format?: string;
+  readonly enum?: readonly string[];
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly maxLength?: number;
+  readonly integer?: boolean;
+}
+
+interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
+  readonly path: readonly string[];
+  readonly minItems?: number;
+  readonly maxItems?: number;
+}
+
+interface RequestPreflightRule {
+  readonly operationId: string;
+  readonly method: string;
+  readonly path: string;
+  readonly pathPattern: string;
+  readonly query?: readonly QueryPreflightRule[];
+  readonly body?: readonly BodyPreflightRule[];
+}
+
+export class RequestPreflightError extends Error {
+  constructor(
+    public readonly operationId: string,
+    public readonly location: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RequestPreflightError';
+  }
+}
+
+export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = ${JSON.stringify(rules, null, 2)};
+
+export function ${functionName}(
+  method: string,
+  path: string,
+  query?: Record<string, unknown>,
+  body?: unknown,
+): void {
+  const normalizedPath = path.split('?')[0];
+  const upperMethod = method.toUpperCase();
+  const rule = REQUEST_PREFLIGHT_RULES.find(
+    (entry) =>
+      entry.method === upperMethod &&
+      new RegExp(entry.pathPattern).test(normalizedPath),
+  );
+  if (!rule) return;
+  for (const queryRule of rule.query ?? []) {
+    const value = query?.[queryRule.name];
+    if (value === undefined || value === null) continue;
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) validateScalar(rule, \`query.\${queryRule.name}\`, item, queryRule);
+  }
+  for (const bodyRule of rule.body ?? []) {
+    const values = valuesAtBodyPath(body, bodyRule.path);
+    if (values.length === 0) continue;
+    for (const value of values) validateBodyValue(rule, \`body.\${bodyRule.path.join('.')}\`, value, bodyRule);
+  }
+}
+
+function validateBodyValue(
+  operation: RequestPreflightRule,
+  location: string,
+  value: unknown,
+  rule: BodyPreflightRule,
+): void {
+  if (rule.type === 'array' || rule.minItems !== undefined || rule.maxItems !== undefined) {
+    if (!Array.isArray(value)) {
+      fail(operation, location, 'must be an array', value);
+    }
+    if (rule.minItems !== undefined && value.length < rule.minItems) {
+      fail(operation, location, \`must contain at least \${rule.minItems} item(s)\`, value);
+    }
+    if (rule.maxItems !== undefined && value.length > rule.maxItems) {
+      fail(operation, location, \`must contain at most \${rule.maxItems} item(s)\`, value);
+    }
+  }
+  validateScalar(operation, location, value, rule);
+}
+
+function validateScalar(
+  operation: RequestPreflightRule,
+  location: string,
+  value: unknown,
+  rule: Omit<QueryPreflightRule, 'name'>,
+): void {
+  const isBody = location.startsWith('body.');
+  if (isBody && rule.type === 'string' && typeof value !== 'string') {
+    fail(operation, location, 'must be a string', value);
+  }
+  if (rule.enum && !rule.enum.includes(String(value))) {
+    fail(operation, location, \`must be one of: \${rule.enum.join(', ')}\`, value);
+  }
+  if (rule.maxLength !== undefined && String(value).length > rule.maxLength) {
+    fail(operation, location, \`must be at most \${rule.maxLength} characters\`, value);
+  }
+  if (rule.format === 'uuid' && (typeof value !== 'string' || !UUID_RE.test(value))) {
+    fail(operation, location, 'must be a valid UUID', value);
+  }
+  if (rule.format === 'date-time' && (typeof value !== 'string' || Number.isNaN(Date.parse(value)))) {
+    fail(operation, location, 'must be a valid date-time', value);
+  }
+  const requiresNumeric =
+    rule.type === 'number' ||
+    rule.type === 'integer' ||
+    rule.minimum !== undefined ||
+    rule.maximum !== undefined ||
+    rule.integer;
+  if (requiresNumeric) {
+    if (isBody && (rule.type === 'number' || rule.type === 'integer') && typeof value !== 'number') {
+      fail(operation, location, 'must be numeric', value);
+    }
+    const numberValue = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numberValue)) {
+      fail(operation, location, 'must be numeric', value);
+    }
+    if (rule.integer && !Number.isInteger(numberValue)) {
+      fail(operation, location, 'must be an integer', value);
+    }
+    if (rule.minimum !== undefined && numberValue < rule.minimum) {
+      fail(operation, location, \`must be >= \${rule.minimum}\`, value);
+    }
+    if (rule.maximum !== undefined && numberValue > rule.maximum) {
+      fail(operation, location, \`must be <= \${rule.maximum}\`, value);
+    }
+  }
+}
+
+function valuesAtBodyPath(body: unknown, path: readonly string[]): unknown[] {
+  let current: unknown[] = [body];
+  for (const segment of path) {
+    const next: unknown[] = [];
+    for (const value of current) {
+      if (segment === '*') {
+        if (Array.isArray(value)) next.push(...value);
+        continue;
+      }
+      if (value && typeof value === 'object' && segment in value) {
+        next.push((value as Record<string, unknown>)[segment]);
+      }
+    }
+    current = next;
+    if (current.length === 0) break;
+  }
+  return current.filter((value) => value !== undefined && value !== null);
+}
+
+function fail(
+  operation: RequestPreflightRule,
+  location: string,
+  expected: string,
+  value: unknown,
+): never {
+  throw new RequestPreflightError(
+    operation.operationId,
+    location,
+    \`\${operation.operationId} \${location} \${expected}. Got: \${JSON.stringify(value)}\`,
+  );
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1098,10 +1521,14 @@ interface ProviderCapabilityConformancePayload {
   providerIds: string[];
   supportTiers: string[];
   providerCapabilityMatrix: unknown;
+  governanceChecklistLimitations: unknown;
+  governanceChecklistRows: unknown;
+  governanceChecklistScore: unknown;
   referenceProviderParityClosures: unknown;
   referenceProviderRuntimeAudit: unknown;
   providerEventCatalog: unknown;
   providerPluginComponents: unknown;
+  claudeCodeGovernanceAuditSurface: unknown;
   publicIntegrationSupport: unknown;
   goalSignalGuards: unknown;
   usageCostCapabilityGuards: unknown;
@@ -1109,6 +1536,10 @@ interface ProviderCapabilityConformancePayload {
   tracingCapabilityGuards: unknown;
   hitlCapabilityGuards: unknown;
   guardrailCapabilityGuards: unknown;
+  behaviorRuleCapabilityGuards: unknown;
+  guardrailsHubRecordingSurface: unknown;
+  localGovernanceVerdictMatrix: unknown;
+  opaEvaluationMatrix: unknown;
   policyEvaluationGuards: unknown;
   rulesInstructionCapabilityGuards: unknown;
   hookCapabilityGuards: unknown;
@@ -1117,11 +1548,99 @@ interface ProviderCapabilityConformancePayload {
   skillCapabilityGuards: unknown;
   mcpCapabilityGuards: unknown;
   installDoctorCapabilityGuards: unknown;
+  localStackScenarioPaths: unknown;
+  localStackScenarioMatrix: unknown;
   mcpToolSurfaces: unknown;
   mcpPromptSurfaces: unknown;
   mcpResourceTemplateSurfaces: unknown;
   mcpSkillReferenceSurfaces: unknown;
   n8nIntegrationSurface: unknown;
+}
+
+type GovernanceDomainMember = string | number;
+
+interface GovernanceDomainProvenanceEntry {
+  source: string;
+  selector: string;
+  extractor:
+    | 'resolved-alias'
+    | 'type-alias'
+    | 'enum'
+    | 'model-field'
+    | 'operation-parameter';
+}
+
+interface DiscoveredFiniteDomainEntry {
+  source: string;
+  selector: string;
+  values: string[];
+}
+
+interface GovernanceDomainFixture {
+  generatedBy: string;
+  sources: string[];
+  regenerate: string;
+  domains: Record<string, GovernanceDomainMember[]>;
+  provenance: Record<string, GovernanceDomainProvenanceEntry>;
+  discoveredFiniteDomains: DiscoveredFiniteDomainEntry[];
+}
+
+interface BoundaryFieldEntry {
+  modelName: string;
+  fieldName: string;
+  type: string;
+}
+
+interface NumericBoundaryEntry extends BoundaryFieldEntry {
+  min: number;
+  max?: number;
+}
+
+interface StringLengthBoundaryEntry extends BoundaryFieldEntry {
+  max: number;
+}
+
+interface ArrayItemBoundaryEntry extends BoundaryFieldEntry {
+  min: number;
+  max: number;
+}
+
+interface FormatBoundaryEntry extends BoundaryFieldEntry {
+  format: string;
+}
+
+interface AivssBoundaryEntry extends NumericBoundaryEntry {
+  path: readonly [string, string];
+}
+
+type BoundaryDomainEntry =
+  | BoundaryFieldEntry
+  | NumericBoundaryEntry
+  | StringLengthBoundaryEntry
+  | ArrayItemBoundaryEntry
+  | FormatBoundaryEntry
+  | AivssBoundaryEntry
+  | string;
+
+interface BoundaryDomainProvenanceEntry {
+  source: string;
+  selector: string;
+  extractor:
+    | 'required-model-field'
+    | 'numeric-boundary'
+    | 'string-length-boundary'
+    | 'array-item-boundary'
+    | 'format-boundary'
+    | 'model-field'
+    | 'open-json-field';
+}
+
+interface BoundaryDomainFixture {
+  generatedBy: string;
+  sources: string[];
+  regenerate: string;
+  domains: Record<string, BoundaryDomainEntry[]>;
+  provenance: Record<string, BoundaryDomainProvenanceEntry>;
 }
 
 function emitProviderCapabilities(program: Program, project: Project, repoRoot: string): void {
@@ -1143,6 +1662,21 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
   const capabilityIds = conformance.capabilityIds;
   const providers = conformance.providerIds;
   const supportTiers = conformance.supportTiers;
+  const capabilitiesNs = ns.namespaces.get('Capabilities') ?? ns;
+  const localStackScenarioCategories = enumMemberValues(
+    capabilitiesNs,
+    'LocalStackScenarioCategoryId',
+  );
+  const localStackScenarioAxes = enumMemberValues(capabilitiesNs, 'LocalStackScenarioAxisId');
+  const localStackProofLevels = enumMemberValues(capabilitiesNs, 'LocalStackProofLevel');
+  const localStackOutcomeSources = enumMemberValues(capabilitiesNs, 'LocalStackOutcomeSource');
+  const localGovernanceSpanTypes = enumMemberValues(capabilitiesNs, 'LocalGovernanceSpanType');
+  const localGovernanceVerdicts = enumMemberValues(capabilitiesNs, 'LocalGovernanceVerdict');
+  const localGovernanceOutcomes = enumMemberValues(capabilitiesNs, 'LocalGovernanceOutcome');
+  const sdkSemanticGapClosureTargets = enumMemberValues(
+    capabilitiesNs,
+    'SdkSemanticGapClosureTarget',
+  );
 
   out.addStatements([
     `export const OPENBOX_CAPABILITY_IDS = ${literalTs(capabilityIds)} as const;`,
@@ -1153,6 +1687,30 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const OPENBOX_SUPPORT_TIERS = ${literalTs(supportTiers)} as const;`,
     `export type OpenBoxSupportTier = typeof OPENBOX_SUPPORT_TIERS[number];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_CATEGORY_IDS = ${literalTs(localStackScenarioCategories)} as const;`,
+    `export type LocalStackScenarioCategoryId = typeof LOCAL_STACK_SCENARIO_CATEGORY_IDS[number];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_AXIS_IDS = ${literalTs(localStackScenarioAxes)} as const;`,
+    `export type LocalStackScenarioAxisId = typeof LOCAL_STACK_SCENARIO_AXIS_IDS[number];`,
+    '',
+    `export const LOCAL_STACK_PROOF_LEVELS = ${literalTs(localStackProofLevels)} as const;`,
+    `export type LocalStackProofLevel = typeof LOCAL_STACK_PROOF_LEVELS[number];`,
+    '',
+    `export const LOCAL_STACK_OUTCOME_SOURCES = ${literalTs(localStackOutcomeSources)} as const;`,
+    `export type LocalStackOutcomeSource = typeof LOCAL_STACK_OUTCOME_SOURCES[number];`,
+    '',
+    `export const LOCAL_GOVERNANCE_SPAN_TYPES = ${literalTs(localGovernanceSpanTypes)} as const;`,
+    `export type LocalGovernanceSpanType = typeof LOCAL_GOVERNANCE_SPAN_TYPES[number];`,
+    '',
+    `export const LOCAL_GOVERNANCE_VERDICTS = ${literalTs(localGovernanceVerdicts)} as const;`,
+    `export type LocalGovernanceVerdict = typeof LOCAL_GOVERNANCE_VERDICTS[number];`,
+    '',
+    `export const LOCAL_GOVERNANCE_OUTCOMES = ${literalTs(localGovernanceOutcomes)} as const;`,
+    `export type LocalGovernanceOutcome = typeof LOCAL_GOVERNANCE_OUTCOMES[number];`,
+    '',
+    `export const SDK_SEMANTIC_GAP_CLOSURE_TARGETS = ${literalTs(sdkSemanticGapClosureTargets)} as const;`,
+    `export type SdkSemanticGapClosureTarget = typeof SDK_SEMANTIC_GAP_CLOSURE_TARGETS[number];`,
     '',
     `export type ReferenceProviderParityClosureStatus =`,
     `  | 'implemented-through-wrapper'`,
@@ -1196,6 +1754,46 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  guardTest: string;`,
     `}`,
     '',
+    `export type GovernanceChecklistBoundaryOwner = 'host' | 'caller';`,
+    '',
+    `export type GovernanceChecklistScope = 'scored' | 'limitation' | 'universal';`,
+    '',
+    `export type GovernanceChecklistRowStatus = 'done' | 'limitation' | 'missing' | 'universal';`,
+    '',
+    `export interface GovernanceChecklistScoreEntry {`,
+    `  area: string;`,
+    `  scope: GovernanceChecklistScope;`,
+    `  total: number;`,
+    `  done: number;`,
+    `  limitations: number;`,
+    `  missing: number;`,
+    `  scoredTotal: number;`,
+    `  scoredDone: number;`,
+    `  scoredDonePercent: string;`,
+    `}`,
+    '',
+    `export interface GovernanceChecklistRowEntry {`,
+    `  id: string;`,
+    `  area: string;`,
+    `  group: string;`,
+    `  status: GovernanceChecklistRowStatus;`,
+    `  requirement: string;`,
+    `  scored: boolean;`,
+    `  provider?: OpenBoxProviderId;`,
+    `  boundaryOwner?: GovernanceChecklistBoundaryOwner;`,
+    `}`,
+    '',
+    `export interface GovernanceChecklistLimitationEntry {`,
+    `  id: string;`,
+    `  checklistId: string;`,
+    `  provider: OpenBoxProviderId;`,
+    `  boundaryOwner: GovernanceChecklistBoundaryOwner;`,
+    `  capability: string;`,
+    `  limitation: string;`,
+    `  openboxContract: string;`,
+    `  scored: false;`,
+    `}`,
+    '',
     `export interface ProviderEventCatalogEntry {`,
     `  provider: OpenBoxProviderId;`,
     `  upstreamKnownEvents: readonly string[];`,
@@ -1206,6 +1804,40 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export interface ProviderPluginComponentCatalogEntry {`,
     `  provider: OpenBoxProviderId;`,
     `  components: readonly { name: string; tier: OpenBoxSupportTier; surface?: string; path?: string; reason: string }[];`,
+    `}`,
+    '',
+    `export type ClaudeCodeGovernanceStatus =`,
+    `  | 'implement_now'`,
+    `  | 'observe_only'`,
+    `  | 'diagnose_only'`,
+    `  | 'explicit_out_of_scope';`,
+    '',
+    `export interface ClaudeCodeGovernanceAudit {`,
+    `  capturedAt: string;`,
+    `  installedClaudeCodeVersion: string;`,
+    `  officialDocs: readonly string[];`,
+    `  auditedSdkSurfaces: readonly string[];`,
+    `}`,
+    '',
+    `export interface ClaudeCodeSurfaceMatrixEntry {`,
+    `  surface: string;`,
+    `  status: ClaudeCodeGovernanceStatus;`,
+    `  notes: string;`,
+    `}`,
+    '',
+    `export interface ClaudeCodeSdkCapabilityMatrixEntry {`,
+    `  capability: string;`,
+    `  sdkSurface: string;`,
+    `  claudeCodeTreatment: ClaudeCodeGovernanceStatus;`,
+    `  coverage: string;`,
+    `  tests: readonly string[];`,
+    `}`,
+    '',
+    `export interface ClaudeCodeGovernanceAuditSurface {`,
+    `  source: string;`,
+    `  audit: ClaudeCodeGovernanceAudit;`,
+    `  surfaces: readonly ClaudeCodeSurfaceMatrixEntry[];`,
+    `  sdkCapabilities: readonly ClaudeCodeSdkCapabilityMatrixEntry[];`,
     `}`,
     '',
     `export interface PublicIntegrationSupportEntry {`,
@@ -1282,6 +1914,146 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  redactionBehavior: string;`,
     `  failClosedBehavior: string;`,
     `  guardTest: string;`,
+    `}`,
+    '',
+    `export interface BehaviorRuleCapabilityGuardEntry {`,
+    `  provider: OpenBoxProviderId;`,
+    `  tier: OpenBoxSupportTier;`,
+    `  triggerSurfaces: string;`,
+    `  spanCoverage: string;`,
+    `  coreContract: string;`,
+    `  verdictEnforcement: string;`,
+    `  localStackProof: string;`,
+    `  guardTest: string;`,
+    `}`,
+    '',
+    `export interface GuardrailsHubRecordingVariant {`,
+    `  id: string;`,
+    `  label: string;`,
+    `  expectedSemanticStatus: string;`,
+    `  params: Record<string, unknown>;`,
+    `  settings: Record<string, unknown>;`,
+    `  logs: Record<string, unknown>;`,
+    `}`,
+    '',
+    `export interface GuardrailsHubRecordingCase {`,
+    `  id: string;`,
+    `  guardrailType: string;`,
+    `  label: string;`,
+    `  sampleCount: number;`,
+    `  variants: readonly GuardrailsHubRecordingVariant[];`,
+    `}`,
+    '',
+    `export interface GuardrailsHubRecordingSurface {`,
+    `  id: string;`,
+    `  source: string;`,
+    `  recorderScript: string;`,
+    `  provenanceCommand: string;`,
+    `  fixturePath: string;`,
+    `  recordEnv: string;`,
+    `  tokenEnv: string;`,
+    `  backendApiUrlEnv: string;`,
+    `  backendApiKeyEnv: string;`,
+    `  guardrailsRepoEnv: string;`,
+    `  guardrailsPythonEnv: string;`,
+    `  provenanceJsonEnv: string;`,
+    `  requiredValidatorModulePrefix: string;`,
+    `  forbiddenValidatorModulePrefixes: readonly string[];`,
+    `  defaultSampleCount: number;`,
+    `  cases: readonly GuardrailsHubRecordingCase[];`,
+    `}`,
+    '',
+    `export interface LocalGovernanceVerdictMatrixCase {`,
+    `  id: string;`,
+    `  hostPortable: boolean;`,
+    `  name: string;`,
+    `  spanType: LocalGovernanceSpanType;`,
+    `  activityInput: Record<string, unknown>;`,
+    `  expectedTrigger: string;`,
+    `  expectedRule: string;`,
+    `  expectedVerdict: LocalGovernanceVerdict;`,
+    `  expectedOutcome: LocalGovernanceOutcome;`,
+    `  seedRule?: boolean;`,
+    `  providerDrivers?: readonly LocalGovernanceProviderDriver[];`,
+    `}`,
+    '',
+    `export interface LocalGovernanceProviderDriver {`,
+    `  provider: string;`,
+    `  surface: string;`,
+    `  tool: string;`,
+    `  event?: string;`,
+    `  prompt?: string;`,
+    `  promptTemplate?: string;`,
+    `}`,
+    '',
+    `export interface LocalGovernanceUndrivableTrigger {`,
+    `  trigger: string;`,
+    `  reason: string;`,
+    `}`,
+    '',
+    `export interface LocalGovernanceVerdictMatrixSurface {`,
+    `  source: string;`,
+    `  cases: readonly LocalGovernanceVerdictMatrixCase[];`,
+    `  undrivableTriggers: readonly LocalGovernanceUndrivableTrigger[];`,
+    `}`,
+    '',
+    `export interface OpaDecisionScenario {`,
+    `  decision: string;`,
+    `  scenarioId: string;`,
+    `  expectedVerdict: string;`,
+    `  expectedAction: string;`,
+    `}`,
+    '',
+    `export interface OpaGovernedSurface {`,
+    `  scenarioId: string;`,
+    `  label: string;`,
+    `  activityType: string;`,
+    `  semanticType: string;`,
+    `  activityInput: Record<string, unknown>;`,
+    `}`,
+    '',
+    `export interface OpaAliasDecisionCase {`,
+    `  scenarioId: string;`,
+    `  name: string;`,
+    `  decision: string;`,
+    `  activityType: string;`,
+    `  semanticType: string;`,
+    `  activityInput: Record<string, unknown>;`,
+    `  expectedVerdict: string;`,
+    `  expectedAction: string;`,
+    `}`,
+    '',
+    `export interface OpaUnsupportedConstrainCase {`,
+    `  scenarioId: string;`,
+    `  reason: string;`,
+    `  activityType: string;`,
+    `  semanticType: string;`,
+    `  activityInput: Record<string, unknown>;`,
+    `  expectedVerdict: string;`,
+    `  expectedAction: string;`,
+    `}`,
+    '',
+    `export interface OpaUnavailableFailClosedCase {`,
+    `  scenarioId: string;`,
+    `  policyReason: string;`,
+    `  activityType: string;`,
+    `  semanticType: string;`,
+    `  activityInput: Record<string, unknown>;`,
+    `  availableVerdict: string;`,
+    `  availableAction: string;`,
+    `  unavailableVerdict: string;`,
+    `  unavailableAction: string;`,
+    `  unavailableReason: string;`,
+    `}`,
+    '',
+    `export interface OpaEvaluationMatrixSurface {`,
+    `  source: string;`,
+    `  defaultAllowReason: string;`,
+    `  decisionScenarios: readonly OpaDecisionScenario[];`,
+    `  governedSurfaces: readonly OpaGovernedSurface[];`,
+    `  aliasCases: readonly OpaAliasDecisionCase[];`,
+    `  unsupportedConstrain: OpaUnsupportedConstrainCase;`,
+    `  unavailableFailClosed: OpaUnavailableFailClosedCase;`,
     `}`,
     '',
     `export interface PolicyEvaluationGuardEntry {`,
@@ -1362,6 +2134,101 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  toolResourcePromptCoverage: string;`,
     `  hostBoundary: string;`,
     `  guardTest: string;`,
+    `}`,
+    '',
+    `export interface LocalStackScenarioPathSpec {`,
+    `  id: string;`,
+    `  category: LocalStackScenarioCategoryId;`,
+    `  capability: OpenBoxCapabilityId;`,
+    `  label: string;`,
+    `  axes: readonly LocalStackScenarioAxisId[];`,
+    `  requiredProofLevel: LocalStackProofLevel;`,
+    `  localStackRequired: boolean;`,
+    `  operationIds: readonly string[];`,
+    `  evidencePatterns: readonly string[];`,
+    `  operationEvidencePatterns?: readonly LocalStackOperationEvidenceSpec[];`,
+    `  requiredBehavior: string;`,
+    `}`,
+    '',
+    `export interface LocalStackOperationEvidenceSpec {`,
+    `  operationId: string;`,
+    `  evidencePatterns: readonly string[];`,
+    `}`,
+    '',
+    `export interface LocalStackCategoryAxisSpec {`,
+    `  category: LocalStackScenarioCategoryId;`,
+    `  axes: readonly LocalStackScenarioAxisId[];`,
+    `}`,
+    '',
+    `export interface LocalStackOutcomeSpec {`,
+    `  id: string;`,
+    `  label: string;`,
+    `  source: LocalStackOutcomeSource;`,
+    `  minimumProofLevel: LocalStackProofLevel;`,
+    `  operationIds: readonly string[];`,
+    `  providerGuardCapabilities: readonly string[];`,
+    `  exceptionCapabilities: readonly string[];`,
+    `}`,
+    '',
+    `export interface LocalStackObjectiveSpec {`,
+    `  id: string;`,
+    `  label: string;`,
+    `  minimumProofLevel: LocalStackProofLevel;`,
+    `  operationIds: readonly string[];`,
+    `}`,
+    '',
+    `export interface RequestConstraintEvidenceSpec {`,
+    `  id: string;`,
+    `  requestConstraintKeys: readonly string[];`,
+    `}`,
+    '',
+    `export interface RequestConstraintDomainSpec {`,
+    `  domainKey: string;`,
+    `  requestConstraintKeys: readonly string[];`,
+    `}`,
+    '',
+    `export interface RawBackendCoreSemanticGapSpec {`,
+    `  id: string;`,
+    `  source: string;`,
+    `  services: readonly string[];`,
+    `  domainKeys: readonly string[];`,
+    `  operationIds: readonly string[];`,
+    `  requestConstraintKeys: readonly string[];`,
+    `  rawProofFile: string;`,
+    `  rawEvidencePattern: string;`,
+    `  observedBehavior: string;`,
+    `  requiredBehavior: string;`,
+    `  requiredRawRejection: string;`,
+    `  remediationRefs: readonly string[];`,
+    `  sdkClosureTargets: readonly SdkSemanticGapClosureTarget[];`,
+    `}`,
+    '',
+    `export interface LocalStackScenarioMatrixContract {`,
+    `  id: string;`,
+    `  description: string;`,
+    `  requiredCapabilities: readonly OpenBoxCapabilityId[];`,
+    `  requiredCategories: readonly LocalStackScenarioCategoryId[];`,
+    `  requiredAxes: readonly LocalStackScenarioAxisId[];`,
+    `  requiredLocalStackAxes: readonly LocalStackScenarioAxisId[];`,
+    `  requiredCategoryAxes: readonly LocalStackCategoryAxisSpec[];`,
+    `  localStackScenarioIds: readonly string[];`,
+    `  providerOwnedScenarioIds: readonly string[];`,
+    `  requiredOutcomeIds: readonly string[];`,
+    `  requiredOutcomeSpecs: readonly LocalStackOutcomeSpec[];`,
+    `  requiredObjectiveIds: readonly string[];`,
+    `  requiredObjectiveSpecs: readonly LocalStackObjectiveSpec[];`,
+    `  transportOrFeatureGatedOperationIds: readonly string[];`,
+    `  requestConstraintEvidenceSpecs: readonly RequestConstraintEvidenceSpec[];`,
+    `  requestConstraintDomainSpecs: readonly RequestConstraintDomainSpec[];`,
+    `  sdkGeneratedPreflightOnlyConstraintKeys: readonly string[];`,
+    `  rawBackendCoreSemanticGaps: readonly RawBackendCoreSemanticGapSpec[];`,
+    `  requiredSharedProviderGuardProofCapabilities: readonly OpenBoxCapabilityId[];`,
+    `  requiredSdkSemanticGapClosureTargets: readonly SdkSemanticGapClosureTarget[];`,
+    `  providerGuardSharedProofPolicy: string;`,
+    `  localStackAxisPolicy: string;`,
+    `  rawSemanticGapPolicy: string;`,
+    `  backendCoreGapStatusPolicy: string;`,
+    `  backendCoreGapRemediationPolicy: string;`,
     `}`,
     '',
     `export interface McpToolSurfaceEntry {`,
@@ -1487,6 +2354,12 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     '',
     `export const PROVIDER_CAPABILITY_MATRIX = ${literalTs(conformance.providerCapabilityMatrix)} as const satisfies readonly ProviderCapabilityEntry[];`,
     '',
+    `export const GOVERNANCE_CHECKLIST_LIMITATIONS = ${literalTs(conformance.governanceChecklistLimitations)} as const satisfies readonly GovernanceChecklistLimitationEntry[];`,
+    '',
+    `export const GOVERNANCE_CHECKLIST_ROWS = ${literalTs(conformance.governanceChecklistRows)} as const satisfies readonly GovernanceChecklistRowEntry[];`,
+    '',
+    `export const GOVERNANCE_CHECKLIST_SCORE = ${literalTs(conformance.governanceChecklistScore)} as const satisfies readonly GovernanceChecklistScoreEntry[];`,
+    '',
     `export const REFERENCE_PROVIDER_PARITY_CLOSURES = ${literalTs(conformance.referenceProviderParityClosures)} as const satisfies readonly ReferenceProviderParityClosureEntry[];`,
     '',
     `export const REFERENCE_PROVIDER_RUNTIME_AUDIT = ${literalTs(conformance.referenceProviderRuntimeAudit)} as const satisfies readonly ReferenceProviderRuntimeAuditEntry[];`,
@@ -1494,6 +2367,11 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const PROVIDER_EVENT_CATALOG = ${literalTs(conformance.providerEventCatalog)} as const satisfies readonly ProviderEventCatalogEntry[];`,
     '',
     `export const PROVIDER_PLUGIN_COMPONENTS = ${literalTs(conformance.providerPluginComponents)} as const satisfies readonly ProviderPluginComponentCatalogEntry[];`,
+    '',
+    `export const CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE = ${literalTs(conformance.claudeCodeGovernanceAuditSurface)} as const satisfies ClaudeCodeGovernanceAuditSurface;`,
+    `export const CLAUDE_CODE_GOVERNANCE_AUDIT = CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.audit;`,
+    `export const CLAUDE_CODE_SURFACE_MATRIX = CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.surfaces;`,
+    `export const CLAUDE_CODE_SDK_CAPABILITY_MATRIX = CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.sdkCapabilities;`,
     '',
     `export const PUBLIC_INTEGRATION_SUPPORT = ${literalTs(conformance.publicIntegrationSupport)} as const satisfies readonly PublicIntegrationSupportEntry[];`,
     '',
@@ -1508,6 +2386,21 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const HITL_CAPABILITY_GUARDS = ${literalTs(conformance.hitlCapabilityGuards)} as const satisfies readonly HitlCapabilityGuardEntry[];`,
     '',
     `export const GUARDRAIL_CAPABILITY_GUARDS = ${literalTs(conformance.guardrailCapabilityGuards)} as const satisfies readonly GuardrailCapabilityGuardEntry[];`,
+    '',
+    `export const BEHAVIOR_RULE_CAPABILITY_GUARDS = ${literalTs(conformance.behaviorRuleCapabilityGuards)} as const satisfies readonly BehaviorRuleCapabilityGuardEntry[];`,
+    '',
+    `export const GUARDRAILS_HUB_RECORDING_SURFACE = ${literalTs(conformance.guardrailsHubRecordingSurface)} as const satisfies GuardrailsHubRecordingSurface;`,
+    '',
+    `export const LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE = ${literalTs(conformance.localGovernanceVerdictMatrix)} as const satisfies LocalGovernanceVerdictMatrixSurface;`,
+    `export const LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES = LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE.cases;`,
+    `export const LOCAL_GOVERNANCE_HOST_PORTABLE_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter((entry) => entry.hostPortable);`,
+    `export const LOCAL_GOVERNANCE_LOCAL_ONLY_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter((entry) => !entry.hostPortable);`,
+    `export const LOCAL_GOVERNANCE_UNDRIVABLE_TRIGGERS = LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE.undrivableTriggers;`,
+    '',
+    `export const OPA_EVALUATION_MATRIX = ${literalTs(conformance.opaEvaluationMatrix)} as const satisfies OpaEvaluationMatrixSurface;`,
+    `export const OPA_DECISION_SCENARIOS = OPA_EVALUATION_MATRIX.decisionScenarios;`,
+    `export const OPA_GOVERNED_SURFACES = OPA_EVALUATION_MATRIX.governedSurfaces;`,
+    `export const OPA_ALIAS_DECISION_CASES = OPA_EVALUATION_MATRIX.aliasCases;`,
     '',
     `export const POLICY_EVALUATION_GUARDS = ${literalTs(conformance.policyEvaluationGuards)} as const satisfies readonly PolicyEvaluationGuardEntry[];`,
     '',
@@ -1524,6 +2417,10 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `export const MCP_CAPABILITY_GUARDS = ${literalTs(conformance.mcpCapabilityGuards)} as const satisfies readonly McpCapabilityGuardEntry[];`,
     '',
     `export const INSTALL_DOCTOR_CAPABILITY_GUARDS = ${literalTs(conformance.installDoctorCapabilityGuards)} as const satisfies readonly InstallDoctorCapabilityGuardEntry[];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_PATHS = ${literalTs(conformance.localStackScenarioPaths)} as const satisfies readonly LocalStackScenarioPathSpec[];`,
+    '',
+    `export const LOCAL_STACK_SCENARIO_MATRIX = ${literalTs(conformance.localStackScenarioMatrix)} as const satisfies LocalStackScenarioMatrixContract;`,
     '',
     `export const MCP_TOOL_SURFACES = ${literalTs(conformance.mcpToolSurfaces)} as const satisfies readonly McpToolSurfaceEntry[];`,
     '',
@@ -1699,6 +2596,7 @@ function providerCapabilityConformancePayload(
     ...arrayOfRecords(matrix.tracingCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hitlCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.guardrailCapabilityGuards).map((entry) => String(entry.tier ?? '')),
+    ...arrayOfRecords(matrix.behaviorRuleCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.policyEvaluationGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.rulesInstructionCapabilityGuards).map((entry) => String(entry.tier ?? '')),
     ...arrayOfRecords(matrix.hookCapabilityGuards).map((entry) => String(entry.tier ?? '')),
@@ -1717,10 +2615,14 @@ function providerCapabilityConformancePayload(
     providerIds,
     supportTiers,
     providerCapabilityMatrix: matrix.capabilities,
+    governanceChecklistLimitations: matrix.governanceChecklistLimitations,
+    governanceChecklistRows: matrix.governanceChecklistRows,
+    governanceChecklistScore: matrix.governanceChecklistScore,
     referenceProviderParityClosures: matrix.referenceProviderParityClosures,
     referenceProviderRuntimeAudit: matrix.referenceProviderRuntimeAudit,
     providerEventCatalog: matrix.eventCatalog,
     providerPluginComponents: matrix.pluginComponents,
+    claudeCodeGovernanceAuditSurface: matrix.claudeCodeGovernanceAuditSurface,
     publicIntegrationSupport: matrix.publicIntegrations,
     goalSignalGuards: matrix.goalSignalGuards,
     usageCostCapabilityGuards: matrix.usageCostCapabilityGuards,
@@ -1728,6 +2630,10 @@ function providerCapabilityConformancePayload(
     tracingCapabilityGuards: matrix.tracingCapabilityGuards,
     hitlCapabilityGuards: matrix.hitlCapabilityGuards,
     guardrailCapabilityGuards: matrix.guardrailCapabilityGuards,
+    behaviorRuleCapabilityGuards: matrix.behaviorRuleCapabilityGuards,
+    guardrailsHubRecordingSurface: matrix.guardrailsHubRecordingSurface,
+    localGovernanceVerdictMatrix: matrix.localGovernanceVerdictMatrix,
+    opaEvaluationMatrix: matrix.opaEvaluationMatrix,
     policyEvaluationGuards: matrix.policyEvaluationGuards,
     rulesInstructionCapabilityGuards: matrix.rulesInstructionCapabilityGuards,
     hookCapabilityGuards: matrix.hookCapabilityGuards,
@@ -1736,6 +2642,8 @@ function providerCapabilityConformancePayload(
     skillCapabilityGuards: matrix.skillCapabilityGuards,
     mcpCapabilityGuards: matrix.mcpCapabilityGuards,
     installDoctorCapabilityGuards: matrix.installDoctorCapabilityGuards,
+    localStackScenarioPaths: matrix.localStackScenarioPaths,
+    localStackScenarioMatrix: matrix.localStackScenarioMatrix,
     mcpToolSurfaces: matrix.mcpTools,
     mcpPromptSurfaces: matrix.mcpPrompts,
     mcpResourceTemplateSurfaces: matrix.mcpResourceTemplates,
@@ -1788,6 +2696,598 @@ function emitGovernProtocolConformanceFixture(program: Program, repoRoot: string
     regenerate: 'npm run specs:compile',
     ...fixture,
   });
+}
+
+function emitGovernanceDomainFixture(program: Program, repoRoot: string): void {
+  const backend = requiredNamespace(program, 'OpenboxBackend');
+  const core = requiredNamespace(program, 'OpenboxCore');
+  const capabilities = requiredNamespace(program, 'OpenboxGovern.Capabilities');
+  const rulesProjection = requiredNamespace(program, 'OpenboxGovern.RulesProjection');
+  const domains = {
+    guardrailTypes: modelPropertyLiteralValues(backend, 'CreateGuardrailDto', 'guardrail_type'),
+    guardrailProcessingStages: modelPropertyLiteralValues(backend, 'CreateGuardrailDto', 'processing_stage'),
+    behaviorRuleTriggers: modelPropertyLiteralValues(backend, 'BehaviorRule', 'trigger'),
+    behaviorRuleStateInputVariants: ['BehaviorRuleTrigger'],
+    behaviorRuleStateMembers: arrayElementLiteralValues(
+      modelPropertyType(backend, 'BehaviorRule', 'states'),
+    ),
+    behaviorRuleVerdicts: modelPropertyLiteralValues(backend, 'CreateBehaviorRuleDto', 'verdict'),
+    approvalStatuses: operationParameterLiteralValues(
+      backend,
+      'AgentController_getPendingApprovals',
+      'status',
+    ),
+    approvalDecisionActions: operationParameterLiteralValues(
+      backend,
+      'AgentController_decideApproval',
+      'action',
+    ),
+    sessionStatuses: operationParameterLiteralValues(backend, 'AgentController_getSessions', 'status'),
+    sessionDurations: operationParameterLiteralValues(backend, 'AgentController_getSessions', 'duration'),
+    trustHistoryDurations: operationParameterLiteralValues(
+      backend,
+      'AgentController_getAgentTrustHistories',
+      'duration',
+    ),
+    auditEventTypes: modelPropertyLiteralValues(backend, 'PreviewExportDto', 'eventTypes'),
+    auditResults: modelPropertyLiteralValues(backend, 'ExportAuditLogsDto', 'result'),
+    auditExportStatuses: operationParameterLiteralValues(
+      backend,
+      'OrganizationController_getExportHistory',
+      'status',
+    ),
+    agentAttestationModes: modelPropertyLiteralValues(backend, 'CreateAgentDto', 'attestation_mode'),
+    apiKeyPermissions: modelPropertyLiteralValues(backend, 'CreateApiKeyDto', 'permissions'),
+    webhookChannels: modelPropertyLiteralValues(backend, 'CreateWebhookDto', 'channel'),
+    organizationTimezones: modelPropertyLiteralValues(
+      backend,
+      'UpdateOrganizationSettingsDto',
+      'timezone',
+    ),
+    welcomeEmailTypes: modelPropertyLiteralValues(backend, 'SendWelcomeEmailDto', 'type'),
+    webhookEventTypes: modelPropertyLiteralValues(backend, 'Webhook', 'event_types'),
+    ssoMethods: modelPropertyLiteralValues(backend, 'SsoStatus', 'method'),
+    demoSetupStatuses: modelPropertyLiteralValues(backend, 'DemoSetupStatus', 'status'),
+    coreEventTypes: enumMemberValues(core, 'EventType'),
+    coreAuthEnvironments: modelPropertyLiteralValues(core, 'AgentValidationResponse', 'environment'),
+    coreGuardrailsInputTypes: modelPropertyLiteralValues(core, 'GuardrailsResult', 'input_type'),
+    coreGuardrailFieldStatuses: modelPropertyLiteralValues(core, 'GuardrailFieldResult', 'status'),
+    coreVerdicts: enumMemberValues(core, 'Verdict'),
+    coreLegacyActions: enumMemberValues(core, 'LegacyAction'),
+    openboxProviderIds: enumMemberValues(capabilities, 'OpenBoxProviderId'),
+    openboxSupportTiers: enumMemberValues(capabilities, 'OpenBoxSupportTier'),
+    openboxCapabilityIds: enumMemberValues(capabilities, 'OpenBoxCapabilityId'),
+    claudeCodeGovernanceStatuses: enumMemberValues(capabilities, 'ClaudeCodeGovernanceStatus'),
+    localStackScenarioCategories: enumMemberValues(capabilities, 'LocalStackScenarioCategoryId'),
+    localStackScenarioAxes: enumMemberValues(capabilities, 'LocalStackScenarioAxisId'),
+    localStackProofLevels: enumMemberValues(capabilities, 'LocalStackProofLevel'),
+    localStackOutcomeSources: enumMemberValues(capabilities, 'LocalStackOutcomeSource'),
+    localGovernanceSpanTypes: enumMemberValues(capabilities, 'LocalGovernanceSpanType'),
+    localGovernanceVerdicts: enumMemberValues(capabilities, 'LocalGovernanceVerdict'),
+    localGovernanceOutcomes: enumMemberValues(capabilities, 'LocalGovernanceOutcome'),
+    localStackUsageWireCaseIds: usageWireCaseIds(capabilities),
+    sdkSemanticGapClosureTargets: enumMemberValues(capabilities, 'SdkSemanticGapClosureTarget'),
+    governanceChecklistBoundaryOwners: enumMemberValues(
+      capabilities,
+      'GovernanceChecklistBoundaryOwner',
+    ),
+    governanceChecklistScopes: enumMemberValues(capabilities, 'GovernanceChecklistScope'),
+    governanceChecklistRowStatuses: enumMemberValues(
+      capabilities,
+      'GovernanceChecklistRowStatus',
+    ),
+    referenceProviderParityClosureStatuses: enumMemberValues(
+      capabilities,
+      'ReferenceProviderParityClosureStatus',
+    ),
+    referenceProviderRuntimePromotionDecisions: enumMemberValues(
+      capabilities,
+      'ReferenceProviderRuntimePromotionDecision',
+    ),
+    ruleTriggers: enumMemberValues(rulesProjection, 'RuleTrigger'),
+    ruleSeverities: enumMemberValues(rulesProjection, 'RuleSeverity'),
+    projectedRuleSources: modelPropertyLiteralValues(rulesProjection, 'ProjectedRule', 'source'),
+  } satisfies Record<string, GovernanceDomainMember[]>;
+
+  const provenance = governanceDomainProvenance();
+  writeJsonFixture(repoRoot, 'codegen/fixtures/governance-domains.json', {
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    sources: [
+      'specs/typespec/backend/main.tsp',
+      'specs/typespec/backend/responses.tsp',
+      'specs/typespec/core/main.tsp',
+      'specs/typespec/govern/capabilities.tsp',
+      'specs/typespec/govern/rules-projection.tsp',
+    ],
+    regenerate: 'npm run specs:compile',
+    domains,
+    provenance,
+    discoveredFiniteDomains: discoverFiniteTypeSpecDomains(program),
+  } satisfies GovernanceDomainFixture);
+}
+
+function governanceDomainProvenance(): Record<string, GovernanceDomainProvenanceEntry> {
+  return {
+    guardrailTypes: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateGuardrailDto.guardrail_type',
+      extractor: 'model-field',
+    },
+    guardrailProcessingStages: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateGuardrailDto.processing_stage',
+      extractor: 'model-field',
+    },
+    behaviorRuleTriggers: {
+      source: 'specs/typespec/backend/responses.tsp',
+      selector: 'model BehaviorRule.trigger',
+      extractor: 'model-field',
+    },
+    behaviorRuleStateInputVariants: {
+      source: 'specs/typespec/backend/responses.tsp',
+      selector: 'alias BehaviorRuleStateInput',
+      extractor: 'type-alias',
+    },
+    behaviorRuleStateMembers: {
+      source: 'specs/typespec/backend/responses.tsp',
+      selector: 'model BehaviorRule.states[]',
+      extractor: 'resolved-alias',
+    },
+    behaviorRuleVerdicts: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateBehaviorRuleDto.verdict',
+      extractor: 'model-field',
+    },
+    approvalStatuses: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'op AgentController_getPendingApprovals.status',
+      extractor: 'operation-parameter',
+    },
+    approvalDecisionActions: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'op AgentController_decideApproval.action',
+      extractor: 'operation-parameter',
+    },
+    sessionStatuses: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'op AgentController_getSessions.status',
+      extractor: 'operation-parameter',
+    },
+    sessionDurations: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'op AgentController_getSessions.duration',
+      extractor: 'operation-parameter',
+    },
+    trustHistoryDurations: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'op AgentController_getAgentTrustHistories.duration',
+      extractor: 'operation-parameter',
+    },
+    auditEventTypes: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model PreviewExportDto.eventTypes',
+      extractor: 'model-field',
+    },
+    auditResults: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model ExportAuditLogsDto.result',
+      extractor: 'model-field',
+    },
+    auditExportStatuses: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'op OrganizationController_getExportHistory.status',
+      extractor: 'operation-parameter',
+    },
+    agentAttestationModes: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateAgentDto.attestation_mode',
+      extractor: 'model-field',
+    },
+    apiKeyPermissions: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateApiKeyDto.permissions',
+      extractor: 'model-field',
+    },
+    webhookChannels: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateWebhookDto.channel',
+      extractor: 'model-field',
+    },
+    organizationTimezones: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model UpdateOrganizationSettingsDto.timezone',
+      extractor: 'model-field',
+    },
+    welcomeEmailTypes: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model SendWelcomeEmailDto.type',
+      extractor: 'model-field',
+    },
+    webhookEventTypes: {
+      source: 'specs/typespec/backend/responses.tsp',
+      selector: 'model Webhook.event_types[]',
+      extractor: 'model-field',
+    },
+    ssoMethods: {
+      source: 'specs/typespec/backend/responses.tsp',
+      selector: 'model SsoStatus.method',
+      extractor: 'model-field',
+    },
+    demoSetupStatuses: {
+      source: 'specs/typespec/backend/responses.tsp',
+      selector: 'model DemoSetupStatus.status',
+      extractor: 'model-field',
+    },
+    coreEventTypes: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'enum EventType',
+      extractor: 'enum',
+    },
+    coreAuthEnvironments: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'model AgentValidationResponse.environment',
+      extractor: 'model-field',
+    },
+    coreGuardrailsInputTypes: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'model GuardrailsResult.input_type',
+      extractor: 'model-field',
+    },
+    coreGuardrailFieldStatuses: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'model GuardrailFieldResult.status',
+      extractor: 'model-field',
+    },
+    coreVerdicts: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'enum Verdict',
+      extractor: 'enum',
+    },
+    coreLegacyActions: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'enum LegacyAction',
+      extractor: 'enum',
+    },
+    openboxProviderIds: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum OpenBoxProviderId',
+      extractor: 'enum',
+    },
+    openboxSupportTiers: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum OpenBoxSupportTier',
+      extractor: 'enum',
+    },
+    openboxCapabilityIds: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum OpenBoxCapabilityId',
+      extractor: 'enum',
+    },
+    claudeCodeGovernanceStatuses: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum ClaudeCodeGovernanceStatus',
+      extractor: 'enum',
+    },
+    localStackScenarioCategories: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalStackScenarioCategoryId',
+      extractor: 'enum',
+    },
+    localStackScenarioAxes: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalStackScenarioAxisId',
+      extractor: 'enum',
+    },
+    localStackProofLevels: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalStackProofLevel',
+      extractor: 'enum',
+    },
+    localStackOutcomeSources: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalStackOutcomeSource',
+      extractor: 'enum',
+    },
+    localGovernanceSpanTypes: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalGovernanceSpanType',
+      extractor: 'enum',
+    },
+    localGovernanceVerdicts: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalGovernanceVerdict',
+      extractor: 'enum',
+    },
+    localGovernanceOutcomes: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalGovernanceOutcome',
+      extractor: 'enum',
+    },
+    localStackUsageWireCaseIds: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum LocalStackUsageWireCaseId',
+      extractor: 'enum',
+    },
+    sdkSemanticGapClosureTargets: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum SdkSemanticGapClosureTarget',
+      extractor: 'enum',
+    },
+    governanceChecklistBoundaryOwners: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum GovernanceChecklistBoundaryOwner',
+      extractor: 'enum',
+    },
+    governanceChecklistScopes: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum GovernanceChecklistScope',
+      extractor: 'enum',
+    },
+    governanceChecklistRowStatuses: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum GovernanceChecklistRowStatus',
+      extractor: 'enum',
+    },
+    referenceProviderParityClosureStatuses: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum ReferenceProviderParityClosureStatus',
+      extractor: 'enum',
+    },
+    referenceProviderRuntimePromotionDecisions: {
+      source: 'specs/typespec/govern/capabilities.tsp',
+      selector: 'enum ReferenceProviderRuntimePromotionDecision',
+      extractor: 'enum',
+    },
+    ruleTriggers: {
+      source: 'specs/typespec/govern/rules-projection.tsp',
+      selector: 'enum RuleTrigger',
+      extractor: 'enum',
+    },
+    ruleSeverities: {
+      source: 'specs/typespec/govern/rules-projection.tsp',
+      selector: 'enum RuleSeverity',
+      extractor: 'enum',
+    },
+    projectedRuleSources: {
+      source: 'specs/typespec/govern/rules-projection.tsp',
+      selector: 'model ProjectedRule.source',
+      extractor: 'model-field',
+    },
+  };
+}
+
+function discoverFiniteTypeSpecDomains(program: Program): DiscoveredFiniteDomainEntry[] {
+  return [
+    requiredNamespace(program, 'OpenboxBackend'),
+    requiredNamespace(program, 'OpenboxCore'),
+    requiredNamespace(program, 'OpenboxGovern.Capabilities'),
+    requiredNamespace(program, 'OpenboxGovern.RulesProjection'),
+  ].flatMap((namespace) => [
+    ...discoverEnumFiniteDomains(namespace),
+    ...discoverModelFiniteDomains(namespace),
+    ...discoverOperationFiniteDomains(namespace),
+  ])
+    .filter((entry) => entry.values.length > 0)
+    .sort((left, right) =>
+      `${left.source}:${left.selector}`.localeCompare(`${right.source}:${right.selector}`),
+    );
+}
+
+function discoverEnumFiniteDomains(namespace: Namespace): DiscoveredFiniteDomainEntry[] {
+  return [...namespace.enums.values()].map((entry) => ({
+    source: sourcePathForType(entry, sourcePathForNamespace(namespace)),
+    selector: `enum ${entry.name}`,
+    values: uniqueSortedStrings(enumMemberValues(namespace, entry.name).map(String)),
+  }));
+}
+
+function discoverModelFiniteDomains(namespace: Namespace): DiscoveredFiniteDomainEntry[] {
+  return [...namespace.models.values()].flatMap((model) =>
+    [...model.properties.values()].map((property) => ({
+      source: sourcePathForType(property, sourcePathForType(model, sourcePathForNamespace(namespace))),
+      selector: `model ${model.name}.${property.name}`,
+      values: uniqueSortedStrings(literalValuesFromType(property.type).map(String)),
+    })),
+  );
+}
+
+function discoverOperationFiniteDomains(namespace: Namespace): DiscoveredFiniteDomainEntry[] {
+  return [...namespace.operations.values()].flatMap((operation) =>
+    [...operation.parameters.properties.values()].map((parameter) => ({
+      source: sourcePathForType(
+        parameter,
+        sourcePathForType(operation, sourcePathForNamespace(namespace)),
+      ),
+      selector: `op ${operation.name}.${parameter.name}`,
+      values: uniqueSortedStrings(literalValuesFromType(parameter.type).map(String)),
+    })),
+  );
+}
+
+function sourcePathForNamespace(namespace: Namespace): string {
+  const fullName = namespaceFullName(namespace);
+  if (fullName === 'OpenboxCore') return 'specs/typespec/core/main.tsp';
+  if (fullName === 'OpenboxGovern.Capabilities') return 'specs/typespec/govern/capabilities.tsp';
+  if (fullName === 'OpenboxGovern.RulesProjection') return 'specs/typespec/govern/rules-projection.tsp';
+  return 'specs/typespec/backend/main.tsp';
+}
+
+function sourcePathForType(type: Type, fallback: string): string {
+  const rawPath = (type.node as { file?: { path?: string } } | undefined)?.file?.path;
+  if (!rawPath) return fallback;
+  const marker = '/specs/typespec/';
+  const index = rawPath.lastIndexOf(marker);
+  return index >= 0 ? rawPath.slice(index + 1) : fallback;
+}
+
+function namespaceFullName(namespace: Namespace): string {
+  const names: string[] = [];
+  for (let current: Namespace | undefined = namespace; current; current = current.namespace) {
+    if (current.name) names.unshift(current.name);
+  }
+  return names.join('.');
+}
+
+function emitBoundaryDomainFixture(program: Program, repoRoot: string): void {
+  const backend = requiredNamespace(program, 'OpenboxBackend');
+  const core = requiredNamespace(program, 'OpenboxCore');
+  const domains = {
+    requiredBodyFields: requiredModelFields(backend, [
+      'LoginDto',
+      'LogoutDto',
+      'ForgotPasswordDto',
+      'ResetPasswordDto',
+      'ChangePasswordDto',
+      'RefreshDto',
+      'CreateOrganizationDto',
+    ]),
+    aivssNumericFields: aivssNumericBoundaries(program, backend),
+    goalAlignmentThresholds: numericBoundaries(program, backend, ['GoalAlignmentConfigDto']),
+    goalAlignmentModels: modelPropertyLiteralValues(
+      backend,
+      'GoalAlignmentConfigDto',
+      'llama_firewall_model',
+    ).map(String),
+    goalAlignmentDriftActions: modelPropertyLiteralValues(
+      backend,
+      'GoalAlignmentConfigDto',
+      'drift_detection_action',
+    ).map(String),
+    goalAlignmentEvaluationFrequencies: modelPropertyLiteralValues(
+      backend,
+      'GoalAlignmentConfigDto',
+      'evaluation_frequency',
+    ).map(String),
+    behaviorRuleNumericFields: numericBoundaries(program, backend, ['CreateBehaviorRuleDto']),
+    trustThresholdFields: numericBoundaries(program, backend, [
+      'CreateGuardrailDto',
+      'UpdateGuardrailDto',
+      'CreatePolicyDto',
+      'UpdatePolicyDto',
+      'CreateBehaviorRuleDto',
+      'UpdateBehavioralRuleDto',
+    ]).filter((entry) => entry.fieldName === 'trust_threshold'),
+    backendStringLengthFields: stringLengthBoundaries(program, backend, [
+      'CreatePolicyDto',
+      'CreateTeamDto',
+    ]),
+    backendArrayItemFields: arrayItemBoundaries(program, backend, ['RemoveMembersDto']),
+    backendUuidFormatFields: formatBoundaries(program, backend, [
+      'CreateBehaviorRuleDto',
+      'UpdateBehavioralRuleDto',
+    ]).filter((entry) => entry.format === 'uuid'),
+    coreNumericFields: numericBoundaries(program, core, [
+      'GovernanceEventPayload',
+      'GovernanceVerdictResponse',
+      'AGETrustScore',
+    ]),
+    trustImpacts: modelPropertyLiteralValues(backend, 'CreateGuardrailDto', 'trust_impact').map(String),
+    backendOpenJsonFields: openJsonFields(backend, [
+      'CreateAgentDto',
+      'UpdateAgentDto',
+      'CreateGuardrailDto',
+      'UpdateGuardrailDto',
+      'CreatePolicyDto',
+      'TestGuardrailDto',
+      'EvaluateRegoDto',
+    ]),
+    coreOpenJsonFields: openJsonFields(core, [
+      'GovernanceEventPayload',
+      'SpanData',
+      'SpanEvent',
+    ]),
+  } satisfies Record<string, BoundaryDomainEntry[]>;
+
+  writeJsonFixture(repoRoot, 'codegen/fixtures/boundary-domains.json', {
+    generatedBy: 'codegen/emitters/typespec-emitter',
+    sources: [
+      'specs/typespec/backend/main.tsp',
+      'specs/typespec/core/main.tsp',
+    ],
+    regenerate: 'npm run specs:compile',
+    domains,
+    provenance: boundaryDomainProvenance(),
+  } satisfies BoundaryDomainFixture);
+}
+
+function boundaryDomainProvenance(): Record<string, BoundaryDomainProvenanceEntry> {
+  return {
+    requiredBodyFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'models LoginDto, LogoutDto, ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto, RefreshDto, CreateOrganizationDto',
+      extractor: 'required-model-field',
+    },
+    aivssNumericFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'models BaseSecurityDto, AISpecificDto, ImpactDto',
+      extractor: 'numeric-boundary',
+    },
+    goalAlignmentThresholds: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model GoalAlignmentConfigDto',
+      extractor: 'numeric-boundary',
+    },
+    goalAlignmentModels: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model GoalAlignmentConfigDto.llama_firewall_model',
+      extractor: 'model-field',
+    },
+    goalAlignmentDriftActions: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model GoalAlignmentConfigDto.drift_detection_action',
+      extractor: 'model-field',
+    },
+    goalAlignmentEvaluationFrequencies: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model GoalAlignmentConfigDto.evaluation_frequency',
+      extractor: 'model-field',
+    },
+    behaviorRuleNumericFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateBehaviorRuleDto',
+      extractor: 'numeric-boundary',
+    },
+    trustThresholdFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'trust_threshold fields with @minValue',
+      extractor: 'numeric-boundary',
+    },
+    backendStringLengthFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'models CreatePolicyDto, CreateTeamDto',
+      extractor: 'string-length-boundary',
+    },
+    backendArrayItemFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model RemoveMembersDto',
+      extractor: 'array-item-boundary',
+    },
+    backendUuidFormatFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'behavior rule dependency_base_rule_id uuid fields',
+      extractor: 'format-boundary',
+    },
+    coreNumericFields: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'models GovernanceEventPayload, GovernanceVerdictResponse, AGETrustScore',
+      extractor: 'numeric-boundary',
+    },
+    trustImpacts: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'model CreateGuardrailDto.trust_impact',
+      extractor: 'model-field',
+    },
+    backendOpenJsonFields: {
+      source: 'specs/typespec/backend/main.tsp',
+      selector: 'backend DTO fields typed unknown, Record<unknown>, {}, or SpanData[]',
+      extractor: 'open-json-field',
+    },
+    coreOpenJsonFields: {
+      source: 'specs/typespec/core/main.tsp',
+      selector: 'core DTO fields typed unknown, Record<unknown>, {}, or SpanData[]',
+      extractor: 'open-json-field',
+    },
+  };
 }
 
 function emitSdkTargetsFixture(program: Program, repoRoot: string): void {
@@ -2715,6 +4215,7 @@ function emitHookSpec(a: AdapterEntry): string {
     name: m.eventName,
     timeout: m.installTimeout,
     installDefault: m.installDefault,
+    verdictShape: m.shape,
   }));
   const spec = {
     file: it.file,
@@ -2730,7 +4231,7 @@ function emitHookSpec(a: AdapterEntry): string {
   style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean; verdictShape: string }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -4278,6 +5779,278 @@ function arrayOfRecords(value: unknown): Record<string, unknown>[] {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function uniqueSortedStrings(values: Iterable<string>): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function enumMemberValues(namespace: Namespace, enumName: string): string[] {
+  const type = namespace.enums.get(enumName);
+  return type ? [...type.members.values()].map((member) => String(member.value ?? member.name)) : [];
+}
+
+function requiredNamespace(program: Program, name: string): Namespace {
+  const namespace = findNamespace(program, name);
+  if (!namespace) throw new Error(`Missing TypeSpec namespace ${name}`);
+  return namespace;
+}
+
+function modelPropertyType(namespace: Namespace, modelName: string, propertyName: string): Type {
+  const model = namespace.models.get(modelName);
+  if (!model) throw new Error(`Missing TypeSpec model ${namespace.name}.${modelName}`);
+  const property = model.properties.get(propertyName);
+  if (!property) {
+    throw new Error(`Missing TypeSpec property ${namespace.name}.${modelName}.${propertyName}`);
+  }
+  return property.type;
+}
+
+function modelProperty(namespace: Namespace, modelName: string, propertyName: string): ModelProperty {
+  const model = namespace.models.get(modelName);
+  if (!model) throw new Error(`Missing TypeSpec model ${namespace.name}.${modelName}`);
+  const property = model.properties.get(propertyName);
+  if (!property) {
+    throw new Error(`Missing TypeSpec property ${namespace.name}.${modelName}.${propertyName}`);
+  }
+  return property;
+}
+
+function modelProperties(namespace: Namespace, modelName: string): ModelProperty[] {
+  const model = namespace.models.get(modelName);
+  if (!model) throw new Error(`Missing TypeSpec model ${namespace.name}.${modelName}`);
+  return [...model.properties.values()];
+}
+
+function operationParameterType(namespace: Namespace, operationName: string, parameterName: string): Type {
+  const operation = namespace.operations.get(operationName);
+  if (!operation) throw new Error(`Missing TypeSpec operation ${namespace.name}.${operationName}`);
+  const parameter = operation.parameters.properties.get(parameterName);
+  if (!parameter) {
+    throw new Error(`Missing TypeSpec parameter ${namespace.name}.${operationName}.${parameterName}`);
+  }
+  return parameter.type;
+}
+
+function modelPropertyLiteralValues(
+  namespace: Namespace,
+  modelName: string,
+  propertyName: string,
+): GovernanceDomainMember[] {
+  return literalValuesFromType(modelPropertyType(namespace, modelName, propertyName));
+}
+
+function operationParameterLiteralValues(
+  namespace: Namespace,
+  operationName: string,
+  parameterName: string,
+): GovernanceDomainMember[] {
+  return literalValuesFromType(operationParameterType(namespace, operationName, parameterName));
+}
+
+function boundaryFieldEntry(modelName: string, property: ModelProperty): BoundaryFieldEntry {
+  return {
+    modelName,
+    fieldName: property.name,
+    type: getTypeName(property.type, { namespaceFilter: () => false }),
+  };
+}
+
+function requiredModelFields(namespace: Namespace, modelNames: readonly string[]): BoundaryFieldEntry[] {
+  return modelNames.flatMap((modelName) =>
+    modelProperties(namespace, modelName)
+      .filter((property) => !property.optional)
+      .map((property) => boundaryFieldEntry(modelName, property)),
+  );
+}
+
+function numericBoundaries(
+  program: Program,
+  namespace: Namespace,
+  modelNames: readonly string[],
+): NumericBoundaryEntry[] {
+  return modelNames.flatMap((modelName) =>
+    modelProperties(namespace, modelName)
+      .map((property) => {
+        const min = getMinValue(program, property);
+        if (min === undefined) return undefined;
+        const max = getMaxValue(program, property);
+        return {
+          ...boundaryFieldEntry(modelName, property),
+          min,
+          ...(max === undefined ? {} : { max }),
+        };
+      })
+      .filter((entry): entry is NumericBoundaryEntry => Boolean(entry)),
+  );
+}
+
+const AIVSS_BOUNDARY_PATHS: Record<string, Record<string, readonly [string, string]>> = {
+  BaseSecurityDto: {
+    attack_vector: ['base_security', 'attack_vector'],
+    attack_complexity: ['base_security', 'attack_complexity'],
+    privileges_required: ['base_security', 'privileges_required'],
+    user_interaction: ['base_security', 'user_interaction'],
+    scope: ['base_security', 'scope'],
+  },
+  AISpecificDto: {
+    model_robustness: ['ai_specific', 'model_robustness'],
+    data_sensitivity: ['ai_specific', 'data_sensitivity'],
+    ethical_impact: ['ai_specific', 'ethical_impact'],
+    decision_criticality: ['ai_specific', 'decision_criticality'],
+    adaptability: ['ai_specific', 'adaptability'],
+  },
+  ImpactDto: {
+    confidentiality_impact: ['impact', 'confidentiality_impact'],
+    integrity_impact: ['impact', 'integrity_impact'],
+    availability_impact: ['impact', 'availability_impact'],
+    safety_impact: ['impact', 'safety_impact'],
+  },
+};
+
+function aivssNumericBoundaries(program: Program, namespace: Namespace): AivssBoundaryEntry[] {
+  return numericBoundaries(program, namespace, [
+    'BaseSecurityDto',
+    'AISpecificDto',
+    'ImpactDto',
+  ]).map((entry) => {
+    const path = AIVSS_BOUNDARY_PATHS[entry.modelName]?.[entry.fieldName];
+    if (!path) throw new Error(`Missing AIVSS boundary path for ${entry.modelName}.${entry.fieldName}`);
+    return { ...entry, path };
+  });
+}
+
+function stringLengthBoundaries(
+  program: Program,
+  namespace: Namespace,
+  modelNames: readonly string[],
+): StringLengthBoundaryEntry[] {
+  return modelNames.flatMap((modelName) =>
+    modelProperties(namespace, modelName)
+      .map((property) => {
+        const max = getMaxLength(program, property);
+        return max === undefined
+          ? undefined
+          : {
+              ...boundaryFieldEntry(modelName, property),
+              max,
+            };
+      })
+      .filter((entry): entry is StringLengthBoundaryEntry => Boolean(entry)),
+  );
+}
+
+function arrayItemBoundaries(
+  program: Program,
+  namespace: Namespace,
+  modelNames: readonly string[],
+): ArrayItemBoundaryEntry[] {
+  return modelNames.flatMap((modelName) =>
+    modelProperties(namespace, modelName)
+      .map((property) => {
+        const min = getMinItems(program, property);
+        const max = getMaxItems(program, property);
+        return min === undefined || max === undefined
+          ? undefined
+          : {
+              ...boundaryFieldEntry(modelName, property),
+              min,
+              max,
+            };
+      })
+      .filter((entry): entry is ArrayItemBoundaryEntry => Boolean(entry)),
+  );
+}
+
+function formatBoundaries(
+  program: Program,
+  namespace: Namespace,
+  modelNames: readonly string[],
+): FormatBoundaryEntry[] {
+  return modelNames.flatMap((modelName) =>
+    modelProperties(namespace, modelName)
+      .map((property) => {
+        const format = getFormat(program, property);
+        return format === undefined
+          ? undefined
+          : {
+              ...boundaryFieldEntry(modelName, property),
+              format,
+            };
+      })
+      .filter((entry): entry is FormatBoundaryEntry => Boolean(entry)),
+  );
+}
+
+function openJsonFields(namespace: Namespace, modelNames: readonly string[]): BoundaryFieldEntry[] {
+  return modelNames.flatMap((modelName) =>
+    modelProperties(namespace, modelName)
+      .filter((property) => isOpenJsonType(property.type))
+      .map((property) => boundaryFieldEntry(modelName, property)),
+  );
+}
+
+function isOpenJsonType(type: Type): boolean {
+  if (type.kind === 'Intrinsic') return type.name === 'unknown';
+  if (type.kind === 'Union') {
+    return [...type.variants.values()].some((variant) => isOpenJsonType(variant.type));
+  }
+  if (type.kind !== 'Model') return false;
+  if (type.name === 'Array' && type.indexer?.value) {
+    const element = type.indexer.value;
+    return isOpenJsonType(element) || (element.kind === 'Model' && element.name === 'SpanData');
+  }
+  if (type.name === 'Record') return type.indexer?.value?.kind === 'Intrinsic' &&
+    type.indexer.value.name === 'unknown';
+  if (type.properties.size === 0 && !type.baseModel && !type.indexer && !type.sourceModel) return true;
+
+  const name = getTypeName(type, { namespaceFilter: () => false });
+  return name === 'unknown' || name === '{}' || name === 'Record<unknown>' || name === 'SpanData[]';
+}
+
+function arrayElementLiteralValues(type: Type): GovernanceDomainMember[] {
+  if (type.kind === 'Model' && type.name === 'Array' && type.templateMapper?.args.length) {
+    return literalValuesFromType(type.templateMapper.args[0] as Type);
+  }
+  return literalValuesFromType(type);
+}
+
+function usageWireCaseIds(namespace: Namespace): GovernanceDomainMember[] {
+  return enumMemberValues(namespace, 'LocalStackUsageWireCaseId');
+}
+
+function literalValuesFromType(type: Type): GovernanceDomainMember[] {
+  switch (type.kind) {
+    case 'String':
+      return [type.value];
+    case 'Number':
+      return [type.value];
+    case 'Enum':
+      return [...type.members.values()].map((member) => String(member.value ?? member.name));
+    case 'Union':
+      return uniqueDomainMembers(
+        [...type.variants.values()].flatMap((variant) => literalValuesFromType(variant.type)),
+      );
+    case 'Model':
+      if (type.name === 'Array' && type.templateMapper?.args.length) {
+        return literalValuesFromType(type.templateMapper.args[0] as Type);
+      }
+      return [];
+    default:
+      return [];
+  }
+}
+
+function uniqueDomainMembers(values: GovernanceDomainMember[]): GovernanceDomainMember[] {
+  const seen = new Set<string>();
+  const out: GovernanceDomainMember[] = [];
+  for (const value of values) {
+    const key = `${typeof value}:${String(value)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
 }
 
 /**

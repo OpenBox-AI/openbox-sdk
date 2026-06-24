@@ -9,7 +9,8 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
-import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { buildCursorSpan } from './spans.js';
 import {
   buildActionKey,
   claimAction,
@@ -17,6 +18,7 @@ import {
   publishClaimDecision,
   isFileDeleteCommand,
   rememberCompletionActivity,
+  verdictUsesGovernanceFallback,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 import { ACTIVITY_TYPES } from '../activity-types.js';
@@ -61,6 +63,17 @@ export async function handleBeforeShellExecution(
         riskScore: 1,
       };
     }
+    if (
+      decision.fallbackUsed &&
+      decision.arm !== 'block' &&
+      decision.arm !== 'halt'
+    ) {
+      return {
+        arm: 'block',
+        reason: '[OpenBox] OpenBox governance fallback used while processing Cursor shell hook',
+        riskScore: 1,
+      };
+    }
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -69,7 +82,7 @@ export async function handleBeforeShellExecution(
   const payload = buildBeforeShellExecutionPayload(env);
   const isDelete = isFileDeleteCommand(command);
   const activityType = isDelete ? ACTIVITY_TYPES.FILE_DELETE : BEFORE_SHELL_EXECUTION_ACTIVITY_TYPE;
-  const span = buildSpan('cursor', isDelete ? 'file_delete' : 'shell', {
+  const span = buildCursorSpan(isDelete ? 'file_delete' : 'shell', {
     command,
     cwd: env.cwd,
     tool_name: 'Shell',
@@ -106,7 +119,11 @@ export async function handleBeforeShellExecution(
         },
       );
     }
-    publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
+    publishClaimDecision(claim, {
+      arm: verdict.arm,
+      reason: verdict.reason ?? '',
+      fallbackUsed: verdictUsesGovernanceFallback(verdict),
+    });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;
   } catch (err) {

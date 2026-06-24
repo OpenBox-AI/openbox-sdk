@@ -20,6 +20,7 @@ interface NestedGeneratedFiles {
 interface GeneratedArtifactsManifest {
   generatedRoots: string[];
   generatedFiles: string[];
+  driftCheckFiles: string[];
   nestedGeneratedFiles: NestedGeneratedFiles[];
 }
 
@@ -35,12 +36,16 @@ function readGeneratedArtifactsManifest(): GeneratedArtifactsManifest {
 
   const generatedRoots = artifacts.generatedRoots ?? [];
   const generatedFiles = artifacts.generatedFiles ?? [];
+  const driftCheckFiles = artifacts.driftCheckFiles ?? [];
   const nestedGeneratedFiles = artifacts.nestedGeneratedFiles ?? [];
   if (!generatedRoots.every((entry) => typeof entry === 'string')) {
     throw new Error('generatedArtifacts.generatedRoots must be a string array');
   }
   if (!generatedFiles.every((entry) => typeof entry === 'string')) {
     throw new Error('generatedArtifacts.generatedFiles must be a string array');
+  }
+  if (!driftCheckFiles.every((entry) => typeof entry === 'string')) {
+    throw new Error('generatedArtifacts.driftCheckFiles must be a string array');
   }
   for (const entry of nestedGeneratedFiles) {
     if (
@@ -52,7 +57,7 @@ function readGeneratedArtifactsManifest(): GeneratedArtifactsManifest {
       throw new Error('generatedArtifacts.nestedGeneratedFiles must contain { root, suffixes } records');
     }
   }
-  return { generatedRoots, generatedFiles, nestedGeneratedFiles };
+  return { generatedRoots, generatedFiles, driftCheckFiles, nestedGeneratedFiles };
 }
 
 const GENERATED_ARTIFACTS = readGeneratedArtifactsManifest();
@@ -83,6 +88,7 @@ function trackedAndUntrackedFiles(): string[] {
       '--',
       ...trackedRoots,
       ...GENERATED_ARTIFACTS.generatedFiles,
+      ...GENERATED_ARTIFACTS.driftCheckFiles,
     ],
     'pipe',
   );
@@ -92,6 +98,7 @@ function trackedAndUntrackedFiles(): string[] {
     .filter(Boolean)
     .filter((file) => {
       if (GENERATED_ARTIFACTS.generatedFiles.includes(file)) return true;
+      if (GENERATED_ARTIFACTS.driftCheckFiles.includes(file)) return true;
       if (GENERATED_ARTIFACTS.generatedRoots.some((root) => file.startsWith(`${root}/`))) {
         return true;
       }

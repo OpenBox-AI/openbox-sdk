@@ -7,11 +7,14 @@ import { stampSource } from '../approvals/source.js';
 import {
   PRESET_ACTIVITY_TYPES,
   presets,
-  type BaseGovernedSession,
+  type LangchainSession,
   type WorkflowVerdict,
 } from '../core-client/index.js';
 import { EVENT } from '../governance/events.js';
-import { withOpenBoxActivityMetadata } from '../governance/spans.js';
+import {
+  stripServerComputedSemantic,
+  withOpenBoxActivityMetadata,
+} from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
 import {
   effectiveArmForGuardrails,
@@ -100,7 +103,7 @@ export function createWorkflowSession(
   workflowType: string,
   taskQueue: string,
   options: { attached?: boolean; inlineApproval?: boolean } = {},
-): BaseGovernedSession {
+): LangchainSession {
   return new presets.langchain({
     core: adapter.getCoreClient(),
     workflowId: ids.workflowId,
@@ -358,11 +361,9 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     end_time: now,
     duration_ns: 0,
     stage,
-    semantic_type: 'llm_tool_call',
     status: { code: 'UNSET' },
     events: [],
     attributes: {
-      'openbox.semantic_type': 'llm_tool_call',
       'openbox.span_type': 'function',
       'openbox.tool.name': definition.toolName,
       'openbox.action': input.action,
@@ -371,8 +372,8 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     },
     data: input,
   } as SpanData;
-  if (!profile) return base;
-  return {
+  if (!profile) return stripServerComputedSemantic(base);
+  return stripServerComputedSemantic({
     ...base,
     ...profile,
     attributes: {
@@ -380,5 +381,5 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       ...(profile.attributes ?? {}),
     },
     data: profile.data ?? base.data,
-  } as SpanData;
+  } as SpanData);
 }
