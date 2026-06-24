@@ -48,6 +48,7 @@ export const LOCAL_STACK_SCENARIO_CATEGORY_IDS = [
 ] as const;
 export type LocalStackScenarioCategoryId = typeof LOCAL_STACK_SCENARIO_CATEGORY_IDS[number];
 export const LOCAL_STACK_SCENARIO_AXIS_IDS = [
+  "approval",
   "cost",
   "dbquery",
   "failure",
@@ -57,6 +58,8 @@ export const LOCAL_STACK_SCENARIO_AXIS_IDS = [
   "matrix",
   "opa",
   "order",
+  "rego",
+  "span",
   "tool",
   "usage"
 ] as const;
@@ -74,6 +77,34 @@ export const LOCAL_STACK_OUTCOME_SOURCES = [
   "provider-guard-fixture"
 ] as const;
 export type LocalStackOutcomeSource = typeof LOCAL_STACK_OUTCOME_SOURCES[number];
+export const LOCAL_GOVERNANCE_SPAN_TYPES = [
+  "llm",
+  "llm_embedding",
+  "llm_tool_call",
+  "file_read",
+  "file_open",
+  "file_write",
+  "file_delete",
+  "shell",
+  "http",
+  "db",
+  "mcp"
+] as const;
+export type LocalGovernanceSpanType = typeof LOCAL_GOVERNANCE_SPAN_TYPES[number];
+export const LOCAL_GOVERNANCE_VERDICTS = [
+  "allow",
+  "constrain",
+  "require_approval",
+  "block",
+  "halt"
+] as const;
+export type LocalGovernanceVerdict = typeof LOCAL_GOVERNANCE_VERDICTS[number];
+export const LOCAL_GOVERNANCE_OUTCOMES = [
+  "allow",
+  "require_approval",
+  "deny"
+] as const;
+export type LocalGovernanceOutcome = typeof LOCAL_GOVERNANCE_OUTCOMES[number];
 export const SDK_SEMANTIC_GAP_CLOSURE_TARGETS = [
   "typescript",
   "python"
@@ -119,6 +150,43 @@ export interface ReferenceProviderRuntimeAuditEntry {
   guardTest: string;
 }
 
+export type GovernanceChecklistBoundaryOwner = 'host' | 'caller';
+export type GovernanceChecklistScope = 'scored' | 'limitation' | 'universal';
+export type GovernanceChecklistRowStatus = 'done' | 'limitation' | 'missing' | 'universal';
+export interface GovernanceChecklistScoreEntry {
+  area: string;
+  scope: GovernanceChecklistScope;
+  total: number;
+  done: number;
+  limitations: number;
+  missing: number;
+  scoredTotal: number;
+  scoredDone: number;
+  scoredDonePercent: string;
+}
+
+export interface GovernanceChecklistRowEntry {
+  id: string;
+  area: string;
+  group: string;
+  status: GovernanceChecklistRowStatus;
+  requirement: string;
+  scored: boolean;
+  provider?: OpenBoxProviderId;
+  boundaryOwner?: GovernanceChecklistBoundaryOwner;
+}
+
+export interface GovernanceChecklistLimitationEntry {
+  id: string;
+  checklistId: string;
+  provider: OpenBoxProviderId;
+  boundaryOwner: GovernanceChecklistBoundaryOwner;
+  capability: string;
+  limitation: string;
+  openboxContract: string;
+  scored: false;
+}
+
 export interface ProviderEventCatalogEntry {
   provider: OpenBoxProviderId;
   upstreamKnownEvents: readonly string[];
@@ -129,6 +197,39 @@ export interface ProviderEventCatalogEntry {
 export interface ProviderPluginComponentCatalogEntry {
   provider: OpenBoxProviderId;
   components: readonly { name: string; tier: OpenBoxSupportTier; surface?: string; path?: string; reason: string }[];
+}
+
+export type ClaudeCodeGovernanceStatus =
+  | 'implement_now'
+  | 'observe_only'
+  | 'diagnose_only'
+  | 'explicit_out_of_scope';
+export interface ClaudeCodeGovernanceAudit {
+  capturedAt: string;
+  installedClaudeCodeVersion: string;
+  officialDocs: readonly string[];
+  auditedSdkSurfaces: readonly string[];
+}
+
+export interface ClaudeCodeSurfaceMatrixEntry {
+  surface: string;
+  status: ClaudeCodeGovernanceStatus;
+  notes: string;
+}
+
+export interface ClaudeCodeSdkCapabilityMatrixEntry {
+  capability: string;
+  sdkSurface: string;
+  claudeCodeTreatment: ClaudeCodeGovernanceStatus;
+  coverage: string;
+  tests: readonly string[];
+}
+
+export interface ClaudeCodeGovernanceAuditSurface {
+  source: string;
+  audit: ClaudeCodeGovernanceAudit;
+  surfaces: readonly ClaudeCodeSurfaceMatrixEntry[];
+  sdkCapabilities: readonly ClaudeCodeSdkCapabilityMatrixEntry[];
 }
 
 export interface PublicIntegrationSupportEntry {
@@ -205,6 +306,146 @@ export interface GuardrailCapabilityGuardEntry {
   redactionBehavior: string;
   failClosedBehavior: string;
   guardTest: string;
+}
+
+export interface BehaviorRuleCapabilityGuardEntry {
+  provider: OpenBoxProviderId;
+  tier: OpenBoxSupportTier;
+  triggerSurfaces: string;
+  spanCoverage: string;
+  coreContract: string;
+  verdictEnforcement: string;
+  localStackProof: string;
+  guardTest: string;
+}
+
+export interface GuardrailsHubRecordingVariant {
+  id: string;
+  label: string;
+  expectedSemanticStatus: string;
+  params: Record<string, unknown>;
+  settings: Record<string, unknown>;
+  logs: Record<string, unknown>;
+}
+
+export interface GuardrailsHubRecordingCase {
+  id: string;
+  guardrailType: string;
+  label: string;
+  sampleCount: number;
+  variants: readonly GuardrailsHubRecordingVariant[];
+}
+
+export interface GuardrailsHubRecordingSurface {
+  id: string;
+  source: string;
+  recorderScript: string;
+  provenanceCommand: string;
+  fixturePath: string;
+  recordEnv: string;
+  tokenEnv: string;
+  backendApiUrlEnv: string;
+  backendApiKeyEnv: string;
+  guardrailsRepoEnv: string;
+  guardrailsPythonEnv: string;
+  provenanceJsonEnv: string;
+  requiredValidatorModulePrefix: string;
+  forbiddenValidatorModulePrefixes: readonly string[];
+  defaultSampleCount: number;
+  cases: readonly GuardrailsHubRecordingCase[];
+}
+
+export interface LocalGovernanceVerdictMatrixCase {
+  id: string;
+  hostPortable: boolean;
+  name: string;
+  spanType: LocalGovernanceSpanType;
+  activityInput: Record<string, unknown>;
+  expectedTrigger: string;
+  expectedRule: string;
+  expectedVerdict: LocalGovernanceVerdict;
+  expectedOutcome: LocalGovernanceOutcome;
+  seedRule?: boolean;
+  providerDrivers?: readonly LocalGovernanceProviderDriver[];
+}
+
+export interface LocalGovernanceProviderDriver {
+  provider: string;
+  surface: string;
+  tool: string;
+  event?: string;
+  prompt?: string;
+  promptTemplate?: string;
+}
+
+export interface LocalGovernanceUndrivableTrigger {
+  trigger: string;
+  reason: string;
+}
+
+export interface LocalGovernanceVerdictMatrixSurface {
+  source: string;
+  cases: readonly LocalGovernanceVerdictMatrixCase[];
+  undrivableTriggers: readonly LocalGovernanceUndrivableTrigger[];
+}
+
+export interface OpaDecisionScenario {
+  decision: string;
+  scenarioId: string;
+  expectedVerdict: string;
+  expectedAction: string;
+}
+
+export interface OpaGovernedSurface {
+  scenarioId: string;
+  label: string;
+  activityType: string;
+  semanticType: string;
+  activityInput: Record<string, unknown>;
+}
+
+export interface OpaAliasDecisionCase {
+  scenarioId: string;
+  name: string;
+  decision: string;
+  activityType: string;
+  semanticType: string;
+  activityInput: Record<string, unknown>;
+  expectedVerdict: string;
+  expectedAction: string;
+}
+
+export interface OpaUnsupportedConstrainCase {
+  scenarioId: string;
+  reason: string;
+  activityType: string;
+  semanticType: string;
+  activityInput: Record<string, unknown>;
+  expectedVerdict: string;
+  expectedAction: string;
+}
+
+export interface OpaUnavailableFailClosedCase {
+  scenarioId: string;
+  policyReason: string;
+  activityType: string;
+  semanticType: string;
+  activityInput: Record<string, unknown>;
+  availableVerdict: string;
+  availableAction: string;
+  unavailableVerdict: string;
+  unavailableAction: string;
+  unavailableReason: string;
+}
+
+export interface OpaEvaluationMatrixSurface {
+  source: string;
+  defaultAllowReason: string;
+  decisionScenarios: readonly OpaDecisionScenario[];
+  governedSurfaces: readonly OpaGovernedSurface[];
+  aliasCases: readonly OpaAliasDecisionCase[];
+  unsupportedConstrain: OpaUnsupportedConstrainCase;
+  unavailableFailClosed: OpaUnavailableFailClosedCase;
 }
 
 export interface PolicyEvaluationGuardEntry {
@@ -550,7 +791,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "codex",
     "capability": "usage-cost",
     "tier": "observe-only",
-    "rationale": "Codex usage is recorded when hook envelopes expose it; Core remains canonical for cost policy."
+    "rationale": "Codex token usage is recorded from explicit hook telemetry fields; Core remains canonical for usage and cost policy."
   },
   {
     "provider": "codex",
@@ -634,7 +875,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "cursor",
     "capability": "usage-cost",
     "tier": "observe-only",
-    "rationale": "Assistant response/thought telemetry records usage when Cursor exposes it."
+    "rationale": "Assistant response/thought telemetry records explicit Cursor token fields; subscription spend is not locally metered."
   },
   {
     "provider": "cursor",
@@ -718,7 +959,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "claude-code",
     "capability": "usage-cost",
     "tier": "native",
-    "rationale": "Claude transcript usage extraction and hook telemetry normalize usage fields."
+    "rationale": "Claude transcript usage extraction and hook telemetry normalize token usage fields; spend is not computed locally."
   },
   {
     "provider": "claude-code",
@@ -802,7 +1043,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "mcp",
     "capability": "usage-cost",
     "tier": "observe-only",
-    "rationale": "MCP check spans can include usage from caller payloads; it does not meter hosts directly."
+    "rationale": "MCP check spans can include caller-supplied token usage; it does not meter hosts or compute spend."
   },
   {
     "provider": "mcp",
@@ -886,7 +1127,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "openai-agents-sdk",
     "capability": "usage-cost",
     "tier": "native",
-    "rationale": "Run/tracing processors normalize model usage and cost telemetry where available."
+    "rationale": "Run/tracing processors normalize token usage; spend is not computed locally."
   },
   {
     "provider": "openai-agents-sdk",
@@ -946,13 +1187,13 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "anthropic-agent-sdk",
     "capability": "mcp",
     "tier": "observe-only",
-    "rationale": "MCP server status and elicitation events are observed when the SDK exposes them."
+    "rationale": "MCP server status and elicitation events are observed through explicit Anthropic hook payload fields."
   },
   {
     "provider": "anthropic-agent-sdk",
     "capability": "rules-instructions",
     "tier": "wrapped",
-    "rationale": "Options/workspace changes are governed through Core, not local policy evaluation."
+    "rationale": "Options/project changes are governed through Core, not local policy evaluation."
   },
   {
     "provider": "anthropic-agent-sdk",
@@ -970,7 +1211,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "anthropic-agent-sdk",
     "capability": "usage-cost",
     "tier": "native",
-    "rationale": "Usage messages are normalized into OpenBox telemetry."
+    "rationale": "Usage messages normalize token usage into OpenBox telemetry; spend is not computed locally."
   },
   {
     "provider": "anthropic-agent-sdk",
@@ -1030,7 +1271,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "copilotkit",
     "capability": "mcp",
     "tier": "observe-only",
-    "rationale": "MCP client/server use is observed through tool events when surfaced."
+    "rationale": "MCP client/server use is observed through explicit AG-UI and runtime tool events."
   },
   {
     "provider": "copilotkit",
@@ -1054,7 +1295,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "copilotkit",
     "capability": "usage-cost",
     "tier": "observe-only",
-    "rationale": "AG-UI/runtime events normalize usage when present."
+    "rationale": "AG-UI/runtime events normalize explicit token usage fields; spend is not computed locally."
   },
   {
     "provider": "copilotkit",
@@ -1138,7 +1379,7 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "provider": "n8n",
     "capability": "usage-cost",
     "tier": "native",
-    "rationale": "LLM completion helpers normalize usage telemetry."
+    "rationale": "LLM completion helpers normalize token usage telemetry; spend is not computed locally."
   },
   {
     "provider": "n8n",
@@ -1177,6 +1418,5893 @@ export const PROVIDER_CAPABILITY_MATRIX = [
     "rationale": "Packaged descriptors/templates can be inspected; n8n installation is operator-owned."
   }
 ] as const satisfies readonly ProviderCapabilityEntry[];
+export const GOVERNANCE_CHECKLIST_LIMITATIONS = [
+  {
+    "id": "claude-host-artifacts",
+    "checklistId": "CLAUDE-062",
+    "provider": "claude-code",
+    "boundaryOwner": "host",
+    "capability": "storage/artifacts",
+    "limitation": "Raw Claude host artifacts outside the OpenBox artifact evidence contract are host-owned.",
+    "openboxContract": "OpenBox governs artifacts only through plugin, MCP, hook payload, and explicit SDK evidence fields that enter Core.",
+    "scored": false
+  },
+  {
+    "id": "codex-host-failures",
+    "checklistId": "CODEX-015",
+    "provider": "codex",
+    "boundaryOwner": "host",
+    "capability": "workflow-failed",
+    "limitation": "Arbitrary Codex host crashes outside OpenBox-governed failure events are host-owned.",
+    "openboxContract": "OpenBox records WorkflowFailed for Codex events and hook/runtime failures that pass through the official Codex integration path.",
+    "scored": false
+  },
+  {
+    "id": "codex-host-handoff",
+    "checklistId": "CODEX-019",
+    "provider": "codex",
+    "boundaryOwner": "host",
+    "capability": "handoff",
+    "limitation": "Arbitrary Codex task or agent routing outside OpenBox MCP/tool handoff metadata is host-owned.",
+    "openboxContract": "OpenBox records Handoff from explicit Codex MCP, tool, and a2a metadata fields owned by the integration contract.",
+    "scored": false
+  },
+  {
+    "id": "cursor-host-artifacts",
+    "checklistId": "CURSOR-074",
+    "provider": "cursor",
+    "boundaryOwner": "host",
+    "capability": "storage/artifacts",
+    "limitation": "Raw Cursor host artifacts outside the OpenBox artifact evidence contract are host-owned.",
+    "openboxContract": "OpenBox governs artifacts only through Cursor hook payload, MCP, plugin asset, and explicit SDK evidence fields that enter Core.",
+    "scored": false
+  },
+  {
+    "id": "cursor-unsafe-transform-shape",
+    "checklistId": "CURSOR-077",
+    "provider": "cursor",
+    "boundaryOwner": "host",
+    "capability": "constrain",
+    "limitation": "Cursor outputs with no native safe transform shape cannot be mutated by OpenBox.",
+    "openboxContract": "OpenBox enforces constrain on Cursor outputs with a supported mutation shape and fails closed for unsupported transform shapes.",
+    "scored": false
+  },
+  {
+    "id": "openai-generic-signals",
+    "checklistId": "OAI-010",
+    "provider": "openai-agents-sdk",
+    "boundaryOwner": "host",
+    "capability": "signalreceived",
+    "limitation": "Generic OpenAI Agents signal events outside OpenBox run goal or signal input are not OpenBox-controlled.",
+    "openboxContract": "OpenBox records SignalReceived from run-start, goal, and explicit signal fields in the OpenBox Agents SDK wrapper.",
+    "scored": false
+  },
+  {
+    "id": "mcp-caller-handoff",
+    "checklistId": "MCP-018",
+    "provider": "mcp",
+    "boundaryOwner": "caller",
+    "capability": "handoff",
+    "limitation": "Arbitrary caller handoffs outside explicit OpenBox MCP handoff arguments are caller-owned.",
+    "openboxContract": "OpenBox records Handoff from check_governance and reporting tool arguments that carry explicit handoff metadata.",
+    "scored": false
+  },
+  {
+    "id": "mcp-missing-goal-context",
+    "checklistId": "MCP-050",
+    "provider": "mcp",
+    "boundaryOwner": "caller",
+    "capability": "goal-alignment",
+    "limitation": "MCP goal alignment requires caller-provided OpenBox goal context.",
+    "openboxContract": "OpenBox runs goal alignment for MCP calls that use the required goal context fields and fails closed where strict goal context is required but unresolved.",
+    "scored": false
+  },
+  {
+    "id": "copilotkit-host-handoff",
+    "checklistId": "COPILOT-017",
+    "provider": "copilotkit",
+    "boundaryOwner": "host",
+    "capability": "handoff",
+    "limitation": "Arbitrary CopilotKit or a2a routing outside explicit AG-UI/OpenBox handoff metadata is host-owned.",
+    "openboxContract": "OpenBox records Handoff from governed CopilotKit runtime, tool, and AG-UI metadata fields.",
+    "scored": false
+  },
+  {
+    "id": "n8n-host-failures",
+    "checklistId": "N8N-012",
+    "provider": "n8n",
+    "boundaryOwner": "host",
+    "capability": "workflow-failed",
+    "limitation": "Arbitrary n8n workflow crashes outside the OpenBox n8n failure helper or template metadata are host-owned.",
+    "openboxContract": "OpenBox records WorkflowFailed for n8n helper, node, and template failure events that enter the OpenBox runtime contract.",
+    "scored": false
+  },
+  {
+    "id": "n8n-host-handoff",
+    "checklistId": "N8N-016",
+    "provider": "n8n",
+    "boundaryOwner": "host",
+    "capability": "handoff",
+    "limitation": "Arbitrary n8n routing outside OpenBox n8n workflow or AI Agent handoff metadata is host-owned.",
+    "openboxContract": "OpenBox records Handoff from generated n8n workflow, AI Agent, node, and helper metadata fields.",
+    "scored": false
+  }
+] as const satisfies readonly GovernanceChecklistLimitationEntry[];
+export const GOVERNANCE_CHECKLIST_ROWS = [
+  {
+    "id": "REQ-001",
+    "area": "Universal contract requirements",
+    "group": "Verdicts",
+    "status": "universal",
+    "requirement": "allow",
+    "scored": false
+  },
+  {
+    "id": "REQ-002",
+    "area": "Universal contract requirements",
+    "group": "Verdicts",
+    "status": "universal",
+    "requirement": "constrain",
+    "scored": false
+  },
+  {
+    "id": "REQ-003",
+    "area": "Universal contract requirements",
+    "group": "Verdicts",
+    "status": "universal",
+    "requirement": "require_approval",
+    "scored": false
+  },
+  {
+    "id": "REQ-004",
+    "area": "Universal contract requirements",
+    "group": "Verdicts",
+    "status": "universal",
+    "requirement": "block",
+    "scored": false
+  },
+  {
+    "id": "REQ-005",
+    "area": "Universal contract requirements",
+    "group": "Verdicts",
+    "status": "universal",
+    "requirement": "halt",
+    "scored": false
+  },
+  {
+    "id": "REQ-006",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "WorkflowStarted",
+    "scored": false
+  },
+  {
+    "id": "REQ-007",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "WorkflowCompleted",
+    "scored": false
+  },
+  {
+    "id": "REQ-008",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "WorkflowFailed",
+    "scored": false
+  },
+  {
+    "id": "REQ-009",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "ActivityStarted",
+    "scored": false
+  },
+  {
+    "id": "REQ-010",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "ActivityCompleted",
+    "scored": false
+  },
+  {
+    "id": "REQ-011",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "SignalReceived",
+    "scored": false
+  },
+  {
+    "id": "REQ-012",
+    "area": "Universal contract requirements",
+    "group": "Lifecycle / Events",
+    "status": "universal",
+    "requirement": "Handoff",
+    "scored": false
+  },
+  {
+    "id": "REQ-013",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "llm",
+    "scored": false
+  },
+  {
+    "id": "REQ-014",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "llm_embedding",
+    "scored": false
+  },
+  {
+    "id": "REQ-015",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "llm_tool_call",
+    "scored": false
+  },
+  {
+    "id": "REQ-016",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "file_read",
+    "scored": false
+  },
+  {
+    "id": "REQ-017",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "file_open",
+    "scored": false
+  },
+  {
+    "id": "REQ-018",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "file_write",
+    "scored": false
+  },
+  {
+    "id": "REQ-019",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "file_delete",
+    "scored": false
+  },
+  {
+    "id": "REQ-020",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "shell",
+    "scored": false
+  },
+  {
+    "id": "REQ-021",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "http",
+    "scored": false
+  },
+  {
+    "id": "REQ-022",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "db",
+    "scored": false
+  },
+  {
+    "id": "REQ-023",
+    "area": "Universal contract requirements",
+    "group": "Content / Span Types",
+    "status": "universal",
+    "requirement": "mcp",
+    "scored": false
+  },
+  {
+    "id": "REQ-024",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "http_get",
+    "scored": false
+  },
+  {
+    "id": "REQ-025",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "http_post",
+    "scored": false
+  },
+  {
+    "id": "REQ-026",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "http_put",
+    "scored": false
+  },
+  {
+    "id": "REQ-027",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "http_patch",
+    "scored": false
+  },
+  {
+    "id": "REQ-028",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "http_delete",
+    "scored": false
+  },
+  {
+    "id": "REQ-029",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "http",
+    "scored": false
+  },
+  {
+    "id": "REQ-030",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "llm_completion",
+    "scored": false
+  },
+  {
+    "id": "REQ-031",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "llm_embedding",
+    "scored": false
+  },
+  {
+    "id": "REQ-032",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "llm_tool_call",
+    "scored": false
+  },
+  {
+    "id": "REQ-033",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "database_select",
+    "scored": false
+  },
+  {
+    "id": "REQ-034",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "database_insert",
+    "scored": false
+  },
+  {
+    "id": "REQ-035",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "database_update",
+    "scored": false
+  },
+  {
+    "id": "REQ-036",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "database_delete",
+    "scored": false
+  },
+  {
+    "id": "REQ-037",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "database_query",
+    "scored": false
+  },
+  {
+    "id": "REQ-038",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "file_read",
+    "scored": false
+  },
+  {
+    "id": "REQ-039",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "file_write",
+    "scored": false
+  },
+  {
+    "id": "REQ-040",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "file_open",
+    "scored": false
+  },
+  {
+    "id": "REQ-041",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "file_delete",
+    "scored": false
+  },
+  {
+    "id": "REQ-042",
+    "area": "Universal contract requirements",
+    "group": "Behavior / Rule Triggers",
+    "status": "universal",
+    "requirement": "internal",
+    "scored": false
+  },
+  {
+    "id": "REQ-043",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "OPA/Rego policy",
+    "scored": false
+  },
+  {
+    "id": "REQ-044",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Guardrails",
+    "scored": false
+  },
+  {
+    "id": "REQ-045",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "PII/redaction",
+    "scored": false
+  },
+  {
+    "id": "REQ-046",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Behavior rules",
+    "scored": false
+  },
+  {
+    "id": "REQ-047",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Goal alignment",
+    "scored": false
+  },
+  {
+    "id": "REQ-048",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Approval/HITL",
+    "scored": false
+  },
+  {
+    "id": "REQ-049",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Usage",
+    "scored": false
+  },
+  {
+    "id": "REQ-050",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Cost",
+    "scored": false
+  },
+  {
+    "id": "REQ-051",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Tracing/spans",
+    "scored": false
+  },
+  {
+    "id": "REQ-052",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Audit logs",
+    "scored": false
+  },
+  {
+    "id": "REQ-053",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Session state",
+    "scored": false
+  },
+  {
+    "id": "REQ-054",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Fault handling",
+    "scored": false
+  },
+  {
+    "id": "REQ-055",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "Storage/artifacts",
+    "scored": false
+  },
+  {
+    "id": "REQ-056",
+    "area": "Universal contract requirements",
+    "group": "Governance Subsystems",
+    "status": "universal",
+    "requirement": "KMS/local signing/attestation",
+    "scored": false
+  },
+  {
+    "id": "SDK-001",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create governance sessions",
+    "scored": true
+  },
+  {
+    "id": "SDK-002",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send governance requests to backend/core",
+    "scored": true
+  },
+  {
+    "id": "SDK-003",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Receive backend/core verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-004",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true
+  },
+  {
+    "id": "SDK-005",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true
+  },
+  {
+    "id": "SDK-006",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true
+  },
+  {
+    "id": "SDK-007",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true
+  },
+  {
+    "id": "SDK-008",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true
+  },
+  {
+    "id": "SDK-009",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true
+  },
+  {
+    "id": "SDK-010",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true
+  },
+  {
+    "id": "SDK-011",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true
+  },
+  {
+    "id": "SDK-012",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true
+  },
+  {
+    "id": "SDK-013",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true
+  },
+  {
+    "id": "SDK-014",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true
+  },
+  {
+    "id": "SDK-015",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Handoff",
+    "scored": true
+  },
+  {
+    "id": "SDK-016",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-017",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-018",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-019",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-020",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-021",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-022",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-023",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-024",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-025",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-026",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-027",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-028",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-029",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-030",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-031",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-032",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call as its own trigger",
+    "scored": true
+  },
+  {
+    "id": "SDK-033",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-034",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-035",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-036",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-037",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-038",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-039",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-040",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger",
+    "scored": true
+  },
+  {
+    "id": "SDK-041",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-042",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true
+  },
+  {
+    "id": "SDK-043",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-044",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-045",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-046",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-047",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-048",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true
+  },
+  {
+    "id": "SDK-049",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report usage metadata",
+    "scored": true
+  },
+  {
+    "id": "SDK-050",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward runtime token/cost telemetry; Core owns cost estimation",
+    "scored": true
+  },
+  {
+    "id": "SDK-051",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true
+  },
+  {
+    "id": "SDK-052",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true
+  },
+  {
+    "id": "SDK-053",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true
+  },
+  {
+    "id": "SDK-054",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true
+  },
+  {
+    "id": "SDK-055",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact activity",
+    "scored": true
+  },
+  {
+    "id": "SDK-056",
+    "area": "SDK Direct Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send KMS/local signing/attestation data when applicable",
+    "scored": true
+  },
+  {
+    "id": "CLAUDE-001",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Install through the official Claude Code plugin surface",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-002",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Read Claude Code hook input from stdin",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-003",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Write Claude Code hook output to stdout",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-004",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Claude Code plugin commands",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-005",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Claude Code MCP tools",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-006",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Claude Code skill assets",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-007",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Claude Code agent/subagent assets",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-008",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Project OpenBox instructions into Claude Code plugin content",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-009",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Claude Code session events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-010",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Claude Code lifecycle events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-011",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture PreToolUse events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-012",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture PostToolUse events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-013",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture PermissionRequest events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-014",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture UserPromptSubmit events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-015",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture stop/finalization events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-016",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-017",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-018",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-019",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-020",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-021",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-022",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Handoff",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-023",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans from Claude Code transcript/assistant payloads",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-024",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-025",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-026",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-027",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-028",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-029",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans through web-tool activity",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-030",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans through MCP/tool/shell/HTTP metadata",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-031",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-032",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-033",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-034",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-035",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-036",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-037",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-038",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers via official MCP",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-039",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers via official MCP",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-040",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-041",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-042",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-043",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-044",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-045",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-046",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-047",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger via official MCP",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-048",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-049",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-050",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-051",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-052",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-053",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-054",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-055",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-056",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Collect Claude Code token usage from transcript/final usage telemetry",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-057",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward tokens for Core cost estimation; no local Claude spend calculation",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-058",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-059",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-060",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-061",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-062",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "raw Claude host artifacts outside the OpenBox artifact evidence contract are host-owned",
+    "scored": false,
+    "provider": "claude-code",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "CLAUDE-063",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Pass signed agent identity to Core through the official Claude Code plugin runtime config",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-064",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-065",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-066",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-067",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CLAUDE-068",
+    "area": "Claude Code Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "claude-code"
+  },
+  {
+    "id": "CODEX-001",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Install through the official Codex plugin/config surface",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-002",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Read Codex event input through the Codex integration path",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-003",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Return Codex-compatible enforcement output",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-004",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Codex MCP tools",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-005",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Codex skill assets",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-006",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Project OpenBox instructions into Codex-compatible content",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-007",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Keep each Codex governance session isolated",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-008",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture UserPromptSubmit events",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-009",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture PreToolUse events",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-010",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture PermissionRequest events",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-011",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture PostToolUse events",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-012",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Stop events",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-013",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-014",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-015",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "arbitrary Codex host crashes outside OpenBox-governed failure events are host-owned",
+    "scored": false,
+    "provider": "codex",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "CODEX-016",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-017",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-018",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-019",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "arbitrary Codex task or agent routing outside OpenBox MCP/tool handoff metadata is host-owned",
+    "scored": false,
+    "provider": "codex",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "CODEX-020",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans from Codex assistant payload fields accepted by the integration contract",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-021",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-022",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-023",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-024",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-025",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-026",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans through web-tool activity",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-027",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans through MCP/tool/shell/HTTP metadata",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-028",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-029",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-030",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-031",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-032",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-033",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-034",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-035",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers via official MCP",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-036",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers via official MCP",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-037",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-038",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-039",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-040",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-041",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-042",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-043",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-044",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger via official MCP",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-045",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-046",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-047",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-048",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-049",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-050",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-051",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-052",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-053",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Collect Codex token usage from official event telemetry",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-054",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward tokens for Core cost estimation; no local Codex spend calculation",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-055",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-056",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-057",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-058",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-059",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact metadata carried by OpenBox tool/evidence payloads",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-060",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Pass signed agent identity to Core through the official Codex plugin runtime config",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-061",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-062",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-063",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-064",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CODEX-065",
+    "area": "Codex Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "codex"
+  },
+  {
+    "id": "CURSOR-001",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Install through the official Cursor project-local config surface",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-002",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Read Cursor hook input through generated Cursor adapter code",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-003",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Return Cursor-compatible enforcement output",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-004",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Cursor MCP tools",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-005",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Cursor project-local config assets",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-006",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose Cursor .mdc rule files as instructional content",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-007",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Keep each Cursor governance session isolated",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-008",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture beforeSubmitPrompt events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-009",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture beforeReadFile events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-010",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture beforeShellExecution events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-011",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture beforeMCPExecution events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-012",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture preToolUse events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-013",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture afterAgentResponse events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-014",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture afterAgentThought events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-015",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture afterShellExecution events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-016",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture afterFileEdit events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-017",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture afterMCPExecution events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-018",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture postToolUse events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-019",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture postToolUseFailure events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-020",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture sessionStart events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-021",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture stop events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-022",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture beforeTabFileRead events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-023",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture afterTabFileEdit events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-024",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture sessionEnd events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-025",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture preCompact events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-026",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture subagentStart events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-027",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture subagentStop events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-028",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-029",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-030",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-031",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-032",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-033",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-034",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Handoff",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-035",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans from Cursor assistant payload fields accepted by the integration contract",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-036",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-037",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-038",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-039",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-040",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans through shell/tool metadata",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-041",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans through tool/shell/MCP payloads",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-042",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans through MCP/tool/shell/HTTP metadata",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-043",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-044",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-045",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-046",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-047",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-048",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-049",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-050",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers via official MCP",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-051",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers via official MCP",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-052",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-053",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-054",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-055",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-056",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-057",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-058",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-059",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-060",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers from delete-classified shell/tool metadata",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-061",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-062",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-063",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-064",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-065",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-066",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-067",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-068",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Collect Cursor token usage from official assistant telemetry",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-069",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward tokens for Core cost estimation; no local Cursor spend calculation",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-070",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-071",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-072",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-073",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-074",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "raw Cursor host artifacts outside the OpenBox artifact evidence contract are host-owned",
+    "scored": false,
+    "provider": "cursor",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "CURSOR-075",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Pass signed agent identity to Core through the official Cursor plugin runtime config",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-076",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-077",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "Cursor outputs with no native safe transform shape cannot be mutated; OpenBox must fail closed",
+    "scored": false,
+    "provider": "cursor",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "CURSOR-078",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-079",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-080",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-081",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Use Cursor-native permission deny output for blocked tools",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "CURSOR-082",
+    "area": "Cursor Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Use Cursor-native prompt stop output for blocked prompts",
+    "scored": true,
+    "provider": "cursor"
+  },
+  {
+    "id": "OAI-001",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Integrate through the official OpenAI Agent SDK wrapper path",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-002",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture OpenAI Agent SDK run/session events",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-003",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture model-call events",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-004",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture tool-call events",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-005",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-006",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-007",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-008",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-009",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-010",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "generic OpenAI Agents signal events outside OpenBox run goal/signal input are not OpenBox-controlled",
+    "scored": false,
+    "provider": "openai-agents-sdk",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "OAI-011",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Handoff",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-012",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-013",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-014",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-015",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-016",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-017",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-018",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-019",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic db spans from OpenBox-classified SDK tools",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-020",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture dedicated database events through database tool classification",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-021",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-022",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-023",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-024",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-025",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-026",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-027",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-028",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers through MCP-required check_governance; no host-native embedding claim",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-029",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-030",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-031",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-032",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-033",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-034",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-035",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers through SDK tool classification",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-036",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers through SDK tool classification",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-037",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-038",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers through SDK tool classification",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-039",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-040",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-041",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-042",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-043",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-044",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-045",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-046",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report usage metadata",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-047",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward runtime token/cost telemetry; Core owns cost estimation",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-048",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-049",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-050",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-051",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-052",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact metadata carried by SDK payload contract",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-053",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send KMS/local signing/attestation metadata when configured",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-054",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-055",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-056",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-057",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "OAI-058",
+    "area": "OpenAI Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "openai-agents-sdk"
+  },
+  {
+    "id": "ANTH-001",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Integrate through the official Anthropic Agent SDK wrapper path",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-002",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Anthropic Agent SDK session/message events",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-003",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture model-call events",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-004",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture tool-call events",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-005",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-006",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-007",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-008",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-009",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-010",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-011",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture Handoff",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-012",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-013",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans through Anthropic tool activity",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-014",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans through Anthropic tool activity",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-015",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans through Anthropic tool activity",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-016",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans through Anthropic tool activity",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-017",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans through Anthropic tool activity",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-018",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans through Anthropic web-tool activity",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-019",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans through MCP/tool/shell/HTTP metadata",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-020",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-021",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-022",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-023",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-024",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-025",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-026",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-027",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers through MCP-required check_governance; no host-native embedding claim",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-028",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-029",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-030",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-031",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-032",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-033",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-034",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-035",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-036",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-037",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-038",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-039",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture agent/task events",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-040",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture project/config events through Anthropic Agent SDK payload contract",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-041",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture MCP elicitation events through Anthropic Agent SDK hook payload contract",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-042",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-043",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-044",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-045",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-046",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-047",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-048",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report usage metadata",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-049",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward runtime token/cost telemetry; Core owns cost estimation",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-050",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-051",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-052",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-053",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-054",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact metadata carried by SDK payload contract",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-055",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Pass signed agent identity to Core through the official Anthropic Agent SDK config",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-056",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-057",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-058",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-059",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "ANTH-060",
+    "area": "Anthropic Agent SDK Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "anthropic-agent-sdk"
+  },
+  {
+    "id": "MCP-001",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Accept MCP initialize requests",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-002",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Accept MCP list_tools requests",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-003",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Accept MCP call_tool requests",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-004",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose governance check tool",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-005",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose evidence/reporting tool",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-006",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose approval tool",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-007",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose agent list/get tools",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-008",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose status/doctor tools",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-009",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Return protocol errors for invalid requests",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-010",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-011",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture MCP session events",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-012",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-013",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-014",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-015",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-016",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-017",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-018",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "arbitrary caller handoffs outside explicit OpenBox MCP handoff arguments are caller-owned",
+    "scored": false,
+    "provider": "mcp",
+    "boundaryOwner": "caller"
+  },
+  {
+    "id": "MCP-019",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans from explicit OpenBox MCP LLM arguments",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-020",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-021",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-022",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-023",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-024",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-025",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-026",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans through governance check input",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-027",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-028",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-029",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-030",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-031",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-032",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-033",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers from explicit OpenBox MCP LLM arguments",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-034",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-035",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers from explicit OpenBox MCP tool-call arguments",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-036",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-037",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-038",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-039",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-040",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-041",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-042",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-043",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open as its own trigger",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-044",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-045",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-046",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-047",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-048",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-049",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-050",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "MCP goal alignment cannot run when the caller omits required OpenBox goal context",
+    "scored": false,
+    "provider": "mcp",
+    "boundaryOwner": "caller"
+  },
+  {
+    "id": "MCP-051",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-052",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report token usage metadata carried by OpenBox MCP arguments",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-053",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward OpenBox MCP cost telemetry; Core owns cost estimation",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-054",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-055",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-056",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-057",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact activity through reporting tools",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-058",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Pass signed agent identity from MCP runtime config",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-059",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-060",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-061",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-062",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "MCP-063",
+    "area": "MCP Protocol Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "mcp"
+  },
+  {
+    "id": "COPILOT-001",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Integrate through the official CopilotKit runtime adapter path",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-002",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose public CopilotKit exports and React governance helpers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-003",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Wrap CopilotKit runtime agent routes without host file mutation",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-004",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Provide LangChain/LangGraph middleware governance gates",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-005",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Provide governed tool wrappers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-006",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Provide AG-UI event bridge",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-007",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Keep each CopilotKit governance session isolated",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-008",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture prompt governance events",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-009",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture tool input/output governance events",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-010",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture AG-UI run/message/tool/state/error/interrupt events",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-011",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-012",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-013",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowFailed",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-014",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-015",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-016",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-017",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "arbitrary CopilotKit/a2a routing outside explicit AG-UI/OpenBox handoff metadata is host-owned",
+    "scored": false,
+    "provider": "copilotkit",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "COPILOT-018",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-019",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans through tool classification",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-020",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans through tool classification",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-021",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-022",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-023",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-024",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-025",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-026",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers through MCP-required check_governance; no host-native embedding claim",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-027",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-028",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-029",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans that classify as mcp_tool_call",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-030",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-031",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-032",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-033",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-034",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-035",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-036",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-037",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-038",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-039",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-040",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-041",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-042",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-043",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-044",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-045",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-046",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-047",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-048",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-049",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-050",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-051",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-052",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report CopilotKit token usage metadata",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-053",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward runtime token/cost telemetry; Core owns cost estimation",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-054",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-055",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-056",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-057",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-058",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact activity through governed artifacts",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-059",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send signed agent identity metadata when configured",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-060",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-061",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-062",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-063",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "COPILOT-064",
+    "area": "CopilotKit Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "copilotkit"
+  },
+  {
+    "id": "N8N-001",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Integrate through the official n8n runtime helper path",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-002",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Expose the runtime/n8n public package subpath",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-003",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Declare the generated n8n integration descriptor",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-004",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Ship credentials, nodes, workflow templates, and examples",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-005",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture governance-check helper events",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-006",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture node pre-execute gates",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-007",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture node post-execute observations",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-008",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture LLM completion observations",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-009",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Keep each n8n governance session isolated",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-010",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowStarted",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-011",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture WorkflowCompleted",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-012",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "arbitrary n8n workflow crashes outside the OpenBox n8n failure helper/template metadata are host-owned",
+    "scored": false,
+    "provider": "n8n",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "N8N-013",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityStarted",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-014",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture ActivityCompleted",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-015",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture SignalReceived",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-016",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "limitation",
+    "requirement": "arbitrary n8n routing outside OpenBox n8n workflow or AI Agent handoff metadata is host-owned",
+    "scored": false,
+    "provider": "n8n",
+    "boundaryOwner": "host"
+  },
+  {
+    "id": "N8N-017",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-018",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture shell spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-019",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-020",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-021",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-022",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-023",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-024",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture db spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-025",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-026",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-027",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-028",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans that classify as mcp_tool_call",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-029",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_get triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-030",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_post triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-031",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_put triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-032",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_patch triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-033",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture http_delete triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-034",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture generic http triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-035",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_completion triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-036",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_embedding triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-037",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture llm_tool_call triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-038",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture mcp spans that classify as mcp_tool_call",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-039",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_select triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-040",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_insert triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-041",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_update triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-042",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_delete triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-043",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture database_query triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-044",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_read triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-045",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_write triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-046",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_open triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-047",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture file_delete triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-048",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Capture internal triggers",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-049",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce OPA/Rego-governed verdicts",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-050",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce guardrail-governed verdicts",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-051",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and apply PII/redaction verdicts",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-052",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce behavior-rule verdicts",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-053",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce goal-alignment verdicts",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-054",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send and enforce approval/HITL verdicts",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-055",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report usage metadata",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-056",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Forward runtime token/cost telemetry; Core owns cost estimation",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-057",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Create tracing spans",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-058",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Send audit-log events",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-059",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Maintain session state",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-060",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Fail closed when governance cannot answer",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-061",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Report storage/artifact activity through workflow templates",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-062",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Pass signed agent identity when configured through the n8n runtime helper Core client",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-063",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce allow",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-064",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce constrain",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-065",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce require_approval",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-066",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce block",
+    "scored": true,
+    "provider": "n8n"
+  },
+  {
+    "id": "N8N-067",
+    "area": "n8n Governance",
+    "group": "",
+    "status": "done",
+    "requirement": "Enforce halt",
+    "scored": true,
+    "provider": "n8n"
+  }
+] as const satisfies readonly GovernanceChecklistRowEntry[];
+export const GOVERNANCE_CHECKLIST_SCORE = [
+  {
+    "area": "Universal contract requirements",
+    "scope": "universal",
+    "total": 56,
+    "done": 0,
+    "limitations": 0,
+    "missing": 0,
+    "scoredTotal": 0,
+    "scoredDone": 0,
+    "scoredDonePercent": "n/a"
+  },
+  {
+    "area": "SDK Direct Governance",
+    "scope": "scored",
+    "total": 56,
+    "done": 56,
+    "limitations": 0,
+    "missing": 0,
+    "scoredTotal": 56,
+    "scoredDone": 56,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "Claude Code Governance",
+    "scope": "scored",
+    "total": 68,
+    "done": 67,
+    "limitations": 1,
+    "missing": 0,
+    "scoredTotal": 67,
+    "scoredDone": 67,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "Codex Governance",
+    "scope": "scored",
+    "total": 65,
+    "done": 63,
+    "limitations": 2,
+    "missing": 0,
+    "scoredTotal": 63,
+    "scoredDone": 63,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "Cursor Governance",
+    "scope": "scored",
+    "total": 82,
+    "done": 80,
+    "limitations": 2,
+    "missing": 0,
+    "scoredTotal": 80,
+    "scoredDone": 80,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "OpenAI Agent SDK Governance",
+    "scope": "scored",
+    "total": 58,
+    "done": 57,
+    "limitations": 1,
+    "missing": 0,
+    "scoredTotal": 57,
+    "scoredDone": 57,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "Anthropic Agent SDK Governance",
+    "scope": "scored",
+    "total": 60,
+    "done": 60,
+    "limitations": 0,
+    "missing": 0,
+    "scoredTotal": 60,
+    "scoredDone": 60,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "MCP Protocol Governance",
+    "scope": "scored",
+    "total": 63,
+    "done": 61,
+    "limitations": 2,
+    "missing": 0,
+    "scoredTotal": 61,
+    "scoredDone": 61,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "CopilotKit Governance",
+    "scope": "scored",
+    "total": 64,
+    "done": 63,
+    "limitations": 1,
+    "missing": 0,
+    "scoredTotal": 63,
+    "scoredDone": 63,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "n8n Governance",
+    "scope": "scored",
+    "total": 67,
+    "done": 65,
+    "limitations": 2,
+    "missing": 0,
+    "scoredTotal": 65,
+    "scoredDone": 65,
+    "scoredDonePercent": "100.0%"
+  },
+  {
+    "area": "Implementation Total",
+    "scope": "scored",
+    "total": 583,
+    "done": 572,
+    "limitations": 11,
+    "missing": 0,
+    "scoredTotal": 572,
+    "scoredDone": 572,
+    "scoredDonePercent": "100.0%"
+  }
+] as const satisfies readonly GovernanceChecklistScoreEntry[];
 export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
   {
     "provider": "codex",
@@ -1193,9 +7321,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "subagents-agents",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "Codex Agent/Task-style tool calls are observed as tool or a2a metadata when surfaced by Codex spans.",
-    "openboxSurface": "Codex hook events do not expose a dedicated subagent lifecycle; OpenBox records available agent/task spans where present.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "Codex Agent/Task-style tool calls are observed from explicit tool or a2a metadata in Codex spans.",
+    "openboxSurface": "Codex hook events do not include a dedicated subagent lifecycle; OpenBox records explicit agent/task span metadata carried by the integration contract.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins subagents-agents support claims to explicit agent ownership coverage"
   },
   {
@@ -1203,9 +7331,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "usage-cost",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "Codex hook envelopes when upstream exposes usage metadata; current hook contracts are not metering surfaces.",
-    "openboxSurface": "Codex remains observe-only because host hooks do not meter usage; any upstream usage metadata that appears routes through normalizeOpenBoxUsage and generated nested-provider aliases.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "Codex hook contracts are not metering surfaces; OpenBox reads explicit usage fields from hook envelopes.",
+    "openboxSurface": "Codex remains observe-only because host hooks do not meter usage; token usage routes through normalizeOpenBoxUsage and generated nested-provider aliases, and dollar cost is forwarded only from explicit telemetry.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
   },
   {
@@ -1223,9 +7351,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "usage-cost",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "afterAgentResponse and afterAgentThought assistant telemetry when Cursor exposes usage metadata",
-    "openboxSurface": "Cursor assistant-output mappers route usage through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "afterAgentResponse and afterAgentThought assistant telemetry fields owned by Cursor hook payloads",
+    "openboxSurface": "Cursor assistant-output mappers route explicit token usage through normalizeOpenBoxUsage and buildAssistantOutputSpan; subscription spend is not locally metered.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/cursor-spans.test.ts#afterAgentResponse emits completed assistant-output span"
   },
   {
@@ -1254,8 +7382,8 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "out-of-scope",
     "status": "host-unsupported",
     "referenceSurface": "No host hook surface exists for MCP itself; MCP is a server protocol.",
-    "openboxSurface": "MCP check_governance sends spans to Core when called; there is no host hook lifecycle to pre-gate.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "openboxSurface": "MCP check_governance sends spans to Core through explicit tool calls; there is no host hook lifecycle to pre-gate.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins hook support claims to explicit hook surface coverage"
   },
   {
@@ -1265,7 +7393,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No MCP plugin package is emitted; MCP is the server protocol surface used by host plugins.",
     "openboxSurface": "Plugin component catalogs are owned by Codex, Cursor, and Claude Code adapters, not the MCP server.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
   },
   {
@@ -1275,7 +7403,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-owned-observe-only",
     "referenceSurface": "MCP list_agents, get_agent, and openbox://agent/{agent_id} resources inspect OpenBox agents.",
     "openboxSurface": "MCP can inspect agents and approvals but does not spawn subagents or own multi-agent lifecycle events.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/mcp-server-coverage.test.ts#registers spec-driven MCP tool annotations, prompts, and resource templates"
   },
   {
@@ -1283,9 +7411,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "usage-cost",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "check_governance caller-supplied llm activity_input usage",
+    "referenceSurface": "check_governance caller-provided llm activity_input usage",
     "openboxSurface": "MCP check_governance builds spans with buildSpan, which normalizes llm usage through the shared usage facade.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance normalizes caller LLM usage into the emitted hook span"
   },
   {
@@ -1315,7 +7443,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No OpenAI Agents SDK plugin package is emitted; consumers import public SDK helpers.",
     "openboxSurface": "Public integration exports cover helper functions; host plugin components are intentionally out of scope.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
   },
   {
@@ -1325,7 +7453,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No OpenBox skill file surface is installed for OpenAI Agents SDK; consumers import SDK helpers instead.",
     "openboxSurface": "Public integration exports document helper support; Codex/host skill assets are intentionally out of scope.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
   },
   {
@@ -1333,9 +7461,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "mcp",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "No OpenBox-owned MCP server install; OpenAI Agents SDK MCP tool usage is observed through tracing when the host app exposes spans.",
-    "openboxSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config.; MCP tool calls are observed as tool spans and usage telemetry when tracing exposes mcp_data; no MCP prompts/resources are registered by the SDK.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "No OpenBox-owned MCP server install; OpenAI Agents SDK MCP tool usage is observed through explicit tracing spans.",
+    "openboxSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config. MCP tool calls are observed as tool spans and usage telemetry from explicit mcp_data trace fields; no MCP prompts/resources are registered by the SDK.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
   },
   {
@@ -1354,8 +7482,8 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "referenceSurface": "OpenAI Agents SDK handoffs and agents-as-tools are observed through AgentHooks and tracing processor spans.",
-    "openboxSurface": "Tracing processor observes handoff spans, hosted tools, built-in tools, MCP tools, generations, and usage after the host SDK produces them.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "openboxSurface": "Tracing processor observes explicit handoff, hosted tool, built-in tool, MCP tool, generation, and usage spans produced by the host SDK.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
   },
   {
@@ -1385,7 +7513,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No Anthropic Agent SDK plugin package is emitted; consumers import hook/options helpers.",
     "openboxSurface": "Claude Code plugin packaging is covered under claude-code, not Anthropic Agent SDK.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
   },
   {
@@ -1395,7 +7523,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No OpenBox skill file surface is installed for Anthropic Agent SDK; consumers import hook/options helpers instead.",
     "openboxSurface": "Public integration exports document helper support; host skill assets are intentionally out of scope.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
   },
   {
@@ -1403,9 +7531,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "mcp",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "No OpenBox-owned MCP server install; Anthropic Agent SDK MCP elicitation/status events are observed when hooks expose them.",
-    "openboxSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config.; MCP elicitation and permission events are mapped into OpenBox activities when surfaced by the SDK; no MCP prompts/resources are registered by the SDK.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "No OpenBox-owned MCP server install; Anthropic Agent SDK MCP elicitation/status events are observed through explicit hook payloads.",
+    "openboxSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config. MCP elicitation and permission events are mapped into OpenBox activities from explicit SDK payload fields; no MCP prompts/resources are registered by the SDK.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps task, config, and elicitation verdicts to Agent SDK outputs"
   },
   {
@@ -1413,7 +7541,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "rules-instructions",
     "tier": "wrapped",
     "status": "implemented-through-wrapper",
-    "referenceSurface": "Anthropic Agent SDK options, hooks, message observations, permission events, and workspace-change payloads",
+    "referenceSurface": "Anthropic Agent SDK options, hooks, message observations, permission events, and project-change payloads",
     "openboxSurface": "Build hook/message payloads, observe SDK events, and project returned Core verdicts into Anthropic hook decisions.",
     "closureDecision": "Closed as wrapper parity: OpenBox projects Core-owned governance into the provider's native extension point without claiming ownership of provider internals.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer"
@@ -1425,7 +7553,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-owned-observe-only",
     "referenceSurface": "Anthropic Agent SDK Task/Agent tool events and subagent metadata are observed through hook payloads.",
     "openboxSurface": "Official TaskCreated/TaskCompleted/SubagentStart/SubagentStop hooks and Agent/Task tool payloads are normalized with a2a metadata.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records explicit integration events and telemetry while the provider remains the orchestrator.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#marks Agent/Task and subagent hooks as a2a activity metadata"
   },
   {
@@ -1475,7 +7603,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No CopilotKit plugin package is emitted; consumers wire runtime adapters and UI helpers.",
     "openboxSurface": "Public integration exports cover CopilotKit adapters and approval helpers; host plugin components are intentionally out of scope.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins plugin support claims to explicit packaged component coverage"
   },
   {
@@ -1485,7 +7613,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No OpenBox skill file surface is installed for CopilotKit; consumers wire runtime adapters and approval UI helpers instead.",
     "openboxSurface": "Public integration exports document helper support; host skill assets are intentionally out of scope.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
   },
   {
@@ -1493,9 +7621,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "mcp",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "No OpenBox-owned MCP server install; CopilotKit observes MCP-like client/server tool events through AG-UI/runtime streams when surfaced.",
-    "openboxSurface": "Host application owns MCP server/client configuration; CopilotKit adapters do not install MCP config.; AG-UI lifecycle, tool, state, error, and interrupt events are mapped to OpenBox activities; MCP prompts/resources are not registered by CopilotKit.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "No OpenBox-owned MCP server install; CopilotKit observes MCP-like client/server tool events through explicit AG-UI/runtime events.",
+    "openboxSurface": "Host application owns MCP server/client configuration; CopilotKit adapters do not install MCP config. AG-UI lifecycle, tool, state, error, and interrupt events are mapped to OpenBox activities; MCP prompts/resources are not registered by CopilotKit.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#maps AG-UI run, tool, message, state, error, and interrupt events through OpenBox gates"
   },
   {
@@ -1514,8 +7642,8 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "referenceSurface": "CopilotKit agent runner lifecycle and a2a tool metadata are observed through runtime, middleware, and AG-UI adapters.",
-    "openboxSurface": "CopilotKit AG-UI/run lifecycle and governed tool calls map subagent_type/tool metadata to OpenBox activities when surfaced.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "openboxSurface": "CopilotKit AG-UI/run lifecycle and governed tool calls map explicit subagent_type/tool metadata to OpenBox activities.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
   },
   {
@@ -1523,9 +7651,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "usage-cost",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present",
-    "openboxSurface": "CopilotKit middleware and AG-UI events route usage metadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "referenceSurface": "LangChain/CopilotKit model end events and AG-UI runtime token usage fields",
+    "openboxSurface": "CopilotKit middleware and AG-UI events route explicit usage metadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry from explicit integration fields while the provider remains the orchestrator.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#normalizes usage and cost from AG-UI run completion events"
   },
   {
@@ -1575,7 +7703,7 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "status": "host-unsupported",
     "referenceSurface": "No OpenBox skill file surface is installed for n8n; OpenBox ships node descriptors and workflow templates instead.",
     "openboxSurface": "N8N_INTEGRATION_SURFACE documents credentials, nodes, templates, and examples rather than host skill files.",
-    "closureDecision": "Closed as out-of-scope: the reference provider does not expose an OpenBox-owned surface for this capability.",
+    "closureDecision": "Closed as out-of-scope: the provider has no OpenBox-owned surface for this capability.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins skill support claims to explicit skill surface coverage"
   },
   {
@@ -1593,9 +7721,9 @@ export const REFERENCE_PROVIDER_PARITY_CLOSURES = [
     "capability": "subagents-agents",
     "tier": "observe-only",
     "status": "host-owned-observe-only",
-    "referenceSurface": "n8n governed AI Agent workflow template and node descriptors expose AI Agent workflow surfaces.",
+    "referenceSurface": "n8n governed AI Agent workflow template and node descriptors carry AI Agent workflow surfaces.",
     "openboxSurface": "OpenBox Governance, Guardrails, Approval/HITL, and governed AI Agent descriptors observe node/tool/LLM lifecycle around n8n AI Agent workflows.",
-    "closureDecision": "Closed as observe-only parity: OpenBox records provider events or telemetry that the reference surface exposes while the provider remains the orchestrator.",
+    "closureDecision": "Closed as observe-only parity: OpenBox records explicit integration events and telemetry while the provider remains the orchestrator.",
     "guardTest": "tests/unit/runtime-adapters-coverage.test.ts#exports the spec-generated packaged n8n integration surface"
   },
   {
@@ -1636,8 +7764,8 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "promotionDecision": "retain-host-owned-boundary",
-    "runtimeEvidence": "Codex runtime maps available Agent or Task-style tool spans into tool or a2a metadata when hook and span payloads expose them.",
-    "technicalBoundary": "Codex owns subagent orchestration and exposes no dedicated subagent lifecycle hook, so OpenBox can only observe surfaced telemetry.",
+    "runtimeEvidence": "Codex runtime maps explicit Agent or Task-style tool spans into tool or a2a metadata carried by hook and span payloads.",
+    "technicalBoundary": "Codex owns subagent orchestration and has no dedicated subagent lifecycle hook, so OpenBox observes only explicit integration telemetry.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins subagents-agents support claims to explicit agent ownership coverage"
   },
   {
@@ -1646,8 +7774,8 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "promotionDecision": "retain-host-owned-boundary",
-    "runtimeEvidence": "Codex usage guards and normalizeOpenBoxUsage consume direct and nested provider usage aliases when upstream hook envelopes expose usage metadata.",
-    "technicalBoundary": "Codex hook contracts are not metering APIs; the host owns model execution and cost collection, so OpenBox cannot meter locally.",
+    "runtimeEvidence": "Codex usage guards and normalizeOpenBoxUsage consume direct and nested provider token aliases from explicit hook envelope usage metadata.",
+    "technicalBoundary": "Codex hook contracts are not metering APIs; the host owns model execution, so OpenBox collects explicit token usage and never computes spend locally.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
   },
   {
@@ -1666,8 +7794,8 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "promotionDecision": "retain-host-owned-boundary",
-    "runtimeEvidence": "Cursor assistant-output mappers route afterAgentResponse and afterAgentThought usage metadata through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
-    "technicalBoundary": "Cursor owns model execution and cost telemetry; OpenBox observes exposed assistant metadata and leaves spend enforcement to Core.",
+    "runtimeEvidence": "Cursor assistant-output mappers route afterAgentResponse and afterAgentThought token usage metadata through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+    "technicalBoundary": "Cursor owns model execution and subscription billing; OpenBox collects surfaced token usage and never computes Cursor spend locally.",
     "guardTest": "tests/unit/cursor-spans.test.ts#afterAgentResponse emits completed assistant-output span"
   },
   {
@@ -1776,7 +7904,7 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "promotionDecision": "retain-host-owned-boundary",
-    "runtimeEvidence": "OpenAI tracing processor observes MCP tool spans, hosted tools, generations, handoffs, guardrails, and usage when the host SDK exposes them.",
+    "runtimeEvidence": "OpenAI tracing processor observes explicit MCP tool spans, hosted tools, generations, handoffs, guardrails, and usage from the host SDK.",
     "technicalBoundary": "Host applications own MCP server and client configuration; OpenBox SDK helpers do not install or pre-gate that host-owned MCP setup.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
   },
@@ -1846,8 +7974,8 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "promotionDecision": "retain-host-owned-boundary",
-    "runtimeEvidence": "Anthropic Agent SDK hooks map MCP elicitation and permission events into OpenBox activities when surfaced by the SDK.",
-    "technicalBoundary": "Host applications own MCP client and server configuration; OpenBox helpers observe exposed events but do not install MCP config.",
+    "runtimeEvidence": "Anthropic Agent SDK hooks map explicit MCP elicitation and permission events into OpenBox activities.",
+    "technicalBoundary": "Host applications own MCP client and server configuration; OpenBox helpers observe explicit hook events but do not install MCP config.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps task, config, and elicitation verdicts to Agent SDK outputs"
   },
   {
@@ -1887,7 +8015,7 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "status": "implemented-through-wrapper",
     "promotionDecision": "max-through-wrapper",
     "runtimeEvidence": "Anthropic Agent SDK emits prompt, tool, assistant-output, session, synthetic model-usage, and failure spans with provider source attribution.",
-    "technicalBoundary": "OpenBox normalizes hook and message telemetry it receives; provider-owned trace events not exposed by hooks remain outside SDK control.",
+    "technicalBoundary": "OpenBox normalizes hook and message telemetry it receives; provider-owned trace events outside hook payloads remain outside SDK control.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#records StopFailure as observe-only failed workflow telemetry"
   },
   {
@@ -1956,8 +8084,8 @@ export const REFERENCE_PROVIDER_RUNTIME_AUDIT = [
     "tier": "observe-only",
     "status": "host-owned-observe-only",
     "promotionDecision": "retain-host-owned-boundary",
-    "runtimeEvidence": "CopilotKit AG-UI and governed tool flows map subagent_type and tool metadata to OpenBox activities when the runtime surfaces them.",
-    "technicalBoundary": "CopilotKit and the host app own agent runner orchestration; OpenBox observes exposed lifecycle and tool metadata only.",
+    "runtimeEvidence": "CopilotKit AG-UI and governed tool flows map explicit subagent_type and tool metadata to OpenBox activities.",
+    "technicalBoundary": "CopilotKit and the host app own agent runner orchestration; OpenBox observes explicit lifecycle and tool metadata only.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
   },
   {
@@ -2199,66 +8327,66 @@ export const PROVIDER_EVENT_CATALOG = [
   {
     "provider": "anthropic-agent-sdk",
     "upstreamKnownEvents": [
-      "Setup",
-      "SessionStart",
-      "InstructionsLoaded",
-      "UserPromptSubmit",
-      "UserPromptExpansion",
-      "MessageDisplay",
       "PreToolUse",
-      "PermissionRequest",
-      "PermissionDenied",
       "PostToolUse",
       "PostToolUseFailure",
       "PostToolBatch",
-      "SubagentStart",
-      "SubagentStop",
-      "TaskCreated",
-      "TaskCompleted",
-      "Stop",
-      "StopFailure",
-      "TeammateIdle",
       "Notification",
-      "ConfigChange",
-      "CwdChanged",
-      "FileChanged",
-      "WorktreeCreate",
-      "WorktreeRemove",
-      "PreCompact",
-      "PostCompact",
+      "UserPromptSubmit",
+      "UserPromptExpansion",
+      "SessionStart",
       "SessionEnd",
-      "Elicitation",
-      "ElicitationResult"
-    ],
-    "generatedAdapterEvents": [
-      "Setup",
-      "SessionStart",
-      "InstructionsLoaded",
-      "UserPromptSubmit",
-      "UserPromptExpansion",
-      "Notification",
-      "PreToolUse",
-      "PermissionRequest",
-      "PermissionDenied",
-      "PostToolUse",
-      "PostToolUseFailure",
-      "PostToolBatch",
       "Stop",
       "StopFailure",
       "SubagentStart",
       "SubagentStop",
-      "TaskCreated",
-      "TaskCompleted",
-      "TeammateIdle",
-      "ConfigChange",
-      "CwdChanged",
-      "FileChanged",
-      "WorktreeRemove",
       "PreCompact",
       "PostCompact",
-      "SessionEnd",
+      "PermissionRequest",
+      "PermissionDenied",
+      "Setup",
+      "TeammateIdle",
+      "TaskCreated",
+      "TaskCompleted",
       "Elicitation",
       "ElicitationResult",
+      "ConfigChange",
+      "WorktreeCreate",
+      "WorktreeRemove",
+      "InstructionsLoaded",
+      "CwdChanged",
+      "FileChanged",
+      "MessageDisplay"
+    ],
+    "generatedAdapterEvents": [
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PostToolBatch",
+      "Notification",
+      "UserPromptSubmit",
+      "UserPromptExpansion",
+      "SessionStart",
+      "SessionEnd",
+      "Stop",
+      "StopFailure",
+      "SubagentStart",
+      "SubagentStop",
+      "PreCompact",
+      "PostCompact",
+      "PermissionRequest",
+      "PermissionDenied",
+      "Setup",
+      "TeammateIdle",
+      "TaskCreated",
+      "TaskCompleted",
+      "Elicitation",
+      "ElicitationResult",
+      "ConfigChange",
+      "WorktreeRemove",
+      "InstructionsLoaded",
+      "CwdChanged",
+      "FileChanged",
       "MessageDisplay",
       "WorktreeCreate"
     ],
@@ -2273,7 +8401,7 @@ export const PROVIDER_PLUGIN_COMPONENTS = [
         "name": "manifest",
         "tier": "native",
         "path": ".codex-plugin/plugin.json",
-        "reason": "Required Codex plugin manifest."
+        "reason": "Required Codex plugin manifest with the canonical mcpServers pointer."
       },
       {
         "name": "marketplace",
@@ -2303,7 +8431,13 @@ export const PROVIDER_PLUGIN_COMPONENTS = [
         "name": "mcp",
         "tier": "native",
         "path": ".mcp.json",
-        "reason": "Plugin-bundled MCP server config."
+        "reason": "Plugin-bundled MCP server config referenced by mcpServers."
+      },
+      {
+        "name": "bin",
+        "tier": "native",
+        "path": "bin/openbox-cli.mjs",
+        "reason": "Plugin-local OpenBox CLI runner for relative MCP launch."
       },
       {
         "name": "agents-md",
@@ -2498,6 +8632,257 @@ export const PROVIDER_PLUGIN_COMPONENTS = [
     ]
   }
 ] as const satisfies readonly ProviderPluginComponentCatalogEntry[];
+export const CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE = {
+  "source": "specs/typespec/govern/capabilities.tsp",
+  "audit": {
+    "capturedAt": "2026-06-17",
+    "installedClaudeCodeVersion": "2.1.179 (Claude Code)",
+    "officialDocs": [
+      "https://code.claude.com/docs/en/hooks",
+      "https://code.claude.com/docs/en/plugins-reference",
+      "https://code.claude.com/docs/en/plugins",
+      "https://code.claude.com/docs/en/mcp",
+      "https://code.claude.com/docs/en/skills",
+      "https://code.claude.com/docs/en/commands",
+      "https://code.claude.com/docs/en/agents",
+      "https://code.claude.com/docs/en/settings",
+      "https://code.claude.com/docs/en/tools-reference",
+      "https://code.claude.com/docs/en/channels",
+      "https://code.claude.com/docs/en/changelog"
+    ],
+    "auditedSdkSurfaces": [
+      "@openbox-ai/openbox-sdk/runtime/claude-code",
+      "@openbox-ai/openbox-sdk/runtime/mcp",
+      "@openbox-ai/openbox-sdk/runtime/cursor",
+      "@openbox-ai/openbox-sdk/copilotkit",
+      "@openbox-ai/openbox-sdk/copilotkit/react",
+      "apps/extension",
+      "skill",
+      "example/n8n"
+    ]
+  },
+  "surfaces": [
+    {
+      "surface": "hooks",
+      "status": "implement_now",
+      "notes": "Generated from TypeSpec and installed by the Claude Code plugin."
+    },
+    {
+      "surface": "skills",
+      "status": "implement_now",
+      "notes": "OpenBox skill ships under plugin skills/openbox."
+    },
+    {
+      "surface": "commands",
+      "status": "implement_now",
+      "notes": "Compatibility command markdown files remain for Claude slash entrypoints."
+    },
+    {
+      "surface": "agents",
+      "status": "implement_now",
+      "notes": "OpenBox reviewer agent ships in the plugin."
+    },
+    {
+      "surface": "instructions",
+      "status": "implement_now",
+      "notes": "CLAUDE/AGENTS-style governance instructions are rendered from the shared OpenBox rules projection renderer."
+    },
+    {
+      "surface": "MCP",
+      "status": "implement_now",
+      "notes": "OpenBox MCP server exposes status, doctor, approvals, agents, rules, policies, and governance checks."
+    },
+    {
+      "surface": "plugin settings",
+      "status": "diagnose_only",
+      "notes": "Only agent/subagentStatusLine are currently supported by Claude Code plugin settings."
+    },
+    {
+      "surface": "monitors",
+      "status": "diagnose_only",
+      "notes": "Documented as opt-in because monitors run unsandboxed and project-scope plugins do not load them."
+    },
+    {
+      "surface": "LSP",
+      "status": "explicit_out_of_scope",
+      "notes": "No OpenBox language server exists; official LSP plugins should be installed separately."
+    },
+    {
+      "surface": "bin",
+      "status": "implement_now",
+      "notes": "Plugin ships a project-local Node runner for hooks, MCP, and diagnostics; it resolves a project-local SDK package."
+    },
+    {
+      "surface": "managed settings",
+      "status": "diagnose_only",
+      "notes": "Enterprise policy belongs to managed Claude Code deployment, not SDK mutation."
+    },
+    {
+      "surface": "channels",
+      "status": "diagnose_only",
+      "notes": "Research preview MCP push channel surface; standard MCP remains the connector path."
+    },
+    {
+      "surface": "built-in tool permissions",
+      "status": "implement_now",
+      "notes": "PreToolUse/PermissionRequest routing covers current built-in tool names and dynamic mcp__ tools."
+    }
+  ],
+  "sdkCapabilities": [
+    {
+      "capability": "workflow lifecycle start",
+      "sdkSurface": "BaseGovernedSession.workflowStarted() / WorkflowStarted",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "SessionStart opens the workflow and records the Claude session boundary.",
+      "tests": [
+        "tests/unit/runtime-claude-code-mappers.test.ts",
+        "tests/hook-integration/claude-code-hook-events.test.ts"
+      ]
+    },
+    {
+      "capability": "workflow lifecycle complete",
+      "sdkSurface": "BaseGovernedSession.workflowCompleted() / WorkflowCompleted",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Stop completes workflows with no background tasks; SessionEnd remains opt-in shutdown telemetry.",
+      "tests": [
+        "tests/unit/runtime-claude-code-mappers.test.ts",
+        "tests/hook-integration/claude-code-hook-stdin.test.ts"
+      ]
+    },
+    {
+      "capability": "workflow lifecycle failure",
+      "sdkSurface": "BaseGovernedSession.workflowFailed() / WorkflowFailed",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "StopFailure emits observe telemetry and then records WorkflowFailed best-effort.",
+      "tests": [
+        "tests/unit/runtime-claude-code-mappers.test.ts",
+        "tests/hook-integration/claude-code-hook-stdin.test.ts"
+      ]
+    },
+    {
+      "capability": "split-stage activity governance",
+      "sdkSurface": "BaseGovernedSession.openActivity().complete()",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "PreToolUse opens a stable activity and PostToolUse/PostToolUseFailure closes it with output/duration.",
+      "tests": [
+        "tests/unit/runtime-claude-code-mappers.test.ts",
+        "tests/unit/payload-shape.test.ts"
+      ]
+    },
+    {
+      "capability": "single-stage activity gates",
+      "sdkSurface": "BaseGovernedSession.activity(ActivityStarted|ActivityCompleted)",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Prompts, permission requests, compaction, config changes, tasks, final output, subagents, and MCP elicitation map to activity gates.",
+      "tests": [
+        "tests/unit/claude-hook-handler-coverage.test.ts",
+        "tests/hook-integration/claude-code-hook-stdin.test.ts"
+      ]
+    },
+    {
+      "capability": "goal and signal telemetry",
+      "sdkSurface": "BaseGovernedSession.activity(SignalReceived)",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "UserPromptSubmit emits the generated goal signal for AGE goal capture before the prompt gate; assistant-output spans are emitted only on completed assistant output.",
+      "tests": [
+        "tests/unit/runtime-claude-code-mappers.test.ts",
+        "tests/unit/payload-shape.test.ts"
+      ]
+    },
+    {
+      "capability": "approval lifecycle",
+      "sdkSurface": "WorkflowVerdict.arm=require_approval, pollApproval, inline/defer approval modes",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Claude hook rendering supports remote polling, inline ask, defer, and fail-closed deny/block shapes for decision-capable hooks.",
+      "tests": [
+        "tests/hook-integration/claude-code-hook-stdin.test.ts",
+        "tests/unit/runtime-adapters-coverage.test.ts"
+      ]
+    },
+    {
+      "capability": "guardrail transforms and constrain verdicts",
+      "sdkSurface": "WorkflowVerdict.arm=constrain, guardrailsResult.redactedInput, updated output rendering",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Claude verdict renderer preserves allow+updatedInput, additionalContext, updatedToolOutput, and elicitation accept content where Claude supports mutation.",
+      "tests": [
+        "tests/unit/runtime-adapters-coverage.test.ts",
+        "tests/unit/payload-shape.test.ts"
+      ]
+    },
+    {
+      "capability": "halt/block session state",
+      "sdkSurface": "WorkflowVerdict.arm=block|halt, session halted cache",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Decision-capable hooks return Claude-native block/deny/continue=false responses and mark halted sessions for later hooks.",
+      "tests": [
+        "tests/hook-integration/claude-code-hook-stdin.test.ts",
+        "tests/unit/runtime-claude-code-mappers.test.ts"
+      ]
+    },
+    {
+      "capability": "behavior-rule spans and hook-trigger evaluation",
+      "sdkSurface": "GovernedPayload.spans, hook_trigger re-evaluation",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Prompt, shell, file, HTTP, and MCP tool paths attach spans so behavior rules can match the same shapes used by other SDK adapters.",
+      "tests": [
+        "tests/hook-integration/claude-code-span-content.test.ts",
+        "tests/unit/runtime-claude-code-mappers.test.ts"
+      ]
+    },
+    {
+      "capability": "MCP connector and governance tools",
+      "sdkSurface": "@openbox-ai/openbox-sdk/runtime/mcp",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Plugin .mcp.json points at the bundled project-local Node runner for mcp serve; MCP exposes status, doctor, approvals, agent/rule/policy reads, and check_governance.",
+      "tests": [
+        "tests/unit/mcp-server-coverage.test.ts",
+        "tests/hook-integration/mcp-protocol.test.ts"
+      ]
+    },
+    {
+      "capability": "plugin packaging and diagnostics",
+      "sdkSurface": "@openbox-ai/openbox-sdk/runtime/claude-code plugin helpers",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Export/install packages skill, commands, agent, hooks, MCP, diagnostics, project-local bin runner/doctor shim, and explicit settings/monitor/LSP inventory.",
+      "tests": [
+        "tests/unit/claude-code-plugin.test.ts",
+        "tests/hook-integration/claude-code-install.test.ts"
+      ]
+    },
+    {
+      "capability": "project-scoped runtime configuration",
+      "sdkSurface": "Claude .claude-hooks config loader and plugin install",
+      "claudeCodeTreatment": "implement_now",
+      "coverage": "Claude hooks read only project .claude-hooks config/env plus process env; host-level Claude config is not mutated.",
+      "tests": [
+        "tests/hook-integration/claude-code-install.test.ts",
+        "tests/unit/logging-and-config-coverage.test.ts"
+      ]
+    },
+    {
+      "capability": "CopilotKit-specific UI/runtime wrappers",
+      "sdkSurface": "@openbox-ai/openbox-sdk/copilotkit and /copilotkit/react",
+      "claudeCodeTreatment": "explicit_out_of_scope",
+      "coverage": "Claude Code does not embed CopilotKit UI wrappers; it maps the same governance primitives through hooks and MCP instead.",
+      "tests": [
+        "tests/unit/copilotkit-pure-coverage.test.ts",
+        "tests/unit/runtime-claude-code-mappers.test.ts"
+      ]
+    },
+    {
+      "capability": "non-Claude presets",
+      "sdkSurface": "PRESET_MANIFEST presets for LangChain, Cursor, n8n, Temporal, etc.",
+      "claudeCodeTreatment": "diagnose_only",
+      "coverage": "SDK-wide presets are audited as broader SDK capability, but Claude Code only implements host-reachable Claude events.",
+      "tests": [
+        "tests/unit/claude-code-governance-matrix.test.ts"
+      ]
+    }
+  ]
+} as const satisfies ClaudeCodeGovernanceAuditSurface;
+export const CLAUDE_CODE_GOVERNANCE_AUDIT = CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.audit;
+export const CLAUDE_CODE_SURFACE_MATRIX = CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.surfaces;
+export const CLAUDE_CODE_SDK_CAPABILITY_MATRIX = CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.sdkCapabilities;
 export const PUBLIC_INTEGRATION_SUPPORT = [
   {
     "integration": "openai-agents-sdk",
@@ -2550,6 +8935,8 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
       "emitN8nNodePreExecute",
       "emitN8nNodePostExecute",
       "emitN8nLlmCompletion",
+      "emitN8nGovernanceCheck",
+      "buildN8nGovernanceCheckPayload",
       "OPENBOX_N8N_INTEGRATION",
       "listOpenBoxN8nCredentials",
       "listOpenBoxN8nNodes",
@@ -2561,7 +8948,7 @@ export const PUBLIC_INTEGRATION_SUPPORT = [
       "getOpenBoxN8nExample",
       "verifyOpenBoxN8nIntegrationSurface"
     ],
-    "notes": "Low-level primitives plus packaged credentials, nodes, and workflow template descriptors."
+    "notes": "Low-level primitives, semantic governance-check helper, packaged credentials, nodes, and workflow template descriptors."
   }
 ] as const satisfies readonly PublicIntegrationSupportEntry[];
 export const GOAL_SIGNAL_GUARDS = [
@@ -2607,7 +8994,7 @@ export const GOAL_SIGNAL_GUARDS = [
     "entrySurface": "UserPromptSubmit",
     "signalActivity": "user_prompt",
     "firstGovernedSurface": "PromptSubmission",
-    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits prompt submit gate after the goal signal without prompt spans",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits prompt submit gate after the goal signal with LLM hook spans",
     "orderGuarantee": "SignalReceived user_prompt precedes PromptSubmission"
   },
   {
@@ -2633,73 +9020,73 @@ export const USAGE_COST_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
     "tier": "observe-only",
-    "usageSurface": "Codex hook envelopes when upstream exposes usage metadata; current hook contracts are not metering surfaces.",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "Codex usage remains host-owned observe-only; when upstream usage metadata appears, shared normalizeOpenBoxUsage consumes direct and nested provider usage aliases.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Codex never computes spend locally.",
+    "usageSurface": "Codex hook envelope usage fields; current hook contracts are not metering surfaces.",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
+    "sharedNormalizer": "Codex usage remains host-owned observe-only; shared normalizeOpenBoxUsage consumes direct and nested provider token aliases from explicit telemetry fields.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Codex reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins usage-cost support claims to explicit usage guard coverage"
   },
   {
     "provider": "cursor",
     "tier": "observe-only",
-    "usageSurface": "afterAgentResponse and afterAgentThought assistant telemetry when Cursor exposes usage metadata",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "Cursor assistant-output mappers route usage through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Cursor observation never enforces spend locally.",
+    "usageSurface": "afterAgentResponse and afterAgentThought assistant telemetry fields owned by Cursor hook payloads",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
+    "sharedNormalizer": "Cursor assistant-output mappers route token usage through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Cursor reports token usage and never computes subscription spend locally.",
     "guardTest": "tests/unit/cursor-spans.test.ts#afterAgentResponse emits completed assistant-output span"
   },
   {
     "provider": "claude-code",
     "tier": "native",
     "usageSurface": "Claude transcript assistant turns, Stop, MessageDisplay, and final batch usage signals",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests, cost_usd",
-    "sharedNormalizer": "Claude transcript extraction combines records with combineOpenBoxUsage and emits spans through buildAssistantOutputSpan.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Claude Code only normalizes telemetry.",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
+    "sharedNormalizer": "Claude transcript extraction combines token records with combineOpenBoxUsage and emits spans through buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Claude Code reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/runtime-claude-code-mappers.test.ts#message-display aggregates unique Claude assistant message usage without double-counting duplicate transcript rows"
   },
   {
     "provider": "mcp",
     "tier": "observe-only",
-    "usageSurface": "check_governance caller-supplied llm activity_input usage",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "MCP check_governance builds spans with buildSpan, which normalizes llm usage through the shared usage facade.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; MCP does not meter hosts directly.",
+    "usageSurface": "check_governance caller-provided llm activity_input usage",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests; cost_usd is forwarded from explicit caller telemetry or an OpenBox estimate.",
+    "sharedNormalizer": "MCP check_governance builds spans with buildSpan, which normalizes token usage through the shared usage facade.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; MCP reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance normalizes caller LLM usage into the emitted hook span"
   },
   {
     "provider": "openai-agents-sdk",
     "tier": "native",
     "usageSurface": "run results, rawResponses, tracing processor generations, hosted/built-in tool observation",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
     "sharedNormalizer": "OpenAI Agents SDK payload helpers route rawResponses through normalizeOpenBoxUsage and buildAssistantOutputSpan.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; SDK helpers only report telemetry.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; OpenAI Agents SDK reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#normalizes raw response usage through the shared usage facade"
   },
   {
     "provider": "anthropic-agent-sdk",
     "tier": "native",
     "usageSurface": "query result messages, usage_EXPERIMENTAL messages, per-model result telemetry",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests, cost_usd",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
     "sharedNormalizer": "Anthropic Agent SDK payload helpers route usage and modelUsage through normalizeOpenBoxUsage and combineOpenBoxUsage.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; SDK helpers only normalize telemetry.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; Anthropic Agent SDK reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#emits per-model synthetic usage spans for multi-model result telemetry"
   },
   {
     "provider": "copilotkit",
     "tier": "observe-only",
-    "usageSurface": "LangChain/CopilotKit model end events and AG-UI runtime events when usage metadata is present",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "CopilotKit middleware and AG-UI events route usage metadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit only observes model usage.",
+    "usageSurface": "LangChain/CopilotKit model end events and AG-UI runtime token usage fields",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
+    "sharedNormalizer": "CopilotKit middleware and AG-UI events route token usage metadata through openBoxUsageTelemetryFields and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; CopilotKit reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#normalizes usage and cost from AG-UI run completion events"
   },
   {
     "provider": "n8n",
     "tier": "native",
     "usageSurface": "emitN8nLlmCompletion and packaged OpenBox governed AI Agent workflow telemetry",
-    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests, cost_usd when present",
-    "sharedNormalizer": "n8n helpers route LLM completion usage through assistantOutputTelemetryFields and buildAssistantOutputSpan.",
-    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; n8n nodes only normalize telemetry.",
+    "normalizedFields": "input_tokens, output_tokens, total_tokens, cache tokens, web_search_requests; cost_usd is forwarded from explicit upstream telemetry or an OpenBox estimate.",
+    "sharedNormalizer": "n8n helpers route LLM completion token usage through assistantOutputTelemetryFields and buildAssistantOutputSpan.",
+    "costPolicyBoundary": "OpenBox Core remains the source of truth for usage/cost policy; n8n reports token usage and never computes spend locally.",
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
   }
 ] as const satisfies readonly UsageCostCapabilityGuardEntry[];
@@ -2798,7 +9185,7 @@ export const USAGE_NORMALIZATION_SURFACE = {
     "providerData.response.finish_reason",
     "providerData.response.finishReason"
   ],
-  "policyBoundary": "OpenBox Core remains the source of truth for usage/cost policy. SDKs normalize telemetry fields only and never locally enforce spend."
+  "policyBoundary": "OpenBox Core remains the source of truth for usage/cost policy. SDKs normalize token telemetry, forward explicit cost fields, and never compute or locally enforce spend."
 } as const satisfies UsageNormalizationSurface;
 export const TRACING_CAPABILITY_GUARDS = [
   {
@@ -2883,7 +9270,7 @@ export const HITL_CAPABILITY_GUARDS = [
     "nativeSurface": "Codex permission ask/defer hook output",
     "fallbackSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/codex-runtime.test.ts#maps approval-required PreToolUse verdicts to Codex permission ask",
-    "failClosedBehavior": "Permission gates ask/defer when available and otherwise deny or block unsafe continuation."
+    "failClosedBehavior": "Permission gates use native ask/defer support and otherwise deny or block unsafe continuation."
   },
   {
     "provider": "cursor",
@@ -3030,6 +9417,2005 @@ export const GUARDRAIL_CAPABILITY_GUARDS = [
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute guardrail constraints keep redaction and source attribution"
   }
 ] as const satisfies readonly GuardrailCapabilityGuardEntry[];
+export const BEHAVIOR_RULE_CAPABILITY_GUARDS = [
+  {
+    "provider": "codex",
+    "tier": "native",
+    "triggerSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse hook stdin events",
+    "spanCoverage": "Generated Codex local governance drivers cover LLM, shell, file, HTTP, MCP, database, and local-only trigger spans.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; Codex sends source-attributed spans and action payloads only.",
+    "verdictEnforcement": "Codex projects Core behavior-rule verdicts into allow, deny, ask/defer, block, or halt host outcomes without local predicate evaluation.",
+    "localStackProof": "tests/hook-integration/codex-hook-local-stack.test.ts drives generated Codex hook-stdin governance cases through local Core.",
+    "guardTest": "tests/hook-integration/codex-hook-local-stack.test.ts#drives generated Codex hook-stdin governance cases through local Core"
+  },
+  {
+    "provider": "cursor",
+    "tier": "native",
+    "triggerSurfaces": "beforeSubmitPrompt, beforeShellExecution, beforeReadFile, beforeMCPExecution, preToolUse, assistant output hooks",
+    "spanCoverage": "Generated Cursor local governance drivers cover prompt, shell, file, HTTP, MCP, database, and local-only trigger spans.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; Cursor sends source-attributed spans and hook payloads only.",
+    "verdictEnforcement": "Cursor projects Core behavior-rule verdicts into deny, continue:false, notification, or observe-only post-hook telemetry without local predicate evaluation.",
+    "localStackProof": "tests/hook-integration/cursor-hook-local-stack.test.ts drives generated Cursor hook-stdin governance cases through local Core and persists backend evidence.",
+    "guardTest": "tests/hook-integration/cursor-hook-local-stack.test.ts#drives generated Cursor hook-stdin governance cases through local Core and persists backend evidence"
+  },
+  {
+    "provider": "claude-code",
+    "tier": "native",
+    "triggerSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse hook stdin events plus check_governance MCP calls",
+    "spanCoverage": "Generated Claude Code local governance drivers cover LLM, shell, file, HTTP, MCP, database, and local-only trigger spans.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; Claude Code sends source-attributed spans and hook or MCP payloads only.",
+    "verdictEnforcement": "Claude Code projects Core behavior-rule verdicts into allow, block, halt, ask/defer, or permissionDecision outputs without local predicate evaluation.",
+    "localStackProof": "tests/hook-integration/claude-code-hook-stdin-local-stack.test.ts drives generated Claude hook-stdin cases through local Core and persisted logs.",
+    "guardTest": "tests/hook-integration/claude-code-hook-stdin-local-stack.test.ts#drives generated Claude hook-stdin cases through local Core and persisted logs"
+  },
+  {
+    "provider": "mcp",
+    "tier": "native",
+    "triggerSurfaces": "check_governance tool over stdio or Streamable HTTP plus behavior-rule resources/prompts",
+    "spanCoverage": "MCP check_governance accepts caller-supplied LLM, shell, file, HTTP, database, and MCP spans for Core behavior matching.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; MCP exposes inspection resources and sends check payloads only.",
+    "verdictEnforcement": "MCP returns Core behavior-rule verdicts to the caller and never computes behavior decisions inside the protocol server.",
+    "localStackProof": "tests/unit/mcp-server-coverage.test.ts check_governance emits hook spans for Core matching and behavior-rule resources stay read-only.",
+    "guardTest": "tests/unit/mcp-server-coverage.test.ts#check_governance still emits the hook span when the parent verdict blocks"
+  },
+  {
+    "provider": "openai-agents-sdk",
+    "tier": "native",
+    "triggerSurfaces": "AgentHooks lifecycle, tool wrappers, run input gates, guardrail helpers, and tracing processor spans",
+    "spanCoverage": "OpenAI Agents SDK spans cover generation, tool, MCP database, handoff, guardrail, hosted tool, built-in tool, and usage paths.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; OpenAI Agents SDK helpers send official SDK callback payloads and spans only.",
+    "verdictEnforcement": "OpenAI Agents SDK helpers project Core behavior-rule verdicts into native tool, guardrail, run, and interruption outcomes without local predicate evaluation.",
+    "localStackProof": "tests/unit/openai-agents-sdk.test.ts proves official SDK tool and database spans are source-stamped for Core behavior matching.",
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps database MCP tools to DatabaseQuery governance spans"
+  },
+  {
+    "provider": "anthropic-agent-sdk",
+    "tier": "native",
+    "triggerSurfaces": "UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, Elicitation, query, task, and message observations",
+    "spanCoverage": "Anthropic Agent SDK spans cover LLM prompt, tool, MCP, assistant-output, session, synthetic usage, and failure paths.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; Anthropic Agent SDK helpers send official hook/message payloads and spans only.",
+    "verdictEnforcement": "Anthropic Agent SDK helpers project Core behavior-rule verdicts into hook permission, updated input/output, block, halt, or observe outcomes without local predicate evaluation.",
+    "localStackProof": "tests/unit/anthropic-agent-sdk.test.ts proves prompt/tool spans and paired lifecycle events reach Core-shaped governance checks.",
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#gates prompt expansions with LLM hook spans"
+  },
+  {
+    "provider": "copilotkit",
+    "tier": "native",
+    "triggerSurfaces": "prompt gates, tool gates, runtime hooks, LangChain middleware, AG-UI events, and approval helpers",
+    "spanCoverage": "CopilotKit spans cover prompt, tool, runtime, AG-UI lifecycle, interrupt, assistant-output, LangChain tool, and backend-classifiable semantic paths.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; CopilotKit adapters send runtime payloads and spans only.",
+    "verdictEnforcement": "CopilotKit projects Core behavior-rule verdicts into runtime results, interruptions, tool skips, redactions, or terminal outputs without local predicate evaluation.",
+    "localStackProof": "tests/unit/copilotkit-adapter.test.ts proves runtime tool gates map into backend-classifiable semantic spans.",
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#maps CopilotKit runtime tool gates into backend-classifiable semantic spans"
+  },
+  {
+    "provider": "n8n",
+    "tier": "native",
+    "triggerSurfaces": "emitN8nUserPromptSignal, emitN8nNodePreExecute, emitN8nNodePostExecute, emitN8nLlmCompletion, and governed AI Agent workflow descriptors",
+    "spanCoverage": "n8n spans cover node, LLM, assistant-output, tool, error, workflow, and behavior-rule trigger-classifiable helper events.",
+    "coreContract": "OpenBox Core/backend owns behavior-rule trigger matching and state; n8n helpers and package descriptors send node/LLM spans only.",
+    "verdictEnforcement": "n8n projects Core behavior-rule verdicts into helper results, approval nodes, block/halt outcomes, or workflow telemetry without local predicate evaluation.",
+    "localStackProof": "tests/unit/govern-invariants.test.ts proves n8n helpers send node lifecycle events and hook completion spans for Core behavior matching.",
+    "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
+  }
+] as const satisfies readonly BehaviorRuleCapabilityGuardEntry[];
+export const GUARDRAILS_HUB_RECORDING_SURFACE = {
+  "id": "guardrails-hub-recording-v1",
+  "source": "specs/typespec/govern/capabilities.tsp",
+  "recorderScript": "scripts/record-guardrails-hub.mjs",
+  "provenanceCommand": "node scripts/record-guardrails-hub.mjs --provenance",
+  "fixturePath": "tests/fixtures/guardrails-hub/recorded-results.json",
+  "recordEnv": "OPENBOX_RECORD_GUARDRAILS_HUB",
+  "tokenEnv": "GUARDRAILS_TOKEN",
+  "backendApiUrlEnv": "OPENBOX_API_URL",
+  "backendApiKeyEnv": "OPENBOX_BACKEND_API_KEY",
+  "guardrailsRepoEnv": "OPENBOX_GUARDRAILS_REPO",
+  "guardrailsPythonEnv": "OPENBOX_GUARDRAILS_PYTHON",
+  "provenanceJsonEnv": "OPENBOX_GUARDRAILS_PROVENANCE_JSON",
+  "requiredValidatorModulePrefix": "guardrails_grhub_",
+  "forbiddenValidatorModulePrefixes": [
+    "src.guardrails.local"
+  ],
+  "defaultSampleCount": 5,
+  "cases": [
+    {
+      "id": "detect-pii",
+      "guardrailType": "1",
+      "label": "DetectPII",
+      "sampleCount": 5,
+      "variants": [
+        {
+          "id": "safe",
+          "label": "safe control",
+          "expectedSemanticStatus": "allowed",
+          "params": {},
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_detect_pii_safe",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_detect_pii_safe",
+            "input": [
+              {
+                "text": "ordinary safe text"
+              }
+            ]
+          }
+        },
+        {
+          "id": "email-violation",
+          "label": "email violation",
+          "expectedSemanticStatus": "violation",
+          "params": {},
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_detect_pii_email",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_detect_pii_email",
+            "input": [
+              {
+                "text": "contact jane@example.com for the ticket"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "nsfw-text",
+      "guardrailType": "2",
+      "label": "NSFWText",
+      "sampleCount": 5,
+      "variants": [
+        {
+          "id": "safe",
+          "label": "safe control",
+          "expectedSemanticStatus": "allowed",
+          "params": {},
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_nsfw_text_safe",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_nsfw_text_safe",
+            "input": [
+              {
+                "text": "the project update is ready for review"
+              }
+            ]
+          }
+        },
+        {
+          "id": "violation",
+          "label": "violation",
+          "expectedSemanticStatus": "violation",
+          "params": {},
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_nsfw_text_violation",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_nsfw_text_violation",
+            "input": [
+              {
+                "text": "explicit porn content"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "toxic-language",
+      "guardrailType": "3",
+      "label": "ToxicLanguage",
+      "sampleCount": 5,
+      "variants": [
+        {
+          "id": "safe",
+          "label": "safe control",
+          "expectedSemanticStatus": "allowed",
+          "params": {},
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_toxic_language_safe",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_toxic_language_safe",
+            "input": [
+              {
+                "text": "please review the design notes"
+              }
+            ]
+          }
+        },
+        {
+          "id": "violation",
+          "label": "violation",
+          "expectedSemanticStatus": "violation",
+          "params": {},
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_toxic_language_violation",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_toxic_language_violation",
+            "input": [
+              {
+                "text": "that was a useless team"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ban-list",
+      "guardrailType": "4",
+      "label": "BanList",
+      "sampleCount": 5,
+      "variants": [
+        {
+          "id": "safe",
+          "label": "safe control",
+          "expectedSemanticStatus": "allowed",
+          "params": {
+            "banned_words": [
+              "restricted"
+            ]
+          },
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_ban_list_safe",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_ban_list_safe",
+            "input": [
+              {
+                "text": "contains permitted text"
+              }
+            ]
+          }
+        },
+        {
+          "id": "violation",
+          "label": "violation",
+          "expectedSemanticStatus": "violation",
+          "params": {
+            "banned_words": [
+              "restricted"
+            ]
+          },
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_ban_list_violation",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_ban_list_violation",
+            "input": [
+              {
+                "text": "contains restricted text"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "regex-match",
+      "guardrailType": "5",
+      "label": "RegexMatch",
+      "sampleCount": 5,
+      "variants": [
+        {
+          "id": "safe",
+          "label": "safe control",
+          "expectedSemanticStatus": "allowed",
+          "params": {
+            "regex": "sensitive"
+          },
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_regex_match_safe",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_regex_match_safe",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "violation",
+          "label": "violation",
+          "expectedSemanticStatus": "violation",
+          "params": {
+            "regex": "sensitive"
+          },
+          "settings": {
+            "activities": [
+              {
+                "activity_type": "hub_regex_match_violation",
+                "fields_to_check": [
+                  "input.0.text"
+                ]
+              }
+            ]
+          },
+          "logs": {
+            "event_type": "ActivityStarted",
+            "activity_type": "hub_regex_match_violation",
+            "input": [
+              {
+                "text": "contains sensitive text"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+} as const satisfies GuardrailsHubRecordingSurface;
+export const LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE = {
+  "source": "specs/typespec/govern/capabilities.tsp",
+  "cases": [
+    {
+      "id": "db-select-constrain",
+      "hostPortable": true,
+      "name": "db query is constrained (score lowered, action allowed)",
+      "spanType": "db",
+      "activityInput": {
+        "operation": "SELECT",
+        "resource": "accounts"
+      },
+      "expectedTrigger": "database_select",
+      "expectedRule": "e2e-constrain-db",
+      "expectedVerdict": "constrain",
+      "expectedOutcome": "allow",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "llm-completion-approval",
+      "hostPortable": true,
+      "name": "llm completion requires approval",
+      "spanType": "llm",
+      "activityInput": {
+        "prompt": "summarize this"
+      },
+      "expectedTrigger": "llm_completion",
+      "expectedRule": "e2e-approve-llm",
+      "expectedVerdict": "require_approval",
+      "expectedOutcome": "require_approval",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "UserPromptSubmit",
+          "tool": "prompt"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeSubmitPrompt",
+          "tool": "prompt"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "run",
+          "tool": "runWithOpenBox"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "UserPromptSubmit",
+          "tool": "prompt"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governPrompt",
+          "tool": "prompt"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "llm-embedding-approval",
+      "hostPortable": false,
+      "name": "llm embedding requires approval",
+      "spanType": "llm_embedding",
+      "activityInput": {
+        "prompt": "embed this",
+        "model": "openbox-sdk-local"
+      },
+      "expectedTrigger": "llm_embedding",
+      "expectedRule": "e2e-approve-embedding",
+      "expectedVerdict": "require_approval",
+      "expectedOutcome": "require_approval",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "cursor",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "mcp-required",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "mcp-required",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "mcp-required",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "llm-tool-call-approval",
+      "hostPortable": false,
+      "name": "llm tool call requires approval",
+      "spanType": "llm_tool_call",
+      "activityInput": {
+        "tool_name": "lookup_queue",
+        "tool_input": {
+          "queue": "payments"
+        },
+        "model": "openbox-sdk-local"
+      },
+      "expectedTrigger": "llm_tool_call",
+      "expectedRule": "e2e-approve-tool-call",
+      "expectedVerdict": "require_approval",
+      "expectedOutcome": "require_approval",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "cursor",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "lookup_queue"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "lookup_queue"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "lookup_queue"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "mcp-tool-allow",
+      "hostPortable": true,
+      "name": "mcp tool call is allowed by default",
+      "spanType": "mcp",
+      "activityInput": {
+        "tool_name": "openbox_status",
+        "tool_input": {}
+      },
+      "expectedTrigger": "mcp_tool_call",
+      "expectedRule": "default-allow-mcp",
+      "expectedVerdict": "allow",
+      "expectedOutcome": "allow",
+      "seedRule": false,
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__openbox__status"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "openbox_status"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "mcp__openbox__status"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "mcp__openbox__status"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "mcp__openbox__status"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "file-read-approval",
+      "hostPortable": true,
+      "name": "file_read requires approval",
+      "spanType": "file_read",
+      "activityInput": {
+        "file_path": "fixtures/hostname.txt"
+      },
+      "expectedTrigger": "file_read",
+      "expectedRule": "e2e-approve-read",
+      "expectedVerdict": "require_approval",
+      "expectedOutcome": "require_approval",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "Read"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "Read"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeReadFile",
+          "tool": "Read"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "Read"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "Read"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "Read"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "file-open-block",
+      "hostPortable": false,
+      "name": "file_open is blocked",
+      "spanType": "file_open",
+      "activityInput": {
+        "file_path": "fixtures/open-me.txt"
+      },
+      "expectedTrigger": "file_open",
+      "expectedRule": "e2e-deny-file-open",
+      "expectedVerdict": "block",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "cursor",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeTabFileRead",
+          "tool": "TabRead"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "Open"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "Open"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "Open"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "file-write-block",
+      "hostPortable": true,
+      "name": "file_write is blocked",
+      "spanType": "file_write",
+      "activityInput": {
+        "file_path": "fixtures/blocked.txt",
+        "content": "hello"
+      },
+      "expectedTrigger": "file_write",
+      "expectedRule": "e2e-deny-write",
+      "expectedVerdict": "block",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook",
+          "tool": "Write",
+          "promptTemplate": "Call the Write tool exactly once. Do not answer in prose before the tool call. Use file_path {tmpFile} and content hello. The file does not exist; do not read it first."
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "Write"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "preToolUse",
+          "tool": "Write"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "Write"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "Write"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "Write"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "shell-block",
+      "hostPortable": true,
+      "name": "shell execution is blocked",
+      "spanType": "shell",
+      "activityInput": {
+        "command": "echo hello"
+      },
+      "expectedTrigger": "internal",
+      "expectedRule": "e2e-deny-shell",
+      "expectedVerdict": "block",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook",
+          "tool": "Bash",
+          "prompt": "Call the Bash tool exactly once. Do not answer in prose before the tool call. Run exactly: echo hello"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "Bash"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeShellExecution",
+          "tool": "Shell"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "Shell"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "Bash"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "Bash"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "http-post-halt",
+      "hostPortable": true,
+      "name": "http POST halts",
+      "spanType": "http",
+      "activityInput": {
+        "method": "POST",
+        "url": "https://example.com/blocked"
+      },
+      "expectedTrigger": "http_post",
+      "expectedRule": "e2e-halt-http",
+      "expectedVerdict": "halt",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__http__request"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "http-get-constrain",
+      "hostPortable": false,
+      "name": "http GET is constrained",
+      "spanType": "http",
+      "activityInput": {
+        "method": "GET",
+        "url": "https://example.com/read"
+      },
+      "expectedTrigger": "http_get",
+      "expectedRule": "e2e-constrain-http-get",
+      "expectedVerdict": "constrain",
+      "expectedOutcome": "allow",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__http__request"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "http-put-block",
+      "hostPortable": false,
+      "name": "http PUT is blocked",
+      "spanType": "http",
+      "activityInput": {
+        "method": "PUT",
+        "url": "https://example.com/update"
+      },
+      "expectedTrigger": "http_put",
+      "expectedRule": "e2e-deny-http-put",
+      "expectedVerdict": "block",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__http__request"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "http-patch-approval",
+      "hostPortable": false,
+      "name": "http PATCH requires approval",
+      "spanType": "http",
+      "activityInput": {
+        "method": "PATCH",
+        "url": "https://example.com/patch"
+      },
+      "expectedTrigger": "http_patch",
+      "expectedRule": "e2e-approve-http-patch",
+      "expectedVerdict": "require_approval",
+      "expectedOutcome": "require_approval",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__http__request"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "http-delete-halt",
+      "hostPortable": false,
+      "name": "http DELETE halts",
+      "spanType": "http",
+      "activityInput": {
+        "method": "DELETE",
+        "url": "https://example.com/delete"
+      },
+      "expectedTrigger": "http_delete",
+      "expectedRule": "e2e-halt-http-delete",
+      "expectedVerdict": "halt",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__http__request"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "http-generic-constrain",
+      "hostPortable": false,
+      "name": "generic http method is constrained",
+      "spanType": "http",
+      "activityInput": {
+        "method": "HEAD",
+        "url": "https://example.com/head"
+      },
+      "expectedTrigger": "http",
+      "expectedRule": "e2e-constrain-http-generic",
+      "expectedVerdict": "constrain",
+      "expectedOutcome": "allow",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "mcp",
+          "tool": "mcp__openbox__check_governance"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__http__request"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "WebFetch"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "db-insert-block",
+      "hostPortable": false,
+      "name": "db insert is blocked",
+      "spanType": "db",
+      "activityInput": {
+        "operation": "INSERT",
+        "resource": "accounts"
+      },
+      "expectedTrigger": "database_insert",
+      "expectedRule": "e2e-deny-db-insert",
+      "expectedVerdict": "block",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "db-update-approval",
+      "hostPortable": false,
+      "name": "db update requires approval",
+      "spanType": "db",
+      "activityInput": {
+        "operation": "UPDATE",
+        "resource": "accounts"
+      },
+      "expectedTrigger": "database_update",
+      "expectedRule": "e2e-approve-db-update",
+      "expectedVerdict": "require_approval",
+      "expectedOutcome": "require_approval",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "db-delete-halt",
+      "hostPortable": false,
+      "name": "db delete halts",
+      "spanType": "db",
+      "activityInput": {
+        "operation": "DELETE",
+        "resource": "accounts"
+      },
+      "expectedTrigger": "database_delete",
+      "expectedRule": "e2e-halt-db-delete",
+      "expectedVerdict": "halt",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "db-generic-block",
+      "hostPortable": false,
+      "name": "generic db query is blocked",
+      "spanType": "db",
+      "activityInput": {
+        "operation": "QUERY",
+        "resource": "accounts"
+      },
+      "expectedTrigger": "database_query",
+      "expectedRule": "e2e-deny-db-query",
+      "expectedVerdict": "block",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeMCPExecution",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "mcp__postgres__query"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    },
+    {
+      "id": "file-delete-halt",
+      "hostPortable": false,
+      "name": "file_delete halts",
+      "spanType": "file_delete",
+      "activityInput": {
+        "file_path": "fixtures/delete-me.txt"
+      },
+      "expectedTrigger": "file_delete",
+      "expectedRule": "e2e-halt-file-delete",
+      "expectedVerdict": "halt",
+      "expectedOutcome": "deny",
+      "providerDrivers": [
+        {
+          "provider": "claude-code",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "Delete"
+        },
+        {
+          "provider": "codex",
+          "surface": "hook-stdin",
+          "event": "PreToolUse",
+          "tool": "Delete"
+        },
+        {
+          "provider": "cursor",
+          "surface": "hook-stdin",
+          "event": "beforeShellExecution",
+          "tool": "Shell"
+        },
+        {
+          "provider": "openai-agents-sdk",
+          "surface": "sdk-wrapper",
+          "event": "tool.execute",
+          "tool": "Delete"
+        },
+        {
+          "provider": "anthropic-agent-sdk",
+          "surface": "sdk-wrapper",
+          "event": "PreToolUse",
+          "tool": "Delete"
+        },
+        {
+          "provider": "copilotkit",
+          "surface": "runtime-adapter",
+          "event": "governToolInput",
+          "tool": "Delete"
+        },
+        {
+          "provider": "mcp",
+          "surface": "mcp",
+          "event": "tools/call",
+          "tool": "check_governance"
+        },
+        {
+          "provider": "n8n",
+          "surface": "runtime-helper",
+          "event": "governance-check",
+          "tool": "emitN8nGovernanceCheck"
+        }
+      ]
+    }
+  ],
+  "undrivableTriggers": []
+} as const satisfies LocalGovernanceVerdictMatrixSurface;
+export const LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES = LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE.cases;
+export const LOCAL_GOVERNANCE_HOST_PORTABLE_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter((entry) => entry.hostPortable);
+export const LOCAL_GOVERNANCE_LOCAL_ONLY_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter((entry) => !entry.hostPortable);
+export const LOCAL_GOVERNANCE_UNDRIVABLE_TRIGGERS = LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE.undrivableTriggers;
+export const OPA_EVALUATION_MATRIX = {
+  "source": "specs/typespec/govern/capabilities.tsp",
+  "defaultAllowReason": "SDK conformance OPA allow default",
+  "decisionScenarios": [
+    {
+      "decision": "ALLOW",
+      "scenarioId": "opa-allow",
+      "expectedVerdict": "allow",
+      "expectedAction": "allow"
+    },
+    {
+      "decision": "REQUIRE_APPROVAL",
+      "scenarioId": "opa-require-approval",
+      "expectedVerdict": "require_approval",
+      "expectedAction": "require_approval"
+    },
+    {
+      "decision": "BLOCK",
+      "scenarioId": "opa-block",
+      "expectedVerdict": "block",
+      "expectedAction": "block"
+    },
+    {
+      "decision": "HALT",
+      "scenarioId": "opa-halt",
+      "expectedVerdict": "halt",
+      "expectedAction": "halt"
+    }
+  ],
+  "governedSurfaces": [
+    {
+      "scenarioId": "behavior-db-query",
+      "label": "db query database_query",
+      "activityType": "DatabaseQuery",
+      "semanticType": "database_query",
+      "activityInput": {
+        "db_system": "postgresql",
+        "db_operation": "QUERY",
+        "db_statement": "classifier database_query probe"
+      }
+    },
+    {
+      "scenarioId": "behavior-db-query",
+      "label": "db select database_select",
+      "activityType": "DatabaseQuery",
+      "semanticType": "database_select",
+      "activityInput": {
+        "db_system": "postgresql",
+        "db_operation": "SELECT",
+        "db_statement": "classifier database_select probe"
+      }
+    },
+    {
+      "scenarioId": "behavior-db-query",
+      "label": "db insert database_insert",
+      "activityType": "DatabaseQuery",
+      "semanticType": "database_insert",
+      "activityInput": {
+        "db_system": "postgresql",
+        "db_operation": "INSERT",
+        "db_statement": "classifier database_insert probe"
+      }
+    },
+    {
+      "scenarioId": "behavior-db-query",
+      "label": "db update database_update",
+      "activityType": "DatabaseQuery",
+      "semanticType": "database_update",
+      "activityInput": {
+        "db_system": "postgresql",
+        "db_operation": "UPDATE",
+        "db_statement": "classifier database_update probe"
+      }
+    },
+    {
+      "scenarioId": "behavior-db-query",
+      "label": "db delete database_delete",
+      "activityType": "DatabaseQuery",
+      "semanticType": "database_delete",
+      "activityInput": {
+        "db_system": "postgresql",
+        "db_operation": "DELETE",
+        "db_statement": "classifier database_delete probe"
+      }
+    },
+    {
+      "scenarioId": "behavior-mcp",
+      "label": "mcp_tool_call",
+      "activityType": "MCPToolCall",
+      "semanticType": "mcp_tool_call",
+      "activityInput": {
+        "tool": "check_governance",
+        "arguments": {}
+      }
+    },
+    {
+      "scenarioId": "behavior-http",
+      "label": "http GET http_get",
+      "activityType": "HTTPRequest",
+      "semanticType": "http_get",
+      "activityInput": {
+        "method": "GET",
+        "url": "https://example.com/openbox-get"
+      }
+    },
+    {
+      "scenarioId": "behavior-http",
+      "label": "http POST http_post",
+      "activityType": "HTTPRequest",
+      "semanticType": "http_post",
+      "activityInput": {
+        "method": "POST",
+        "url": "https://example.com/openbox-post"
+      }
+    },
+    {
+      "scenarioId": "behavior-http",
+      "label": "http PUT http_put",
+      "activityType": "HTTPRequest",
+      "semanticType": "http_put",
+      "activityInput": {
+        "method": "PUT",
+        "url": "https://example.com/openbox-put"
+      }
+    },
+    {
+      "scenarioId": "behavior-http",
+      "label": "http PATCH http_patch",
+      "activityType": "HTTPRequest",
+      "semanticType": "http_patch",
+      "activityInput": {
+        "method": "PATCH",
+        "url": "https://example.com/openbox-patch"
+      }
+    },
+    {
+      "scenarioId": "behavior-http",
+      "label": "http DELETE http_delete",
+      "activityType": "HTTPRequest",
+      "semanticType": "http_delete",
+      "activityInput": {
+        "method": "DELETE",
+        "url": "https://example.com/openbox-delete"
+      }
+    },
+    {
+      "scenarioId": "behavior-http",
+      "label": "http generic http",
+      "activityType": "HTTPRequest",
+      "semanticType": "http",
+      "activityInput": {
+        "method": "GET",
+        "url": "https://example.com/openbox-generic"
+      }
+    },
+    {
+      "scenarioId": "behavior-llm",
+      "label": "llm_gen_ai e2e-approve-llm",
+      "activityType": "LLMGeneration",
+      "semanticType": "llm_gen_ai",
+      "activityInput": {
+        "prompt": "e2e-approve-llm prompt",
+        "model": "openbox-sdk-local"
+      }
+    },
+    {
+      "scenarioId": "behavior-llm",
+      "label": "llm_completion e2e-approve-llm",
+      "activityType": "LLMCompletion",
+      "semanticType": "llm_completion",
+      "activityInput": {
+        "completion": "e2e-approve-llm completion",
+        "model": "openbox-sdk-local"
+      }
+    },
+    {
+      "scenarioId": "behavior-llm",
+      "label": "llm embedding llm_embedding e2e-approve-llm",
+      "activityType": "LLMGeneration",
+      "semanticType": "llm_embedding",
+      "activityInput": {
+        "prompt": "e2e-approve-llm embedding prompt",
+        "model": "openbox-sdk-local"
+      }
+    },
+    {
+      "scenarioId": "behavior-tool-call",
+      "label": "llm_tool_call",
+      "activityType": "ToolCall",
+      "semanticType": "llm_tool_call",
+      "activityInput": {
+        "tool": "sdk-conformance-approval-tool",
+        "arguments": {}
+      }
+    },
+    {
+      "scenarioId": "behavior-file-read",
+      "label": "file_read",
+      "activityType": "FileRead",
+      "semanticType": "file_read",
+      "activityInput": {
+        "file_path": "fixtures/openbox-sdk-readme.md"
+      }
+    },
+    {
+      "scenarioId": "behavior-file-read",
+      "label": "file open file_open",
+      "activityType": "FileRead",
+      "semanticType": "file_open",
+      "activityInput": {
+        "file_path": "fixtures/openbox-sdk-open.md"
+      }
+    },
+    {
+      "scenarioId": "behavior-file-write",
+      "label": "file_write",
+      "activityType": "FileEdit",
+      "semanticType": "file_write",
+      "activityInput": {
+        "file_path": "fixtures/openbox-sdk-blocked.txt",
+        "content": "blocked"
+      }
+    },
+    {
+      "scenarioId": "behavior-file-write",
+      "label": "file delete file_delete",
+      "activityType": "FileDelete",
+      "semanticType": "file_delete",
+      "activityInput": {
+        "file_path": "fixtures/openbox-sdk-delete.txt"
+      }
+    },
+    {
+      "scenarioId": "behavior-shell",
+      "label": "shell",
+      "activityType": "ShellExecution",
+      "semanticType": "internal",
+      "activityInput": {
+        "command": "echo blocked"
+      }
+    }
+  ],
+  "aliasCases": [
+    {
+      "scenarioId": "opa-allow",
+      "name": "legacy continue alias allows database path",
+      "decision": "continue",
+      "activityType": "DatabaseQuery",
+      "semanticType": "database_query",
+      "activityInput": {
+        "db_system": "postgresql",
+        "db_operation": "QUERY",
+        "db_statement": "classifier opa alias continue probe",
+        "alias": "continue"
+      },
+      "expectedVerdict": "allow",
+      "expectedAction": "allow"
+    },
+    {
+      "scenarioId": "opa-halt",
+      "name": "legacy stop alias halts file write path",
+      "decision": "stop",
+      "activityType": "FileEdit",
+      "semanticType": "file_write",
+      "activityInput": {
+        "file_path": "fixtures/openbox-sdk-stop-alias.txt",
+        "content": "halted"
+      },
+      "expectedVerdict": "halt",
+      "expectedAction": "halt"
+    },
+    {
+      "scenarioId": "opa-require-approval",
+      "name": "hyphenated require-approval alias requires approval",
+      "decision": "require-approval",
+      "activityType": "FileRead",
+      "semanticType": "file_read",
+      "activityInput": {
+        "file_path": "fixtures/openbox-sdk-require-approval-alias.md"
+      },
+      "expectedVerdict": "require_approval",
+      "expectedAction": "require_approval"
+    }
+  ],
+  "unsupportedConstrain": {
+    "scenarioId": "opa-constrain",
+    "reason": "SDK conformance unsupported OPA CONSTRAIN boundary",
+    "activityType": "DatabaseQuery",
+    "semanticType": "database_query",
+    "activityInput": {
+      "db_system": "postgresql",
+      "db_operation": "QUERY",
+      "db_statement": "classifier opa constrain boundary"
+    },
+    "expectedVerdict": "allow",
+    "expectedAction": "allow"
+  },
+  "unavailableFailClosed": {
+    "scenarioId": "opa-unavailable-fail-closed",
+    "policyReason": "active policy should block",
+    "activityType": "DatabaseQuery",
+    "semanticType": "database_query",
+    "activityInput": {
+      "db_system": "postgresql",
+      "db_operation": "QUERY",
+      "db_statement": "classifier opa unavailable blocked"
+    },
+    "availableVerdict": "block",
+    "availableAction": "block",
+    "unavailableVerdict": "halt",
+    "unavailableAction": "halt",
+    "unavailableReason": "OPA unavailable - fail-closed security policy applied"
+  }
+} as const satisfies OpaEvaluationMatrixSurface;
+export const OPA_DECISION_SCENARIOS = OPA_EVALUATION_MATRIX.decisionScenarios;
+export const OPA_GOVERNED_SURFACES = OPA_EVALUATION_MATRIX.governedSurfaces;
+export const OPA_ALIAS_DECISION_CASES = OPA_EVALUATION_MATRIX.aliasCases;
 export const POLICY_EVALUATION_GUARDS = [
   {
     "provider": "codex",
@@ -3081,7 +11467,7 @@ export const POLICY_EVALUATION_GUARDS = [
     "tier": "native",
     "authority": "OpenBox Core/backend",
     "sdkResponsibility": "send hook/message/tool spans to Core; enforce returned verdicts",
-    "allowedLocalWork": "options/workspace governance payload construction and backend reads",
+    "allowedLocalWork": "options/project governance payload construction and backend reads",
     "forbiddenLocalWork": "OPA/Rego evaluation or behavior-rule matching in SDK/runtime code",
     "guardTest": "tests/unit/policy-evaluation-guard.test.ts#keeps OPA/Rego and behavior-rule evaluation backend-owned in SDK sources"
   },
@@ -3158,7 +11544,7 @@ export const RULES_INSTRUCTION_CAPABILITY_GUARDS = [
   {
     "provider": "anthropic-agent-sdk",
     "tier": "wrapped",
-    "projectionSurface": "Anthropic Agent SDK options, hooks, message observations, permission events, and workspace-change payloads",
+    "projectionSurface": "Anthropic Agent SDK options, hooks, message observations, permission events, and project-change payloads",
     "sourceOfTruth": "OpenBox Core/backend",
     "allowedProjectionWork": "Build hook/message payloads, observe SDK events, and project returned Core verdicts into Anthropic hook decisions.",
     "forbiddenLocalWork": "OPA/Rego evaluation, behavior-rule matching, or local policy decisions inside SDK helpers",
@@ -3209,10 +11595,10 @@ export const HOOK_CAPABILITY_GUARDS = [
     "provider": "claude-code",
     "tier": "native",
     "hookSurface": "Claude Code plugin hooks/hooks.json invokes the project-local OpenBox CLI runner for default and opt-in hook events.",
-    "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CLAUDE_HOOK_SPEC and the official hook matrix, with WorktreeCreate and SessionEnd opt-in by default.",
+    "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CLAUDE_HOOK_SPEC generated hook metadata, with WorktreeCreate and SessionEnd opt-in by default.",
     "enforcementBoundary": "Claude Code prompt/tool/permission hooks send spans to Core and enforce returned verdicts fail-closed; opt-in worktree hooks are disabled by default.",
     "fallbackOrOutOfScope": "Project-local plugin install only; monitors are opt-in and direct settings writes are avoided.",
-    "guardTest": "tests/unit/claude-code-governance-matrix.test.ts#keeps generated HOOK_SPEC aligned with the checked-in official hook matrix"
+    "guardTest": "tests/unit/claude-code-governance-matrix.test.ts#derives hook governance directly from generated HOOK_SPEC metadata"
   },
   {
     "provider": "mcp",
@@ -3237,7 +11623,7 @@ export const HOOK_CAPABILITY_GUARDS = [
     "tier": "native",
     "hookSurface": "createOpenBoxAnthropicAgentHooks and withOpenBoxAnthropicAgentOptions register Anthropic Agent SDK hook handlers.",
     "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match official HOOK_EVENTS, with WorktreeCreate opt-in by default.",
-    "enforcementBoundary": "Anthropic Agent SDK hooks send prompt/tool/permission/workspace spans to Core and enforce returned verdicts.",
+    "enforcementBoundary": "Anthropic Agent SDK hooks send prompt/tool/permission/project spans to Core and enforce returned verdicts.",
     "fallbackOrOutOfScope": "No host plugin files are installed; hook helpers are runtime SDK configuration.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#registers every official Agent SDK hook except WorktreeCreate by default"
   },
@@ -3264,8 +11650,8 @@ export const SUBAGENTS_AGENTS_CAPABILITY_GUARDS = [
   {
     "provider": "codex",
     "tier": "observe-only",
-    "agentSurface": "Codex Agent/Task-style tool calls are observed as tool or a2a metadata when surfaced by Codex spans.",
-    "lifecycleCoverage": "Codex hook events do not expose a dedicated subagent lifecycle; OpenBox records available agent/task spans where present.",
+    "agentSurface": "Codex Agent/Task-style tool calls are observed as explicit tool or a2a metadata in Codex spans.",
+    "lifecycleCoverage": "Codex hook events do not include a dedicated subagent lifecycle; OpenBox records explicit agent/task spans carried by the integration contract.",
     "ownershipBoundary": "Observe-only; Codex owns subagent orchestration and OpenBox does not package Codex subagent templates.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins subagents-agents support claims to explicit agent ownership coverage"
   },
@@ -3298,7 +11684,7 @@ export const SUBAGENTS_AGENTS_CAPABILITY_GUARDS = [
     "tier": "observe-only",
     "agentSurface": "OpenAI Agents SDK handoffs and agents-as-tools are observed through AgentHooks and tracing processor spans.",
     "lifecycleCoverage": "Tracing processor observes handoff spans, hosted tools, built-in tools, MCP tools, generations, and usage after the host SDK produces them.",
-    "ownershipBoundary": "Observe-only for multi-agent orchestration; OpenAI Agents SDK owns handoffs/agents-as-tools and OpenBox records spans where available.",
+    "ownershipBoundary": "Observe-only for multi-agent orchestration; OpenAI Agents SDK owns handoffs/agents-as-tools and OpenBox records explicit wrapper and trace spans.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
   },
   {
@@ -3313,8 +11699,8 @@ export const SUBAGENTS_AGENTS_CAPABILITY_GUARDS = [
     "provider": "copilotkit",
     "tier": "observe-only",
     "agentSurface": "CopilotKit agent runner lifecycle and a2a tool metadata are observed through runtime, middleware, and AG-UI adapters.",
-    "lifecycleCoverage": "CopilotKit AG-UI/run lifecycle and governed tool calls map subagent_type/tool metadata to OpenBox activities when surfaced.",
-    "ownershipBoundary": "Observe-only for orchestration; CopilotKit/application code owns agent runners while OpenBox observes/gates exposed prompt/tool/runtime events.",
+    "lifecycleCoverage": "CopilotKit AG-UI/run lifecycle and governed tool calls map explicit subagent_type/tool metadata to OpenBox activities.",
+    "ownershipBoundary": "Observe-only for orchestration; CopilotKit/application code owns agent runners while OpenBox observes/gates explicit prompt/tool/runtime events.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool"
   },
   {
@@ -3331,7 +11717,7 @@ export const PLUGIN_CAPABILITY_GUARDS = [
     "provider": "codex",
     "tier": "native",
     "packageSurface": "Codex plugin bundle with .codex-plugin/plugin.json plus repo-local .agents/plugins/marketplace.json metadata.",
-    "componentCoverage": "Codex plugin components include manifest, marketplace, hooks/hooks.json, plugin .mcp.json, skills/openbox/SKILL.md, AGENTS.md, and exact-prefix .codex/rules/openbox.rules.",
+    "componentCoverage": "Codex plugin components include manifest, marketplace, hooks/hooks.json, plugin .mcp.json, plugin-local bin/openbox-cli.mjs, skills/openbox/SKILL.md, AGENTS.md, and exact-prefix .codex/rules/openbox.rules.",
     "installSurface": "exportCodexPlugin/installCodexPlugin and openbox install codex write project-local plugin and marketplace surfaces.",
     "scopeBoundary": "Project-local only; OpenBox does not mutate global or user-level Codex plugin configuration.",
     "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
@@ -3414,7 +11800,7 @@ export const SKILL_CAPABILITY_GUARDS = [
     "provider": "cursor",
     "tier": "native",
     "skillSurface": "Cursor plugin skills/openbox/SKILL.md and cloud-compatible repo .agents/skills/openbox/SKILL.md carry the OpenBox governance skill.",
-    "installSurface": "installCursorPlugin and installCursorRepoMode write project-local plugin or repo skill assets and preserve unrelated workspace files.",
+    "installSurface": "installCursorPlugin and installCursorRepoMode write project-local plugin or repo skill assets and preserve unrelated project files.",
     "discoverySurface": "Cursor plugin metadata, workspaceOpen metadata, and repo .agents/skills/openbox expose the OpenBox skill to local and cloud-compatible modes.",
     "hostBoundary": "Skills provide native host context only; OpenBox Core/backend remains authoritative for guardrails, OPA/Rego, approvals, and verdicts.",
     "guardTest": "tests/unit/cursor-plugin.test.ts#installs and uninstalls cloud-compatible repo mode files"
@@ -3514,28 +11900,28 @@ export const MCP_CAPABILITY_GUARDS = [
   {
     "provider": "openai-agents-sdk",
     "tier": "observe-only",
-    "serverSurface": "No OpenBox-owned MCP server install; OpenAI Agents SDK MCP tool usage is observed through tracing when the host app exposes spans.",
+    "serverSurface": "No OpenBox-owned MCP server install; OpenAI Agents SDK MCP tool usage is observed through explicit tracing spans.",
     "configSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config.",
-    "toolResourcePromptCoverage": "MCP tool calls are observed as tool spans and usage telemetry when tracing exposes mcp_data; no MCP prompts/resources are registered by the SDK.",
-    "hostBoundary": "Observe-only; hosted MCP tools may execute before observation, so Core receives spans where available instead of pre-gating host-owned MCP execution.",
+    "toolResourcePromptCoverage": "MCP tool calls are observed as tool spans and usage telemetry from explicit mcp_data trace fields; no MCP prompts/resources are registered by the SDK.",
+    "hostBoundary": "Observe-only; hosted MCP tools may execute before observation, so Core receives explicit spans instead of pre-gating host-owned MCP execution.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#observes OpenAI trace spans for generations, handoffs, guardrails, and tools"
   },
   {
     "provider": "anthropic-agent-sdk",
     "tier": "observe-only",
-    "serverSurface": "No OpenBox-owned MCP server install; Anthropic Agent SDK MCP elicitation/status events are observed when hooks expose them.",
+    "serverSurface": "No OpenBox-owned MCP server install; Anthropic Agent SDK MCP elicitation/status events are observed through explicit hook payloads.",
     "configSurface": "Host application owns MCP server/client configuration; OpenBox SDK helpers do not install MCP config.",
-    "toolResourcePromptCoverage": "MCP elicitation and permission events are mapped into OpenBox activities when surfaced by the SDK; no MCP prompts/resources are registered by the SDK.",
-    "hostBoundary": "Observe-only except governed hook payloads; Core receives elicitation/tool spans when the SDK exposes them.",
+    "toolResourcePromptCoverage": "MCP elicitation and permission events are mapped into OpenBox activities from explicit SDK payload fields; no MCP prompts/resources are registered by the SDK.",
+    "hostBoundary": "Observe-only except governed hook payloads; Core receives elicitation/tool spans from explicit SDK payload fields.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps task, config, and elicitation verdicts to Agent SDK outputs"
   },
   {
     "provider": "copilotkit",
     "tier": "observe-only",
-    "serverSurface": "No OpenBox-owned MCP server install; CopilotKit observes MCP-like client/server tool events through AG-UI/runtime streams when surfaced.",
+    "serverSurface": "No OpenBox-owned MCP server install; CopilotKit observes MCP-like client/server tool events through explicit AG-UI/runtime streams.",
     "configSurface": "Host application owns MCP server/client configuration; CopilotKit adapters do not install MCP config.",
     "toolResourcePromptCoverage": "AG-UI lifecycle, tool, state, error, and interrupt events are mapped to OpenBox activities; MCP prompts/resources are not registered by CopilotKit.",
-    "hostBoundary": "Observe-only for host-owned MCP client/server usage; Core receives tool/runtime events when CopilotKit surfaces them.",
+    "hostBoundary": "Observe-only for host-owned MCP client/server usage; Core receives explicit tool/runtime events from the CopilotKit adapter contract.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#maps AG-UI run, tool, message, state, error, and interrupt events through OpenBox gates"
   },
   {
@@ -3555,7 +11941,7 @@ export const INSTALL_DOCTOR_CAPABILITY_GUARDS = [
     "installSurface": "openbox install codex, Codex plugin export/install, repo skill install, and trusted MCP config install",
     "doctorSurface": "verifyCodexInstall, verifyCodexPlugin, and codex_doctor MCP tool",
     "scopeBoundary": "project-local only; no global or user-level host config mutation",
-    "generatedOrPackagedSurface": ".codex-plugin/plugin.json, hooks/hooks.json, .mcp.json, AGENTS.md, .codex/config.toml, .agents/skills/openbox, and plugin skills/openbox",
+    "generatedOrPackagedSurface": ".codex-plugin/plugin.json, hooks/hooks.json, .mcp.json, bin/openbox-cli.mjs, AGENTS.md, .codex/config.toml, .agents/skills/openbox, and plugin skills/openbox",
     "guardTest": "tests/unit/codex-install-spec.test.ts#exports and installs Codex plugin, repo skill, and marketplace surfaces"
   },
   {
@@ -3631,7 +12017,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy",
       "opa",
-      "matrix"
+      "matrix",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -3666,9 +12053,11 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "capability": "opa-rules",
     "label": "OPA/Rego requires approval",
     "axes": [
+      "approval",
       "happy",
       "opa",
       "matrix",
+      "rego",
       "tool"
     ],
     "requiredProofLevel": "conformance",
@@ -3715,7 +12104,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "failure",
       "opa",
-      "matrix"
+      "matrix",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -3753,7 +12143,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "failure",
       "opa",
-      "matrix"
+      "matrix",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -3792,7 +12183,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "failure",
       "opa",
-      "matrix"
+      "matrix",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -3831,7 +12223,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "happy",
       "opa",
       "matrix",
-      "dbquery"
+      "dbquery",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -3868,7 +12261,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "OPA unavailable fails closed",
     "axes": [
       "failure",
-      "opa"
+      "opa",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -3896,6 +12290,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "capability": "approvals-hitl",
     "label": "Approval pending state is materialized",
     "axes": [
+      "approval",
       "happy",
       "tool"
     ],
@@ -3941,6 +12336,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "capability": "approvals-hitl",
     "label": "Approval approve decision resolves pending row",
     "axes": [
+      "approval",
       "happy",
       "tool"
     ],
@@ -3979,6 +12375,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "capability": "approvals-hitl",
     "label": "Approval reject decision resolves pending row",
     "axes": [
+      "approval",
       "failure",
       "tool"
     ],
@@ -4015,6 +12412,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "capability": "approvals-hitl",
     "label": "Approval timeout/expiration fails closed",
     "axes": [
+      "approval",
       "failure",
       "tool"
     ],
@@ -4064,6 +12462,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "capability": "approvals-hitl",
     "label": "Approval dashboard metrics, history, and SLA are shaped",
     "axes": [
+      "approval",
       "happy",
       "order",
       "matrix"
@@ -4144,19 +12543,21 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "GuardrailController_runTest"
     ],
     "evidencePatterns": [
-      "validation_passed",
-      "allowed"
+      "body.data.success",
+      "body.data.violations_detected",
+      "toBe(false)"
     ],
     "operationEvidencePatterns": [
       {
         "operationId": "GuardrailController_runTest",
         "evidencePatterns": [
-          "allowed",
-          "validation_passed"
+          "body.data.success",
+          "body.data.violations_detected",
+          "toBe(false)"
         ]
       }
     ],
-    "requiredBehavior": "The local stack must prove a safe guardrail evaluation returns allowed/passed."
+    "requiredBehavior": "The local stack must prove safe guardrail input returns a successful run-test result with violations_detected=false."
   },
   {
     "id": "guardrail-block",
@@ -4173,21 +12574,21 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "GuardrailController_runTest"
     ],
     "evidencePatterns": [
-      "observedValidationResults",
-      "observedStatuses",
-      "toContain('blocked')"
+      "body.data.violations_detected",
+      "guardrail-block",
+      "contains r text"
     ],
     "operationEvidencePatterns": [
       {
         "operationId": "GuardrailController_runTest",
         "evidencePatterns": [
-          "observedStatuses",
-          "observedValidationResults",
-          "toContain('blocked')"
+          "body.data.violations_detected",
+          "guardrail-block",
+          "contains r text"
         ]
       }
     ],
-    "requiredBehavior": "The local stack must prove an unsafe guardrail evaluation returns blocked rather than pass-through."
+    "requiredBehavior": "The local stack must prove unsafe guardrail input is detected with violations_detected=true and transformed output rather than pass-through."
   },
   {
     "id": "guardrail-redact",
@@ -4205,23 +12606,22 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "evaluateGovernance"
     ],
     "evidencePatterns": [
-      "redacted_input",
-      "toContain('redacted')",
-      "toContain('transformed')"
+      "body.data.violations_detected",
+      "<EMAIL_ADDRESS>",
+      "guardrails_result"
     ],
     "operationEvidencePatterns": [
       {
         "operationId": "GuardrailController_runTest",
         "evidencePatterns": [
-          "redacted_input",
-          "toContain('redacted')",
-          "toContain('transformed')"
+          "body.data.violations_detected",
+          "<EMAIL_ADDRESS>"
         ]
       },
       {
         "operationId": "evaluateGovernance",
         "evidencePatterns": [
-          "[redacted-email]",
+          "<EMAIL_ADDRESS>",
           "guardrails_result"
         ]
       }
@@ -4295,7 +12695,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "Database query span is governed",
     "axes": [
       "dbquery",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4326,7 +12727,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "Tool-call span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4357,7 +12759,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "HTTP span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4388,7 +12791,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "File-read span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4419,7 +12823,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "File-write span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4450,7 +12855,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "Shell span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4481,7 +12887,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "LLM span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4512,7 +12919,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "MCP tool span is governed",
     "axes": [
       "tool",
-      "matrix"
+      "matrix",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4697,7 +13105,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "axes": [
       "happy",
       "dbquery",
-      "matrix"
+      "matrix",
+      "rego"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -4837,7 +13246,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "id": "usage-core-wire-boundary",
     "category": "usage-cost",
     "capability": "usage-cost",
-    "label": "Core accepts usage/cost wire fields without fabricating dashboard metrics",
+    "label": "Core accepts usage/cost wire fields and materializes supported token metrics",
     "axes": [
       "happy",
       "usage",
@@ -4850,21 +13259,31 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "evaluateGovernance"
     ],
     "evidencePatterns": [
+      "usageWireCases",
+      "cost_usd: 0.03125",
+      "input_tokens: 0",
+      "expectedMetricRows",
+      "metricKey: 'input_tokens'",
+      "metricKey: 'output_tokens'",
       "not.toContain('cost_usd')",
-      "not.toContain('input_tokens')",
-      "Number(metrics.trim())).toBe(0)"
+      "not.toContain('total_tokens')"
     ],
     "operationEvidencePatterns": [
       {
         "operationId": "evaluateGovernance",
         "evidencePatterns": [
+          "usageWireCases",
+          "cost_usd: 0.03125",
+          "input_tokens: 0",
+          "expectedMetricRows",
+          "metricKey: 'input_tokens'",
+          "metricKey: 'output_tokens'",
           "not.toContain('cost_usd')",
-          "not.toContain('input_tokens')",
-          "Number(metrics.trim())).toBe(0)"
+          "not.toContain('total_tokens')"
         ]
       }
     ],
-    "requiredBehavior": "Core must accept top-level usage/cost fields and persist the governance event, while the local backend must not fabricate observability metric rows from provider-owned usage telemetry."
+    "requiredBehavior": "Core must accept every LocalStackUsageWireCaseId top-level usage/cost payload, including nonzero token/cost and explicit zero token/cost values, persist the governance event, materialize only supported nonzero token metric rows, and avoid fabricating total-token or cost metric rows."
   },
   {
     "id": "usage-token-counts",
@@ -4889,7 +13308,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "id": "usage-cost-usd",
     "category": "usage-cost",
     "capability": "usage-cost",
-    "label": "Cost USD is normalized by provider adapters",
+    "label": "Explicit Cost USD telemetry is forwarded, not computed by adapters",
     "axes": [
       "cost",
       "usage"
@@ -4902,7 +13321,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "cost_usd",
       "total_cost_usd"
     ],
-    "requiredBehavior": "Cost aliases normalize through generated/provider SDK guards and remain Core-owned for policy; local backend metrics do not expose spend rows."
+    "requiredBehavior": "Cost aliases normalize through generated/provider SDK guards from explicit upstream telemetry or an OpenBox estimate; adapters never compute spend locally and Core remains policy authority."
   },
   {
     "id": "usage-zero-values",
@@ -5135,21 +13554,45 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
       "evaluateGovernance"
     ],
     "evidencePatterns": [
-      "fallback_used",
-      "conformanceCase.expected.fallbackUsed",
-      "actionResponse.data.age_result"
+      "OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE",
+      "AGE unavailable",
+      "toHaveProperty('fallback_used', true)",
+      "fallback_used: true"
     ],
     "operationEvidencePatterns": [
       {
         "operationId": "evaluateGovernance",
         "evidencePatterns": [
-          "actionResponse.data.age_result",
-          "conformanceCase.expected.fallbackUsed",
-          "fallback_used"
+          "OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE",
+          "AGE unavailable",
+          "toHaveProperty('fallback_used', true)",
+          "fallback_used: true"
         ]
       }
     ],
-    "requiredBehavior": "If goal alignment falls back, the fallback flag must be visible and asserted."
+    "requiredBehavior": "If goal alignment falls back, the fallback flag must be visible and asserted true under an isolated AGE-unavailable local-stack run."
+  },
+  {
+    "id": "local-llamafirewall-real-scan",
+    "category": "goal-drift",
+    "capability": "goal-signals",
+    "label": "Local LlamaFirewall official scanner returns aligned and drifted decisions",
+    "axes": [
+      "goal",
+      "happy",
+      "failure"
+    ],
+    "requiredProofLevel": "conformance",
+    "localStackRequired": true,
+    "operationIds": [],
+    "evidencePatterns": [
+      "local-llamafirewall",
+      "status).toBe('success')",
+      "Trace aligned",
+      "human_in_the_loop_required",
+      "Conclusion: True"
+    ],
+    "requiredBehavior": "The local stack must run the official LlamaFirewall scanner adapter against a structured-output local model and prove both aligned and drifted traces without schema fallback."
   },
   {
     "id": "trace-session",
@@ -5265,7 +13708,8 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
     "label": "Provider/source attribution is retained",
     "axes": [
       "happy",
-      "tool"
+      "tool",
+      "span"
     ],
     "requiredProofLevel": "conformance",
     "localStackRequired": true,
@@ -5503,7 +13947,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
 ] as const satisfies readonly LocalStackScenarioPathSpec[];
 export const LOCAL_STACK_SCENARIO_MATRIX = {
   "id": "backend-core-governance-full-matrix",
-  "description": "Backend/Core governance conformance matrix for OPA, approvals, guardrails, behavior rules, goal drift, tracing, usage/cost, workflow ordering, and DB-backed dashboard paths. Provider-owned usage/cost normalization is allowed only when declared outside local-stack runtime proof.",
+  "description": "Backend/Core governance conformance matrix for OPA/Rego, approvals, guardrails, behavior rules, goal drift, tracing/span, usage/cost, workflow ordering, and DB-backed dashboard paths. Provider-owned usage/cost normalization is allowed only when declared outside local-stack runtime proof.",
   "requiredCapabilities": [
     "approvals-hitl",
     "behavior-rules",
@@ -5525,6 +13969,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     "workflow"
   ],
   "requiredAxes": [
+    "approval",
     "cost",
     "dbquery",
     "failure",
@@ -5534,10 +13979,13 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     "matrix",
     "opa",
     "order",
+    "rego",
+    "span",
     "tool",
     "usage"
   ],
   "requiredLocalStackAxes": [
+    "approval",
     "cost",
     "dbquery",
     "failure",
@@ -5547,6 +13995,8 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     "matrix",
     "opa",
     "order",
+    "rego",
+    "span",
     "tool",
     "usage"
   ],
@@ -5554,6 +14004,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     {
       "category": "approvals-hitl",
       "axes": [
+        "approval",
         "failure",
         "happy",
         "matrix",
@@ -5570,6 +14021,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
         "happy",
         "matrix",
         "order",
+        "span",
         "tool"
       ]
     },
@@ -5594,11 +14046,13 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     {
       "category": "opa",
       "axes": [
+        "approval",
         "dbquery",
         "failure",
         "happy",
         "matrix",
         "opa",
+        "rego",
         "tool"
       ]
     },
@@ -5610,6 +14064,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
         "happy",
         "matrix",
         "order",
+        "span",
         "tool"
       ]
     },
@@ -5669,6 +14124,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     "goal-alignment-checked",
     "goal-drift-detected",
     "goal-drift-fallback",
+    "local-llamafirewall-real-scan",
     "trace-session",
     "trace-logs",
     "trace-reasoning",
@@ -5837,7 +14293,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "provider-adapter-guardrails",
       "label": "Provider adapter guardrails",
       "source": "provider-guard-fixture",
-      "minimumProofLevel": "none",
+      "minimumProofLevel": "conformance",
       "operationIds": [],
       "providerGuardCapabilities": [
         "guardrails"
@@ -5848,7 +14304,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "provider-adapter-approvals-hitl",
       "label": "Provider adapter approvals and HITL",
       "source": "provider-guard-fixture",
-      "minimumProofLevel": "none",
+      "minimumProofLevel": "conformance",
       "operationIds": [],
       "providerGuardCapabilities": [
         "approvals-hitl"
@@ -5859,7 +14315,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "provider-adapter-tracing",
       "label": "Provider adapter tracing",
       "source": "provider-guard-fixture",
-      "minimumProofLevel": "none",
+      "minimumProofLevel": "conformance",
       "operationIds": [],
       "providerGuardCapabilities": [
         "tracing"
@@ -5870,7 +14326,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "provider-adapter-usage-cost",
       "label": "Provider adapter usage and cost",
       "source": "provider-guard-fixture",
-      "minimumProofLevel": "none",
+      "minimumProofLevel": "conformance",
       "operationIds": [],
       "providerGuardCapabilities": [
         "usage-cost"
@@ -5883,7 +14339,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "id": "provider-adapter-opa-rules",
       "label": "Provider adapter OPA/rules boundary",
       "source": "provider-guard-fixture",
-      "minimumProofLevel": "none",
+      "minimumProofLevel": "conformance",
       "operationIds": [],
       "providerGuardCapabilities": [
         "opa-rules"
@@ -6452,6 +14908,9 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
         "backend:AgentController_getAgentLogs:query.perPage:minimum",
         "backend:AgentController_getAgentTrustScoreEvents:query.page:minimum",
         "backend:AgentController_getAgentTrustScoreEvents:query.perPage:minimum",
+        "backend:AgentController_getAgentEvaluations:query.page:minimum",
+        "backend:AgentController_getAgentEvaluations:query.pattern:maxLength",
+        "backend:AgentController_getAgentEvaluations:query.perPage:minimum",
         "backend:AgentController_getAgents:query.page:minimum",
         "backend:AgentController_getAgents:query.perPage:minimum",
         "backend:AgentController_getApprovalHistory:query.page:minimum",
@@ -6513,6 +14972,7 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "core:evaluateGovernance:body.attempt:format",
         "core:evaluateGovernance:body.attempt:integer",
+        "core:evaluateGovernance:body.attempt:minimum",
         "core:evaluateGovernance:body.attempt:type"
       ]
     },
@@ -6526,6 +14986,8 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     {
       "id": "core-governance-telemetry-numeric-request-boundaries",
       "requestConstraintKeys": [
+        "core:evaluateGovernance:body.cost_usd:format",
+        "core:evaluateGovernance:body.cost_usd:type",
         "core:evaluateGovernance:body.input_tokens:format",
         "core:evaluateGovernance:body.input_tokens:integer",
         "core:evaluateGovernance:body.input_tokens:type",
@@ -6573,161 +15035,13 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     {
       "id": "core-governance-timestamp-type-request-boundary",
       "requestConstraintKeys": [
+        "core:evaluateGovernance:body.timestamp:format",
         "core:evaluateGovernance:body.timestamp:type"
       ]
     }
   ],
   "sdkGeneratedPreflightOnlyConstraintKeys": [],
-  "rawBackendCoreSemanticGaps": [
-    {
-      "id": "approval-status-invalid-query-not-rejected",
-      "source": "finite-domain-ledger",
-      "services": [
-        "backend"
-      ],
-      "domainKeys": [
-        "approvalStatuses"
-      ],
-      "operationIds": [
-        "AgentController_getApprovalHistory",
-        "AgentController_getPendingApprovals",
-        "OrganizationController_getApprovals"
-      ],
-      "requestConstraintKeys": [
-        "backend:AgentController_getApprovalHistory:query.status:enum",
-        "backend:AgentController_getPendingApprovals:query.status:enum",
-        "backend:OrganizationController_getApprovals:query.status:enum"
-      ],
-      "rawProofFile": "tests/e2e/approvals.test.ts",
-      "rawEvidencePattern": "SEMANTIC_GAP_PROOF: approval status query out-of-domain values are accepted by local stack",
-      "observedBehavior": "The local stack accepts out-of-domain approval status query values with 200 responses.",
-      "requiredBehavior": "Approval status query parameters are finite in TypeSpec and should reject out-of-domain values.",
-      "requiredRawRejection": "Backend approval status query validators should reject out-of-domain status values with a 4xx validation response before returning approval lists.",
-      "remediationRefs": [
-        "openbox-backend:src/modules/agent/dto/approvals.dto.ts:31",
-        "openbox-backend:src/modules/agent/agent.controller.ts:1259",
-        "openbox-backend:src/modules/organization/organization.controller.ts:881"
-      ],
-      "sdkClosureTargets": [
-        "typescript",
-        "python"
-      ]
-    },
-    {
-      "id": "backend-agent-evaluations-query-boundaries-not-rejected",
-      "source": "boundary-ledger",
-      "services": [
-        "backend"
-      ],
-      "domainKeys": [],
-      "operationIds": [
-        "AgentController_getAgentEvaluations"
-      ],
-      "requestConstraintKeys": [
-        "backend:AgentController_getAgentEvaluations:query.page:minimum",
-        "backend:AgentController_getAgentEvaluations:query.pattern:maxLength",
-        "backend:AgentController_getAgentEvaluations:query.perPage:minimum"
-      ],
-      "rawProofFile": "tests/e2e/request-query-boundaries.test.ts",
-      "rawEvidencePattern": "NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values or expose raw gaps",
-      "observedBehavior": "The local backend accepts AgentController_getAgentEvaluations page, perPage, and pattern values outside the generated OpenAPI request constraints.",
-      "requiredBehavior": "AgentController_getAgentEvaluations query.page, query.perPage, and query.pattern have generated request constraints and should reject values outside those bounds.",
-      "requiredRawRejection": "Backend agent evaluation query validators should reject page, perPage, and pattern values outside generated OpenAPI bounds with a 4xx validation response.",
-      "remediationRefs": [
-        "openbox-backend:src/common/dto/pagination.dto.ts:3",
-        "openbox-backend:src/modules/agent/agent.controller.ts:277",
-        "openbox-backend:src/modules/agent/dto/get-agent-violations.dto.ts:6"
-      ],
-      "sdkClosureTargets": [
-        "typescript",
-        "python"
-      ]
-    },
-    {
-      "id": "core-governance-attempt-min-not-rejected",
-      "source": "boundary-ledger",
-      "services": [
-        "core"
-      ],
-      "domainKeys": [
-        "coreNumericFields"
-      ],
-      "operationIds": [
-        "evaluateGovernance"
-      ],
-      "requestConstraintKeys": [
-        "core:evaluateGovernance:body.attempt:minimum"
-      ],
-      "rawProofFile": "tests/e2e/core-governance.test.ts",
-      "rawEvidencePattern": "SEMANTIC_GAP_PROOF: core governance attempt below min is accepted by local stack",
-      "observedBehavior": "The local Core stack accepts GovernanceEventPayload.attempt=0 with a 200 governed response.",
-      "requiredBehavior": "GovernanceEventPayload.attempt has TypeSpec @minValue(1) and should reject values below 1.",
-      "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
-      "remediationRefs": [
-        "openbox-core:internal/api/governance.go:60",
-        "openbox-core:internal/content/governance.go:186"
-      ],
-      "sdkClosureTargets": [
-        "typescript",
-        "python"
-      ]
-    },
-    {
-      "id": "core-governance-cost-type-not-rejected",
-      "source": "boundary-ledger",
-      "services": [
-        "core"
-      ],
-      "domainKeys": [],
-      "operationIds": [
-        "evaluateGovernance"
-      ],
-      "requestConstraintKeys": [
-        "core:evaluateGovernance:body.cost_usd:format",
-        "core:evaluateGovernance:body.cost_usd:type"
-      ],
-      "rawProofFile": "tests/e2e/core-governance.test.ts",
-      "rawEvidencePattern": "SEMANTIC_GAP_PROOF: core governance cost accepts nonnumeric values",
-      "observedBehavior": "The local Core stack accepts GovernanceEventPayload.cost_usd values that are not numeric.",
-      "requiredBehavior": "GovernanceEventPayload.cost_usd is OpenAPI type=number format=double and should reject nonnumeric values.",
-      "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
-      "remediationRefs": [
-        "openbox-core:internal/api/governance.go:60",
-        "openbox-core:internal/content/governance.go:186"
-      ],
-      "sdkClosureTargets": [
-        "typescript",
-        "python"
-      ]
-    },
-    {
-      "id": "core-governance-timestamp-format-not-rejected",
-      "source": "boundary-ledger",
-      "services": [
-        "core"
-      ],
-      "domainKeys": [],
-      "operationIds": [
-        "evaluateGovernance"
-      ],
-      "requestConstraintKeys": [
-        "core:evaluateGovernance:body.timestamp:format"
-      ],
-      "rawProofFile": "tests/e2e/core-governance.test.ts",
-      "rawEvidencePattern": "SEMANTIC_GAP_PROOF: core governance timestamp format accepts invalid date-time values",
-      "observedBehavior": "The local Core stack accepts GovernanceEventPayload.timestamp values that are not valid date-time strings.",
-      "requiredBehavior": "GovernanceEventPayload.timestamp is OpenAPI format=date-time and should reject invalid date-time strings.",
-      "requiredRawRejection": "Core governance request validation should reject invalid GovernanceEventPayload values with a 4xx validation response before evaluating the event.",
-      "remediationRefs": [
-        "openbox-core:internal/api/governance.go:60",
-        "openbox-core:internal/content/governance.go:186"
-      ],
-      "sdkClosureTargets": [
-        "typescript",
-        "python"
-      ]
-    }
-  ],
+  "rawBackendCoreSemanticGaps": [],
   "requiredSharedProviderGuardProofCapabilities": [
     "opa-rules"
   ],
@@ -6736,9 +15050,9 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
     "python"
   ],
   "providerGuardSharedProofPolicy": "Shared provider guard proof is allowed only for explicitly generated backend-owned capabilities. OPA/Rego and behavior-rule evaluation are backend-owned, so every SDK/runtime provider must prove it delegates that capability rather than implementing policy evaluation locally.",
-  "localStackAxisPolicy": "Every required governance axis must be represented by at least one proven local-stack scenario; provider-owned fixture evidence cannot satisfy the local-stack governance axis requirement.",
+  "localStackAxisPolicy": "Every required governance axis, including approval, Rego, and span handling, must be represented by at least one proven local-stack scenario; provider-owned fixture evidence cannot satisfy the local-stack governance axis requirement.",
   "rawSemanticGapPolicy": "Raw backend/Core semantic gaps must remain explicit in the local-stack ledger and each gap must have generated TypeScript and Python request-preflight closure evidence until backend/Core rejects the invalid input itself.",
-  "backendCoreGapStatusPolicy": "The matrix status can be proven through SDK closures while raw backend/Core semantic gaps exist, but backendCoreGapStatus must remain known-gaps until the raw local stack rejects those inputs directly.",
+  "backendCoreGapStatusPolicy": "backendCoreGapStatus is gap-free when no raw backend/Core semantic gaps remain; while raw gaps exist, it must remain known-gaps until the raw local stack rejects those inputs directly.",
   "backendCoreGapRemediationPolicy": "Every raw backend/Core semantic gap must map to a generated request constraint remediation target with the affected operations, constraint keys, raw proof file, and required raw rejection behavior."
 } as const satisfies LocalStackScenarioMatrixContract;
 export const MCP_TOOL_SURFACES = [

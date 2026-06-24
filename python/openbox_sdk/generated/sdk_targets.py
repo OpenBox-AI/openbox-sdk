@@ -15,11 +15,16 @@ SDK_TARGET_MANIFEST = {
       "codegen/method-names.json",
       "codegen/method-permissions.json",
       "codegen/fixtures/cli-auth.json",
+      "codegen/fixtures/boundary-domains.json",
       "codegen/fixtures/env-resolution.json",
       "codegen/fixtures/govern-protocol.json",
+      "codegen/fixtures/governance-domains.json",
       "codegen/fixtures/provider-capabilities.json",
       "codegen/fixtures/sdk-manifests.json",
-      "codegen/fixtures/sdk-targets.json"
+      "codegen/fixtures/sdk-targets.json",
+      "docs/governance-artifacts/capability-checklist.md",
+      "docs/governance-artifacts/capability-checklist.csv",
+      "docs/governance-artifacts/summary.csv"
     ],
     "driftCheckFiles": [
       "package.json"
@@ -114,6 +119,15 @@ SDK_TARGET_MANIFEST = {
         "command": "node",
         "args": [
           "scripts/sync-package-scripts.mjs"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "write-governance-checklist",
+        "label": "Write governance checklist artifacts",
+        "command": "node",
+        "args": [
+          "scripts/write-governance-checklist.mjs"
         ],
         "workingDirectory": "."
       }
@@ -306,12 +320,129 @@ SDK_TARGET_MANIFEST = {
             "workingDirectory": "."
           },
           {
-            "id": "live-e2e",
-            "label": "Live local-stack e2e",
+            "id": "live-governance-lanes",
+            "label": "Live governance local-stack lanes",
+            "parallel": True,
+            "steps": [
+              {
+                "id": "hook-claude-host",
+                "label": "Live Claude host governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:hook-claude-host"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "hook-claude-stdin-local-stack",
+                "label": "Live Claude hook stdin governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:hook-claude-stdin-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "hook-codex-local-stack",
+                "label": "Live Codex hook governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:hook-codex-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "hook-cursor-local-stack",
+                "label": "Live Cursor hook governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:hook-cursor-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "openai-agents-sdk-local-stack",
+                "label": "Live OpenAI Agents SDK governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:openai-agents-sdk-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "anthropic-agent-sdk-local-stack",
+                "label": "Live Anthropic Agent SDK governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:anthropic-agent-sdk-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "copilotkit-local-stack",
+                "label": "Live CopilotKit governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:copilotkit-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "n8n-local-stack",
+                "label": "Live n8n governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:n8n-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "kms-signing-local-stack",
+                "label": "Live local KMS signing governance tests",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:kms-signing-local-stack"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "live-governance-e2e",
+                "label": "Live governance local-stack e2e",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:e2e:governance"
+                ],
+                "workingDirectory": "."
+              },
+              {
+                "id": "local-llamafirewall",
+                "label": "Local LlamaFirewall e2e",
+                "command": "npm",
+                "args": [
+                  "run",
+                  "test:e2e:llamafirewall"
+                ],
+                "workingDirectory": "."
+              }
+            ]
+          },
+          {
+            "id": "live-platform-e2e",
+            "label": "Live platform local-stack e2e",
             "command": "npm",
             "args": [
               "run",
-              "test:e2e"
+              "test:e2e:platform"
             ],
             "workingDirectory": "."
           }
@@ -319,12 +450,850 @@ SDK_TARGET_MANIFEST = {
       }
     ]
   },
+  "localStackProofLanes": {
+    "policy": "Each lane is independently runnable through npm run local-stack:lane -- <lane-id>. Lanes must not stop shared local services; unavailability proof uses isolated temporary processes or unreachable endpoints.",
+    "lanes": [
+      {
+        "id": "sdk-direct-governance",
+        "label": "SDK direct backend/core governance",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-core",
+        "command": "npm run local-stack:lane -- sdk-direct-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/core-governance.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "SDK Direct Governance"
+          ],
+          "providers": [],
+          "domains": [
+            "backend/core"
+          ],
+          "subsystems": [
+            "usage",
+            "cost",
+            "tracing/spans",
+            "session state",
+            "approval/HITL"
+          ]
+        }
+      },
+      {
+        "id": "approvals-governance",
+        "label": "Approval/HITL governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-approvals",
+        "command": "npm run local-stack:lane -- approvals-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/approvals.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "approvals"
+          ],
+          "subsystems": [
+            "approval/HITL"
+          ]
+        }
+      },
+      {
+        "id": "audit-logs-governance",
+        "label": "Audit log governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-audit-logs",
+        "command": "npm run local-stack:lane -- audit-logs-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/audit-logs.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "audit-logs"
+          ],
+          "subsystems": [
+            "audit logs"
+          ]
+        }
+      },
+      {
+        "id": "behavior-rules-governance",
+        "label": "Behavior rule governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-behavior-rules",
+        "command": "npm run local-stack:lane -- behavior-rules-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/behavior-rules.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "behavior-rules"
+          ],
+          "subsystems": [
+            "behavior rules"
+          ]
+        }
+      },
+      {
+        "id": "goal-alignment-governance",
+        "label": "Goal alignment governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-goal-alignment",
+        "command": "npm run local-stack:lane -- goal-alignment-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/goal-alignment.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "goal-alignment"
+          ],
+          "subsystems": [
+            "goal alignment"
+          ]
+        }
+      },
+      {
+        "id": "guardrails-pii-governance",
+        "label": "Guardrails and PII governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-guardrails",
+        "command": "npm run local-stack:lane -- guardrails-pii-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/guardrails.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "guardrails"
+          ],
+          "subsystems": [
+            "guardrails",
+            "PII/redaction"
+          ]
+        }
+      },
+      {
+        "id": "observability-governance",
+        "label": "Observability governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-observability",
+        "command": "npm run local-stack:lane -- observability-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/observability.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "observability"
+          ],
+          "subsystems": [
+            "tracing/spans",
+            "usage",
+            "cost"
+          ]
+        }
+      },
+      {
+        "id": "sessions-governance",
+        "label": "Session state governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-sessions",
+        "command": "npm run local-stack:lane -- sessions-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/sessions.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "sessions"
+          ],
+          "subsystems": [
+            "session state"
+          ]
+        }
+      },
+      {
+        "id": "trust-age-governance",
+        "label": "AGE trust governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-trust",
+        "command": "npm run local-stack:lane -- trust-age-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/trust.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "trust"
+          ],
+          "subsystems": [
+            "AGE",
+            "goal alignment"
+          ]
+        }
+      },
+      {
+        "id": "violations-governance",
+        "label": "Violation governance domain",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-violations",
+        "command": "npm run local-stack:lane -- violations-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/violations.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "violations"
+          ],
+          "subsystems": [
+            "audit logs",
+            "fault handling"
+          ]
+        }
+      },
+      {
+        "id": "opa-rego-governance",
+        "label": "OPA/Rego policy governance",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-policies",
+        "command": "npm run local-stack:lane -- opa-rego-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/policies.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "opa",
+            "rego"
+          ],
+          "subsystems": [
+            "OPA/Rego policy"
+          ]
+        }
+      },
+      {
+        "id": "request-query-boundaries-governance",
+        "label": "Request query boundary governance",
+        "kind": "governance-domain",
+        "suiteId": "e2e-governance-request-query-boundaries",
+        "command": "npm run local-stack:lane -- request-query-boundaries-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "session-agent-scoped",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/request-query-boundaries.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "request-query-boundaries"
+          ],
+          "subsystems": [
+            "fault handling"
+          ]
+        }
+      },
+      {
+        "id": "claude-code-host-governance",
+        "label": "Claude Code host governance",
+        "kind": "provider-host",
+        "suiteId": "hook-claude-host",
+        "command": "npm run local-stack:lane -- claude-code-host-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "host-temp-project",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/claude-code-hook-events.test.ts",
+          "tests/hook-integration/claude-code-subagent.test.ts",
+          "tests/hook-integration/claude-code-fail-closed.test.ts",
+          "tests/hook-integration/claude-code-mcp-via-claude.test.ts",
+          "tests/hook-integration/claude-code-skip-patterns.test.ts",
+          "tests/hook-integration/claude-code-headless.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "Claude Code Governance"
+          ],
+          "providers": [
+            "claude-code"
+          ],
+          "domains": [],
+          "subsystems": [
+            "hooks",
+            "mcp",
+            "file_write",
+            "shell",
+            "fail closed"
+          ]
+        }
+      },
+      {
+        "id": "claude-code-stdin-governance",
+        "label": "Claude Code stdin hook governance",
+        "kind": "provider-host",
+        "suiteId": "hook-claude-stdin-local-stack",
+        "command": "npm run local-stack:lane -- claude-code-stdin-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "temp-project-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/claude-code-hook-stdin-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "Claude Code Governance"
+          ],
+          "providers": [
+            "claude-code"
+          ],
+          "domains": [],
+          "subsystems": [
+            "hooks",
+            "approval/HITL",
+            "guardrails"
+          ]
+        }
+      },
+      {
+        "id": "codex-governance",
+        "label": "Codex governance",
+        "kind": "provider-host",
+        "suiteId": "hook-codex-local-stack",
+        "command": "npm run local-stack:lane -- codex-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "temp-project-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/codex-hook-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "Codex Governance"
+          ],
+          "providers": [
+            "codex"
+          ],
+          "domains": [],
+          "subsystems": [
+            "hooks",
+            "file_write",
+            "shell",
+            "session state"
+          ]
+        }
+      },
+      {
+        "id": "cursor-governance",
+        "label": "Cursor governance",
+        "kind": "provider-host",
+        "suiteId": "hook-cursor-local-stack",
+        "command": "npm run local-stack:lane -- cursor-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "temp-project-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/cursor-hook-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "Cursor Governance"
+          ],
+          "providers": [
+            "cursor"
+          ],
+          "domains": [],
+          "subsystems": [
+            "hooks",
+            "file_write",
+            "shell",
+            "session state"
+          ]
+        }
+      },
+      {
+        "id": "mcp-protocol-governance",
+        "label": "MCP protocol governance",
+        "kind": "protocol",
+        "suiteId": "mcp-protocol",
+        "command": "npm run local-stack:lane -- mcp-protocol-governance",
+        "parallelSafe": True,
+        "localStackRequired": False,
+        "isolation": "stdio-protocol-session",
+        "requiredEnv": [],
+        "proofFiles": [
+          "tests/hook-integration/mcp-protocol.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "MCP Protocol Governance"
+          ],
+          "providers": [
+            "mcp"
+          ],
+          "domains": [],
+          "subsystems": [
+            "mcp",
+            "tool",
+            "fail closed"
+          ]
+        }
+      },
+      {
+        "id": "openai-agents-sdk-governance",
+        "label": "OpenAI Agents SDK governance",
+        "kind": "provider-sdk",
+        "suiteId": "openai-agents-sdk-local-stack",
+        "command": "npm run local-stack:lane -- openai-agents-sdk-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "sdk-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/openai-agents-sdk-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "OpenAI Agent SDK Governance"
+          ],
+          "providers": [
+            "openai-agents-sdk"
+          ],
+          "domains": [],
+          "subsystems": [
+            "llm",
+            "tool",
+            "usage",
+            "cost"
+          ]
+        }
+      },
+      {
+        "id": "anthropic-agent-sdk-governance",
+        "label": "Anthropic Agent SDK governance",
+        "kind": "provider-sdk",
+        "suiteId": "anthropic-agent-sdk-local-stack",
+        "command": "npm run local-stack:lane -- anthropic-agent-sdk-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "sdk-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/anthropic-agent-sdk-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "Anthropic Agent SDK Governance"
+          ],
+          "providers": [
+            "anthropic-agent-sdk"
+          ],
+          "domains": [],
+          "subsystems": [
+            "llm",
+            "tool",
+            "usage",
+            "cost"
+          ]
+        }
+      },
+      {
+        "id": "copilotkit-governance",
+        "label": "CopilotKit governance",
+        "kind": "provider-sdk",
+        "suiteId": "copilotkit-local-stack",
+        "command": "npm run local-stack:lane -- copilotkit-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "sdk-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/copilotkit-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "CopilotKit Governance"
+          ],
+          "providers": [
+            "copilotkit"
+          ],
+          "domains": [],
+          "subsystems": [
+            "llm",
+            "tool",
+            "usage",
+            "cost"
+          ]
+        }
+      },
+      {
+        "id": "n8n-governance",
+        "label": "n8n governance",
+        "kind": "provider-host",
+        "suiteId": "n8n-local-stack",
+        "command": "npm run local-stack:lane -- n8n-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "workflow-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/n8n-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [
+            "n8n Governance"
+          ],
+          "providers": [
+            "n8n"
+          ],
+          "domains": [],
+          "subsystems": [
+            "workflow",
+            "llm",
+            "tool",
+            "usage",
+            "cost"
+          ]
+        }
+      },
+      {
+        "id": "kms-signing-governance",
+        "label": "Local KMS signing governance",
+        "kind": "subsystem",
+        "suiteId": "kms-signing-local-stack",
+        "command": "npm run local-stack:lane -- kms-signing-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "signed-identity-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/hook-integration/kms-signing-local-stack.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "kms"
+          ],
+          "subsystems": [
+            "KMS/local signing/attestation"
+          ]
+        }
+      },
+      {
+        "id": "llamafirewall-governance",
+        "label": "Local LlamaFirewall governance",
+        "kind": "subsystem",
+        "suiteId": "local-llamafirewall",
+        "command": "npm run local-stack:lane -- llamafirewall-governance",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "local-adapter-session",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/llamafirewall.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "guardrails"
+          ],
+          "subsystems": [
+            "guardrails",
+            "LlamaFirewall"
+          ]
+        }
+      },
+      {
+        "id": "isolated-opa-unavailable",
+        "label": "Isolated OPA unavailable fault lane",
+        "kind": "fault",
+        "suiteId": "isolated-opa-unavailable",
+        "command": "npm run local-stack:lane -- isolated-opa-unavailable",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "temporary-core-process",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "scripts/run-isolated-opa-unavailable.mjs",
+          "tests/e2e/core-governance.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "opa"
+          ],
+          "subsystems": [
+            "fault handling",
+            "OPA/Rego policy"
+          ]
+        }
+      },
+      {
+        "id": "isolated-guardrail-unavailable",
+        "label": "Isolated guardrail unavailable fault lane",
+        "kind": "fault",
+        "suiteId": "isolated-guardrail-unavailable",
+        "command": "npm run local-stack:lane -- isolated-guardrail-unavailable",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "temporary-backend-process",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "scripts/run-isolated-guardrail-unavailable.mjs",
+          "tests/e2e/guardrails.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "guardrails"
+          ],
+          "subsystems": [
+            "fault handling",
+            "guardrails"
+          ]
+        }
+      },
+      {
+        "id": "isolated-age-unavailable",
+        "label": "Isolated AGE unavailable fault lane",
+        "kind": "fault",
+        "suiteId": "isolated-age-unavailable",
+        "command": "npm run local-stack:lane -- isolated-age-unavailable",
+        "parallelSafe": True,
+        "localStackRequired": True,
+        "isolation": "temporary-core-process",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "scripts/run-isolated-age-unavailable.mjs",
+          "tests/e2e/core-governance.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "age"
+          ],
+          "subsystems": [
+            "fault handling",
+            "AGE"
+          ]
+        }
+      },
+      {
+        "id": "platform-local-stack-e2e",
+        "label": "Platform local-stack e2e",
+        "kind": "platform",
+        "suiteId": "e2e-platform",
+        "command": "npm run local-stack:lane -- platform-local-stack-e2e",
+        "parallelSafe": False,
+        "localStackRequired": True,
+        "isolation": "shared-platform-fixtures",
+        "requiredEnv": [
+          "OPENBOX_API_URL",
+          "OPENBOX_CORE_URL",
+          "OPENBOX_BACKEND_API_KEY"
+        ],
+        "proofFiles": [
+          "tests/e2e/agent-api-keys.test.ts",
+          "tests/e2e/agent-crud.test.ts",
+          "tests/e2e/aivss.test.ts",
+          "tests/e2e/api-keys.test.ts",
+          "tests/e2e/auth.test.ts",
+          "tests/e2e/cli-commands/api-command.test.ts",
+          "tests/e2e/core-client.test.ts",
+          "tests/e2e/health.test.ts",
+          "tests/e2e/members.test.ts",
+          "tests/e2e/openbox-client.test.ts",
+          "tests/e2e/organization.test.ts",
+          "tests/e2e/sso.test.ts",
+          "tests/e2e/teams.test.ts",
+          "tests/e2e/webhooks.test.ts"
+        ],
+        "coverage": {
+          "checklistAreas": [],
+          "providers": [],
+          "domains": [
+            "platform"
+          ],
+          "subsystems": [
+            "platform e2e"
+          ]
+        }
+      }
+    ]
+  },
   "testSuites": {
     "defaultSuites": [
       "unit",
       "openapi-mock",
-      "contract",
-      "hook-integration"
+      "contract"
     ],
     "suites": [
       {
@@ -364,6 +1333,292 @@ SDK_TARGET_MANIFEST = {
         "workingDirectory": "."
       },
       {
+        "id": "provider-adapters",
+        "label": "Provider adapter unit tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "unit",
+          "tests/unit/anthropic-agent-sdk.test.ts",
+          "tests/unit/openai-agents-sdk.test.ts",
+          "tests/unit/copilotkit-adapter.test.ts",
+          "tests/unit/copilotkit-helpers-coverage.test.ts",
+          "tests/unit/copilotkit-pure-coverage.test.ts",
+          "tests/unit/provider-capability-matrix.test.ts",
+          "tests/unit/codex-install-spec.test.ts",
+          "tests/unit/codex-runtime.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-install",
+        "label": "Host plugin install tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-install.test.ts",
+          "tests/hook-integration/install-cursor-integration.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-runtime",
+        "label": "Hook runtime subprocess tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/cursor-hook.test.ts",
+          "tests/hook-integration/claude-code-config-scope.test.ts",
+          "tests/hook-integration/claude-code-hook-stdin.test.ts",
+          "tests/hook-integration/claude-code-log-rotation.test.ts",
+          "tests/hook-integration/claude-code-source-attribution.test.ts",
+          "tests/hook-integration/claude-code-span-content.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "mcp-protocol",
+        "label": "MCP protocol integration tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/mcp-protocol.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-claude-host",
+        "label": "Live Claude host governance tests",
+        "command": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "hook-claude-events-tool",
+          "hook-claude-subagent",
+          "hook-claude-events-lifecycle",
+          "hook-claude-host-rest",
+          "hook-claude-headless-write",
+          "hook-claude-headless-shell"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-claude-headless-write",
+        "label": "Live Claude host file-write governance test",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-headless.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_CLAUDE_HOST_CASE_ID": "file-write-block"
+        }
+      },
+      {
+        "id": "hook-claude-headless-shell",
+        "label": "Live Claude host shell governance test",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-headless.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_CLAUDE_HOST_CASE_ID": "shell-block"
+        }
+      },
+      {
+        "id": "hook-claude-stdin-local-stack",
+        "label": "Live Claude hook stdin governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-hook-stdin-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-claude-events-tool",
+        "label": "Live Claude host tool hook event test",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-hook-events.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_CLAUDE_HOOK_EVENT_CASE": "tool"
+        }
+      },
+      {
+        "id": "hook-claude-events-lifecycle",
+        "label": "Live Claude host lifecycle hook event test",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-hook-events.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_CLAUDE_HOOK_EVENT_CASE": "lifecycle"
+        }
+      },
+      {
+        "id": "hook-claude-subagent",
+        "label": "Live Claude host subagent tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-subagent.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-claude-host-rest",
+        "label": "Live Claude host MCP and fail-closed tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/claude-code-fail-closed.test.ts",
+          "tests/hook-integration/claude-code-mcp-via-claude.test.ts",
+          "tests/hook-integration/claude-code-skip-patterns.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-codex-local-stack",
+        "label": "Live Codex hook governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/codex-hook-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "hook-cursor-local-stack",
+        "label": "Live Cursor hook governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/cursor-hook-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "openai-agents-sdk-local-stack",
+        "label": "Live OpenAI Agents SDK governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/openai-agents-sdk-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "anthropic-agent-sdk-local-stack",
+        "label": "Live Anthropic Agent SDK governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/anthropic-agent-sdk-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "copilotkit-local-stack",
+        "label": "Live CopilotKit governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/copilotkit-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "n8n-local-stack",
+        "label": "Live n8n governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/n8n-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "kms-signing-local-stack",
+        "label": "Live local KMS signing governance tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "hook-integration",
+          "tests/hook-integration/kms-signing-local-stack.test.ts"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "local-llamafirewall",
+        "label": "Local LlamaFirewall e2e",
+        "command": "npm",
+        "args": [
+          "run",
+          "test:e2e:llamafirewall"
+        ],
+        "workingDirectory": "."
+      },
+      {
         "id": "hook-integration",
         "label": "Hook integration tests",
         "command": "npx",
@@ -372,6 +1627,294 @@ SDK_TARGET_MANIFEST = {
           "run",
           "--project",
           "hook-integration"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "local-stack-alignment",
+        "label": "Local stack alignment preflight",
+        "command": "npm",
+        "args": [
+          "run",
+          "local-stack:check"
+        ],
+        "workingDirectory": "."
+      },
+      {
+        "id": "e2e-governance-domains",
+        "label": "Governance local-stack domain e2e tests",
+        "parallel": True,
+        "steps": [
+          {
+            "id": "e2e-governance-approvals",
+            "label": "Approvals governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/approvals.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "approvals"
+            }
+          },
+          {
+            "id": "e2e-governance-audit-logs",
+            "label": "Audit log governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/audit-logs.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "audit-logs"
+            }
+          },
+          {
+            "id": "e2e-governance-behavior-rules",
+            "label": "Behavior rule governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/behavior-rules.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "behavior-rules"
+            }
+          },
+          {
+            "id": "e2e-governance-goal-alignment",
+            "label": "Goal alignment governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/goal-alignment.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "goal-alignment"
+            }
+          },
+          {
+            "id": "e2e-governance-guardrails",
+            "label": "Guardrails governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/guardrails.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "guardrails"
+            }
+          },
+          {
+            "id": "e2e-governance-observability",
+            "label": "Observability governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/observability.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "observability"
+            }
+          },
+          {
+            "id": "e2e-governance-sdk-preflight-closures",
+            "label": "SDK preflight closure governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/sdk-preflight-closures.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "sdk-preflight-closures"
+            }
+          },
+          {
+            "id": "e2e-governance-sessions",
+            "label": "Session governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/sessions.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "sessions"
+            }
+          },
+          {
+            "id": "e2e-governance-trust",
+            "label": "Trust governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/trust.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "trust"
+            }
+          },
+          {
+            "id": "e2e-governance-violations",
+            "label": "Violation governance e2e",
+            "command": "npx",
+            "args": [
+              "vitest",
+              "run",
+              "--project",
+              "e2e",
+              "tests/e2e/violations.test.ts"
+            ],
+            "workingDirectory": ".",
+            "env": {
+              "OPENBOX_E2E_DOMAIN": "violations"
+            }
+          }
+        ]
+      },
+      {
+        "id": "e2e-governance-policies",
+        "label": "Policy governance e2e",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "e2e",
+          "tests/e2e/policies.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_E2E_DOMAIN": "policies"
+        }
+      },
+      {
+        "id": "e2e-governance-request-query-boundaries",
+        "label": "Request query boundary governance e2e",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "e2e",
+          "tests/e2e/request-query-boundaries.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_E2E_DOMAIN": "request-query-boundaries"
+        }
+      },
+      {
+        "id": "e2e-governance-core",
+        "label": "Core governance e2e",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "e2e",
+          "tests/e2e/core-governance.test.ts"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "OPENBOX_E2E_DOMAIN": "core-governance"
+        }
+      },
+      {
+        "id": "e2e-governance-faults",
+        "label": "Governance isolated fault e2e tests",
+        "parallel": True,
+        "steps": [
+          {
+            "id": "isolated-opa-unavailable",
+            "label": "Isolated OPA unavailable e2e",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:e2e:opa-unavailable"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "isolated-guardrail-unavailable",
+            "label": "Isolated guardrail unavailable e2e",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:e2e:guardrail-unavailable"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "isolated-age-unavailable",
+            "label": "Isolated AGE unavailable e2e",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:e2e:age-unavailable"
+            ],
+            "workingDirectory": "."
+          }
+        ]
+      },
+      {
+        "id": "e2e-platform",
+        "label": "Platform local-stack e2e tests",
+        "command": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--project",
+          "e2e",
+          "tests/e2e/agent-api-keys.test.ts",
+          "tests/e2e/agent-crud.test.ts",
+          "tests/e2e/aivss.test.ts",
+          "tests/e2e/api-keys.test.ts",
+          "tests/e2e/auth.test.ts",
+          "tests/e2e/cli-commands/api-command.test.ts",
+          "tests/e2e/core-client.test.ts",
+          "tests/e2e/health.test.ts",
+          "tests/e2e/members.test.ts",
+          "tests/e2e/openbox-client.test.ts",
+          "tests/e2e/organization.test.ts",
+          "tests/e2e/sso.test.ts",
+          "tests/e2e/teams.test.ts",
+          "tests/e2e/webhooks.test.ts"
         ],
         "workingDirectory": "."
       },
@@ -684,6 +2227,71 @@ SDK_TARGET_MANIFEST = {
         "kind": "spec-runner"
       },
       {
+        "name": "test:providers",
+        "command": "node scripts/run-tests.mjs provider-adapters",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-install",
+        "command": "node scripts/run-tests.mjs hook-install",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-runtime",
+        "command": "node scripts/run-tests.mjs hook-runtime",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:mcp-protocol",
+        "command": "node scripts/run-tests.mjs mcp-protocol",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-claude-host",
+        "command": "node scripts/run-tests.mjs hook-claude-host",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-claude-stdin-local-stack",
+        "command": "node scripts/run-tests.mjs hook-claude-stdin-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-codex-local-stack",
+        "command": "node scripts/run-tests.mjs hook-codex-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:hook-cursor-local-stack",
+        "command": "node scripts/run-tests.mjs hook-cursor-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:openai-agents-sdk-local-stack",
+        "command": "node scripts/run-tests.mjs openai-agents-sdk-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:anthropic-agent-sdk-local-stack",
+        "command": "node scripts/run-tests.mjs anthropic-agent-sdk-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:copilotkit-local-stack",
+        "command": "node scripts/run-tests.mjs copilotkit-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:n8n-local-stack",
+        "command": "node scripts/run-tests.mjs n8n-local-stack",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:kms-signing-local-stack",
+        "command": "node scripts/run-tests.mjs kms-signing-local-stack",
+        "kind": "spec-runner"
+      },
+      {
         "name": "test:hook-integration",
         "command": "node scripts/run-tests.mjs hook-integration",
         "kind": "spec-runner"
@@ -691,6 +2299,71 @@ SDK_TARGET_MANIFEST = {
       {
         "name": "test:e2e",
         "command": "node scripts/run-tests.mjs e2e",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e:governance",
+        "command": "node scripts/run-tests.mjs local-stack-alignment e2e-governance-domains e2e-governance-policies e2e-governance-request-query-boundaries e2e-governance-core e2e-governance-faults",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e:platform",
+        "command": "node scripts/run-tests.mjs e2e-platform",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e:opa-unavailable",
+        "command": "node scripts/run-isolated-opa-unavailable.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e:guardrail-unavailable",
+        "command": "node scripts/run-isolated-guardrail-unavailable.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e:age-unavailable",
+        "command": "node scripts/run-isolated-age-unavailable.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "test:e2e:llamafirewall",
+        "command": "node scripts/run-local-llamafirewall-e2e.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "guardrails:hub:provenance",
+        "command": "node scripts/record-guardrails-hub.mjs --provenance",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "guardrails:hub:record",
+        "command": "node scripts/record-guardrails-hub.mjs --record",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "guardrails:hub:replay",
+        "command": "node scripts/record-guardrails-hub.mjs --replay",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "governance:checklist",
+        "command": "node scripts/write-governance-checklist.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "local:llamafirewall",
+        "command": "node scripts/start-llamafirewall.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "local-stack:check",
+        "command": "node scripts/check-local-stack-alignment.mjs",
+        "kind": "spec-runner"
+      },
+      {
+        "name": "local-stack:lane",
+        "command": "node scripts/run-local-stack-lane.mjs",
         "kind": "spec-runner"
       },
       {
@@ -758,7 +2431,7 @@ SDK_TARGET_MANIFEST = {
         "path": "scripts/build-codegen.mjs",
         "category": "spec-runner",
         "canonicalSurface": "codegenBuild.steps",
-        "role": "Runs the TypeSpec-emitted codegen workspace build pipeline with a bootstrap fallback only for regenerating the manifest."
+        "role": "Runs the TypeSpec-emitted codegen package build pipeline with a bootstrap fallback only for regenerating the manifest."
       },
       {
         "path": "scripts/run-sdk-generation.mjs",
@@ -791,6 +2464,42 @@ SDK_TARGET_MANIFEST = {
         "role": "Executes the bundle build stages declared in the SDK target manifest."
       },
       {
+        "path": "scripts/lib/isolated-core-runner.mjs",
+        "category": "runner-framework",
+        "canonicalSurface": "testSuites.suites",
+        "role": "Starts temporary Core server and governance worker processes for isolated dependency-failure e2e lanes."
+      },
+      {
+        "path": "scripts/run-isolated-age-unavailable.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "testSuites.suites",
+        "role": "Starts temporary Core server and governance worker processes with AGE unavailable and runs the generated fallback local-stack scenario."
+      },
+      {
+        "path": "scripts/run-isolated-opa-unavailable.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "testSuites.suites",
+        "role": "Starts temporary Core server and governance worker processes with OPA unavailable and runs the generated fail-closed local-stack scenario."
+      },
+      {
+        "path": "scripts/run-isolated-guardrail-unavailable.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "testSuites.suites",
+        "role": "Starts a temporary backend with an unavailable Guardrails provider and runs the generated fail-closed local-stack scenario."
+      },
+      {
+        "path": "scripts/run-local-llamafirewall-e2e.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "rootPipelines.pipelines",
+        "role": "Starts or reuses the local LlamaFirewall official scanner adapter with a structured-output OpenAI-compatible model and runs the generated real-scan e2e scenario."
+      },
+      {
+        "path": "scripts/run-local-stack-lane.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "localStackProofLanes.lanes",
+        "role": "Runs one or more TypeSpec-declared local-stack governance proof lanes by lane id without starting unrelated lanes."
+      },
+      {
         "path": "scripts/run-generated-check.mjs",
         "category": "spec-runner",
         "canonicalSurface": "generatedChecks.commands",
@@ -801,6 +2510,12 @@ SDK_TARGET_MANIFEST = {
         "category": "spec-runner",
         "canonicalSurface": "testSuites",
         "role": "Routes root test suites through the TypeSpec-emitted suite manifest."
+      },
+      {
+        "path": "scripts/check-local-stack-alignment.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "testSuites.suites",
+        "role": "Fails local-stack governance e2e before execution when backend, Core, OPA, Guardrails, AGE, LlamaFirewall, and AWS-compatible S3 are not aligned on the expected local endpoints and policy bundle bucket."
       },
       {
         "path": "scripts/run-quality.mjs",
@@ -855,6 +2570,30 @@ SDK_TARGET_MANIFEST = {
         "category": "asset-sync",
         "canonicalSurface": "PROVIDER_PLUGIN_COMPONENTS",
         "role": "Copies runtime templates and built provider plugin bundles based on generated provider component metadata."
+      },
+      {
+        "path": "scripts/record-guardrails-hub.mjs",
+        "category": "spec-runner",
+        "canonicalSurface": "guardrailsHubRecordingSurface",
+        "role": "Reports validator provenance and records or replays sanitized Guardrails Hub validator results from the TypeSpec-owned Hub recording corpus."
+      },
+      {
+        "path": "scripts/write-governance-checklist.mjs",
+        "category": "generated-artifact-writer",
+        "canonicalSurface": "governanceChecklistRows",
+        "role": "Writes repo-local governance checklist markdown and CSV artifacts from the generated provider capability fixture."
+      },
+      {
+        "path": "scripts/local-llamafirewall-server.py",
+        "category": "local-stack-adapter",
+        "canonicalSurface": "localStackGovernanceMatrix",
+        "role": "Hosts a local HTTP adapter around the official LlamaFirewall scanner used by local-stack governance drift checks."
+      },
+      {
+        "path": "scripts/start-llamafirewall.mjs",
+        "category": "local-stack-launcher",
+        "canonicalSurface": "packageScripts.scripts",
+        "role": "Starts the local LlamaFirewall adapter against caller-provided endpoint and model settings without printing API keys, after verifying OpenAI-compatible structured output through JSON-schema response_format or forced tool calls."
       },
       {
         "path": "scripts/openbox-cli-dev.mjs",
@@ -972,8 +2711,45 @@ SDK_TARGET_MANIFEST = {
         "workingDirectory": "."
       },
       {
+        "id": "host-integration-lanes",
+        "label": "Host integration lanes",
+        "parallel": True,
+        "steps": [
+          {
+            "id": "hook-install",
+            "label": "Host plugin install tests",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:hook-install"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "hook-runtime",
+            "label": "Hook runtime subprocess tests",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:hook-runtime"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "mcp-protocol",
+            "label": "MCP protocol integration tests",
+            "command": "npm",
+            "args": [
+              "run",
+              "test:mcp-protocol"
+            ],
+            "workingDirectory": "."
+          }
+        ]
+      },
+      {
         "id": "coverage",
-        "label": "Vitest coverage",
+        "label": "Deterministic Vitest coverage",
         "command": "npx",
         "args": [
           "vitest",
@@ -985,8 +2761,6 @@ SDK_TARGET_MANIFEST = {
           "openapi-mock",
           "--project",
           "contract",
-          "--project",
-          "hook-integration",
           "--coverage.reporter=lcov"
         ],
         "workingDirectory": ".",
@@ -1008,46 +2782,53 @@ SDK_TARGET_MANIFEST = {
         }
       },
       {
-        "id": "generated-banners",
-        "label": "Generated banners",
-        "command": "npm",
-        "args": [
-          "run",
-          "lint:generated-banners"
-        ],
-        "workingDirectory": "."
-      },
-      {
-        "id": "openapi-lint",
-        "label": "OpenAPI lint",
-        "command": "npx",
-        "args": [
-          "--yes",
-          "@stoplight/spectral-cli",
-          "lint",
-          "specs/generated/openapi3/*.json"
-        ],
-        "workingDirectory": "."
-      },
-      {
-        "id": "npm-audit",
-        "label": "Root npm audit",
-        "command": "npm",
-        "args": [
-          "audit",
-          "--audit-level=high"
-        ],
-        "workingDirectory": "."
-      },
-      {
-        "id": "security-audit",
-        "label": "Security audit",
-        "command": "npm",
-        "args": [
-          "run",
-          "audit:security"
-        ],
-        "workingDirectory": "."
+        "id": "post-build-quality",
+        "label": "Post-build quality checks",
+        "parallel": True,
+        "steps": [
+          {
+            "id": "generated-banners",
+            "label": "Generated banners",
+            "command": "npm",
+            "args": [
+              "run",
+              "lint:generated-banners"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "openapi-lint",
+            "label": "OpenAPI lint",
+            "command": "npx",
+            "args": [
+              "--yes",
+              "@stoplight/spectral-cli",
+              "lint",
+              "specs/generated/openapi3/*.json"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "npm-audit",
+            "label": "Root npm audit",
+            "command": "npm",
+            "args": [
+              "audit",
+              "--audit-level=high"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "security-audit",
+            "label": "Security audit",
+            "command": "npm",
+            "args": [
+              "run",
+              "audit:security"
+            ],
+            "workingDirectory": "."
+          }
+        ]
       }
     ]
   },
@@ -1467,7 +3248,7 @@ SDK_TARGET_MANIFEST = {
             "key": "openbox.agentId",
             "type": "string",
             "defaultValue": "",
-            "description": "OpenBox agent ID used by workspace policy checks. Demo setup normally configures this automatically."
+            "description": "OpenBox agent ID used by project policy checks. Demo setup normally configures this automatically."
           },
           {
             "key": "openbox.preWriteGate.active",
@@ -1491,7 +3272,7 @@ SDK_TARGET_MANIFEST = {
             "key": "openbox.strictSourceFilter",
             "type": "boolean",
             "defaultValue": False,
-            "description": "When true, hide approval rows whose source cannot be resolved to the current workspace. Leave off unless you are debugging workspace isolation."
+            "description": "When true, hide approval rows whose source cannot be resolved to the current project. Leave off unless you are debugging project-source isolation."
           }
         ],
         "viewsWelcome": [

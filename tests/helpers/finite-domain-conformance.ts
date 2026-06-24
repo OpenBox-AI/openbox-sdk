@@ -127,6 +127,26 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
     ],
   },
   {
+    id: 'approval-status-invalid-query-boundaries',
+    domainKeys: ['approvalStatuses'],
+    source: 'typespec',
+    proofMode: 'boundary-local-stack-e2e',
+    proofFile: 'tests/e2e/approvals.test.ts',
+    evidencePattern: 'NEGATIVE_FINITE_DOMAIN_PROOF: approval status query rejects out-of-domain values',
+    executablePatterns: [
+      "invalidGovernanceSpecMember('approvalStatuses')",
+      "backendOperation('AgentController_getPendingApprovals')",
+      "backendOperation('AgentController_getApprovalHistory')",
+      "backendOperation('OrganizationController_getApprovals')",
+      '${operationPath(pendingOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}',
+      '${operationPath(historyOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}',
+      '${operationPath(orgOperation.path, { organizationId: orgId })}?status=${encodeURIComponent(invalidStatus)}',
+      'expect(pendingBody.status, pendingConstraintKey).toBe(422)',
+      'expect(historyBody.status, historyConstraintKey).toBe(422)',
+      'expect(orgBody.status, orgConstraintKey).toBe(422)',
+    ],
+  },
+  {
     id: 'approval-decision-action-members',
     domainKeys: ['approvalDecisionActions'],
     source: 'typespec',
@@ -451,18 +471,16 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
     id: 'guardrail-field-status-members',
     domainKeys: ['coreGuardrailFieldStatuses'],
     source: 'typespec',
-    proofMode: 'exhaustive-local-stack-e2e',
-    proofFile: 'tests/e2e/guardrails.test.ts',
-    evidencePattern: 'EXHAUSTIVE_BOUNDARY_PROOF: GuardrailController_runTest covers every guardrail type and outcome',
+    proofMode: 'sdk-runtime-unit',
+    proofFile: 'tests/unit/copilotkit-helpers-coverage.test.ts',
+    evidencePattern: 'mapGuardrailsResult',
     executablePatterns: [
-      'const observedStatuses = new Set<string>()',
-      'const observedStatus = String(body.data.field_results?.[0]?.status)',
-      'observedStatuses.add(observedStatus)',
-      'observedGuardrailTypeStatuses',
-      'observedGuardrailTypeStatusPairs',
+      'const observedFieldStatuses = new Set<string>()',
+      'mapGuardrailsResult({',
+      'fieldResults: GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses.map',
+      'observedFieldStatuses.add(result.status)',
       'GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses',
-      'expectedFieldStatuses',
-      'expect([...observedStatuses].sort()).toEqual',
+      'expect([...observedFieldStatuses].sort()).toEqual',
     ],
   },
   {
@@ -493,6 +511,42 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
     ],
   },
   {
+    id: 'governance-checklist-scoring-domain-members',
+    domainKeys: [
+      'governanceChecklistBoundaryOwners',
+      'governanceChecklistScopes',
+      'governanceChecklistRowStatuses',
+    ],
+    source: 'typespec',
+    proofMode: 'generated-unit',
+    proofFile: 'tests/unit/provider-capability-matrix.test.ts',
+    evidencePattern:
+      'keeps governance checklist scoring honest by excluding explicit limitations',
+    executablePatterns: [
+      'expect(GOVERNANCE_CHECKLIST_LIMITATIONS).toHaveLength',
+      'expect(CHECKLIST_ROWS).toHaveLength',
+      "entry.status === 'limitation'",
+      "entry.scope === 'scored'",
+      "expect(['host', 'caller']",
+      'expect(row.scoredDonePercent',
+    ],
+  },
+  {
+    id: 'claude-code-governance-status-members',
+    domainKeys: ['claudeCodeGovernanceStatuses'],
+    source: 'typespec',
+    proofMode: 'generated-unit',
+    proofFile: 'tests/unit/claude-code-governance-matrix.test.ts',
+    evidencePattern:
+      'EXHAUSTIVE_SPEC_PROOF: Claude Code governance status members are represented by generated surface matrices',
+    executablePatterns: [
+      'GOVERNANCE_SPEC_DOMAINS.claudeCodeGovernanceStatuses',
+      'CLAUDE_CODE_HOOK_MATRIX.map((entry) => entry.status)',
+      'CLAUDE_CODE_SURFACE_MATRIX.map((entry) => entry.status)',
+      'CLAUDE_CODE_SDK_CAPABILITY_MATRIX.map((entry) => entry.claudeCodeTreatment)',
+    ],
+  },
+  {
     id: 'provider-runtime-status-promotion-members',
     domainKeys: [
       'referenceProviderParityClosureStatuses',
@@ -507,6 +561,46 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
       'ReferenceProviderRuntimePromotionDecision',
       'expectedDecisionsByStatus',
       'expectedDecisionsByStatus[audit.status].includes(audit.promotionDecision)',
+    ],
+  },
+  {
+    id: 'usage-wire-case-members',
+    domainKeys: ['localStackUsageWireCaseIds'],
+    source: 'typespec',
+    proofMode: 'exhaustive-local-stack-e2e',
+    proofFile: 'tests/e2e/core-governance.test.ts',
+    evidencePattern: 'usage-core-wire-boundary',
+    executablePatterns: [
+      'const usageWireCases = makeUsageWireCases();',
+      'usageWireCases.map((entry) => entry.caseId)',
+      'GOVERNANCE_SPEC_DOMAINS.localStackUsageWireCaseIds',
+      'usageWireCases',
+      'for (const usageWireCase of usageWireCases)',
+      'caseId',
+      'expectedMetricRows',
+      "metricKey: 'input_tokens'",
+      "metricKey: 'output_tokens'",
+    ],
+  },
+  {
+    id: 'local-governance-verdict-matrix-domain-members',
+    domainKeys: [
+      'localGovernanceSpanTypes',
+      'localGovernanceVerdicts',
+      'localGovernanceOutcomes',
+    ],
+    source: 'typespec',
+    proofMode: 'generated-unit',
+    proofFile: 'tests/unit/governance-scenario-fixtures.test.ts',
+    evidencePattern:
+      'EXHAUSTIVE_SPEC_PROOF: local governance verdict matrix covers every local governance span verdict and outcome member',
+    executablePatterns: [
+      'GOVERNANCE_SPEC_DOMAINS.localGovernanceSpanTypes',
+      'GOVERNANCE_SPEC_DOMAINS.localGovernanceVerdicts',
+      'GOVERNANCE_SPEC_DOMAINS.localGovernanceOutcomes',
+      'LOCAL_GOVERNANCE_VERDICT_MATRIX.map((entry) => entry.spanType)',
+      'LOCAL_GOVERNANCE_VERDICT_MATRIX.map((entry) => entry.expectedVerdict)',
+      'LOCAL_GOVERNANCE_VERDICT_MATRIX.map((entry) => entry.expectedOutcome)',
     ],
   },
   {
@@ -568,42 +662,7 @@ export const FINITE_DOMAIN_EVIDENCE: FiniteDomainEvidence[] = [
   },
 ];
 
-export const FINITE_DOMAIN_GAPS: FiniteDomainGap[] = [
-  {
-    id: 'approval-status-invalid-query-not-rejected',
-    domainKeys: ['approvalStatuses'],
-    operationIds: [
-      'AgentController_getPendingApprovals',
-      'AgentController_getApprovalHistory',
-      'OrganizationController_getApprovals',
-    ],
-    proofFile: 'tests/e2e/approvals.test.ts',
-    evidencePattern: 'SEMANTIC_GAP_PROOF: approval status query out-of-domain values are accepted by local stack',
-    executablePatterns: [
-      "invalidGovernanceSpecMember('approvalStatuses')",
-      'rawApprovalStatusConstraintsFromLedger()',
-      'approval-status-invalid-query-not-rejected',
-      "backendOperation('AgentController_getPendingApprovals')",
-      "backendOperation('AgentController_getApprovalHistory')",
-      "backendOperation('OrganizationController_getApprovals')",
-      'expect(pendingConstraint!.operationId).toBe(pendingOperation.operationId)',
-      'expect(historyConstraint!.operationId).toBe(historyOperation.operationId)',
-      'expect(orgConstraint!.operationId).toBe(orgOperation.operationId)',
-      '${operationPath(pendingOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}',
-      '${operationPath(historyOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}',
-      '${operationPath(orgOperation.path, { organizationId: orgId })}?status=${encodeURIComponent(invalidStatus)}',
-      '?status=${encodeURIComponent(invalidStatus)}',
-      'expect(pendingBody.status, pendingConstraint!.key).toBe(200)',
-      'expect(historyBody.status, historyConstraint!.key).toBe(200)',
-      'expect(orgBody.status, orgConstraint!.key).toBe(200)',
-      'observedOperationIds.push(pendingConstraint!.operationId)',
-    ],
-    observedBehavior:
-      'The local stack accepts out-of-domain approval status query values with 200 responses.',
-    requiredBehavior:
-      'Approval status query parameters are finite in TypeSpec and should reject out-of-domain values.',
-  },
-];
+export const FINITE_DOMAIN_GAPS: FiniteDomainGap[] = [];
 
 export function assertFiniteDomainEvidenceFiles(repoRoot = process.cwd()): void {
   for (const entry of FINITE_DOMAIN_EVIDENCE) {

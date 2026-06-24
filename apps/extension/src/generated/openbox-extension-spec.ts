@@ -378,7 +378,7 @@ export const OPENBOX_EXTENSION_SPEC = {
         "key": "openbox.agentId",
         "type": "string",
         "defaultValue": "",
-        "description": "OpenBox agent ID used by workspace policy checks. Demo setup normally configures this automatically."
+        "description": "OpenBox agent ID used by project policy checks. Demo setup normally configures this automatically."
       },
       {
         "key": "openbox.preWriteGate.active",
@@ -402,7 +402,7 @@ export const OPENBOX_EXTENSION_SPEC = {
         "key": "openbox.strictSourceFilter",
         "type": "boolean",
         "defaultValue": false,
-        "description": "When true, hide approval rows whose source cannot be resolved to the current workspace. Leave off unless you are debugging workspace isolation."
+        "description": "When true, hide approval rows whose source cannot be resolved to the current project. Leave off unless you are debugging project-source isolation."
       }
     ],
     "viewsWelcome": [

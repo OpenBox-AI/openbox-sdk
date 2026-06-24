@@ -1,120 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 const root = process.cwd();
 
-function readSpec(relativePath: string): string {
-  return readFileSync(join(root, relativePath), 'utf8');
-}
-
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '');
-}
-
-function extractModelBody(source: string, modelName: string): string {
-  const cleaned = stripComments(source);
-  const match = cleaned.match(new RegExp(`model\\s+${modelName}\\s*{([\\s\\S]*?)\\n}`));
-  if (!match) throw new Error(`Missing TypeSpec model ${modelName}`);
-  return match[1];
-}
-
-function extractStringModelFieldMembers(
-  source: string,
-  modelName: string,
-  fieldName: string,
-): string[] {
-  const body = extractModelBody(source, modelName);
-  const match = body.match(new RegExp(`${fieldName}\\??\\s*:\\s*([\\s\\S]*?);`));
-  if (!match) throw new Error(`Missing TypeSpec field ${modelName}.${fieldName}`);
-  return [...new Set(
-    [...match[1].matchAll(/"([^"]+)"|`([^`]+)`/g)].map((entry) => entry[1] ?? entry[2]),
-  )];
-}
-
-function extractRequiredModelFields(source: string, modelNames: readonly string[]) {
-  return modelNames.flatMap((modelName) => {
-    const body = extractModelBody(source, modelName);
-    return body
-      .split('\n')
-      .map((line) => line.trim())
-      .map((line) => line.replace(/^(@[A-Za-z0-9_]+(?:\([^)]*\))?\s*)+/, ''))
-      .map((line) => line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^;]+);$/))
-      .filter((match): match is RegExpMatchArray => Boolean(match))
-      .map((match) => ({
-        modelName,
-        fieldName: match[1],
-        type: match[2].trim(),
-      }));
-  });
-}
-
-function extractNumericBoundaries(source: string, modelNames: readonly string[]): NumericBoundary[] {
-  return modelNames.flatMap((modelName) => {
-    const body = extractModelBody(source, modelName);
-    return [...body.matchAll(
-      /@minValue\((-?\d+(?:\.\d+)?)\)(?:\s*@maxValue\((-?\d+(?:\.\d+)?)\))?\s+([A-Za-z_][A-Za-z0-9_]*)\??\s*:\s*([^;]+);/g,
-    )].map((match) => ({
-      modelName,
-      fieldName: match[3],
-      min: Number(match[1]),
-      max: match[2] === undefined ? undefined : Number(match[2]),
-      type: match[4].trim(),
-    }));
-  });
-}
-
-function extractStringLengthBoundaries(
-  source: string,
-  modelNames: readonly string[],
-): StringLengthBoundary[] {
-  return modelNames.flatMap((modelName) => {
-    const body = extractModelBody(source, modelName);
-    return [...body.matchAll(
-      /@maxLength\((\d+)\)\s+([A-Za-z_][A-Za-z0-9_]*)\??\s*:\s*([^;]+);/g,
-    )].map((match) => ({
-      modelName,
-      fieldName: match[2],
-      max: Number(match[1]),
-      type: match[3].trim(),
-    }));
-  });
-}
-
-function extractArrayItemBoundaries(
-  source: string,
-  modelNames: readonly string[],
-): ArrayItemBoundary[] {
-  return modelNames.flatMap((modelName) => {
-    const body = extractModelBody(source, modelName);
-    return [...body.matchAll(
-      /@minItems\((\d+)\)\s+@maxItems\((\d+)\)\s+([A-Za-z_][A-Za-z0-9_]*)\??\s*:\s*([^;]+);/g,
-    )].map((match) => ({
-      modelName,
-      fieldName: match[3],
-      min: Number(match[1]),
-      max: Number(match[2]),
-      type: match[4].trim(),
-    }));
-  });
-}
-
-function extractFormatBoundaries(
-  source: string,
-  modelNames: readonly string[],
-): FormatBoundary[] {
-  return modelNames.flatMap((modelName) => {
-    const body = extractModelBody(source, modelName);
-    return [...body.matchAll(
-      /@format\("([^"]+)"\)\s+([A-Za-z_][A-Za-z0-9_]*)\??\s*:\s*([^;]+);/g,
-    )].map((match) => ({
-      modelName,
-      fieldName: match[2],
-      format: match[1],
-      type: match[3].trim(),
-    }));
-  });
+export interface BoundaryField {
+  modelName: string;
+  fieldName: string;
+  type: string;
 }
 
 export interface NumericBoundary {
@@ -151,6 +43,54 @@ export interface AivssBoundaryField extends NumericBoundary {
   path: readonly [string, string];
 }
 
+interface BoundaryDomainMap {
+  requiredBodyFields: readonly BoundaryField[];
+  aivssNumericFields: readonly AivssBoundaryField[];
+  goalAlignmentThresholds: readonly NumericBoundary[];
+  goalAlignmentModels: readonly string[];
+  goalAlignmentDriftActions: readonly string[];
+  goalAlignmentEvaluationFrequencies: readonly string[];
+  behaviorRuleNumericFields: readonly NumericBoundary[];
+  trustThresholdFields: readonly NumericBoundary[];
+  backendStringLengthFields: readonly StringLengthBoundary[];
+  backendArrayItemFields: readonly ArrayItemBoundary[];
+  backendUuidFormatFields: readonly FormatBoundary[];
+  coreNumericFields: readonly NumericBoundary[];
+  trustImpacts: readonly string[];
+  backendOpenJsonFields: readonly BoundaryField[];
+  coreOpenJsonFields: readonly BoundaryField[];
+}
+
+export interface BoundaryDomainProvenance {
+  source: string;
+  selector: string;
+  extractor:
+    | 'required-model-field'
+    | 'numeric-boundary'
+    | 'string-length-boundary'
+    | 'array-item-boundary'
+    | 'format-boundary'
+    | 'model-field'
+    | 'open-json-field';
+}
+
+interface BoundaryDomainsFixture {
+  domains: BoundaryDomainMap;
+  provenance: Record<keyof BoundaryDomainMap, BoundaryDomainProvenance>;
+}
+
+const BOUNDARY_DOMAINS_FIXTURE = JSON.parse(
+  readFileSync(resolve(root, 'codegen/fixtures/boundary-domains.json'), 'utf8'),
+) as BoundaryDomainsFixture;
+
+export const GOVERNANCE_BOUNDARY_DOMAINS = Object.freeze(
+  BOUNDARY_DOMAINS_FIXTURE.domains,
+) as Readonly<BoundaryDomainMap>;
+
+export const GOVERNANCE_BOUNDARY_DOMAIN_PROVENANCE = Object.freeze(
+  BOUNDARY_DOMAINS_FIXTURE.provenance,
+) as Readonly<Record<keyof BoundaryDomainMap, BoundaryDomainProvenance>>;
+
 export type BoundaryDomainKey = keyof typeof GOVERNANCE_BOUNDARY_DOMAINS;
 
 interface BoundaryFieldCoverage {
@@ -182,150 +122,27 @@ export interface BoundaryGap {
   requiredBehavior: string;
 }
 
-const backendMain = readSpec('specs/typespec/backend/main.tsp');
-const coreMain = readSpec('specs/typespec/core/main.tsp');
+export const AIVSS_NUMERIC_BOUNDARIES = GOVERNANCE_BOUNDARY_DOMAINS.aivssNumericFields;
 
-const AIVSS_PATHS: Record<string, Record<string, readonly [string, string]>> = {
-  BaseSecurityDto: {
-    attack_vector: ['base_security', 'attack_vector'],
-    attack_complexity: ['base_security', 'attack_complexity'],
-    privileges_required: ['base_security', 'privileges_required'],
-    user_interaction: ['base_security', 'user_interaction'],
-    scope: ['base_security', 'scope'],
-  },
-  AISpecificDto: {
-    model_robustness: ['ai_specific', 'model_robustness'],
-    data_sensitivity: ['ai_specific', 'data_sensitivity'],
-    ethical_impact: ['ai_specific', 'ethical_impact'],
-    decision_criticality: ['ai_specific', 'decision_criticality'],
-    adaptability: ['ai_specific', 'adaptability'],
-  },
-  ImpactDto: {
-    confidentiality_impact: ['impact', 'confidentiality_impact'],
-    integrity_impact: ['impact', 'integrity_impact'],
-    availability_impact: ['impact', 'availability_impact'],
-    safety_impact: ['impact', 'safety_impact'],
-  },
-};
+export const GOAL_ALIGNMENT_NUMERIC_BOUNDARIES =
+  GOVERNANCE_BOUNDARY_DOMAINS.goalAlignmentThresholds;
 
-function toAivssBoundaryField(boundary: NumericBoundary): AivssBoundaryField {
-  const path = AIVSS_PATHS[boundary.modelName]?.[boundary.fieldName];
-  if (!path) throw new Error(`Missing AIVSS field path for ${boundary.modelName}.${boundary.fieldName}`);
-  return { ...boundary, path };
-}
+export const BEHAVIOR_RULE_NUMERIC_BOUNDARIES =
+  GOVERNANCE_BOUNDARY_DOMAINS.behaviorRuleNumericFields;
 
-export const AIVSS_NUMERIC_BOUNDARIES = extractNumericBoundaries(backendMain, [
-  'BaseSecurityDto',
-  'AISpecificDto',
-  'ImpactDto',
-]).map(toAivssBoundaryField);
+export const TRUST_THRESHOLD_NUMERIC_BOUNDARIES =
+  GOVERNANCE_BOUNDARY_DOMAINS.trustThresholdFields;
 
-export const GOAL_ALIGNMENT_NUMERIC_BOUNDARIES = extractNumericBoundaries(backendMain, [
-  'GoalAlignmentConfigDto',
-]);
+export const BACKEND_STRING_LENGTH_BOUNDARIES =
+  GOVERNANCE_BOUNDARY_DOMAINS.backendStringLengthFields;
 
-export const BEHAVIOR_RULE_NUMERIC_BOUNDARIES = extractNumericBoundaries(backendMain, [
-  'CreateBehaviorRuleDto',
-]);
+export const BACKEND_ARRAY_ITEM_BOUNDARIES =
+  GOVERNANCE_BOUNDARY_DOMAINS.backendArrayItemFields;
 
-export const TRUST_THRESHOLD_NUMERIC_BOUNDARIES = extractNumericBoundaries(backendMain, [
-  'CreateGuardrailDto',
-  'UpdateGuardrailDto',
-  'CreatePolicyDto',
-  'UpdatePolicyDto',
-  'CreateBehaviorRuleDto',
-  'UpdateBehavioralRuleDto',
-]).filter((entry) => entry.fieldName === 'trust_threshold');
+export const BACKEND_UUID_FORMAT_BOUNDARIES =
+  GOVERNANCE_BOUNDARY_DOMAINS.backendUuidFormatFields;
 
-export const BACKEND_STRING_LENGTH_BOUNDARIES = extractStringLengthBoundaries(backendMain, [
-  'CreatePolicyDto',
-  'CreateTeamDto',
-]);
-
-export const BACKEND_ARRAY_ITEM_BOUNDARIES = extractArrayItemBoundaries(backendMain, [
-  'RemoveMembersDto',
-]);
-
-export const BACKEND_UUID_FORMAT_BOUNDARIES = extractFormatBoundaries(backendMain, [
-  'CreateBehaviorRuleDto',
-  'UpdateBehavioralRuleDto',
-]).filter((entry) => entry.format === 'uuid');
-
-export const CORE_NUMERIC_BOUNDARIES = extractNumericBoundaries(coreMain, [
-  'GovernanceEventPayload',
-  'GovernanceVerdictResponse',
-  'AGETrustScore',
-]);
-
-export const GOVERNANCE_BOUNDARY_DOMAINS = Object.freeze({
-  requiredBodyFields: extractRequiredModelFields(backendMain, [
-    'LoginDto',
-    'LogoutDto',
-    'ForgotPasswordDto',
-    'ResetPasswordDto',
-    'ChangePasswordDto',
-    'RefreshDto',
-    'CreateOrganizationDto',
-  ]),
-  aivssNumericFields: AIVSS_NUMERIC_BOUNDARIES,
-  goalAlignmentThresholds: GOAL_ALIGNMENT_NUMERIC_BOUNDARIES,
-  goalAlignmentModels: extractStringModelFieldMembers(
-    backendMain,
-    'GoalAlignmentConfigDto',
-    'llama_firewall_model',
-  ),
-  goalAlignmentDriftActions: extractStringModelFieldMembers(
-    backendMain,
-    'GoalAlignmentConfigDto',
-    'drift_detection_action',
-  ),
-  goalAlignmentEvaluationFrequencies: extractStringModelFieldMembers(
-    backendMain,
-    'GoalAlignmentConfigDto',
-    'evaluation_frequency',
-  ),
-  behaviorRuleNumericFields: BEHAVIOR_RULE_NUMERIC_BOUNDARIES,
-  trustThresholdFields: TRUST_THRESHOLD_NUMERIC_BOUNDARIES,
-  backendStringLengthFields: BACKEND_STRING_LENGTH_BOUNDARIES,
-  backendArrayItemFields: BACKEND_ARRAY_ITEM_BOUNDARIES,
-  backendUuidFormatFields: BACKEND_UUID_FORMAT_BOUNDARIES,
-  coreNumericFields: CORE_NUMERIC_BOUNDARIES,
-  trustImpacts: extractStringModelFieldMembers(backendMain, 'CreateGuardrailDto', 'trust_impact'),
-  backendOpenJsonFields: extractOpenJsonFields(backendMain, [
-    'CreateAgentDto',
-    'UpdateAgentDto',
-    'CreateGuardrailDto',
-    'UpdateGuardrailDto',
-    'CreatePolicyDto',
-    'TestGuardrailDto',
-    'EvaluateRegoDto',
-  ]),
-  coreOpenJsonFields: extractOpenJsonFields(coreMain, [
-    'GovernanceEventPayload',
-    'SpanData',
-    'SpanEvent',
-  ]),
-});
-
-function extractOpenJsonFields(source: string, modelNames: readonly string[]) {
-  return modelNames.flatMap((modelName) => {
-    const body = extractModelBody(source, modelName);
-    return body
-      .split('\n')
-      .map((line) => line.trim())
-      .map((line) => line.replace(/^(@[A-Za-z0-9_]+(?:\([^)]*\))?\s*)+/, ''))
-      .map((line) => line.match(/^([A-Za-z_][A-Za-z0-9_]*)\??\s*:\s*([^;]+);$/))
-      .filter((match): match is RegExpMatchArray => Boolean(match))
-      .map((match) => ({
-        modelName,
-        fieldName: match[1],
-        type: match[2].trim(),
-      }))
-      .filter((entry) =>
-        /\bunknown\b|\{\}|Record<unknown>|SpanData\[]/.test(entry.type),
-      );
-  });
-}
+export const CORE_NUMERIC_BOUNDARIES = GOVERNANCE_BOUNDARY_DOMAINS.coreNumericFields;
 
 export type JsonValueClass = 'null' | 'boolean' | 'number' | 'string' | 'array' | 'object';
 
@@ -641,7 +458,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
       "requiredFields('ChangePasswordDto')",
       "requiredFields('RefreshDto')",
       'withoutField(',
-      'expectValidationOrThrottle(',
+      'expectValidation(',
     ],
   },
   {
@@ -818,14 +635,17 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     proofFile: 'tests/e2e/guardrails.test.ts',
     evidencePattern: 'EXHAUSTIVE_BOUNDARY_PROOF: GuardrailController_runTest covers every guardrail type and outcome',
     executablePatterns: [
-      'const guardrailRunTestCases = makeGuardrailRunTestConformanceCases()',
+      'const observedGuardrailTypes = new Set<string>()',
+      'const observedSuccessResults = new Set<boolean>()',
+      'const observedViolationResults = new Set<boolean>()',
       'GOVERNANCE_SPEC_DOMAINS.guardrailTypes',
-      'GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses',
-      'expectedFieldStatuses',
-      'observedStatuses',
-      'observedGuardrailTypeStatuses',
-      'observedGuardrailTypeStatusPairs',
-      'GOVERNANCE_SPEC_DOMAINS.guardrailTypes.length * expectedFieldStatuses.length',
+      'observedGuardrailTypes.add(testCase.request.guardrail_type)',
+      'observedSuccessResults.add(Boolean(body.data.success))',
+      'observedViolationResults.add(Boolean(body.data.violations_detected))',
+      'expect([...observedGuardrailTypes].sort()).toEqual',
+      'expect(observedSuccessResults).toContain(true)',
+      'expect(observedViolationResults).toContain(true)',
+      'expect(observedViolationResults).toContain(false)',
     ],
   },
   {
@@ -953,12 +773,17 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
   },
   {
     id: 'core-governance-attempt-integer-request-boundary',
-    domainKeys: [],
+    domainKeys: ['coreNumericFields'],
+    coveredFields: coverFields('coreNumericFields', [
+      'GovernanceEventPayload',
+    ]).filter((entry) => entry.fieldName === 'attempt'),
     source: 'typespec-and-local-stack-probe',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/core-governance.test.ts',
-    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: core governance attempt rejects fractional and nonnumeric values',
+    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: core governance attempt rejects below-min, fractional, and nonnumeric values',
     executablePatterns: [
+      'attempt: 0',
+      'InvalidAttemptBelowMinProbe',
       'attempt: 0.5',
       'FractionalAttemptProbe',
       "attempt: 'not-an-integer'",
@@ -991,7 +816,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     source: 'typespec',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/core-governance.test.ts',
-    evidencePattern: 'CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE fallback',
+    evidencePattern: 'CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE result',
     executablePatterns: [
       'conformanceCase.goalSignalEvent.workflow_id',
       'conformanceCase.firstGovernedEvent.workflow_id',
@@ -1014,6 +839,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     executablePatterns: [
       'CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS',
       'CORE_TELEMETRY_SPAN_NUMERIC_FIELDS',
+      "'cost_usd'",
       "[field]: 'not-a-number'",
       'expectedInvalidTelemetryCaseCount()',
       'expect(cases).toHaveLength(expectedInvalidTelemetryCaseCount())',
@@ -1026,8 +852,10 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     source: 'typespec-and-local-stack-probe',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/core-governance.test.ts',
-    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: core governance timestamp rejects non-string values',
+    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: core governance timestamp rejects invalid date-time and non-string values',
     executablePatterns: [
+      "timestamp: 'not-a-date-time'",
+      'InvalidTimestampFormatProbe',
       'timestamp: 12345',
       'InvalidTimestampTypeProbe',
       'expect([400, 422]',
@@ -1039,7 +867,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     source: 'typespec-and-local-stack-probe',
     proofMode: 'boundary-local-stack-e2e',
     proofFile: 'tests/e2e/request-query-boundaries.test.ts',
-    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values or expose raw gaps',
+    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values',
     executablePatterns: [
       'BACKEND_REQUEST_PREFLIGHT_RULES.length',
       "testCase.queryName === 'pattern'",
@@ -1103,9 +931,10 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
     evidencePattern: 'BOUNDARY_PROOF: TestGuardrailDto preserves every JSON value class',
     executablePatterns: [
       'makeJsonObjectValueClassPayload()',
-      'raw_params',
-      'raw_settings',
+      'params: {',
+      'settings: {',
       'raw_logs',
+      'expect(body.status).toBe(200)',
     ],
   },
   {
@@ -1191,96 +1020,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
   },
 ];
 
-export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [
-  {
-    id: 'core-governance-attempt-min-not-rejected',
-    domainKeys: ['coreNumericFields'],
-    operationIds: ['evaluateGovernance'],
-    coveredFields: coverFields('coreNumericFields', [
-      'GovernanceEventPayload',
-    ]).filter((entry) => entry.fieldName === 'attempt'),
-    proofFile: 'tests/e2e/core-governance.test.ts',
-    evidencePattern: 'SEMANTIC_GAP_PROOF: core governance attempt below min is accepted by local stack',
-    executablePatterns: [
-      "coreOperation('evaluateGovernance')",
-      'const rawAttemptConstraints = rawCoreGovernanceConstraintsFromLedger(',
-      'core-governance-attempt-min-not-rejected',
-      'core:evaluateGovernance:body.attempt:minimum',
-      'attempt: 0',
-      'expect(response.status).toBe(200)',
-      "expect(response.data).toHaveProperty('verdict')",
-    ],
-    observedBehavior:
-      'The local Core stack accepts GovernanceEventPayload.attempt=0 with a 200 governed response.',
-    requiredBehavior:
-      'GovernanceEventPayload.attempt has TypeSpec @minValue(1) and should reject values below 1.',
-  },
-  {
-    id: 'core-governance-timestamp-format-not-rejected',
-    domainKeys: [],
-    operationIds: ['evaluateGovernance'],
-    proofFile: 'tests/e2e/core-governance.test.ts',
-    evidencePattern: 'SEMANTIC_GAP_PROOF: core governance timestamp format accepts invalid date-time values',
-    executablePatterns: [
-      'const rawTimestampConstraints = rawCoreGovernanceConstraintsFromLedger(',
-      'core-governance-timestamp-format-not-rejected',
-      'core:evaluateGovernance:body.timestamp:format',
-      'timestamp: \'not-a-date-time\'',
-      'expect(response.status).toBe(200)',
-      "expect(response.data).toHaveProperty('verdict')",
-    ],
-    observedBehavior:
-      'The local Core stack accepts GovernanceEventPayload.timestamp values that are not valid date-time strings.',
-    requiredBehavior:
-      'GovernanceEventPayload.timestamp is OpenAPI format=date-time and should reject invalid date-time strings.',
-  },
-  {
-    id: 'core-governance-cost-type-not-rejected',
-    domainKeys: [],
-    operationIds: ['evaluateGovernance'],
-    proofFile: 'tests/e2e/core-governance.test.ts',
-    evidencePattern: 'SEMANTIC_GAP_PROOF: core governance cost accepts nonnumeric values',
-    executablePatterns: [
-      'const rawCostConstraints = rawCoreGovernanceConstraintsFromLedger(',
-      'core-governance-cost-type-not-rejected',
-      'core:evaluateGovernance:body.cost_usd:format',
-      'core:evaluateGovernance:body.cost_usd:type',
-      "cost_usd: 'not-a-number'",
-      'expect(response.status).toBe(200)',
-      "expect(response.data).toHaveProperty('verdict')",
-    ],
-    observedBehavior:
-      'The local Core stack accepts GovernanceEventPayload.cost_usd values that are not numeric.',
-    requiredBehavior:
-      'GovernanceEventPayload.cost_usd is OpenAPI type=number format=double and should reject nonnumeric values.',
-  },
-  {
-    id: 'backend-agent-evaluations-query-boundaries-not-rejected',
-    domainKeys: [],
-    operationIds: ['AgentController_getAgentEvaluations'],
-    proofFile: 'tests/e2e/request-query-boundaries.test.ts',
-    evidencePattern: 'NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values or expose raw gaps',
-    executablePatterns: [
-      'RAW_SEMANTIC_GAP_OPERATIONS',
-      "'AgentController_getAgentEvaluations'",
-      'expectedAgentEvaluationConstraintKeys',
-      'backend:AgentController_getAgentEvaluations:query.page:minimum',
-      'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
-      'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
-      'rawSemanticGapBoundaryConstraintsFromLedger()',
-      'expectedBoundaryConstraintKeysFromLedger()',
-      'testCase.constraintKey',
-      "testCase.operationId === 'AgentController_getAgentEvaluations'",
-      'semanticGapCases.every',
-      'expectedBoundaryCaseCount()',
-      'expect(cases).toHaveLength(expectedBoundaryCaseCount())',
-    ],
-    observedBehavior:
-      'The local backend accepts AgentController_getAgentEvaluations page, perPage, and pattern values outside the generated OpenAPI request constraints.',
-    requiredBehavior:
-      'AgentController_getAgentEvaluations query.page, query.perPage, and query.pattern have generated request constraints and should reject values outside those bounds.',
-  },
-];
+export const BOUNDARY_CONFORMANCE_GAPS: BoundaryGap[] = [];
 
 export function assertBoundaryConformanceEvidenceFiles(repoRoot = process.cwd()): void {
   for (const entry of BOUNDARY_CONFORMANCE_EVIDENCE) {

@@ -1,0 +1,621 @@
+{
+  "generatedBy": "codegen/emitters/typespec-emitter",
+  "sources": [
+    "specs/typespec/backend/main.tsp",
+    "specs/typespec/core/main.tsp"
+  ],
+  "regenerate": "npm run specs:compile",
+  "domains": {
+    "requiredBodyFields": [
+      {
+        "modelName": "LoginDto",
+        "fieldName": "realm",
+        "type": "string"
+      },
+      {
+        "modelName": "LoginDto",
+        "fieldName": "username",
+        "type": "string"
+      },
+      {
+        "modelName": "LoginDto",
+        "fieldName": "password",
+        "type": "string"
+      },
+      {
+        "modelName": "LoginDto",
+        "fieldName": "recaptchaToken",
+        "type": "string"
+      },
+      {
+        "modelName": "LogoutDto",
+        "fieldName": "refreshToken",
+        "type": "string"
+      },
+      {
+        "modelName": "ForgotPasswordDto",
+        "fieldName": "email",
+        "type": "string"
+      },
+      {
+        "modelName": "ForgotPasswordDto",
+        "fieldName": "realm",
+        "type": "string"
+      },
+      {
+        "modelName": "ResetPasswordDto",
+        "fieldName": "token",
+        "type": "string"
+      },
+      {
+        "modelName": "ResetPasswordDto",
+        "fieldName": "newPassword",
+        "type": "string"
+      },
+      {
+        "modelName": "ChangePasswordDto",
+        "fieldName": "currentPassword",
+        "type": "string"
+      },
+      {
+        "modelName": "ChangePasswordDto",
+        "fieldName": "newPassword",
+        "type": "string"
+      },
+      {
+        "modelName": "ChangePasswordDto",
+        "fieldName": "orgId",
+        "type": "string"
+      },
+      {
+        "modelName": "RefreshDto",
+        "fieldName": "refreshToken",
+        "type": "string"
+      },
+      {
+        "modelName": "CreateOrganizationDto",
+        "fieldName": "contactName",
+        "type": "string"
+      },
+      {
+        "modelName": "CreateOrganizationDto",
+        "fieldName": "contactEmail",
+        "type": "string"
+      },
+      {
+        "modelName": "CreateOrganizationDto",
+        "fieldName": "recaptchaToken",
+        "type": "string"
+      }
+    ],
+    "aivssNumericFields": [
+      {
+        "modelName": "BaseSecurityDto",
+        "fieldName": "attack_vector",
+        "type": "numeric",
+        "min": 1,
+        "max": 4,
+        "path": [
+          "base_security",
+          "attack_vector"
+        ]
+      },
+      {
+        "modelName": "BaseSecurityDto",
+        "fieldName": "attack_complexity",
+        "type": "numeric",
+        "min": 1,
+        "max": 2,
+        "path": [
+          "base_security",
+          "attack_complexity"
+        ]
+      },
+      {
+        "modelName": "BaseSecurityDto",
+        "fieldName": "privileges_required",
+        "type": "numeric",
+        "min": 1,
+        "max": 3,
+        "path": [
+          "base_security",
+          "privileges_required"
+        ]
+      },
+      {
+        "modelName": "BaseSecurityDto",
+        "fieldName": "user_interaction",
+        "type": "numeric",
+        "min": 1,
+        "max": 2,
+        "path": [
+          "base_security",
+          "user_interaction"
+        ]
+      },
+      {
+        "modelName": "BaseSecurityDto",
+        "fieldName": "scope",
+        "type": "numeric",
+        "min": 1,
+        "max": 2,
+        "path": [
+          "base_security",
+          "scope"
+        ]
+      },
+      {
+        "modelName": "AISpecificDto",
+        "fieldName": "model_robustness",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "ai_specific",
+          "model_robustness"
+        ]
+      },
+      {
+        "modelName": "AISpecificDto",
+        "fieldName": "data_sensitivity",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "ai_specific",
+          "data_sensitivity"
+        ]
+      },
+      {
+        "modelName": "AISpecificDto",
+        "fieldName": "ethical_impact",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "ai_specific",
+          "ethical_impact"
+        ]
+      },
+      {
+        "modelName": "AISpecificDto",
+        "fieldName": "decision_criticality",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "ai_specific",
+          "decision_criticality"
+        ]
+      },
+      {
+        "modelName": "AISpecificDto",
+        "fieldName": "adaptability",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "ai_specific",
+          "adaptability"
+        ]
+      },
+      {
+        "modelName": "ImpactDto",
+        "fieldName": "confidentiality_impact",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "impact",
+          "confidentiality_impact"
+        ]
+      },
+      {
+        "modelName": "ImpactDto",
+        "fieldName": "integrity_impact",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "impact",
+          "integrity_impact"
+        ]
+      },
+      {
+        "modelName": "ImpactDto",
+        "fieldName": "availability_impact",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "impact",
+          "availability_impact"
+        ]
+      },
+      {
+        "modelName": "ImpactDto",
+        "fieldName": "safety_impact",
+        "type": "numeric",
+        "min": 1,
+        "max": 5,
+        "path": [
+          "impact",
+          "safety_impact"
+        ]
+      }
+    ],
+    "goalAlignmentThresholds": [
+      {
+        "modelName": "GoalAlignmentConfigDto",
+        "fieldName": "alignment_threshold",
+        "type": "numeric",
+        "min": 0,
+        "max": 100
+      }
+    ],
+    "goalAlignmentModels": [
+      "gpt-4o-mini",
+      "gpt-4o",
+      "claude-3-haiku"
+    ],
+    "goalAlignmentDriftActions": [
+      "alert_only",
+      "constrain",
+      "terminate"
+    ],
+    "goalAlignmentEvaluationFrequencies": [
+      "every_action",
+      "every_5_actions",
+      "every_10_actions",
+      "session_end_only"
+    ],
+    "behaviorRuleNumericFields": [
+      {
+        "modelName": "CreateBehaviorRuleDto",
+        "fieldName": "priority",
+        "type": "numeric",
+        "min": 1,
+        "max": 100
+      },
+      {
+        "modelName": "CreateBehaviorRuleDto",
+        "fieldName": "time_window",
+        "type": "numeric",
+        "min": 1
+      },
+      {
+        "modelName": "CreateBehaviorRuleDto",
+        "fieldName": "approval_timeout",
+        "type": "numeric",
+        "min": 1
+      },
+      {
+        "modelName": "CreateBehaviorRuleDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      }
+    ],
+    "trustThresholdFields": [
+      {
+        "modelName": "CreateGuardrailDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      },
+      {
+        "modelName": "UpdateGuardrailDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      },
+      {
+        "modelName": "CreatePolicyDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      },
+      {
+        "modelName": "UpdatePolicyDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      },
+      {
+        "modelName": "CreateBehaviorRuleDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      },
+      {
+        "modelName": "UpdateBehavioralRuleDto",
+        "fieldName": "trust_threshold",
+        "type": "numeric | null",
+        "min": 1
+      }
+    ],
+    "backendStringLengthFields": [
+      {
+        "modelName": "CreatePolicyDto",
+        "fieldName": "name",
+        "type": "string",
+        "max": 255
+      },
+      {
+        "modelName": "CreatePolicyDto",
+        "fieldName": "description",
+        "type": "string",
+        "max": 255
+      },
+      {
+        "modelName": "CreateTeamDto",
+        "fieldName": "name",
+        "type": "string",
+        "max": 255
+      },
+      {
+        "modelName": "CreateTeamDto",
+        "fieldName": "description",
+        "type": "string",
+        "max": 1000
+      },
+      {
+        "modelName": "CreateTeamDto",
+        "fieldName": "icon",
+        "type": "string",
+        "max": 2048
+      }
+    ],
+    "backendArrayItemFields": [
+      {
+        "modelName": "RemoveMembersDto",
+        "fieldName": "memberIds",
+        "type": "string[]",
+        "min": 1,
+        "max": 100
+      }
+    ],
+    "backendUuidFormatFields": [
+      {
+        "modelName": "CreateBehaviorRuleDto",
+        "fieldName": "dependency_base_rule_id",
+        "type": "string",
+        "format": "uuid"
+      },
+      {
+        "modelName": "UpdateBehavioralRuleDto",
+        "fieldName": "dependency_base_rule_id",
+        "type": "string",
+        "format": "uuid"
+      }
+    ],
+    "coreNumericFields": [
+      {
+        "modelName": "GovernanceEventPayload",
+        "fieldName": "attempt",
+        "type": "int32",
+        "min": 1
+      },
+      {
+        "modelName": "GovernanceVerdictResponse",
+        "fieldName": "risk_score",
+        "type": "float64",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "modelName": "GovernanceVerdictResponse",
+        "fieldName": "trust_tier",
+        "type": "int32",
+        "min": 0,
+        "max": 4
+      },
+      {
+        "modelName": "GovernanceVerdictResponse",
+        "fieldName": "alignment_score",
+        "type": "float64",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "modelName": "AGETrustScore",
+        "fieldName": "trust_tier",
+        "type": "int32",
+        "min": 0,
+        "max": 4
+      }
+    ],
+    "trustImpacts": [
+      "none",
+      "low",
+      "medium",
+      "high"
+    ],
+    "backendOpenJsonFields": [
+      {
+        "modelName": "CreateAgentDto",
+        "fieldName": "config",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "UpdateAgentDto",
+        "fieldName": "config",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "CreateGuardrailDto",
+        "fieldName": "params",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "CreateGuardrailDto",
+        "fieldName": "settings",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "UpdateGuardrailDto",
+        "fieldName": "params",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "UpdateGuardrailDto",
+        "fieldName": "settings",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "CreatePolicyDto",
+        "fieldName": "input",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "CreatePolicyDto",
+        "fieldName": "config",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "TestGuardrailDto",
+        "fieldName": "params",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "TestGuardrailDto",
+        "fieldName": "settings",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "TestGuardrailDto",
+        "fieldName": "logs",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "EvaluateRegoDto",
+        "fieldName": "input",
+        "type": "Record<unknown>"
+      }
+    ],
+    "coreOpenJsonFields": [
+      {
+        "modelName": "GovernanceEventPayload",
+        "fieldName": "activity_input",
+        "type": "unknown[] | {}"
+      },
+      {
+        "modelName": "GovernanceEventPayload",
+        "fieldName": "activity_output",
+        "type": "unknown"
+      },
+      {
+        "modelName": "GovernanceEventPayload",
+        "fieldName": "signal_args",
+        "type": "unknown"
+      },
+      {
+        "modelName": "GovernanceEventPayload",
+        "fieldName": "spans",
+        "type": "SpanData[]"
+      },
+      {
+        "modelName": "SpanData",
+        "fieldName": "attributes",
+        "type": "Record<unknown>"
+      },
+      {
+        "modelName": "SpanData",
+        "fieldName": "data",
+        "type": "unknown"
+      },
+      {
+        "modelName": "SpanData",
+        "fieldName": "args",
+        "type": "unknown"
+      },
+      {
+        "modelName": "SpanData",
+        "fieldName": "result",
+        "type": "unknown"
+      },
+      {
+        "modelName": "SpanEvent",
+        "fieldName": "attributes",
+        "type": "Record<unknown>"
+      }
+    ]
+  },
+  "provenance": {
+    "requiredBodyFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "models LoginDto, LogoutDto, ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto, RefreshDto, CreateOrganizationDto",
+      "extractor": "required-model-field"
+    },
+    "aivssNumericFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "models BaseSecurityDto, AISpecificDto, ImpactDto",
+      "extractor": "numeric-boundary"
+    },
+    "goalAlignmentThresholds": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto",
+      "extractor": "numeric-boundary"
+    },
+    "goalAlignmentModels": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto.llama_firewall_model",
+      "extractor": "model-field"
+    },
+    "goalAlignmentDriftActions": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto.drift_detection_action",
+      "extractor": "model-field"
+    },
+    "goalAlignmentEvaluationFrequencies": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto.evaluation_frequency",
+      "extractor": "model-field"
+    },
+    "behaviorRuleNumericFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateBehaviorRuleDto",
+      "extractor": "numeric-boundary"
+    },
+    "trustThresholdFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "trust_threshold fields with @minValue",
+      "extractor": "numeric-boundary"
+    },
+    "backendStringLengthFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "models CreatePolicyDto, CreateTeamDto",
+      "extractor": "string-length-boundary"
+    },
+    "backendArrayItemFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model RemoveMembersDto",
+      "extractor": "array-item-boundary"
+    },
+    "backendUuidFormatFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "behavior rule dependency_base_rule_id uuid fields",
+      "extractor": "format-boundary"
+    },
+    "coreNumericFields": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "models GovernanceEventPayload, GovernanceVerdictResponse, AGETrustScore",
+      "extractor": "numeric-boundary"
+    },
+    "trustImpacts": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateGuardrailDto.trust_impact",
+      "extractor": "model-field"
+    },
+    "backendOpenJsonFields": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "backend DTO fields typed unknown, Record<unknown>, {}, or SpanData[]",
+      "extractor": "open-json-field"
+    },
+    "coreOpenJsonFields": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "core DTO fields typed unknown, Record<unknown>, {}, or SpanData[]",
+      "extractor": "open-json-field"
+    }
+  }
+}

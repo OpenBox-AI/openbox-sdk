@@ -401,7 +401,7 @@ describe('Test Fixtures', () => {
   });
 
   describe('makeGoalSignalOrderConformanceCase', () => {
-    it('generates a spec-backed SignalReceived-before-action AGE fallback path', () => {
+    it('generates a spec-backed SignalReceived-before-action AGE result path', () => {
       const testCase = makeGoalSignalOrderConformanceCase();
       const signal: GovernanceEventPayload = testCase.goalSignalEvent;
       const action: GovernanceEventPayload = testCase.firstGovernedEvent;
@@ -423,7 +423,7 @@ describe('Test Fixtures', () => {
         'openbox.goal_signal_order': 'after-signal',
       });
       expect(testCase.expected).toMatchObject({
-        fallbackUsed: true,
+        fallbackUsed: false,
         goalAlignmentChecked: false,
         goalDrifted: false,
       });

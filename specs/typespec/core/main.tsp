@@ -290,8 +290,9 @@ model SpanData {
 
   /**
    * Server-computed bucket. Examples: `http_get`, `llm_completion`,
-   * `database_select`, `file_read`, `shell_execution`. SDK can
-   * pre-compute and send; server overrides if mismatched.
+   * `database_select`, `file_read`, `internal`. SDKs should omit this for
+   * live evaluations and let Core compute it from typed span fields;
+   * persisted backend reads include the computed value.
    *
    */
   semantic_type?: string;

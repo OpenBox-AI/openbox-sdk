@@ -167,12 +167,7 @@ describe('boundary conformance ledger', () => {
 
   it('links every constrained/open value class to explicit e2e evidence', () => {
     assertBoundaryConformanceEvidenceFiles();
-    expect(BOUNDARY_CONFORMANCE_GAPS.map((entry) => entry.id)).toEqual([
-      'core-governance-attempt-min-not-rejected',
-      'core-governance-timestamp-format-not-rejected',
-      'core-governance-cost-type-not-rejected',
-      'backend-agent-evaluations-query-boundaries-not-rejected',
-    ]);
+    expect(BOUNDARY_CONFORMANCE_GAPS.map((entry) => entry.id)).toEqual([]);
   });
 
   it('requires every extracted boundary domain key to have evidence or an explicit gap', () => {

@@ -15,12 +15,14 @@ describe('finite-domain conformance ledger', () => {
       'approval-decision-action-invalid-members',
       'approval-decision-action-members',
       'approval-status-agent-query-members',
+      'approval-status-invalid-query-boundaries',
       'approval-status-org-query-members',
       'audit-event-result-export-status-invalid-members',
       'audit-event-result-export-status-members',
       'behavior-rule-state-members',
       'behavior-rule-trigger-members',
       'behavior-rule-verdict-members',
+      'claude-code-governance-status-members',
       'core-auth-environment-members',
       'core-governance-payload-finite-members',
       'core-guardrails-input-type-members',
@@ -28,9 +30,11 @@ describe('finite-domain conformance ledger', () => {
       'core-verdict-constrain-member',
       'core-verdict-opa-members',
       'demo-setup-status-members',
+      'governance-checklist-scoring-domain-members',
       'guardrail-create-members',
       'guardrail-field-status-members',
       'guardrail-update-members',
+      'local-governance-verdict-matrix-domain-members',
       'local-stack-scenario-matrix-domain-members',
       'openbox-capability-id-members',
       'organization-timezone-invalid-members',
@@ -43,16 +47,15 @@ describe('finite-domain conformance ledger', () => {
       'sso-method-members',
       'trust-history-duration-invalid-query-members',
       'trust-history-duration-query-members',
+      'usage-wire-case-members',
       'webhook-event-type-members',
       'welcome-email-type-members',
     ]);
     assertFiniteDomainEvidenceFiles();
   });
 
-  it('keeps finite-domain semantic gaps explicit', () => {
-    expect(FINITE_DOMAIN_GAPS.map((entry) => entry.id)).toEqual([
-      'approval-status-invalid-query-not-rejected',
-    ]);
+  it('keeps finite-domain semantic gaps closed', () => {
+    expect(FINITE_DOMAIN_GAPS.map((entry) => entry.id)).toEqual([]);
   });
 
   it('requires every extracted finite domain to have evidence or an explicit gap', () => {

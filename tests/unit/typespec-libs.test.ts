@@ -308,7 +308,12 @@ describe('typespec-workflow', () => {
         | {
             pipelines: Array<{
               id: string;
-              steps: Array<{ id: string; command: string; workingDirectory: string }>;
+              steps: Array<{
+                id: string;
+                command?: string;
+                workingDirectory?: string;
+                steps?: Array<{ id: string; command: string; workingDirectory: string }>;
+              }>;
             }>;
           }
         | undefined;
@@ -316,7 +321,12 @@ describe('typespec-workflow', () => {
       fixture?.testSuites as
         | {
             defaultSuites: string[];
-            suites: Array<{ id: string; command: string; workingDirectory: string }>;
+            suites: Array<{
+              id: string;
+              command?: string;
+              workingDirectory?: string;
+              steps?: Array<{ id: string; command: string; workingDirectory: string }>;
+            }>;
           }
         | undefined;
     const bundleBuild =
@@ -347,7 +357,13 @@ describe('typespec-workflow', () => {
     const localCi =
       fixture?.localCi as
         | {
-            steps: Array<{ id: string; command: string; workingDirectory: string; env?: Record<string, string> }>;
+            steps: Array<{
+              id: string;
+              command?: string;
+              workingDirectory?: string;
+              env?: Record<string, string>;
+              steps?: Array<{ id: string; command: string; workingDirectory: string }>;
+            }>;
           }
         | undefined;
     const targets =
@@ -412,8 +428,14 @@ describe('typespec-workflow', () => {
       'build-codegen',
       'specs-compile',
       'sync-package-scripts',
+      'write-governance-checklist',
     ]);
-    expect(sdkGeneration?.steps.map((entry) => entry.command)).toEqual(['npm', 'npm', 'node']);
+    expect(sdkGeneration?.steps.map((entry) => entry.command)).toEqual([
+      'npm',
+      'npm',
+      'node',
+      'node',
+    ]);
     expect(specCommands?.commands.map((entry) => entry.id)).toEqual(['compile', 'watch']);
     expect(specCommands?.commands.every((entry) => entry.command === 'npx')).toBe(true);
     expect(rootPipelines?.pipelines.map((entry) => entry.id)).toEqual(['build', 'check-sdks', 'local-stack']);
@@ -421,23 +443,98 @@ describe('typespec-workflow', () => {
       'generate-sdks',
       'bundle-build',
     ]);
+    expect(rootPipelines?.pipelines.find((entry) => entry.id === 'local-stack')?.steps.map((entry) => entry.id)).toEqual([
+      'ci-local',
+      'live-governance-lanes',
+      'live-platform-e2e',
+    ]);
+    expect(
+      rootPipelines?.pipelines
+        .find((entry) => entry.id === 'local-stack')
+        ?.steps.find((entry) => entry.id === 'live-governance-lanes')?.steps?.map((entry) => entry.id),
+    ).toEqual([
+      'hook-claude-host',
+      'hook-claude-stdin-local-stack',
+      'hook-codex-local-stack',
+      'hook-cursor-local-stack',
+      'openai-agents-sdk-local-stack',
+      'anthropic-agent-sdk-local-stack',
+      'copilotkit-local-stack',
+      'n8n-local-stack',
+      'kms-signing-local-stack',
+      'live-governance-e2e',
+      'local-llamafirewall',
+    ]);
     expect(testSuites?.defaultSuites).toEqual([
       'unit',
       'openapi-mock',
       'contract',
-      'hook-integration',
     ]);
     expect(testSuites?.suites.map((entry) => entry.id)).toEqual([
       'unit',
       'openapi-mock',
       'contract',
+      'provider-adapters',
+      'hook-install',
+      'hook-runtime',
+      'mcp-protocol',
+      'hook-claude-host',
+      'hook-claude-headless-write',
+      'hook-claude-headless-shell',
+      'hook-claude-stdin-local-stack',
+      'hook-claude-events-tool',
+      'hook-claude-events-lifecycle',
+      'hook-claude-subagent',
+      'hook-claude-host-rest',
+      'hook-codex-local-stack',
+      'hook-cursor-local-stack',
+      'openai-agents-sdk-local-stack',
+      'anthropic-agent-sdk-local-stack',
+      'copilotkit-local-stack',
+      'n8n-local-stack',
+      'kms-signing-local-stack',
+      'local-llamafirewall',
       'hook-integration',
+      'local-stack-alignment',
+      'e2e-governance-domains',
+      'e2e-governance-policies',
+      'e2e-governance-request-query-boundaries',
+      'e2e-governance-core',
+      'e2e-governance-faults',
+      'e2e-platform',
       'e2e',
     ]);
-    expect(testSuites?.suites.map((entry) => entry.command)).toEqual([
+    expect(testSuites?.suites.map((entry) => (entry.steps ? 'parallel' : entry.command))).toEqual([
       'npx',
       'npx',
       'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'node',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npx',
+      'npm',
+      'npx',
+      'npm',
+      'parallel',
+      'npx',
+      'npx',
+      'npx',
+      'parallel',
       'npx',
       'npx',
     ]);
@@ -459,13 +556,17 @@ describe('typespec-workflow', () => {
     expect(localCi?.steps.map((entry) => entry.id)).toEqual([
       'generated-drift',
       'check-sdks',
+      'host-integration-lanes',
       'coverage',
       'build',
-      'generated-banners',
-      'openapi-lint',
-      'npm-audit',
-      'security-audit',
+      'post-build-quality',
     ]);
+    expect(
+      localCi?.steps.find((entry) => entry.id === 'host-integration-lanes')?.steps?.map((entry) => entry.id),
+    ).toEqual(['hook-install', 'hook-runtime', 'mcp-protocol']);
+    expect(
+      localCi?.steps.find((entry) => entry.id === 'post-build-quality')?.steps?.map((entry) => entry.id),
+    ).toEqual(['generated-banners', 'openapi-lint', 'npm-audit', 'security-audit']);
     expect(localCi?.steps.find((entry) => entry.id === 'coverage')?.env?.OPENBOX_CLI).toBe(
       './scripts/openbox-cli-dev.mjs',
     );
