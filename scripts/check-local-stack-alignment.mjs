@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const repoRoot = process.cwd();
-const expectedBucket = process.env.OPENBOX_LOCAL_S3_BUCKET ?? 'openbox-local-sdk';
+const expectedBucket = process.env.OPENBOX_LOCAL_S3_BUCKET ?? 'openbox-local';
 const expectedAgeSlowCallThresholdSec =
   process.env.OPENBOX_LOCAL_AGE_SLOW_CALL_THRESHOLD_SEC ?? '120';
 const expectedGovernanceWorkflowTimeoutSec =
