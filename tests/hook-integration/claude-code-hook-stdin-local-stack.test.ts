@@ -122,9 +122,6 @@ describe('claude-code hook stdin local-stack governance', () => {
   });
 
   it('drives generated Claude hook-stdin cases through local Core and persisted logs', async () => {
-    const runtime = await ensureLocalGovernanceMatrix();
-    projectRoot = configureProject(runtime);
-
     expect(CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX.map((entry) => entry.id)).toEqual([
       'file-read-approval',
       'db-insert-block',
@@ -133,6 +130,9 @@ describe('claude-code hook stdin local-stack governance', () => {
       'db-generic-block',
       'file-delete-halt',
     ]);
+
+    const runtime = await ensureLocalGovernanceMatrix(CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX);
+    projectRoot = configureProject(runtime);
 
     for (const entry of CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX) {
       const driver = requireProviderDriver(entry, 'claude-code', 'hook-stdin');

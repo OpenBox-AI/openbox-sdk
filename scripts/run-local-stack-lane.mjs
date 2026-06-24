@@ -7,8 +7,11 @@ import {
   flattenCommandSteps,
   normalizeCommandSteps,
   readSdkTargetsFixture,
+  rootE2eRunId,
   runSteps,
 } from './lib/spec-steps.mjs';
+
+const defaultSharedAgentName = `e2e-agent-${rootE2eRunId}`.slice(0, 120);
 
 function readLaneManifest() {
   const fixture = readSdkTargetsFixture(
@@ -51,6 +54,10 @@ function attachLaneEnv(step, laneId) {
     env: {
       ...step.env,
       OPENBOX_LOCAL_STACK_PROOF_LANE: laneId,
+      OPENBOX_E2E_SHARED_AGENT: step.env?.OPENBOX_E2E_SHARED_AGENT ?? '1',
+      OPENBOX_E2E_SHARED_AGENT_NAME: step.env?.OPENBOX_E2E_SHARED_AGENT_NAME
+        ?? process.env.OPENBOX_E2E_SHARED_AGENT_NAME
+        ?? defaultSharedAgentName,
     },
   };
 }
@@ -88,4 +95,12 @@ const selected = args.map((id) => {
   return laneStep(lane);
 });
 
-await runSteps(selected);
+await runSteps(selected.length > 1
+  ? [{
+      type: 'group',
+      id: 'selected-local-stack-proof-lanes',
+      label: 'Selected local-stack proof lanes',
+      parallel: true,
+      steps: selected,
+    }]
+  : selected);

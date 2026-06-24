@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { OpenBoxClient } from '../../../ts/src/client/index.js';
 import { checkGovernance } from '../../../ts/src/governance/check.js';
@@ -23,11 +24,16 @@ const UNIT_API_URL = 'http://localhost:18080';
 const UNIT_CORE_URL = 'http://localhost:18081';
 const E2E_AGENT_NAME = 'e2e-agent';
 const SHARED_AGENT_ENV = 'OPENBOX_E2E_SHARED_AGENT';
+const SHARED_AGENT_NAME_ENV = 'OPENBOX_E2E_SHARED_AGENT_NAME';
 const RUNTIME_KEY_PREFIX = /^obx_(?:test|live)_/;
 const BACKEND_KEY_PREFIX = /^obx_key_/;
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 const MATRIX_VERIFY_MAX_ATTEMPTS = 12;
 const MATRIX_VERIFY_RETRY_MS = 5_000;
+const AGENT_LIST_PAGE_SIZE = 200;
+const AGENT_LIST_MAX_PAGES = 20;
+const SHARED_SETUP_LOCK_MAX_WAIT_MS = 10 * 60_000;
+const SHARED_SETUP_LOCK_STALE_MS = 10 * 60_000;
 const defaultRunId = `pid-${process.pid}-${Date.now().toString(36)}`;
 
 interface LocalGovernanceRuntime {
@@ -112,7 +118,10 @@ function localRunId(): string {
 }
 
 function localAgentName(): string {
-  if (sharedAgentMode()) return E2E_AGENT_NAME;
+  if (sharedAgentMode()) {
+    const configured = normalizeRunIdPart(process.env[SHARED_AGENT_NAME_ENV]);
+    return configured ? configured.slice(0, 120) : E2E_AGENT_NAME;
+  }
   return `${E2E_AGENT_NAME}-${localRunId()}`.slice(0, 120);
 }
 
@@ -277,6 +286,54 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function setupLockPath(cacheKey: string): string {
+  const digest = createHash('sha256').update(cacheKey).digest('hex').slice(0, 24);
+  return path.join(PROJECT_OPENBOX, 'locks', `local-governance-${digest}.lock`);
+}
+
+function removeStaleSetupLock(lockPath: string): void {
+  try {
+    const ageMs = Date.now() - statSync(lockPath).mtimeMs;
+    if (ageMs > SHARED_SETUP_LOCK_STALE_MS) {
+      rmSync(lockPath, { recursive: true, force: true });
+    }
+  } catch {
+    // Another process may have released the lock between the failed mkdir and stat.
+  }
+}
+
+async function withSharedSetupLock<T>(cacheKey: string, run: () => Promise<T>): Promise<T> {
+  if (!sharedAgentMode()) return run();
+  const lockPath = setupLockPath(cacheKey);
+  mkdirSync(path.dirname(lockPath), { recursive: true });
+  const startedAt = Date.now();
+  let locked = false;
+  while (!locked) {
+    try {
+      mkdirSync(lockPath);
+      writeFileSync(path.join(lockPath, 'owner.json'), JSON.stringify({
+        pid: process.pid,
+        agentName: localAgentName(),
+        createdAt: new Date().toISOString(),
+      }, null, 2));
+      locked = true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST') throw error;
+      removeStaleSetupLock(lockPath);
+      if (Date.now() - startedAt > SHARED_SETUP_LOCK_MAX_WAIT_MS) {
+        throw new Error(`Timed out waiting for shared local governance setup lock for ${localAgentName()}`);
+      }
+      await sleep(1_000);
+    }
+  }
+  try {
+    return await run();
+  } finally {
+    rmSync(lockPath, { recursive: true, force: true });
+  }
+}
+
 function ruleBody(c: VerdictMatrixCase, index: number) {
   const trigger = c.expectedTrigger;
   const verdict = VERDICT_TO_INT[c.expectedVerdict];
@@ -303,33 +360,99 @@ function ruleMatches(rule: BehaviorRuleRecord, body: ReturnType<typeof ruleBody>
     && rule.is_active !== false;
 }
 
-async function upsertMatrixRules(client: OpenBoxClient, agentId: string): Promise<void> {
+function isDuplicateRuleError(error: unknown): boolean {
+  const maybe = error as { status?: number; body?: unknown };
+  if (maybe?.status !== 400) return false;
+  const body = objectRecord(maybe.body);
+  const message = [body.message, body.error]
+    .filter((value): value is string => typeof value === 'string')
+    .join('\n');
+  return message.includes('already exists');
+}
+
+async function findBehaviorRule(
+  client: OpenBoxClient,
+  agentId: string,
+  ruleName: string,
+): Promise<BehaviorRuleRecord | undefined> {
+  const list = await client.listBehaviorRules(agentId, { page: 0, perPage: 200 });
+  return rowsFromListResponse<BehaviorRuleRecord>(list)
+    .find((rule) => rule.rule_name === ruleName);
+}
+
+async function syncExistingBehaviorRule(
+  client: OpenBoxClient,
+  agentId: string,
+  existing: BehaviorRuleRecord | undefined,
+  body: ReturnType<typeof ruleBody>,
+): Promise<void> {
+  if (!existing?.id || ruleMatches(existing, body)) return;
+  await client.updateBehaviorRule(agentId, existing.id, {
+    ...body,
+    change_log: 'Sync OpenBox SDK local governance matrix',
+  } as never);
+  if (existing.is_active === false) {
+    await client.toggleBehaviorRuleStatus(agentId, existing.id, { is_active: true } as never);
+  }
+}
+
+async function upsertMatrixRules(
+  client: OpenBoxClient,
+  agentId: string,
+  cases: readonly VerdictMatrixCase[] = LOCAL_GOVERNANCE_VERDICT_MATRIX,
+): Promise<void> {
   const list = await client.listBehaviorRules(agentId, { page: 0, perPage: 200 });
   const rows = rowsFromListResponse<BehaviorRuleRecord>(list);
 
-  for (const [index, c] of LOCAL_GOVERNANCE_VERDICT_MATRIX.entries()) {
+  for (const [index, c] of cases.entries()) {
     if (!shouldSeedRule(c)) continue;
     const body = ruleBody(c, index);
-    const existing = rows.find((rule) => rule.rule_name === c.expectedRule);
-    if (!existing) {
-      await client.createBehaviorRule(agentId, body as never);
+    if (rows.some((rule) => rule.rule_name === c.expectedRule && ruleMatches(rule, body))) {
       continue;
     }
-    if (!existing.id || ruleMatches(existing, body)) continue;
-
-    await client.updateBehaviorRule(agentId, existing.id, {
-      ...body,
-      change_log: 'Sync OpenBox SDK local governance matrix',
-    } as never);
-    if (existing.is_active === false) {
-      await client.toggleBehaviorRuleStatus(agentId, existing.id, { is_active: true } as never);
+    const existing = rows.find((rule) => rule.rule_name === c.expectedRule);
+    if (!existing) {
+      try {
+        await client.createBehaviorRule(agentId, body as never);
+      } catch (error) {
+        if (!isDuplicateRuleError(error)) throw error;
+        await syncExistingBehaviorRule(
+          client,
+          agentId,
+          await findBehaviorRule(client, agentId, c.expectedRule),
+          body,
+        );
+      }
+      continue;
     }
+    await syncExistingBehaviorRule(client, agentId, existing, body);
   }
 }
 
 async function currentAgents(client: OpenBoxClient): Promise<AgentRecord[]> {
-  const list = await client.listAgents({ page: 0, perPage: 200 });
-  return rowsFromListResponse<AgentRecord>(list);
+  const agents: AgentRecord[] = [];
+  const seen = new Set<string>();
+  for (let page = 0; page < AGENT_LIST_MAX_PAGES; page += 1) {
+    const list = await client.listAgents({ page, perPage: AGENT_LIST_PAGE_SIZE });
+    const rows = rowsFromListResponse<AgentRecord>(list);
+    for (const row of rows) {
+      const id = agentId(row);
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      agents.push(row);
+    }
+    if (rows.length < AGENT_LIST_PAGE_SIZE) break;
+  }
+  return agents;
+}
+
+async function findAgentByName(
+  client: OpenBoxClient,
+  name: string,
+): Promise<AgentRecord | undefined> {
+  const list = await client.listAgents({ all: true, page: 0, perPage: AGENT_LIST_PAGE_SIZE, agent_name: name });
+  return rowsFromListResponse<AgentRecord>(list)
+    .find((agent) => agentName(agent) === name);
 }
 
 async function ensureTeamIds(
@@ -382,9 +505,9 @@ async function createLocalAgent(
 ): Promise<{ agentId: string; runtimeKey: string; agentName?: string; agentIdentity?: AgentIdentityConfig }> {
   const teamIds = await ensureTeamIds(client, orgId, agents);
   const baseName = options.nameSuffix ? `${localAgentName()}-${options.nameSuffix}`.slice(0, 120) : localAgentName();
-  const name = agents.some((agent) => agentName(agent) === baseName)
-    ? `${baseName}-${Date.now().toString(36)}`.slice(0, 120)
-    : baseName;
+  const baseNameExists = agents.some((agent) => agentName(agent) === baseName)
+    || Boolean(await findAgentByName(client, baseName));
+  const name = baseNameExists ? `${baseName}-${Date.now().toString(36)}`.slice(0, 120) : baseName;
   const created = await client.createAgent(makeCreateAgentDto(teamIds, {
     agent_name: name,
     description: 'Local SDK governance matrix agent',
@@ -414,6 +537,22 @@ async function createLocalAgent(
   return { agentId: createdAgentId, runtimeKey, agentName: name, agentIdentity };
 }
 
+async function rotateRuntimeKey(
+  client: OpenBoxClient,
+  agentIdValue: string,
+  agentNameValue?: string,
+): Promise<string> {
+  const rotated = await client.rotateApiKey(agentIdValue);
+  const runtimeKey = runtimeKeyFromCreateResponse(rotated);
+  if (!runtimeKey) {
+    throw new Error(
+      `Backend rotateApiKey did not return a usable runtime key for ${agentIdValue}: ${JSON.stringify(rotated).slice(0, 500)}`,
+    );
+  }
+  if (sharedAgentMode()) recordAgentKey(agentIdValue, runtimeKey, agentNameValue);
+  return runtimeKey;
+}
+
 async function resolveOrCreateAgent(
   client: OpenBoxClient,
   apiUrl: string,
@@ -432,7 +571,7 @@ async function resolveOrCreateAgent(
   const candidates = records.filter((record) => (
     (envAgentId && record.agentId === envAgentId) ||
     record.agentName === targetAgentName ||
-    Boolean(record.agentId && record.runtimeKey)
+    (!sharedAgentMode() && Boolean(record.agentId && record.runtimeKey))
   ));
   if (sharedAgentMode() && envAgentId && envRuntimeKey && RUNTIME_KEY_PREFIX.test(envRuntimeKey)) {
     candidates.unshift({ agentId: envAgentId, runtimeKey: envRuntimeKey });
@@ -452,6 +591,22 @@ async function resolveOrCreateAgent(
     }
   }
 
+  if (sharedAgentMode()) {
+    const existingByName = agents.find((agent) => agentName(agent) === targetAgentName)
+      ?? await findAgentByName(client, targetAgentName);
+    const existingId = agentId(existingByName);
+    if (existingByName && existingId) {
+      await ensureUnsignedLocalAgent(
+        client,
+        existingByName,
+        await ensureTeamIds(client, orgId, agents),
+        targetAgentName,
+      );
+      const runtimeKey = await rotateRuntimeKey(client, existingId, targetAgentName);
+      return { apiUrl, coreUrl, backendKey, agentId: existingId, runtimeKey };
+    }
+  }
+
   const created = await createLocalAgent(client, orgId, agents);
   return {
     apiUrl,
@@ -462,9 +617,16 @@ async function resolveOrCreateAgent(
   };
 }
 
-async function verifyMatrix(agentId: string, runtimeKey: string, coreUrl: string): Promise<void> {
-  for (const c of LOCAL_GOVERNANCE_VERDICT_MATRIX) {
+async function verifyMatrix(
+  agentId: string,
+  runtimeKey: string,
+  coreUrl: string,
+  cases: readonly VerdictMatrixCase[] = LOCAL_GOVERNANCE_VERDICT_MATRIX,
+  agentIdentity?: AgentIdentityConfig,
+): Promise<void> {
+  for (const c of cases) {
     let result: Awaited<ReturnType<typeof checkGovernance>> | undefined;
+    let verdict: Verdict | undefined;
     for (let attempt = 1; attempt <= MATRIX_VERIFY_MAX_ATTEMPTS; attempt += 1) {
       result = await checkGovernance({
         agentId,
@@ -472,8 +634,10 @@ async function verifyMatrix(agentId: string, runtimeKey: string, coreUrl: string
         coreUrl,
         spanType: c.spanType,
         activityInput: c.activityInput,
+        agentIdentity,
       });
-      if (!resultHasIncompleteGovernanceChecks(result)) break;
+      verdict = normalizeVerdict(result.verdict ?? result.action);
+      if (!resultHasIncompleteGovernanceChecks(result) && verdict === c.expectedVerdict) break;
       if (attempt < MATRIX_VERIFY_MAX_ATTEMPTS) await sleep(MATRIX_VERIFY_RETRY_MS);
     }
     if (!result) throw new Error(`local governance matrix did not return a result for ${c.expectedRule}`);
@@ -482,7 +646,6 @@ async function verifyMatrix(agentId: string, runtimeKey: string, coreUrl: string
         `local governance matrix left required governance checks incomplete for ${c.expectedRule}: ${JSON.stringify(result).slice(0, 500)}`,
       );
     }
-    const verdict = normalizeVerdict(result.verdict ?? result.action);
     if (verdict !== c.expectedVerdict) {
       throw new Error(
         `local governance matrix mismatch for ${c.expectedRule}: expected ${c.expectedVerdict}, got ${JSON.stringify(result).slice(0, 500)}`,
@@ -498,6 +661,7 @@ async function verifyMatrix(agentId: string, runtimeKey: string, coreUrl: string
 }
 
 const inflight = new Map<string, Promise<LocalGovernanceRuntime>>();
+const unsignedInflight = new Map<string, Promise<LocalGovernanceRuntime>>();
 const signedInflight = new Map<string, Promise<LocalGovernanceRuntime>>();
 const configuredCache = new Map<string, boolean>();
 
@@ -506,8 +670,12 @@ function matrixCacheKey(apiUrl: string, coreUrl: string, backendKey: string | un
     apiUrl,
     coreUrl,
     backendKey ?? 'no-backend-key',
-    sharedAgentMode() ? 'shared-agent' : `isolated-${localRunId()}`,
+    sharedAgentMode() ? `shared-agent-${localAgentName()}` : `isolated-${localRunId()}`,
   ].join('\n');
+}
+
+function matrixCasesCacheKey(cases: readonly VerdictMatrixCase[]): string {
+  return cases.map((entry) => entry.id).join(',');
 }
 
 function localHttpOk(url: string): boolean {
@@ -542,15 +710,18 @@ export function localGovernanceMatrixConfigured(): boolean {
   return configured;
 }
 
-export async function ensureLocalGovernanceMatrix(): Promise<LocalGovernanceRuntime> {
+export async function ensureLocalGovernanceMatrix(
+  cases: readonly VerdictMatrixCase[] = LOCAL_GOVERNANCE_VERDICT_MATRIX,
+): Promise<LocalGovernanceRuntime> {
   const apiUrl = configuredUrl('api');
   const coreUrl = configuredUrl('core');
   const backendKey = resolveBackendApiKey();
-  const cacheKey = matrixCacheKey(apiUrl, coreUrl, backendKey);
+  const setupCacheKey = matrixCacheKey(apiUrl, coreUrl, backendKey);
+  const cacheKey = `${setupCacheKey}\ncases:${matrixCasesCacheKey(cases)}`;
   const cached = inflight.get(cacheKey);
   if (cached) return cached;
 
-  const promise = (async () => {
+  const promise = withSharedSetupLock(setupCacheKey, async () => {
     if (!isLoopbackUrl(apiUrl) || !isLoopbackUrl(coreUrl)) {
       throw new Error(`local governance matrix requires loopback API/Core URLs, got ${apiUrl} / ${coreUrl}`);
     }
@@ -565,15 +736,60 @@ export async function ensureLocalGovernanceMatrix(): Promise<LocalGovernanceRunt
     });
 
     const runtime = await resolveOrCreateAgent(client, apiUrl, coreUrl, backendKey);
-    await upsertMatrixRules(client, runtime.agentId);
-    await verifyMatrix(runtime.agentId, runtime.runtimeKey, coreUrl);
+    await upsertMatrixRules(client, runtime.agentId, cases);
+    await verifyMatrix(runtime.agentId, runtime.runtimeKey, coreUrl, cases);
     return runtime;
-  })();
+  });
   inflight.set(cacheKey, promise);
   try {
     return await promise;
   } catch (error) {
     if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
+    throw error;
+  }
+}
+
+export async function ensureUnsignedLocalGovernanceRuntime(): Promise<LocalGovernanceRuntime> {
+  const apiUrl = configuredUrl('api');
+  const coreUrl = configuredUrl('core');
+  const backendKey = resolveBackendApiKey();
+  const cacheKey = `${matrixCacheKey(apiUrl, coreUrl, backendKey)}\nunsigned-runtime`;
+  const cached = unsignedInflight.get(cacheKey);
+  if (cached) return cached;
+
+  const promise = withSharedSetupLock(cacheKey, async () => {
+    if (!isLoopbackUrl(apiUrl) || !isLoopbackUrl(coreUrl)) {
+      throw new Error(`unsigned local governance runtime requires loopback API/Core URLs, got ${apiUrl} / ${coreUrl}`);
+    }
+    if (!backendKey) throw new Error('No backend X-API-Key found for unsigned local governance runtime');
+
+    const client = new OpenBoxClient({
+      apiUrl,
+      apiKey: backendKey,
+      clientName: 'openbox-hook-integration-unsigned',
+      retry: { maxRetries: 0 },
+    });
+    const profile = await client.getProfile();
+    const orgId = profileOrgId(profile);
+    if (!orgId) throw new Error('Could not resolve local organization id from /auth/profile');
+    const agents = await currentAgents(client);
+    const created = await createLocalAgent(client, orgId, agents, {
+      nameSuffix: 'unsigned',
+    });
+    return {
+      apiUrl,
+      coreUrl,
+      backendKey,
+      agentId: created.agentId,
+      runtimeKey: created.runtimeKey,
+      signingRequired: false,
+    };
+  });
+  unsignedInflight.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    if (unsignedInflight.get(cacheKey) === promise) unsignedInflight.delete(cacheKey);
     throw error;
   }
 }
@@ -586,7 +802,7 @@ export async function ensureSignedLocalGovernanceMatrix(): Promise<LocalGovernan
   const cached = signedInflight.get(cacheKey);
   if (cached) return cached;
 
-  const promise = (async () => {
+  const promise = withSharedSetupLock(cacheKey, async () => {
     if (!isLoopbackUrl(apiUrl) || !isLoopbackUrl(coreUrl)) {
       throw new Error(`signed local governance matrix requires loopback API/Core URLs, got ${apiUrl} / ${coreUrl}`);
     }
@@ -609,7 +825,17 @@ export async function ensureSignedLocalGovernanceMatrix(): Promise<LocalGovernan
     if (!created.agentIdentity) {
       throw new Error('Backend createAgent did not return signed agent identity for signing_required=true proof');
     }
-    await upsertMatrixRules(client, created.agentId);
+    const signedRequiredCases = LOCAL_GOVERNANCE_VERDICT_MATRIX.filter((entry) => (
+      entry.id === 'file-read-approval'
+    ));
+    await upsertMatrixRules(client, created.agentId, signedRequiredCases);
+    await verifyMatrix(
+      created.agentId,
+      created.runtimeKey,
+      coreUrl,
+      signedRequiredCases,
+      created.agentIdentity,
+    );
     const sample = LOCAL_GOVERNANCE_VERDICT_MATRIX.find((entry) => entry.expectedVerdict === 'allow') ??
       LOCAL_GOVERNANCE_VERDICT_MATRIX[0];
     const result = await checkGovernance({
@@ -635,7 +861,7 @@ export async function ensureSignedLocalGovernanceMatrix(): Promise<LocalGovernan
       agentIdentity: created.agentIdentity,
       signingRequired: true,
     };
-  })();
+  });
   signedInflight.set(cacheKey, promise);
   try {
     return await promise;
