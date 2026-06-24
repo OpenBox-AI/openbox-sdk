@@ -17,4 +17,4 @@ function readBundleBuildSteps() {
   return normalizeCommandSteps(bundleBuild.steps, 'bundleBuild.steps');
 }
 
-runSteps(readBundleBuildSteps());
+await runSteps(readBundleBuildSteps());

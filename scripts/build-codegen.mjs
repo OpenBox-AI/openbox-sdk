@@ -116,4 +116,4 @@ function readCodegenBuildSteps() {
   return normalizeCommandSteps(fixture.codegenBuild.steps, 'codegenBuild.steps');
 }
 
-runSteps(readCodegenBuildSteps());
+await runSteps(readCodegenBuildSteps());

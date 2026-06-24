@@ -4,6 +4,7 @@
 import {
   assertRecord,
   assertStringArray,
+  flattenCommandSteps,
   normalizeCommandSteps,
   readSdkTargetsFixture,
   runSteps,
@@ -17,15 +18,14 @@ function readTestSuites() {
   assertRecord(testSuites, 'testSuites');
   assertStringArray(testSuites.defaultSuites, 'testSuites.defaultSuites');
   const suites = normalizeCommandSteps(testSuites.suites, 'testSuites.suites');
-  const byId = new Map(suites.map((suite) => [suite.id, suite]));
+  const byId = new Map(flattenCommandSteps(suites).map((suite) => [suite.id, suite]));
   return { defaultSuites: testSuites.defaultSuites, byId };
 }
 
 function selectedSuiteIds(defaultSuites) {
   const selected = process.argv.slice(2);
   if (selected.length === 0) return defaultSuites;
-  if (selected.length === 1) return selected;
-  throw new Error('Usage: node scripts/run-tests.mjs [suite-id]');
+  return selected;
 }
 
 const { defaultSuites, byId } = readTestSuites();
@@ -37,4 +37,4 @@ const steps = selectedSuiteIds(defaultSuites).map((suiteId) => {
   return suite;
 });
 
-runSteps(steps);
+await runSteps(steps);

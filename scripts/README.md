@@ -25,7 +25,7 @@ unit suite compares that inventory against the repository tree.
 - `build:codegen` reads the TypeSpec-emitted `codegenBuild.steps` pipeline from
   `codegen/fixtures/sdk-targets.json` and builds the TypeSpec decorator
   libraries plus shared emitter. If generated fixtures were cleaned, it falls
-  back to codegen workspace package metadata only long enough to regenerate the
+  back to codegen package metadata only long enough to regenerate the
   canonical manifest.
 - `build:bundle` reads the TypeSpec-emitted `bundleBuild.steps` pipeline for
   bundling and runtime asset sync. Add build-stage changes in
@@ -62,10 +62,18 @@ unit suite compares that inventory against the repository tree.
   exactly against that table so new root entrypoints must be intentional
   spec-owned routers or explicit npm lifecycle/compatibility aliases.
 - `test`, `test:unit`, `test:openapi-mock`, `test:contract`,
-  `test:hook-integration`, and `test:e2e` read the TypeSpec-emitted
-  `testSuites` routing table and execute the declared suite commands. Add,
-  remove, or rename root test suites in
-  `specs/typespec/sdk/main.tsp`, not in `package.json`.
+  `test:hook-integration`, `test:e2e`, and governance e2e entrypoints read the
+  TypeSpec-emitted `testSuites` routing table and execute the declared suite
+  commands. Governance e2e starts with `local-stack:check`, which fails fast if
+  backend/Core endpoints, Guardrails, AGE, LlamaFirewall, OPA bundle polling,
+  and the AWS-compatible S3 bucket are not aligned. Governance domains that do
+  not mutate the shared backend-owned OPA bundle run as independent parallel
+  suite lanes. Policy/OPA bundle mutators stay as separate serial suite modules
+  unless the local stack provides per-lane backend/OPA isolation. Shared
+  dependency failure cases run in isolated lanes with dependency URLs pointed at
+  unavailable endpoints, not by stopping shared local-stack services. Add,
+  remove, or rename root test suites in `specs/typespec/sdk/main.tsp`, not in
+  `package.json`.
 - `lint` and `format` read the TypeSpec-emitted `qualityCommands` table. Add
   quality command path or tool changes in `specs/typespec/sdk/main.tsp`, not in
   `package.json`.
@@ -112,6 +120,30 @@ unit suite compares that inventory against the repository tree.
 - `check-generated-banners.ts` enforces generated-file provenance.
 - `sync-package-scripts.mjs` rewrites root `package.json` scripts from the
   TypeSpec-emitted `packageScripts.scripts` table.
+- `check-local-stack-alignment.mjs` verifies that the live backend process,
+  backend `.env`, Core process, OPA config, Guardrails, AGE, LlamaFirewall, and
+  local AWS-compatible S3 endpoint agree before live governance suites run. It
+  also checks local KMS mode and requires Core's
+  `AGE_CB_SLOW_CALL_THRESHOLD_SEC`, `GOVERNANCE_WORKFLOW_TIMEOUT_SEC`, and
+  `GOVERNANCE_ACTIVITY_TIMEOUT_SEC` to be high enough for live Claude Code hook
+  teardown, so a slow successful `Stop` hook neither opens the AGE circuit nor
+  trips Core's workflow or activity timeout boundaries.
+- `local-llamafirewall-server.py` hosts a local HTTP adapter around the
+  official LlamaFirewall scanner used by local guardrail drift checks.
+- `start-llamafirewall.mjs` starts that adapter using
+  `OPENAI_COMPAT_BASE_URL`, `OPENAI_COMPAT_MODEL`, and
+  `OPENAI_COMPAT_API_KEY` without printing API keys. It verifies the
+  selected endpoint/model supports OpenAI structured responses through
+  JSON-schema `response_format` or forced tool calls before starting, because
+  the official scanner requires structured output.
+- `run-local-llamafirewall-e2e.mjs` starts or reuses that adapter and runs the
+  focused real-scanner e2e scenario. The default local path uses Ollama with a
+  structured-output-capable model; override `OPENBOX_E2E_LLAMAFIREWALL_MODEL`
+  when using another local model.
+- `run-local-stack-lane.mjs` lists and runs TypeSpec-declared local-stack proof
+  lanes by lane id. Use `npm run local-stack:lane -- --list` to inspect the
+  generated lane inventory and `npm run local-stack:lane -- <lane-id>` for a
+  focused provider, subsystem, or isolated fault lane.
 
 Rule of thumb: scripts may check, copy, launch, or compare. Anything that
 authors SDK/API contract artifacts belongs in the shared TypeSpec emitter and
