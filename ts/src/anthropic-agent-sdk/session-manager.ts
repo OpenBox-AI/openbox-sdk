@@ -23,6 +23,7 @@ import {
 interface ManagedSession {
   session: AnthropicAgentSdkSession;
   started: boolean;
+  goalSignaled: boolean;
   terminal: boolean;
   latestAssistant?: ReturnType<typeof assistantContentAndUsage>;
 }
@@ -57,6 +58,7 @@ export class AnthropicAgentSessionManager {
         inlineApproval: true,
       }),
       started: false,
+      goalSignaled: false,
       terminal: false,
     } satisfies ManagedSession;
     this.sessions.set(sessionId, managed);
@@ -189,6 +191,24 @@ export class AnthropicAgentSessionManager {
     payload: Parameters<AnthropicAgentSdkSession['activity']>[2],
   ): Promise<WorkflowVerdict> {
     const managed = await this.ensureStarted(sessionId);
+    if (eventType === EVENT.SIGNAL && activityType === ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL) {
+      managed.goalSignaled = true;
+    } else if (this.context.requireGoalContext && !managed.goalSignaled && eventType !== EVENT.COMPLETE) {
+      const configuredGoal = this.context.defaultGoal?.trim();
+      if (!configuredGoal) {
+        throw new Error(
+          'OpenBox goal context is required for AGE alignment, but this Anthropic Agent SDK session has no prompt/query/workflow goal.',
+        );
+      }
+      await managed.session.activity(EVENT.SIGNAL, ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL, {
+        input: [compactPayload({ prompt: configuredGoal, session_id: sessionId }, 'agent_goal')],
+        signalName: ANTHROPIC_AGENT_ACTIVITY_TYPES.GOAL_SIGNAL,
+        signalArgs: configuredGoal,
+        sessionId,
+        prompt: configuredGoal,
+      });
+      managed.goalSignaled = true;
+    }
     return managed.session.activity(eventType, activityType, payload);
   }
 

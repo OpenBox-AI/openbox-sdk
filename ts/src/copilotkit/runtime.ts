@@ -579,7 +579,7 @@ function pipeGovernedEvents(
         (error) => subscriber.error?.(error),
       );
     },
-  } as any);
+  });
   return subscription;
 }
 

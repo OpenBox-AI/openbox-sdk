@@ -297,14 +297,16 @@ describe('activity pairing', () => {
         (hook.spans?.[0] as Record<string, unknown> | undefined)?.activity_id,
       ).toBe(parent.activity_id);
     }
+    expect(firstHook.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(firstHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(firstHook.spans?.[0]).toMatchObject({
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(secondHook.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(secondHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(secondHook.spans?.[0]).toMatchObject({
-      semantic_type: 'mcp_tool_call',
       attributes: expect.objectContaining({
         'mcp.method': 'callTool',
         'mcp.operation': 'read',
@@ -711,10 +713,11 @@ describe('activity pairing', () => {
     expect(completedHook?.activity_type).toBe(completedParent.activity_type);
     expect(completedHook?.span_count).toBe(1);
     const span = completedHook?.spans?.[0] as Record<string, unknown> | undefined;
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       name: 'openbox.n8n.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
       model_id: 'gemini-2.5-flash',
       provider: 'google',
@@ -898,11 +901,12 @@ describe('activity pairing', () => {
     expect(completedHook?.hook_trigger).toBe(true);
     expect(completedHook?.activity_id).toBe(completedParent.activity_id);
     expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completedHook?.spans?.[0]).toMatchObject({
       activity_id: completedParent.activity_id,
       name: 'n8n.CRM Upsert',
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       duration_ns: 25_000_000,
       status: { code: 'ERROR', description: 'CRM timeout' },

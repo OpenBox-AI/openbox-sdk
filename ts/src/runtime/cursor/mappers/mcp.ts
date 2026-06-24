@@ -10,9 +10,61 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { sideEffects } from '../side-effects.js';
-import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import type { SpanType } from '../../../governance/spans.js';
+import { buildCursorSpan } from './spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { rememberCompletionActivity } from '../dedup.js';
+import { ACTIVITY_TYPES } from '../activity-types.js';
+import {
+  dbOperationFor,
+  dbStatementFor,
+  dbSystemFor,
+  httpMethodFor,
+  httpTargetFor,
+  isDatabaseMcpTool,
+  isHttpMcpTool,
+} from '../../claude-code/mappers/tool-input.js';
+
+function spanTypeForMcpTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): SpanType {
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
+  if (isHttpMcpTool(toolName, toolInput)) return 'http';
+  return 'mcp';
+}
+
+function activityTypeForSpan(spanType: SpanType): string {
+  if (spanType === 'db') return ACTIVITY_TYPES.DB_QUERY;
+  if (spanType === 'http') return ACTIVITY_TYPES.API_CALL;
+  return BEFORE_MCPEXECUTION_ACTIVITY_TYPE;
+}
+
+function spanInputForMcpTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  spanType: SpanType,
+): Record<string, unknown> {
+  if (spanType === 'db') {
+    return {
+      tool_name: toolName,
+      tool_input: toolInput,
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput),
+    };
+  }
+  if (spanType === 'http') {
+    return {
+      tool_name: toolName,
+      tool_input: toolInput,
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput),
+    };
+  }
+  return { tool_name: toolName, tool_input: toolInput };
+}
 
 /** beforeMCPExecution: govern an MCP tool call before Cursor invokes it. */
 export async function handleBeforeMCPExecution(
@@ -23,13 +75,19 @@ export async function handleBeforeMCPExecution(
   const toolName = env.tool_name ?? '';
   if (!toolName) return undefined;
 
+  const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
+  const spanType = spanTypeForMcpTool(toolName, toolInput);
+  const activityType = activityTypeForSpan(spanType);
   const payload = buildBeforeMCPExecutionPayload(env, sideEffects);
-  const span = buildSpan('cursor', 'mcp', { tool_name: toolName, tool_input: env.tool_input });
+  const span = buildCursorSpan(
+    spanType,
+    spanInputForMcpTool(toolName, toolInput, spanType),
+  );
   const startTime = Date.now();
-  const opened = await session.openActivity(BEFORE_MCPEXECUTION_ACTIVITY_TYPE, {
+  const opened = await session.openActivity(activityType, {
     input: withOpenBoxActivityMetadata(
       [stampSource(payload, 'cursor')],
-      { toolType: 'mcp' },
+      { toolType: spanType },
     ),
     startTime,
     spans: [span],
@@ -50,7 +108,7 @@ export async function handleBeforeMCPExecution(
       cfg,
       {
         activityId: opened.activityId,
-        activityType: BEFORE_MCPEXECUTION_ACTIVITY_TYPE,
+        activityType,
         startTime,
       },
     );

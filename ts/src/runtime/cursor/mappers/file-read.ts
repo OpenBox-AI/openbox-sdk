@@ -12,7 +12,8 @@ import {
 import type { CursorConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
-import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { buildCursorSpan } from './spans.js';
 import {
   isInsideAnyRoot,
   shouldRedactPathContent,
@@ -23,6 +24,7 @@ import {
   awaitClaimDecision,
   publishClaimDecision,
   rememberCompletionActivity,
+  verdictUsesGovernanceFallback,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -40,7 +42,7 @@ export async function handleBeforeReadFile(
 ): Promise<WorkflowVerdict | undefined> {
   const filePath = env.file_path ?? '';
   if (!filePath) return undefined;
-  // In-workspace reads are routine agent activity (source files,
+  // In-project reads are routine agent activity (source files,
   // package.json, configs). Skip evaluate so the user's `file_read`
   // approval rule fires only for reads outside the project. Metadata
   // and secret-like paths are still governed by path/span data.
@@ -67,13 +69,24 @@ export async function handleBeforeReadFile(
         riskScore: 1,
       };
     }
+    if (
+      decision.fallbackUsed &&
+      decision.arm !== 'block' &&
+      decision.arm !== 'halt'
+    ) {
+      return {
+        arm: 'block',
+        reason: '[OpenBox] OpenBox governance fallback used while processing Cursor file-read hook',
+        riskScore: 1,
+      };
+    }
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
   }
 
   const payload = buildBeforeReadFilePayload(env);
-  const span = buildSpan('cursor', 'file_read', {
+  const span = buildCursorSpan('file_read', {
     file_path: filePath,
     tool_name: 'Read',
   });
@@ -108,7 +121,11 @@ export async function handleBeforeReadFile(
         },
       );
     }
-    publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
+    publishClaimDecision(claim, {
+      arm: verdict.arm,
+      reason: verdict.reason ?? '',
+      fallbackUsed: verdictUsesGovernanceFallback(verdict),
+    });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;
   } catch (err) {
@@ -121,12 +138,13 @@ export async function handleBeforeReadFile(
  * beforeTabFileRead: same gate as beforeReadFile but triggered by the
  * user opening a tab (not by an agent tool call). Cursor's validator
  * for this event accepts only allow/deny (no ask), and uses the same
- * envelope fields (file_path, content). We reuse the file_read span
- * + activity type so behavior rules written against agent file_reads
- * also catch tab-driven reads of sensitive paths.
+ * envelope fields (file_path, content). The activity type remains
+ * FileRead because that is Cursor's official event contract, while the
+ * span is `file.open` so backend behavior rules can distinguish a tab
+ * open from an agent file read.
  *
-   * Routine in-workspace source reads are skipped, but metadata and
-   * secret-like in-workspace paths stay governed.
+   * Routine in-project source reads are skipped, but metadata and
+   * secret-like in-project paths stay governed.
  */
 export async function handleBeforeTabFileRead(
   env: CursorEnvelope,
@@ -143,14 +161,14 @@ export async function handleBeforeTabFileRead(
   }
 
   const payload = buildBeforeTabFileReadPayload(env);
-  const span = buildSpan('cursor', 'file_read', {
+  const span = buildCursorSpan('file_open', {
     file_path: filePath,
     tool_name: 'TabRead',
   });
   const verdict = await session.activity(EVENT.START, BEFORE_TAB_FILE_READ_ACTIVITY_TYPE, {
     input: withOpenBoxActivityMetadata(
       [stampSource(payload, 'cursor')],
-      { toolType: 'file_read' },
+      { toolType: 'file_open' },
     ),
     spans: [span],
   });

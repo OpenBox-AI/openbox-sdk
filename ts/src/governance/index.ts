@@ -5,9 +5,9 @@
 //
 //   * `checkGovernance` runs an in-process evaluation against the
 //     core endpoint. Suitable for gates, ad-hoc audits, and tests.
-//   * `buildSpan` constructs a classifier-ready span with the
-//     `semantic_type` and gate attributes the policy engine needs
-//     to match behavior rules.
+//   * `buildSpan` constructs a classifier-ready span with the typed
+//     fields and gate attributes Core needs to compute `semantic_type`
+//     and match behavior rules.
 //   * `EVENT` enumerates the canonical workflow event names
 //     (`ActivityStarted`, `ActivityCompleted`, `SignalReceived`).
 //   * `REDACT_PATH_CONTENT_PATTERNS`, `shouldRedactPathContent`, and
@@ -71,6 +71,9 @@ export {
 } from './rules-projection.js';
 export {
   OPENBOX_CAPABILITY_IDS,
+  GOVERNANCE_CHECKLIST_LIMITATIONS,
+  GOVERNANCE_CHECKLIST_ROWS,
+  GOVERNANCE_CHECKLIST_SCORE,
   PROVIDER_CAPABILITY_MATRIX,
   PROVIDER_EVENT_CATALOG,
   PROVIDER_PLUGIN_COMPONENTS,
@@ -84,6 +87,12 @@ export {
   type OpenBoxCapabilityId,
   type OpenBoxProviderId,
   type OpenBoxSupportTier,
+  type GovernanceChecklistBoundaryOwner,
+  type GovernanceChecklistLimitationEntry,
+  type GovernanceChecklistRowEntry,
+  type GovernanceChecklistRowStatus,
+  type GovernanceChecklistScope,
+  type GovernanceChecklistScoreEntry,
   type McpPromptSurfaceEntry,
   type McpResourceTemplateSurfaceEntry,
   type McpSkillReferenceSurfaceEntry,

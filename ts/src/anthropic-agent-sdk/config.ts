@@ -25,6 +25,8 @@ export interface OpenBoxAnthropicRuntimeContext {
   workflowType: string;
   taskQueue: string;
   approvalMode: OpenBoxAnthropicApprovalMode;
+  requireGoalContext: boolean;
+  defaultGoal?: string;
   hookTimeoutSeconds?: number;
   includeOptInHooks: boolean;
   worktreeRoot?: string;
@@ -90,6 +92,12 @@ export function createOpenBoxAnthropicRuntimeContext(
       config.workflowType ?? DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE,
     taskQueue: config.taskQueue ?? DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
     approvalMode: config.approvalMode ?? 'ask',
+    requireGoalContext: config.requireGoalContext ??
+      ['1', 'true', 'yes'].includes(String(process.env.OPENBOX_REQUIRE_GOAL_CONTEXT ?? process.env.OPENBOX_GOAL_ALIGNMENT_REQUIRED ?? process.env.ENABLE_ALIGNMENT_CHECK ?? 'false').trim().toLowerCase()),
+    defaultGoal: config.defaultGoal ??
+      process.env.OPENBOX_SESSION_GOAL ??
+      process.env.OPENBOX_WORKFLOW_GOAL ??
+      undefined,
     hookTimeoutSeconds: config.hookTimeoutSeconds,
     includeOptInHooks: config.includeOptInHooks === true,
     worktreeRoot: config.worktreeRoot,

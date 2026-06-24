@@ -30,6 +30,10 @@ const runTestsScript = readFileSync(resolve(process.cwd(), 'scripts/run-tests.mj
 const runQualityScript = readFileSync(resolve(process.cwd(), 'scripts/run-quality.mjs'), 'utf8');
 const runGeneratedCheckScript = readFileSync(resolve(process.cwd(), 'scripts/run-generated-check.mjs'), 'utf8');
 const specStepsScript = readFileSync(resolve(process.cwd(), 'scripts/lib/spec-steps.mjs'), 'utf8');
+const localGovernanceMatrixHelper = readFileSync(
+  resolve(process.cwd(), 'tests/hook-integration/helpers/local-governance-matrix.ts'),
+  'utf8',
+);
 const cleanGeneratedScript = readFileSync(resolve(process.cwd(), 'scripts/clean-generated.mjs'), 'utf8');
 const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-generated-drift.ts'), 'utf8');
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
@@ -161,6 +165,25 @@ describe('package scripts', () => {
     expect(specStepsScript).toContain('codegen/fixtures/sdk-targets.json');
   });
 
+  test('generated command runner scopes local e2e run identity per step', () => {
+    expect(specStepsScript).toContain('OPENBOX_E2E_RUN_ID');
+    expect(specStepsScript).toContain('rootE2eRunId');
+    expect(specStepsScript).toContain('runIdPath');
+    expect(specStepsScript).toContain('envForStep(step)');
+    expect(specStepsScript).not.toContain('env: { ...process.env, ...step.env }');
+  });
+
+  test('local governance matrix helper defaults to isolated agent state', () => {
+    expect(localGovernanceMatrixHelper).toContain('OPENBOX_E2E_SHARED_AGENT');
+    expect(localGovernanceMatrixHelper).toContain('localAgentName()');
+    expect(localGovernanceMatrixHelper).toContain('readAgentRecords(): AgentKeyRecord[]');
+    expect(localGovernanceMatrixHelper).toContain('if (!sharedAgentMode()) return [];');
+    expect(localGovernanceMatrixHelper).toContain('if (sharedAgentMode()) recordAgentKey');
+    expect(localGovernanceMatrixHelper).toContain('const inflight = new Map');
+    expect(localGovernanceMatrixHelper).not.toContain('process.env.OPENBOX_AGENT_ID =');
+    expect(localGovernanceMatrixHelper).not.toContain('process.env.OPENBOX_API_KEY =');
+  });
+
   test('root test scripts read the TypeSpec-emitted suite routing table', () => {
     expect(packageJson.scripts.test).toBe('node scripts/run-tests.mjs');
     expect(packageJson.scripts['test:unit']).toBe('node scripts/run-tests.mjs unit');
@@ -170,17 +193,61 @@ describe('package scripts', () => {
     expect(packageJson.scripts['test:specmatic']).toBeUndefined();
     expect(packageJson.scripts['test:karate']).toBeUndefined();
     expect(packageJson.scripts['test:contract']).toBe('node scripts/run-tests.mjs contract');
+    expect(packageJson.scripts['test:providers']).toBe(
+      'node scripts/run-tests.mjs provider-adapters',
+    );
+    expect(packageJson.scripts['test:hook-install']).toBe(
+      'node scripts/run-tests.mjs hook-install',
+    );
+    expect(packageJson.scripts['test:hook-runtime']).toBe(
+      'node scripts/run-tests.mjs hook-runtime',
+    );
+    expect(packageJson.scripts['test:mcp-protocol']).toBe(
+      'node scripts/run-tests.mjs mcp-protocol',
+    );
+    expect(packageJson.scripts['test:hook-claude-host']).toBe(
+      'node scripts/run-tests.mjs hook-claude-host',
+    );
+    expect(packageJson.scripts['test:anthropic-agent-sdk-local-stack']).toBe(
+      'node scripts/run-tests.mjs anthropic-agent-sdk-local-stack',
+    );
+    expect(packageJson.scripts['test:copilotkit-local-stack']).toBe(
+      'node scripts/run-tests.mjs copilotkit-local-stack',
+    );
+    expect(packageJson.scripts['test:n8n-local-stack']).toBe(
+      'node scripts/run-tests.mjs n8n-local-stack',
+    );
     expect(packageJson.scripts['test:hook-integration']).toBe(
       'node scripts/run-tests.mjs hook-integration',
     );
     expect(packageJson.scripts['test:e2e']).toBe('node scripts/run-tests.mjs e2e');
+    expect(packageJson.scripts['test:e2e:governance']).toBe(
+      'node scripts/run-tests.mjs local-stack-alignment e2e-governance-domains e2e-governance-policies e2e-governance-request-query-boundaries e2e-governance-core e2e-governance-faults',
+    );
+    expect(packageJson.scripts['test:e2e:platform']).toBe(
+      'node scripts/run-tests.mjs e2e-platform',
+    );
+    expect(packageJson.scripts['test:e2e:opa-unavailable']).toBe(
+      'node scripts/run-isolated-opa-unavailable.mjs',
+    );
     for (const name of [
       'test',
       'test:unit',
       'test:openapi-mock',
       'test:contract',
+      'test:providers',
+      'test:hook-install',
+      'test:hook-runtime',
+      'test:mcp-protocol',
+      'test:hook-claude-host',
+      'test:anthropic-agent-sdk-local-stack',
+      'test:copilotkit-local-stack',
+      'test:n8n-local-stack',
       'test:hook-integration',
       'test:e2e',
+      'test:e2e:governance',
+      'test:e2e:platform',
+      'test:e2e:opa-unavailable',
     ]) {
       expect(packageJson.scripts[name]).not.toContain('vitest');
     }

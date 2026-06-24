@@ -13,7 +13,10 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, test } from 'vitest';
 import { handleBeforeSubmitPrompt } from '../../ts/src/runtime/cursor/mappers/prompt.js';
-import { handleBeforeReadFile } from '../../ts/src/runtime/cursor/mappers/file-read.js';
+import {
+  handleBeforeReadFile,
+  handleBeforeTabFileRead,
+} from '../../ts/src/runtime/cursor/mappers/file-read.js';
 import { handleBeforeShellExecution } from '../../ts/src/runtime/cursor/mappers/shell.js';
 import { handleBeforeMCPExecution } from '../../ts/src/runtime/cursor/mappers/mcp.js';
 import { handleAfterMCPExecution } from '../../ts/src/runtime/cursor/mappers/mcp-response.js';
@@ -94,7 +97,7 @@ interface SpanShape {
 }
 
 describe('cursor mappers emit spans for behavior-rule matching', () => {
-  test('beforeSubmitPrompt emits prompt telemetry without a synthetic prompt span', async () => {
+  test('beforeSubmitPrompt emits prompt telemetry with an LLM classifier span', async () => {
     const captured: ActivityCall[] = [];
     await handleBeforeSubmitPrompt(
       { conversation_id: 'c', prompt: 'hi' } as never,
@@ -115,8 +118,17 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(main?.payload).toMatchObject({
       sessionId: 'c',
       prompt: 'hi',
+      toolType: 'llm',
     });
-    expect(main?.payload.spans).toBeUndefined();
+    expect(main?.payload.spans?.[0]).toMatchObject({
+      module: 'cursor',
+      name: 'llm.chat.completion',
+      semantic_type: 'llm_completion',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'cursor',
+        'http.method': 'POST',
+      }),
+    });
   });
 
   test('beforeReadFile → file_read span with file.path attribute', async () => {
@@ -136,6 +148,27 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.attributes?.['file.path']).toBe('/etc/passwd');
     expect(span.attributes?.['openbox.tool.name']).toBe('Read');
     expect(span.attributes?.['tool.name']).toBe('Read');
+  });
+
+  test('beforeTabFileRead -> file_open span with file.path attribute', async () => {
+    const captured: ActivityCall[] = [];
+    await handleBeforeTabFileRead(
+      {
+        conversation_id: 'c',
+        generation_id: 'spans-open-' + Math.random().toString(36).slice(2),
+        file_path: '/etc/openbox-sensitive.env',
+        content: 'x',
+      } as never,
+      makeCapturingSession(captured) as never,
+      cfg,
+    );
+    const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
+    expect(captured[0]?.activityType).toBe('FileRead');
+    expect(span.semantic_type).toBe('file_open');
+    expect(span.attributes?.['file.path']).toBe('/etc/openbox-sensitive.env');
+    expect(span.attributes?.['file.operation']).toBe('open');
+    expect(span.attributes?.['openbox.tool.name']).toBe('TabRead');
+    expect(span.attributes?.['tool.name']).toBe('TabRead');
   });
 
   test('beforeShellExecution → internal span with shell.command attribute', async () => {

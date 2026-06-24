@@ -4,6 +4,9 @@ import {
   HOOK_SPEC,
 } from '../../ts/src/core-client/generated/runtime/claude-code.js';
 import {
+  CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE as GENERATED_CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE,
+} from '../../ts/src/governance/capability-matrix.js';
+import {
   CLAUDE_CODE_GOVERNANCE_AUDIT,
   CLAUDE_CODE_HOOK_MATRIX,
   CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
@@ -11,47 +14,19 @@ import {
   defaultClaudeCodeHookEvents,
   optInClaudeCodeHookEvents,
 } from '../../ts/src/runtime/claude-code/governance-matrix.js';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains.js';
+
+function sorted(values: Iterable<string>): string[] {
+  return [...values].sort((left, right) => left.localeCompare(right));
+}
 
 describe('Claude Code governance matrix drift guard', () => {
-  const officialHookEvents = [
-    'SessionStart',
-    'Setup',
-    'InstructionsLoaded',
-    'UserPromptSubmit',
-    'UserPromptExpansion',
-    'MessageDisplay',
-    'PreToolUse',
-    'PermissionRequest',
-    'PostToolUse',
-    'PostToolUseFailure',
-    'PostToolBatch',
-    'PermissionDenied',
-    'Notification',
-    'SubagentStart',
-    'SubagentStop',
-    'TaskCreated',
-    'TaskCompleted',
-    'Stop',
-    'StopFailure',
-    'TeammateIdle',
-    'ConfigChange',
-    'CwdChanged',
-    'FileChanged',
-    'WorktreeCreate',
-    'WorktreeRemove',
-    'PreCompact',
-    'PostCompact',
-    'SessionEnd',
-    'Elicitation',
-    'ElicitationResult',
-  ].sort();
-
-  it('keeps generated HOOK_SPEC aligned with the checked-in official hook matrix', () => {
+  it('derives hook governance directly from generated HOOK_SPEC metadata', () => {
     const generatedAll = HOOK_SPEC.events.map((event) => event.name).sort();
     const matrixAll = CLAUDE_CODE_HOOK_MATRIX.map((entry) => entry.event).sort();
 
-    expect(matrixAll).toEqual(officialHookEvents);
-    expect(generatedAll).toEqual(officialHookEvents);
+    expect(matrixAll).toEqual(generatedAll);
+    expect(generatedAll).toEqual(Object.keys(HOOK_EVENT_LABELS).sort());
 
     const generated = HOOK_SPEC.events
       .filter((event) => event.installDefault !== false)
@@ -60,10 +35,30 @@ describe('Claude Code governance matrix drift guard', () => {
     const defaults = defaultClaudeCodeHookEvents().sort();
 
     expect(generated).toEqual(defaults);
+    for (const entry of CLAUDE_CODE_HOOK_MATRIX) {
+      const hookSpec = HOOK_SPEC.events.find((event) => event.name === entry.event);
+      expect(hookSpec, entry.event).toBeDefined();
+      if (!hookSpec) continue;
+      const expectedStatus = hookSpec.verdictShape === 'none'
+        ? hookSpec.installDefault === false
+          ? 'diagnose_only'
+          : 'observe_only'
+        : 'implement_now';
+      expect(entry.defaultInstall, entry.event).toBe(hookSpec.installDefault !== false);
+      expect(entry.decisionSurface, entry.event).toBe(hookSpec.verdictShape);
+      expect(entry.status, entry.event).toBe(
+        expectedStatus,
+      );
+    }
     expect(generated).not.toContain('WorktreeCreate');
     expect(HOOK_SPEC.events.find((event) => event.name === 'WorktreeCreate')?.installDefault).toBe(false);
     expect(HOOK_SPEC.events.find((event) => event.name === 'SessionEnd')?.installDefault).toBe(false);
-    expect(optInClaudeCodeHookEvents()).toEqual(['WorktreeCreate', 'SessionEnd']);
+    expect(optInClaudeCodeHookEvents()).toEqual(
+      HOOK_SPEC.events
+        .filter((event) => event.installDefault === false)
+        .map((event) => event.name),
+    );
+    expect(optInClaudeCodeHookEvents()).toEqual(expect.arrayContaining(['WorktreeCreate', 'SessionEnd']));
   });
 
   it('classifies every generated hook and every required surface', () => {
@@ -74,50 +69,35 @@ describe('Claude Code governance matrix drift guard', () => {
       expect(HOOK_EVENT_LABELS[event.name], `missing generated label for ${event.name}`).toBeTruthy();
     }
 
-    expect(new Set(CLAUDE_CODE_SURFACE_MATRIX.map((entry) => entry.surface))).toEqual(
-      new Set([
-        'hooks',
-        'skills',
-        'commands',
-        'agents',
-        'instructions',
-        'MCP',
-        'plugin settings',
-        'monitors',
-        'LSP',
-        'bin',
-        'managed settings',
-        'channels',
-        'built-in tool permissions',
-      ]),
+    expect(CLAUDE_CODE_SURFACE_MATRIX).toEqual(
+      GENERATED_CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.surfaces,
     );
   });
 
-  it('records the formal audit source set and installed Claude Code version', () => {
+  it('derives the formal audit source set from the generated TypeSpec surface', () => {
+    expect(GENERATED_CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.source).toBe(
+      'specs/typespec/govern/capabilities.tsp',
+    );
+    expect(CLAUDE_CODE_GOVERNANCE_AUDIT).toEqual(
+      GENERATED_CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.audit,
+    );
     expect(CLAUDE_CODE_GOVERNANCE_AUDIT.installedClaudeCodeVersion).toBe('2.1.179 (Claude Code)');
-    expect(CLAUDE_CODE_GOVERNANCE_AUDIT.officialDocs).toEqual([
+    expect(CLAUDE_CODE_GOVERNANCE_AUDIT.officialDocs).toContain(
       'https://code.claude.com/docs/en/hooks',
-      'https://code.claude.com/docs/en/plugins-reference',
-      'https://code.claude.com/docs/en/plugins',
-      'https://code.claude.com/docs/en/mcp',
-      'https://code.claude.com/docs/en/skills',
-      'https://code.claude.com/docs/en/commands',
-      'https://code.claude.com/docs/en/agents',
-      'https://code.claude.com/docs/en/settings',
-      'https://code.claude.com/docs/en/tools-reference',
-      'https://code.claude.com/docs/en/channels',
-      'https://code.claude.com/docs/en/changelog',
-    ]);
+    );
     expect(CLAUDE_CODE_GOVERNANCE_AUDIT.auditedSdkSurfaces).toContain('@openbox-ai/openbox-sdk/runtime/claude-code');
     expect(CLAUDE_CODE_GOVERNANCE_AUDIT.auditedSdkSurfaces).toContain('@openbox-ai/openbox-sdk/copilotkit');
   });
 
-  it('maps SDK governance primitives to Claude Code coverage instead of only hook names', () => {
+  it('maps SDK governance primitives from generated TypeSpec coverage instead of only hook names', () => {
+    expect(CLAUDE_CODE_SDK_CAPABILITY_MATRIX).toEqual(
+      GENERATED_CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE.sdkCapabilities,
+    );
     const capabilities = new Map(
       CLAUDE_CODE_SDK_CAPABILITY_MATRIX.map((entry) => [entry.capability, entry]),
     );
 
-    for (const required of [
+    const requiredCapabilities = [
       'workflow lifecycle start',
       'workflow lifecycle complete',
       'workflow lifecycle failure',
@@ -131,7 +111,9 @@ describe('Claude Code governance matrix drift guard', () => {
       'MCP connector and governance tools',
       'plugin packaging and diagnostics',
       'project-scoped runtime configuration',
-    ]) {
+    ] as const;
+
+    for (const required of requiredCapabilities) {
       const entry = capabilities.get(required);
       expect(entry, `missing SDK capability ${required}`).toBeDefined();
       expect(entry?.claudeCodeTreatment).toBe('implement_now');
@@ -142,5 +124,17 @@ describe('Claude Code governance matrix drift guard', () => {
       'explicit_out_of_scope',
     );
     expect(capabilities.get('non-Claude presets')?.claudeCodeTreatment).toBe('diagnose_only');
+  });
+
+  it('EXHAUSTIVE_SPEC_PROOF: Claude Code governance status members are represented by generated surface matrices', () => {
+    const observedStatuses = new Set<string>([
+      ...CLAUDE_CODE_HOOK_MATRIX.map((entry) => entry.status),
+      ...CLAUDE_CODE_SURFACE_MATRIX.map((entry) => entry.status),
+      ...CLAUDE_CODE_SDK_CAPABILITY_MATRIX.map((entry) => entry.claudeCodeTreatment),
+    ]);
+
+    expect(sorted(observedStatuses)).toEqual(
+      sorted(GOVERNANCE_SPEC_DOMAINS.claudeCodeGovernanceStatuses),
+    );
   });
 });

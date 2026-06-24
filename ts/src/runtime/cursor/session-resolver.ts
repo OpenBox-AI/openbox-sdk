@@ -6,7 +6,10 @@ import {
   isSessionStartedByKey,
   markHaltedByKey,
   markStartedByKey,
+  peekGoalByKey,
+  recordGoalByKey,
   clearSessionByKey,
+  type SessionGoalRecord,
 } from '../../session/resolver.js';
 import type { CursorConfig } from './config.js';
 import type { CursorEnvelope } from '../../core-client/generated/runtime/cursor.js';
@@ -28,6 +31,19 @@ export function isStarted(conversationId: string, cfg: CursorConfig): boolean {
 
 export function markStarted(conversationId: string, cfg: CursorConfig): void {
   markStartedByKey(conversationId, cfg);
+}
+
+export function recordGoal(
+  conversationId: string,
+  cfg: CursorConfig,
+  goal: string | undefined,
+  goalSource: SessionGoalRecord['goalSource'] = 'prompt',
+): SessionGoalRecord | null {
+  return recordGoalByKey(conversationId, cfg, goal, goalSource);
+}
+
+export function peekGoal(conversationId: string, cfg: CursorConfig): SessionGoalRecord | null {
+  return peekGoalByKey(conversationId, cfg);
 }
 
 export function clearSession(conversationId: string, cfg: CursorConfig): void {

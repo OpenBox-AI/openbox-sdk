@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -19,6 +19,7 @@ import {
   handlePreToolUse,
 } from '../../ts/src/runtime/codex/mappers/tool.js';
 import { handleUserPromptSubmit } from '../../ts/src/runtime/codex/mappers/prompt.js';
+import { handleStop } from '../../ts/src/runtime/codex/mappers/session.js';
 import { resolveSession } from '../../ts/src/runtime/codex/session-resolver.js';
 import { sideEffects } from '../../ts/src/runtime/codex/side-effects.js';
 import { parseApprovalExpirationMs } from '../../ts/src/core-client/approval-time.js';
@@ -95,6 +96,10 @@ function programWith(register: (program: Command) => void): Command {
   });
   register(program);
   return program;
+}
+
+function readJson(file: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
 }
 
 async function run(program: Command, args: string[]): Promise<void> {
@@ -316,8 +321,19 @@ describe('Codex runtime adapter', () => {
         'WorkflowStarted',
         'SignalReceived',
         'ActivityStarted',
+        'ActivityStarted',
         'ActivityCompleted',
       ]);
+      const promptHookEvent = mock.events.find((event) => event.hook_trigger === true);
+      expect(promptHookEvent?.activity_type).toBe('PromptSubmission');
+      expect(promptHookEvent?.spans?.[0]).toMatchObject({
+        name: 'llm.chat.completion',
+        module: 'codex',
+        attributes: expect.objectContaining({
+          'gen_ai.system': 'codex',
+          'http.method': 'POST',
+        }),
+      });
 
       const idsAgain = await resolveSession(env, runtimeCfg);
       expect(idsAgain).toEqual(ids);
@@ -335,8 +351,9 @@ describe('Codex runtime adapter', () => {
       );
 
       expect(mock.events.filter((event) => event.event_type === 'WorkflowStarted')).toHaveLength(1);
-      expect(mock.events.slice(4).map((event) => event.event_type)).toEqual([
+      expect(mock.events.slice(5).map((event) => event.event_type)).toEqual([
         'SignalReceived',
+        'ActivityStarted',
         'ActivityStarted',
         'ActivityCompleted',
       ]);
@@ -421,8 +438,11 @@ describe('Codex runtime adapter', () => {
     expect(completedHook?.spans?.[0]).toMatchObject({
       module: 'codex',
       stage: 'completed',
-      semantic_type: 'internal',
     });
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
   });
 
   it('routes Codex tool mapper branches for files, HTTP, MCP, database, and halt verdicts', async () => {
@@ -559,6 +579,56 @@ describe('Codex runtime adapter', () => {
     }
   });
 
+  it('emits Codex assistant-output spans when Stop carries assistant text', async () => {
+    const sessionDir = mkdtempSync(join(tmpdir(), 'openbox-codex-stop-span-'));
+    try {
+      const mock = createMockCore(() => ({ verdict: 'allow', action: 'allow' }));
+      const { presets } = await import('../../ts/src/core-client/index.js');
+      const session = new presets.codex({
+        core: mock.core,
+        workflowId: 'codex-stop-workflow',
+        runId: 'codex-stop-run',
+        registerExitHandlers: false,
+        attached: true,
+      });
+
+      await handleStop(
+        {
+          hook_event_name: 'Stop',
+          session_id: 'codex-stop-session',
+          content: 'The governed task is complete.',
+          model: 'gpt-5.4',
+        },
+        session,
+        { sessionDir } as never,
+      );
+
+      const completed = mock.events.find(
+        (event) => event.event_type === 'ActivityCompleted' && event.hook_trigger !== true,
+      );
+      expect(completed).toMatchObject({
+        event_type: 'ActivityCompleted',
+        activity_type: 'CodexSession',
+        completion: 'The governed task is complete.',
+        llm_model: 'gpt-5.4',
+      });
+      const hookEvent = mock.events.find(
+        (event) => event.hook_trigger === true && event.spans?.[0]?.name === 'openbox.codex.assistant_output',
+      );
+      expect(hookEvent?.spans?.[0]).toMatchObject({
+        name: 'openbox.codex.assistant_output',
+        module: 'codex',
+        stage: 'completed',
+        attributes: {
+          'gen_ai.system': 'codex',
+          'openbox.codex.event': 'Stop',
+        },
+      });
+    } finally {
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
   it('resolves Codex hook config upward and falls back to the start directory', async () => {
     const root = mkdtempSync(join(tmpdir(), 'openbox-codex-config-'));
     const fallbackRoot = mkdtempSync(join(tmpdir(), 'openbox-codex-config-fallback-'));
@@ -675,6 +745,26 @@ describe('Codex runtime adapter', () => {
       },
     });
 
+    const missingStableSession = await runCodexHookWithConfig(
+      {
+        OPENBOX_API_KEY: 'obx_live_' + 'd'.repeat(48),
+        OPENBOX_CORE_URL: 'https://core.example',
+        verbose: 'true',
+      },
+      JSON.stringify({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Shell',
+        tool_input: { command: 'pwd' },
+      }),
+    );
+    expect(JSON.parse(missingStableSession.join(''))).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: '[OpenBox] missing Codex session identifier',
+      },
+    });
+
     const invalidJson = await runCodexHookWithConfig(
       { OPENBOX_CORE_URL: 'https://core.example' },
       '{not-json',
@@ -712,6 +802,8 @@ describe('Codex runtime adapter', () => {
   it('covers Codex and MCP command validation branches', async () => {
     const codex = programWith(registerCodexCommands);
     const mcp = programWith(registerMcpCommands);
+    const runtimeKey = `obx_test_${'c'.repeat(48)}`;
+    const coreUrl = 'http://127.0.0.1:8086';
     const exported = mkdtempSync(join(tmpdir(), 'openbox-codex-export-parent-'));
     const project = mkdtempSync(join(tmpdir(), 'openbox-codex-project-'));
     try {
@@ -738,8 +830,44 @@ describe('Codex runtime adapter', () => {
         join(project, '.agents', 'plugins', 'openbox'),
         '--skip-repo-skill',
         '--skip-marketplace',
+        '--runtime-api-key',
+        runtimeKey,
+        '--core-url',
+        coreUrl,
+        '--approval-mode',
+        'inline',
+        '--governance-timeout',
+        '18',
+        '--hitl-max-wait',
+        '90',
+        '--hitl-poll-interval',
+        '4',
       ]);
-      await run(codex, ['codex', 'install', '--cwd', project]);
+      await run(codex, [
+        'codex',
+        'install',
+        '--cwd',
+        project,
+        '--runtime-api-key',
+        runtimeKey,
+        '--core-url',
+        coreUrl,
+        '--approval-mode',
+        'defer',
+        '--governance-timeout',
+        '18',
+        '--hitl-max-wait',
+        '90',
+        '--hitl-poll-interval',
+        '4',
+      ]);
+      const runtimeConfig = readJson(join(project, '.codex-hooks', 'config.json'));
+      expect(runtimeConfig.OPENBOX_API_KEY).toBe(runtimeKey);
+      expect(runtimeConfig.OPENBOX_CORE_URL).toBe(coreUrl);
+      expect(runtimeConfig.approvalMode).toBe('defer');
+      expect(runtimeConfig.governanceTimeout).toBe('18');
+      expect(runtimeConfig.hitlMaxWait).toBe(90);
+      expect(runtimeConfig.hitlPollInterval).toBe(4);
       await run(codex, ['codex', 'doctor', '--cwd', project, '--surface-only', '--json']);
       await run(codex, [
         'codex',

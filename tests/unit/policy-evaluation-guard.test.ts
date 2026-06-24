@@ -6,6 +6,7 @@ import { POLICY_EVALUATION_GUARDS } from '../../ts/src/governance/capability-mat
 const repoRoot = resolve(process.cwd());
 const ignoredDirs = new Set([
   '.git',
+  '.openbox',
   'coverage',
   'dist',
   'dist-pack',
@@ -50,7 +51,13 @@ function walk(dir: string, predicate: (path: string) => boolean, out: string[] =
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
     if (isIgnored(path)) continue;
-    const stat = statSync(path);
+    let stat;
+    try {
+      stat = statSync(path);
+    } catch (error) {
+      if ((error as { code?: unknown }).code === 'ENOENT') continue;
+      throw error;
+    }
     if (stat.isDirectory()) walk(path, predicate, out);
     else if (predicate(path)) out.push(path);
   }

@@ -2,6 +2,7 @@
 // session, and exact stdout verdict shape.
 
 import { describe, expect, test } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createCursorAdapter } from '../../ts/src/core-client/generated/runtime/cursor.js';
@@ -356,6 +357,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
   });
 
   test('real CursorSession sends spans as parent-plus-hook payloads', async () => {
+    const conversationId = `cursor-contract-${randomUUID()}`;
     const promptCap = capture();
     const promptPayloads: CorePayload[] = [];
     await createCursorAdapter({
@@ -371,7 +373,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         promptCap,
         JSON.stringify({
           hook_event_name: 'beforeSubmitPrompt',
-          conversation_id: 'c',
+          conversation_id: conversationId,
           generation_id: 'contract-real-session-prompt',
           prompt: 'summarize this file',
         }),
@@ -379,7 +381,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     }).run();
 
     expect(JSON.parse(promptCap.stdout[0])).toEqual({ continue: true });
-    expect(promptPayloads).toHaveLength(4);
+    expect(promptPayloads).toHaveLength(5);
     const workflowStarted = promptPayloads.find(
       (payload) => payload.event_type === 'WorkflowStarted',
     );
@@ -402,28 +404,46 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         payload.event_type === 'ActivityStarted' &&
         payload.activity_type === 'PromptSubmission',
     );
-    expect(promptStarts).toHaveLength(1);
-    const [promptParent] = promptStarts;
+    expect(promptStarts).toHaveLength(2);
+    const promptParent = promptStarts.find((payload) => payload.hook_trigger === false);
+    const promptHook = promptStarts.find((payload) => payload.hook_trigger === true);
     expect(promptParent).toMatchObject({
       workflow_id: 'wf-cursor-contract',
       run_id: 'run-cursor-contract',
-      session_id: 'c',
+      session_id: conversationId,
       prompt: 'summarize this file',
     });
-    expect(promptParent.hook_trigger).toBe(false);
-    expect(promptParent.spans).toBeUndefined();
-    expect(promptParent.span_count).toBeUndefined();
+    expect(promptParent?.hook_trigger).toBe(false);
+    expect(promptParent?.spans).toBeUndefined();
+    expect(promptParent?.span_count).toBeUndefined();
+    expect(promptHook).toMatchObject({
+      workflow_id: 'wf-cursor-contract',
+      run_id: 'run-cursor-contract',
+      activity_id: promptParent?.activity_id,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(promptHook?.spans?.[0]).toMatchObject({
+      module: 'cursor',
+      name: 'llm.chat.completion',
+      semantic_type: 'llm_completion',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'cursor',
+        'http.method': 'POST',
+      }),
+    });
     const promptCompleted = promptPayloads.find(
       (payload) =>
         payload.event_type === 'ActivityCompleted' &&
         payload.activity_type === 'PromptSubmission',
     );
-    expect(promptCompleted?.activity_id).toBe(promptParent.activity_id);
+    expect(promptCompleted?.activity_id).toBe(promptParent?.activity_id);
     expect(promptCompleted?.hook_trigger).toBe(false);
     expect(promptCompleted?.spans).toBeUndefined();
     expect(promptCompleted?.span_count).toBeUndefined();
-    expect(promptPayloads.indexOf(promptSignals[0]!)).toBeLessThan(promptPayloads.indexOf(promptParent));
-    expect(promptPayloads.indexOf(promptParent)).toBeLessThan(promptPayloads.indexOf(promptCompleted!));
+    expect(promptPayloads.indexOf(promptSignals[0]!)).toBeLessThan(promptPayloads.indexOf(promptParent!));
+    expect(promptPayloads.indexOf(promptParent!)).toBeLessThan(promptPayloads.indexOf(promptHook!));
+    expect(promptPayloads.indexOf(promptHook!)).toBeLessThan(promptPayloads.indexOf(promptCompleted!));
 
     const responseCap = capture();
     const responsePayloads: CorePayload[] = [];
@@ -440,7 +460,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
         responseCap,
         JSON.stringify({
           hook_event_name: 'afterAgentResponse',
-          conversation_id: 'c',
+          conversation_id: conversationId,
           generation_id: 'contract-real-session-response',
           response: {
             content: [{ type: 'text', text: 'Cursor answer.' }],

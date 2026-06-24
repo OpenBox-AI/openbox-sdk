@@ -2,8 +2,8 @@
 // host adapter so behavior rules see the same span shapes regardless
 // of which host invoked the action.
 //
-// Behavior rules match spans by `semantic_type` and classifier gate
-// attributes (`file.path`, `http.method`, `db.system`,
+// Behavior rules match Core-computed semantic types derived from
+// classifier gate attributes (`file.path`, `http.method`, `db.system`,
 // `gen_ai.system`, `shell.command`); see
 // `skill/references/span-reference.md`. Activity type alone does not
 // trigger a behavior rule. Without a span that carries the right
@@ -85,7 +85,10 @@ function base(
 
 export type SpanType =
   | 'llm'
+  | 'llm_embedding'
+  | 'llm_tool_call'
   | 'file_read'
+  | 'file_open'
   | 'file_write'
   | 'file_delete'
   | 'shell'
@@ -562,6 +565,73 @@ function providerUrlForLLM(provider: string | undefined): string {
   }
 }
 
+export function stripServerComputedSemantic<T extends object>(span: T): T {
+  const next: Record<string, unknown> = {
+    ...(span as Record<string, unknown>),
+  };
+  delete next.semantic_type;
+  delete next.semanticType;
+
+  const attrs = next.attributes;
+  if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+    const nextAttrs = { ...(attrs as JsonRecord) };
+    delete nextAttrs['openbox.semantic_type'];
+    next.attributes = nextAttrs;
+  }
+
+  return next as unknown as T;
+}
+
+export function serverComputedSemanticType(
+  type: SpanType,
+  input: SpanInput = {},
+): string {
+  switch (type) {
+    case 'llm':
+      return 'llm_completion';
+    case 'llm_embedding':
+      return 'llm_embedding';
+    case 'llm_tool_call':
+      return 'llm_tool_call';
+    case 'file_read':
+    case 'file_open':
+    case 'file_write':
+    case 'file_delete':
+      return type;
+    case 'shell':
+      return 'internal';
+    case 'mcp':
+      return 'mcp_tool_call';
+    case 'http': {
+      const method = (input.method ?? 'GET').trim().toLowerCase();
+      return ['get', 'post', 'put', 'patch', 'delete'].includes(method)
+        ? `http_${method}`
+        : 'http';
+    }
+    case 'db': {
+      const operation = (
+        input.db_operation ??
+        input.operation ??
+        'query'
+      ).trim().toLowerCase();
+      return ['select', 'insert', 'update', 'delete'].includes(operation)
+        ? `database_${operation}`
+        : 'database_query';
+    }
+  }
+}
+
+export function withServerComputedSemantic<T extends Record<string, unknown>>(
+  span: T,
+  type: SpanType,
+  input: SpanInput = {},
+): T {
+  return {
+    ...span,
+    semantic_type: serverComputedSemanticType(type, input),
+  };
+}
+
 function toolNameAttributes(input: SpanInput): JsonRecord {
   const toolName = (input.tool_name ?? input.tool)?.trim();
   if (!toolName) return {};
@@ -746,7 +816,7 @@ export function buildLLMCompletionSpan(
     explicitProviderUrl,
   );
   const httpUrl = explicitProviderUrl ?? providerUrlForLLM(modelTelemetry.provider);
-  return {
+  return stripServerComputedSemantic({
     ...source,
     span_id: source.span_id ?? hex(16),
     trace_id: source.trace_id ?? hex(32),
@@ -763,7 +833,6 @@ export function buildLLMCompletionSpan(
       0,
     span_type: 'function',
     stage: 'completed',
-    semantic_type: 'llm_completion',
     status: spanStatusOrDefault(source.status, spanError),
     events: Array.isArray(source.events) ? source.events : [],
     error: spanError ?? null,
@@ -806,7 +875,6 @@ export function buildLLMCompletionSpan(
         : {}),
       'http.method': 'POST',
       'http.url': httpUrl,
-      'openbox.semantic_type': 'llm_completion',
       'openbox.span_type': 'function',
       ...(source.attributes ?? {}),
       ...(input.attributes ?? {}),
@@ -843,22 +911,22 @@ export function buildLLMCompletionSpan(
       usage: input.usage,
       responseBody: input.responseBody ?? source.response_body,
     }),
-  } as ObservableSpan;
+  } as ObservableSpan) as unknown as SpanData;
 }
 
 /**
- * Build a single span for the given event. The `semantic_type` and
- * gate attributes drive the classifier's behavior-trigger decision
- * (`file_read`, `internal`, `llm_completion`, `http_*`, ...). The
- * span is appended to the evaluate payload's `spans` array;
- * without it, behavior rules never match.
+ * Build a single span for the given event. The gate attributes drive
+ * Core's classifier and produce the behavior-trigger decision
+ * (`file_read`, `internal`, `llm_completion`, `http_*`, ...). The span
+ * is appended to the evaluate payload's `spans` array; without it,
+ * behavior rules never match.
  *
  * `host` is the adapter name (for example `'cursor'` or
  * `'claude-code'`). It stamps the `module` field and `gen_ai.system`
  * so dashboards and behavior rules keyed on `gen_ai.system` can
  * distinguish traffic by origin.
  */
-export function buildSpan(
+function buildSpanWithClassifierFields(
   host: string,
   type: SpanType,
   input: SpanInput,
@@ -907,7 +975,6 @@ export function buildSpan(
         name: 'llm.chat.completion',
         span_type: 'function',
         hook_type: 'function_call',
-        semantic_type: 'llm_completion',
         attributes: {
           'gen_ai.system': host,
           ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
@@ -951,7 +1018,6 @@ export function buildSpan(
             : {}),
           'http.method': 'POST',
           'http.url': llmHttpUrl,
-          'openbox.semantic_type': 'llm_completion',
           'openbox.span_type': 'function',
         },
         ...(input.model ? { model: input.model } : {}),
@@ -986,6 +1052,135 @@ export function buildSpan(
           usage: input.usage,
         }),
       };
+    case 'llm_embedding': {
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toUsageInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens,
+      );
+      const totalTokens = toUsageInteger(usage?.total_tokens ?? inputTokens);
+      const costUsd = toUsageNumber(usage?.cost_usd);
+      const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
+      const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider).replace(
+        /\/chat\/completions$/,
+        '/embeddings',
+      );
+      return {
+        ...b,
+        name: 'openai.EMBEDDING.create',
+        span_type: 'function',
+        hook_type: 'function_call',
+        attributes: {
+          'gen_ai.system': host,
+          ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
+          ...(modelTelemetry.modelId
+            ? { 'openbox.model.id': modelTelemetry.modelId }
+            : {}),
+          ...(modelTelemetry.provider
+            ? { 'openbox.model.provider': modelTelemetry.provider }
+            : {}),
+          ...(inputTokens !== undefined
+            ? { 'gen_ai.usage.input_tokens': inputTokens }
+            : {}),
+          ...(totalTokens !== undefined
+            ? { 'gen_ai.usage.total_tokens': totalTokens }
+            : {}),
+          ...(costUsd !== undefined
+            ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
+            : {}),
+          'http.method': 'POST',
+          'http.url': llmHttpUrl,
+          'openbox.span_type': 'function',
+        },
+        ...(input.model ? { model: input.model } : {}),
+        ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+        ...(modelTelemetry.provider
+          ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
+          : {}),
+        ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+        ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
+        function: 'Embedding',
+        module: host,
+        args: input,
+        result: null,
+        http_method: 'POST',
+        http_url: llmHttpUrl,
+        request_body: stringifyBody({
+          ...(input.model ? { model: input.model } : {}),
+          ...(input.prompt ? { input: input.prompt } : {}),
+        }),
+        response_body: null,
+      };
+    }
+    case 'llm_tool_call': {
+      const usage = normalizeUsage(input.usage);
+      const inputTokens = toUsageInteger(
+        usage?.input_tokens ?? usage?.prompt_tokens,
+      );
+      const outputTokens = toUsageInteger(
+        usage?.output_tokens ?? usage?.completion_tokens,
+      );
+      const totalTokens = toUsageInteger(usage?.total_tokens);
+      const costUsd = toUsageNumber(usage?.cost_usd);
+      const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
+      const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
+      const toolName = input.tool_name ?? input.tool ?? 'tool_call';
+      return {
+        ...b,
+        name: 'openai.TOOL.call',
+        span_type: 'function',
+        hook_type: 'function_call',
+        attributes: {
+          'gen_ai.system': host,
+          ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
+          ...(modelTelemetry.modelId
+            ? { 'openbox.model.id': modelTelemetry.modelId }
+            : {}),
+          ...(modelTelemetry.provider
+            ? { 'openbox.model.provider': modelTelemetry.provider }
+            : {}),
+          ...(inputTokens !== undefined
+            ? { 'gen_ai.usage.input_tokens': inputTokens }
+            : {}),
+          ...(outputTokens !== undefined
+            ? { 'gen_ai.usage.output_tokens': outputTokens }
+            : {}),
+          ...(totalTokens !== undefined
+            ? { 'gen_ai.usage.total_tokens': totalTokens }
+            : {}),
+          ...(costUsd !== undefined
+            ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
+            : {}),
+          'http.method': 'POST',
+          'http.url': llmHttpUrl,
+          ...toolNameAttributes(input),
+          'openbox.span_type': 'function',
+        },
+        ...(input.model ? { model: input.model } : {}),
+        ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
+        ...(modelTelemetry.provider
+          ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
+          : {}),
+        ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+        ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+        ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
+        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
+        function: `ToolCall:${toolName}`,
+        module: host,
+        args: input.tool_input ?? input,
+        result: input.tool_output ?? null,
+        http_method: 'POST',
+        http_url: llmHttpUrl,
+        request_body: stringifyBody({
+          ...(input.model ? { model: input.model } : {}),
+          tool_choice: String(toolName),
+          tool_input: input.tool_input ?? {},
+        }),
+        response_body: stringifyBody({
+          tool_calls: [{ name: toolName, arguments: input.tool_input ?? {} }],
+        }),
+      };
+    }
     case 'file_read':
       return {
         ...b,
@@ -993,18 +1188,34 @@ export function buildSpan(
         kind: 'INTERNAL',
         span_type: 'file_io',
         hook_type: 'file_operation',
-        semantic_type: 'file_read',
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'read',
           ...toolNameAttributes(input),
-          'openbox.semantic_type': 'file_read',
           'openbox.span_type': 'file_io',
         },
         module: host,
         file_path: input.file_path ?? '',
         file_mode: 'r',
         file_operation: 'read',
+      };
+    case 'file_open':
+      return {
+        ...b,
+        name: 'file.open',
+        kind: 'INTERNAL',
+        span_type: 'file_io',
+        hook_type: 'file_operation',
+        attributes: {
+          'file.path': input.file_path ?? '',
+          'file.operation': 'open',
+          ...toolNameAttributes(input),
+          'openbox.span_type': 'file_io',
+        },
+        module: host,
+        file_path: input.file_path ?? '',
+        file_mode: 'r',
+        file_operation: 'open',
       };
     case 'file_write':
       return {
@@ -1013,12 +1224,10 @@ export function buildSpan(
         kind: 'INTERNAL',
         span_type: 'file_io',
         hook_type: 'file_operation',
-        semantic_type: 'file_write',
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'write',
           ...toolNameAttributes(input),
-          'openbox.semantic_type': 'file_write',
           'openbox.span_type': 'file_io',
         },
         module: host,
@@ -1033,12 +1242,10 @@ export function buildSpan(
         kind: 'INTERNAL',
         span_type: 'file_io',
         hook_type: 'file_operation',
-        semantic_type: 'file_delete',
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'delete',
           ...toolNameAttributes(input),
-          'openbox.semantic_type': 'file_delete',
           'openbox.span_type': 'file_io',
         },
         module: host,
@@ -1055,12 +1262,10 @@ export function buildSpan(
         kind: 'INTERNAL',
         span_type: 'function',
         hook_type: 'function_call',
-        semantic_type: 'internal',
         attributes: {
           'shell.command': input.command ?? '',
           'shell.cwd': input.cwd ?? '',
           ...toolNameAttributes(input),
-          'openbox.semantic_type': 'internal',
           'openbox.span_type': 'function',
         },
         function: 'ShellExecution',
@@ -1079,13 +1284,11 @@ export function buildSpan(
         name: `MCP ${mcp.method} ${mcp.operation}`,
         span_type: 'mcp_tool_call',
         hook_type: 'function_call',
-        semantic_type: 'mcp_tool_call',
         attributes: {
           'mcp.method': mcp.method,
           'mcp.operation': mcp.operation,
           'mcp.server_id': mcp.serverId,
           'mcp.input': input.tool_input ?? {},
-          'openbox.semantic_type': 'mcp_tool_call',
           'openbox.span_type': 'mcp_tool_call',
           'openbox.tool.name': toolName,
           'tool.name': toolName,
@@ -1098,8 +1301,8 @@ export function buildSpan(
       };
     case 'http':
       // Outbound HTTP from `WebFetch`, `WebSearch`, or explicit
-      // fetch tools. `semantic_type` matches the method; defaults
-      // to GET when the host does not surface one.
+      // fetch tools. Core derives the HTTP semantic from the method,
+      // which defaults to GET when the host does not surface one.
       const method = (input.method ?? 'GET').toUpperCase();
       const url = input.url ?? '';
       return {
@@ -1107,12 +1310,10 @@ export function buildSpan(
         name: `${method} ${url}`,
         span_type: 'http',
         hook_type: 'http_request',
-        semantic_type: `http_${method.toLowerCase()}`,
         attributes: {
           'http.method': method,
           'http.url': url,
           ...toolNameAttributes(input),
-          'openbox.semantic_type': `http_${method.toLowerCase()}`,
           'openbox.span_type': 'http',
         },
         http_method: method,
@@ -1130,20 +1331,27 @@ export function buildSpan(
     case 'db':
       const dbSystem = input.db_system ?? input.system ?? 'postgresql';
       const dbOperation = (input.db_operation ?? input.operation ?? 'SELECT').toUpperCase();
+      const dbResource =
+        typeof (input as Record<string, unknown>).resource === 'string'
+          ? (input as Record<string, string>).resource
+          : typeof (input as Record<string, unknown>).table === 'string'
+            ? (input as Record<string, string>).table
+            : undefined;
       const dbStatement =
-        input.db_statement ?? input.statement ?? input.query ?? `${dbOperation} statement`;
+        input.db_statement ??
+        input.statement ??
+        input.query ??
+        (dbResource ? `database resource ${dbResource}` : `${dbOperation} operation`);
       return {
         ...b,
         name: dbOperation,
         span_type: 'database',
         hook_type: 'db_query',
-        semantic_type: `database_${dbOperation.toLowerCase()}`,
         attributes: {
           'db.system': dbSystem,
           'db.operation': dbOperation,
           'db.statement': dbStatement,
           ...toolNameAttributes(input),
-          'openbox.semantic_type': `database_${dbOperation.toLowerCase()}`,
           'openbox.span_type': 'database',
         },
         db_system: dbSystem,
@@ -1159,4 +1367,12 @@ export function buildSpan(
         result: null,
       };
   }
+}
+
+export function buildSpan(
+  host: string,
+  type: SpanType,
+  input: SpanInput,
+): Record<string, unknown> {
+  return stripServerComputedSemantic(buildSpanWithClassifierFields(host, type, input));
 }

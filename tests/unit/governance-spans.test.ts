@@ -22,7 +22,6 @@ function extractAssistantContentLikeCore(spans: SpanData[]): string {
   const latest = spans[spans.length - 1];
   if (
     latest.stage !== 'completed' ||
-    latest.semantic_type !== 'llm_completion' ||
     !latest.response_body
   ) {
     return '';
@@ -258,6 +257,8 @@ describe('LLM completion spans', () => {
       kind: 'llm',
     });
 
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       span_id: 'span-1',
       trace_id: 'trace-1',
@@ -268,7 +269,6 @@ describe('LLM completion spans', () => {
       end_time: 200_000_000,
       duration_ns: 100,
       stage: 'completed',
-      semantic_type: 'llm_completion',
       status: { code: 'UNSET', description: null },
       events: [],
       error: null,
@@ -377,6 +377,8 @@ describe('LLM completion spans', () => {
     expect(observed.input_tokens).toBe(120);
     expect(observed.output_tokens).toBe(35);
     expect(observed.total_tokens).toBe(155);
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.attributes).toMatchObject({
       'gen_ai.request.model': 'gpt-4o-mini',
       'gen_ai.response.model': 'gpt-4o-mini',
@@ -385,7 +387,6 @@ describe('LLM completion spans', () => {
       'gen_ai.usage.input_tokens': 120,
       'gen_ai.usage.output_tokens': 35,
       'gen_ai.usage.total_tokens': 155,
-      'openbox.semantic_type': 'llm_completion',
       'openbox.span_type': 'function',
     });
   });
@@ -401,8 +402,9 @@ describe('LLM completion spans', () => {
       },
     });
 
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
-      semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
       model_id: 'gemini-2.5-flash',
       provider: 'google',
@@ -646,7 +648,8 @@ describe('LLM completion spans', () => {
       tool_input: { path: 'customer.md' },
     });
 
-    expect(span.semantic_type).toBe('mcp_tool_call');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.span_type).toBe('mcp_tool_call');
     expect(span.name).toBe('MCP callTool read_customer_file');
     expect(span.attributes).toMatchObject({
@@ -654,11 +657,99 @@ describe('LLM completion spans', () => {
       'mcp.operation': 'read_customer_file',
       'mcp.server_id': 'unknown',
       'mcp.input': { path: 'customer.md' },
-      'openbox.semantic_type': 'mcp_tool_call',
       'openbox.span_type': 'mcp_tool_call',
       'openbox.tool.name': 'read_customer_file',
       'tool.name': 'read_customer_file',
       tool_name: 'read_customer_file',
+    });
+  });
+
+  test('embedding spans expose Core classifier fields without client-forged semantic type', () => {
+    const span = buildSpan('mcp', 'llm_embedding', {
+      model: 'text-embedding-3-small',
+      prompt: 'govern this embedding',
+      usage: { input_tokens: 12, total_tokens: 12, cost_usd: 0.001 },
+    });
+
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span).toMatchObject({
+      name: 'openai.EMBEDDING.create',
+      span_type: 'function',
+      http_method: 'POST',
+      http_url: 'https://api.openai.com/v1/embeddings',
+      input_tokens: 12,
+      total_tokens: 12,
+      cost_usd: 0.001,
+    });
+    expect(span.attributes).toMatchObject({
+      'gen_ai.system': 'mcp',
+      'gen_ai.request.model': 'text-embedding-3-small',
+      'http.method': 'POST',
+      'http.url': 'https://api.openai.com/v1/embeddings',
+      'gen_ai.usage.input_tokens': 12,
+      'gen_ai.usage.total_tokens': 12,
+    });
+    expect(JSON.parse(String(span.request_body))).toMatchObject({
+      model: 'text-embedding-3-small',
+      input: 'govern this embedding',
+    });
+  });
+
+  test('LLM tool-call spans expose Core classifier fields and tool telemetry', () => {
+    const span = buildSpan('openai-agents-sdk', 'llm_tool_call', {
+      model: 'gpt-5.4',
+      tool_name: 'lookup_queue',
+      tool_input: { queue: 'payments' },
+      usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
+    });
+
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span).toMatchObject({
+      name: 'openai.TOOL.call',
+      span_type: 'function',
+      http_method: 'POST',
+      http_url: 'https://api.openai.com/v1/chat/completions',
+      function: 'ToolCall:lookup_queue',
+      input_tokens: 5,
+      output_tokens: 2,
+      total_tokens: 7,
+    });
+    expect(span.attributes).toMatchObject({
+      'gen_ai.system': 'openai-agents-sdk',
+      'http.method': 'POST',
+      'http.url': 'https://api.openai.com/v1/chat/completions',
+      'openbox.tool.name': 'lookup_queue',
+      'tool.name': 'lookup_queue',
+      tool_name: 'lookup_queue',
+    });
+    expect(JSON.parse(String(span.response_body))).toMatchObject({
+      tool_calls: [{ name: 'lookup_queue', arguments: { queue: 'payments' } }],
+    });
+  });
+
+  test('file_open spans expose Core file.open classifier fields', () => {
+    const span = buildSpan('cursor', 'file_open', {
+      file_path: '/project/.env',
+      tool_name: 'TabRead',
+    });
+
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span).toMatchObject({
+      name: 'file.open',
+      kind: 'INTERNAL',
+      span_type: 'file_io',
+      file_path: '/project/.env',
+      file_mode: 'r',
+      file_operation: 'open',
+    });
+    expect(span.attributes).toMatchObject({
+      'file.path': '/project/.env',
+      'file.operation': 'open',
+      'openbox.tool.name': 'TabRead',
+      'tool.name': 'TabRead',
     });
   });
 
@@ -668,7 +759,8 @@ describe('LLM completion spans', () => {
       command: 'npm test',
     });
 
-    expect(span.semantic_type).toBe('internal');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.attributes).toMatchObject({
       'shell.command': 'npm test',
       'openbox.tool.name': 'Shell',

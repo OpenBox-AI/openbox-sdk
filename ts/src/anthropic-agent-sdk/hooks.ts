@@ -7,6 +7,7 @@ import type {
   HookJSONOutput,
   Options,
 } from '@anthropic-ai/claude-agent-sdk';
+import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type { WorkflowVerdict } from '../core-client/index.js';
 import { EVENT } from '../governance/events.js';
 import {
@@ -20,6 +21,7 @@ import {
   brandedReason,
   compactPayload,
   objectRecord,
+  promptSpan,
   redactedOutputValue,
   redactedRecord,
   subagentActivityInput,
@@ -34,49 +36,23 @@ import type {
   OpenBoxAnthropicAgentSDKConfig,
 } from './types.js';
 
-const HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
-  'Setup',
-  'SessionStart',
-  'InstructionsLoaded',
-  'UserPromptSubmit',
-  'UserPromptExpansion',
-  'Notification',
-  'PreToolUse',
-  'PermissionRequest',
-  'PermissionDenied',
-  'PostToolUse',
-  'PostToolUseFailure',
-  'PostToolBatch',
-  'Stop',
-  'StopFailure',
-  'SubagentStart',
-  'SubagentStop',
-  'TaskCreated',
-  'TaskCompleted',
-  'TeammateIdle',
-  'ConfigChange',
-  'CwdChanged',
-  'FileChanged',
-  'WorktreeRemove',
-  'PreCompact',
-  'PostCompact',
-  'SessionEnd',
-  'Elicitation',
-  'ElicitationResult',
-  'MessageDisplay',
-];
-
-export const OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS = [
-  ...HOOK_EVENTS,
-] as const satisfies readonly OpenBoxAnthropicAgentHookEvent[];
-
-const OPT_IN_HOOK_EVENTS: OpenBoxAnthropicAgentHookEvent[] = [
+const OPT_IN_HOOK_EVENTS = [
   'WorktreeCreate',
-];
+] as const satisfies readonly OpenBoxAnthropicAgentHookEvent[];
 
 export const OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS = [
   ...OPT_IN_HOOK_EVENTS,
 ] as const satisfies readonly OpenBoxAnthropicAgentHookEvent[];
+
+const OPT_IN_HOOK_EVENT_SET = new Set<OpenBoxAnthropicAgentHookEvent>(
+  OPT_IN_HOOK_EVENTS,
+);
+
+export const OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS =
+  ANTHROPIC_AGENT_HOOK_EVENTS.filter(
+    (event): event is OpenBoxAnthropicAgentHookEvent =>
+      !OPT_IN_HOOK_EVENT_SET.has(event),
+  );
 
 const DECISION_CAPABLE = new Set<OpenBoxAnthropicAgentHookEvent>([
   'UserPromptSubmit',
@@ -119,8 +95,11 @@ export function createOpenBoxAnthropicAgentHooks(
   };
 
   const events = context.includeOptInHooks
-    ? [...HOOK_EVENTS, ...OPT_IN_HOOK_EVENTS]
-    : HOOK_EVENTS;
+    ? [
+        ...OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS,
+        ...OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS,
+      ]
+    : OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS;
 
   return events.reduce<
     Partial<Record<OpenBoxAnthropicAgentHookEvent, HookCallbackMatcher[]>>
@@ -268,6 +247,7 @@ async function handleUserPromptSubmit(
     input: [compactPayload(env, 'llm_prompt')],
     prompt,
     sessionId,
+    spans: promptSpan({ prompt }),
   });
   return renderDecisionBlock('UserPromptSubmit', verdict);
 }
@@ -283,6 +263,7 @@ async function handleUserPromptExpansion(
     input: [compactPayload(env, 'llm_prompt_expansion')],
     prompt,
     sessionId,
+    spans: promptSpan({ prompt }),
   });
   return renderDecisionBlock('UserPromptExpansion', verdict);
 }

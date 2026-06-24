@@ -11,9 +11,13 @@ export { runCodexHook } from './hook-handler.js';
 export {
   installCodex,
   uninstallCodex,
+  configureCodexRuntime,
+  codexRuntimeConfigFile,
   verifyCodexInstall,
   type CodexInstallCheck,
   type CodexInstallCheckStatus,
+  type CodexApprovalMode,
+  type ConfigureCodexRuntimeOptions,
   type VerifyCodexInstallOptions,
 } from './install.js';
 export {
@@ -31,6 +35,14 @@ export {
   type UninstallCodexPluginOptions,
   type VerifyCodexPluginOptions,
 } from './plugin.js';
+export {
+  CODEX_HOOK_MATRIX,
+  codexGovernanceSummary,
+  defaultCodexHookEvents,
+  optInCodexHookEvents,
+  type CodexGovernanceStatus,
+  type CodexHookMatrixEntry,
+} from './governance-matrix.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 

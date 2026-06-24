@@ -58,6 +58,7 @@ export function compactPayload(
 
 export function toolActivityType(toolName: string, toolInput: Record<string, unknown>): string {
   if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return defaultActivity.read;
+  if ((toolName === 'Open' || toolName === 'FileOpen') && filePathFor(toolInput)) return defaultActivity.read;
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return defaultActivity.write;
   if (toolName === 'Delete') return defaultActivity.fileDelete;
   if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return defaultActivity.shell;
@@ -168,6 +169,19 @@ export function assistantOutputSpan(
       session_id: input.sessionId,
     },
   });
+}
+
+export function promptSpan(
+  input: {
+    prompt?: string;
+  },
+): SpanData[] {
+  return [
+    buildSpan('anthropic-agent-sdk', 'llm', {
+      stage: 'started',
+      prompt: input.prompt,
+    }) as unknown as SpanData,
+  ];
 }
 
 export function assistantOutputTelemetry(
@@ -364,14 +378,16 @@ function spanTypeFor(
   toolName: string,
   toolInput: Record<string, unknown>,
 ): SpanType | null {
+  if (toolName === 'Agent' || toolName === 'Task') return null;
   if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
+  if ((toolName === 'Open' || toolName === 'FileOpen') && filePathFor(toolInput)) return 'file_open';
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
   if (toolName === 'Delete') return 'file_delete';
   if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
   if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (toolName.startsWith('mcp__')) return 'mcp';
-  return null;
+  return 'llm_tool_call';
 }
 
 function subagentNameForTool(
@@ -457,6 +473,27 @@ function dbStatementFor(toolInput: Record<string, unknown>): string | undefined 
   );
 }
 
+const SQL_VERBS = [
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+] as const;
+
+function dbOperationFromStatement(statement: string | undefined): string | undefined {
+  if (!statement) return undefined;
+  const normalized = statement.trim().toUpperCase();
+  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
+}
+
 function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
   const explicit = firstString(
     toolInput.db_system,
@@ -473,7 +510,20 @@ function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): stri
 }
 
 function dbOperationFor(toolInput: Record<string, unknown>): string {
-  return firstString(toolInput.db_operation, toolInput.dbOperation, toolInput.operation)?.toUpperCase() ?? 'QUERY';
+  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
+  const explicitOperation = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation,
+  )?.toUpperCase();
+  if (
+    explicitOperation &&
+    explicitOperation !== 'QUERY' &&
+    explicitOperation !== 'UNKNOWN'
+  ) {
+    return explicitOperation;
+  }
+  return statementOperation ?? explicitOperation ?? 'QUERY';
 }
 
 function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {

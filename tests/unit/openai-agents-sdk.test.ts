@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { AgentHooks as OpenAIAgentHooks } from '@openai/agents';
 import {
   OpenBoxAgentsSDKError,
   createOpenBoxAgentHooks,
@@ -89,6 +90,13 @@ function withRuntimeEnv<T>(
       else process.env[key] = value;
     }
   }
+}
+
+function nativeHookEventNames(hooks: unknown): string[] {
+  const emitter = (hooks as {
+    eventEmitter?: { eventNames?: () => Array<string | symbol> };
+  }).eventEmitter;
+  return (emitter?.eventNames?.() ?? []).map(String).sort();
 }
 
 describe('OpenAI Agents SDK OpenBox adapter', () => {
@@ -236,7 +244,62 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     expect(completedHook?.spans?.[0]).toMatchObject({
       module: 'openai-agents-sdk',
       stage: 'completed',
-      semantic_type: 'internal',
+    });
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
+  });
+
+  it('maps database MCP tools to DatabaseQuery governance spans', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'mcp__postgres__query',
+        description: 'query postgres',
+        execute: vi.fn(async (input) => ({ rows: [], input })),
+      },
+      {
+        core: mock.core,
+        sessionId: 'openai-db-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown, context?: unknown, details?: unknown) => Promise<unknown> };
+
+    await expect(
+      wrapped.execute({ statement: 'SELECT 1' }, undefined, {
+        toolCall: {
+          callId: 'call-db-1',
+          name: 'mcp__postgres__query',
+          arguments: '{"statement":"SELECT 1"}',
+        },
+      }),
+    ).resolves.toMatchObject({ rows: [] });
+
+    const parent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'DatabaseQuery' &&
+        event.hook_trigger !== true,
+    );
+    expect(parent).toMatchObject({
+      activity_id: 'call-db-1',
+      tool_name: 'mcp__postgres__query',
+      tool_type: 'db',
+    });
+    const hook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'DatabaseQuery' &&
+        event.hook_trigger === true,
+    );
+    expect(hook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      attributes: expect.objectContaining({
+        'db.system': 'postgresql',
+        'db.operation': 'SELECT',
+        'db.statement': 'SELECT 1',
+      }),
     });
   });
 
@@ -262,6 +325,68 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     await expect(wrapped.execute({ command: 'rm -rf /tmp/x' })).rejects.toThrow(
       OpenBoxAgentsSDKError,
     );
+  });
+
+  it('surfaces OpenBox approval through the official OpenAI needsApproval interruption hook', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'ShellExecution' &&
+      payload.hook_trigger === false
+        ? verdict('require_approval', { reason: 'needs OpenAI approval' })
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async (input) => ({ ok: true, input }));
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        description: 'run shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'openai-interrupt-session',
+        approvalMode: 'interrupt',
+        toolFactory: (config) => config,
+      },
+    ) as {
+      execute: (input: unknown, context?: unknown, details?: unknown) => Promise<unknown>;
+      needsApproval: (context: unknown, input: unknown, callId?: string) => Promise<boolean>;
+    };
+
+    await expect(
+      wrapped.needsApproval(
+        { isToolApproved: () => undefined },
+        { command: 'deploy' },
+        'call-openai-interrupt',
+      ),
+    ).resolves.toBe(true);
+
+    await expect(
+      wrapped.execute(
+        { command: 'deploy' },
+        { isToolApproved: () => true },
+        {
+          toolCall: {
+            callId: 'call-openai-interrupt',
+            name: 'Shell',
+            arguments: '{"command":"deploy"}',
+          },
+        },
+      ),
+    ).resolves.toEqual({ ok: true, input: { command: 'deploy' } });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    const started = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger === false,
+    );
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({
+      activity_id: 'call-openai-interrupt',
+      session_id: 'openai-interrupt-session',
+    });
   });
 
   it('uses constrained tool input when Core returns redacted args', async () => {
@@ -580,20 +705,117 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       finish_reason: 'tool_calls',
     });
     expect(completed?.spans).toBeUndefined();
+    const startedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.module === 'openai-agents-sdk' &&
+        event.spans?.[0]?.name === 'llm.chat.completion',
+    );
+    expect(startedHook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      name: 'llm.chat.completion',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'openai-agents-sdk',
+        'http.method': 'POST',
+      }),
+    });
     const completedHook = mock.events.find(
       (event) =>
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'OpenAIAgentsSDKRun' &&
-        event.hook_trigger === true,
+        event.hook_trigger === true &&
+        event.spans?.[0]?.name === 'openbox.openai-agents-sdk.assistant_output',
     );
     expect(completedHook?.spans?.[0]).toMatchObject({
       module: 'openai-agents-sdk',
       name: 'openbox.openai-agents-sdk.assistant_output',
-      semantic_type: 'llm_completion',
       model: 'gpt-4.1-mini',
       input_tokens: 12,
       output_tokens: 7,
       total_tokens: 19,
+    });
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
+  });
+
+  it('pre-gates run input as an LLM completion before invoking the official run function', async () => {
+    const mock = createMockCore((payload) =>
+      payload.hook_trigger === true &&
+      payload.spans?.[0]?.name === 'llm.chat.completion'
+        ? verdict('require_approval', { reason: 'llm approval required' })
+        : verdict('allow'),
+    );
+    const runFunction = vi.fn(async () => ({ output: 'should not run' }));
+
+    await expect(
+      runWithOpenBox({ name: 'agent' }, 'summarize this', {
+        core: mock.core,
+        sessionId: 'llm-gated-run-session',
+        approvalMode: 'error',
+        runFunction,
+      }),
+    ).rejects.toMatchObject({
+      name: 'OpenBoxAgentsSDKError',
+      message: '[OpenBox] llm approval required',
+    });
+
+    expect(runFunction).not.toHaveBeenCalled();
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'ActivityStarted',
+          activity_type: 'OpenAIAgentsSDKRun',
+          hook_trigger: true,
+          spans: expect.arrayContaining([
+            expect.objectContaining({
+              module: 'openai-agents-sdk',
+              name: 'llm.chat.completion',
+            }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it('extracts goal prompt text from structured OpenAI run input', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const runFunction = vi.fn(async () => ({ output: 'ok' }));
+    const input = [
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Review the deployment plan' },
+          { type: 'input_text', text: 'and list risky commands' },
+        ],
+      },
+    ];
+
+    await expect(
+      runWithOpenBox({ name: 'agent' }, input, {
+        core: mock.core,
+        sessionId: 'structured-goal-session',
+        runFunction,
+      }),
+    ).resolves.toEqual({ output: 'ok' });
+
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    expect(goalSignal).toMatchObject({
+      signal_args: 'Review the deployment plan and list risky commands',
+      prompt: 'Review the deployment plan and list risky commands',
+      session_id: 'structured-goal-session',
+    });
+    const goalActivityInput = goalSignal?.activity_input as unknown[] | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      event_category: 'agent_goal',
+      input,
     });
   });
 
@@ -602,7 +824,16 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     const hooks = createOpenBoxAgentHooks({
       core: mock.core,
       sessionId: 'hooks-session',
-    }) as any;
+    });
+
+    expect(hooks).toBeInstanceOf(OpenAIAgentHooks);
+    expect(nativeHookEventNames(hooks)).toEqual([
+      'agent_end',
+      'agent_handoff',
+      'agent_start',
+      'agent_tool_end',
+      'agent_tool_start',
+    ]);
 
     await hooks.onAgentStart({}, { name: 'Planner' }, [{ role: 'user', content: 'hi' }]);
     await hooks.onAgentToolStart(
@@ -646,7 +877,8 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         event.hook_trigger !== true,
     );
     expect(goalSignal?.signal_name).toBe('user_prompt');
-    expect(goalSignal?.signal_args).toEqual([{ role: 'user', content: 'hi' }]);
+    expect(goalSignal?.signal_args).toBe('hi');
+    expect(goalSignal?.prompt).toBe('hi');
     const goalActivityInput = goalSignal?.activity_input as
       | unknown[]
       | undefined;
@@ -701,7 +933,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
           response: {
             model: 'gpt-4.1-mini',
             finish_reason: 'stop',
-            usage: { input_tokens: 4, output_tokens: 6 },
+            usage: { input_tokens: 4, output_tokens: 6, cost_usd: 0.01 },
           },
         },
       },
@@ -817,6 +1049,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
           input_tokens: 4,
           output_tokens: 6,
           total_tokens: 10,
+          cost_usd: 0.01,
           finish_reason: 'stop',
         }),
       ]),
@@ -851,6 +1084,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       inputTokens: 7,
       outputTokens: 8,
       totalTokens: 15,
+      costUsd: 0.03,
       hasToolCalls: false,
       finishReason: 'stop',
     });
@@ -906,6 +1140,12 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       core: mock.core,
       sessionId: 'output-guardrail-session',
     });
+    expect(outputGuardrail).toMatchObject({
+      type: 'output',
+      name: 'openbox-output-guardrail',
+    });
+    expect(typeof (outputGuardrail as any).run).toBe('function');
+    expect(typeof (outputGuardrail as any).guardrailFunction).toBe('function');
 
     const result = await outputGuardrail.execute({ agentOutput: 'unsafe answer' });
     expect(result).toMatchObject({
@@ -947,9 +1187,17 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       core: mock.core,
       sessionId: 'tool-guardrail-session',
     });
+    expect(guardrail).toMatchObject({
+      type: 'tool_input',
+      name: 'openbox-tool-input-guardrail',
+    });
 
     const result = await guardrail.run({
+      context: {} as any,
+      agent: {} as any,
       toolCall: {
+        type: 'function_call',
+        callId: 'tool-input-guardrail-call',
         name: 'Shell',
         arguments: '{"command":"deploy"}',
       },
@@ -977,9 +1225,20 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       core: mock.core,
       sessionId: 'tool-output-guardrail-session',
     });
+    expect(guardrail).toMatchObject({
+      type: 'tool_output',
+      name: 'openbox-tool-output-guardrail',
+    });
 
     const result = await guardrail.run({
-      toolCall: { name: 'Lookup' },
+      context: {} as any,
+      agent: {} as any,
+      toolCall: {
+        type: 'function_call',
+        callId: 'tool-output-guardrail-call',
+        name: 'Lookup',
+        arguments: '{}',
+      },
       output: { secret: 'token' },
     });
     expect(result).toMatchObject({

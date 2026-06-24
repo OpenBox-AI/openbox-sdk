@@ -23,7 +23,9 @@ export interface OpenBoxAgentsRuntimeContext {
   enabled: boolean;
   workflowType: string;
   taskQueue: string;
-  approvalMode: 'wait' | 'error';
+  approvalMode: 'wait' | 'error' | 'interrupt';
+  requireGoalContext: boolean;
+  defaultGoal?: string;
   getCoreClient(): OpenBoxCoreClient;
 }
 
@@ -98,6 +100,12 @@ export function createOpenBoxAgentsRuntimeContext(
     workflowType: config.workflowType ?? DEFAULT_OPENAI_AGENTS_WORKFLOW_TYPE,
     taskQueue: config.taskQueue ?? DEFAULT_OPENAI_AGENTS_TASK_QUEUE,
     approvalMode: config.approvalMode ?? 'wait',
+    requireGoalContext: config.requireGoalContext ??
+      ['1', 'true', 'yes'].includes(String(values.get('OPENBOX_REQUIRE_GOAL_CONTEXT') || values.get('OPENBOX_GOAL_ALIGNMENT_REQUIRED') || values.get('ENABLE_ALIGNMENT_CHECK') || 'false').trim().toLowerCase()),
+    defaultGoal: config.defaultGoal ??
+      values.get('OPENBOX_SESSION_GOAL') ??
+      values.get('OPENBOX_WORKFLOW_GOAL') ??
+      undefined,
     getCoreClient,
   };
 }

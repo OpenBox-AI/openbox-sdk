@@ -755,9 +755,12 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedParent?.spans).toBeUndefined();
     expect(startedHook?.span_count).toBe(1);
     expect(completedHook?.span_count).toBe(1);
+    expect(startedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(startedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(startedHook?.spans?.[0]).toMatchObject({
       stage: 'started',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -768,7 +771,6 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -838,9 +840,10 @@ describe('CopilotKit OpenBox adapter', () => {
       error: { errorName: 'Error', message: 'business tool failed' },
     });
     expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       attributes: expect.objectContaining({
         'openbox.tool.name': 'openbox_governed_action',
       }),
@@ -942,12 +945,12 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completionParent?.spans).toBeUndefined();
     expect(completionHook?.hook_trigger).toBe(true);
     expect(completionHook?.span_count).toBe(1);
+    expect(completionHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completionHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completionHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       span_type: 'function',
       attributes: expect.objectContaining({
-        'openbox.semantic_type': 'llm_tool_call',
         'openbox.span_type': 'function',
         'openbox.tool.name': 'openbox_governed_action',
         'tool.name': 'openbox_governed_action',
@@ -1761,9 +1764,10 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedParent?.status).toBe('completed');
     expect(completed?.span_count).toBe(1);
     const span = completed?.spans?.[0] as Record<string, any> | undefined;
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'gpt-4o-mini',
       model_id: 'gpt-4o-mini',
       provider: 'openai',
@@ -1874,9 +1878,12 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completed?.hook_trigger).toBe(true);
     expect(started?.span_count).toBe(1);
     expect(completed?.span_count).toBe(1);
+    expect(started?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(started?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(completed?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completed?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(started?.spans?.[0]).toMatchObject({
       stage: 'started',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -1887,7 +1894,6 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     expect(completed?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -1900,6 +1906,112 @@ describe('CopilotKit OpenBox adapter', () => {
       ok: true,
       accountTier: 'enterprise',
     });
+  });
+
+  it('maps CopilotKit runtime tool gates into backend-classifiable semantic spans', async () => {
+    const cases = [
+      {
+        name: 'Read',
+        args: { file_path: 'fixtures/hostname.txt' },
+        toolType: 'file_read',
+        span: {
+          span_type: 'file_io',
+          attributes: expect.objectContaining({
+            'file.path': 'fixtures/hostname.txt',
+            'file.operation': 'read',
+          }),
+        },
+      },
+      {
+        name: 'WebFetch',
+        args: { method: 'PATCH', url: 'https://example.com/patch' },
+        toolType: 'http',
+        span: {
+          span_type: 'http',
+          attributes: expect.objectContaining({
+            'http.method': 'PATCH',
+            'http.url': 'https://example.com/patch',
+          }),
+        },
+      },
+      {
+        name: 'mcp__postgres__query',
+        args: { operation: 'SELECT', resource: 'accounts' },
+        toolType: 'db',
+        span: {
+          span_type: 'database',
+          attributes: expect.objectContaining({
+            'db.system': 'postgresql',
+            'db.operation': 'SELECT',
+            'db.statement': 'database resource accounts',
+          }),
+        },
+      },
+      {
+        name: 'mcp__openbox__status',
+        args: {},
+        toolType: 'mcp',
+        span: {
+          span_type: 'mcp_tool_call',
+          attributes: expect.objectContaining({
+            'mcp.method': 'callTool',
+            'mcp.operation': 'status',
+            'mcp.server_id': 'openbox',
+          }),
+        },
+      },
+      {
+        name: 'Bash',
+        args: { command: 'echo hello' },
+        toolType: 'shell',
+        span: {
+          span_type: 'function',
+          attributes: expect.objectContaining({
+            'shell.command': 'echo hello',
+          }),
+        },
+      },
+    ];
+
+    for (const entry of cases) {
+      const mock = createMockCore(() => ({
+        verdict: 'allow',
+        reason: 'allowed',
+      }));
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: mock.core as any,
+      });
+
+      await adapter.governToolInput({
+        payload: { name: entry.name, args: entry.args },
+        activityType: entry.name,
+        sessionKey: `semantic-${entry.name}`,
+      });
+
+      const parent = mock.events.find(
+        (event) => event.event_type === 'ActivityStarted' && !event.hook_trigger,
+      );
+      const hook = mock.events.find(
+        (event) =>
+          event.event_type === 'ActivityStarted' &&
+          event.hook_trigger === true &&
+          Array.isArray(event.spans) &&
+          event.spans.length > 0,
+      );
+
+      expect(parent, entry.name).toMatchObject({
+        tool_name: entry.name,
+        tool_type: entry.toolType,
+      });
+      expect(parent?.activity_input, entry.name).toContainEqual({
+        __openbox: { tool_type: entry.toolType },
+      });
+      expect(hook?.spans?.[0], entry.name).not.toHaveProperty('semantic_type');
+      expect(hook?.spans?.[0]?.attributes, entry.name).not.toHaveProperty(
+        'openbox.semantic_type',
+      );
+      expect(hook?.spans?.[0], entry.name).toMatchObject(entry.span);
+    }
   });
 
   it('passes Core AGE metadata through assistant output governance results', async () => {
@@ -2045,6 +2157,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
     ]);
     expect(mock.events[1]).toMatchObject({
@@ -2062,6 +2175,7 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     // The allowed input gate is paired under one activity id.
     expect(mock.events[3].activity_id).toBe(mock.events[2].activity_id);
+    expect(mock.events[4].activity_id).toBe(mock.events[2].activity_id);
     expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
     expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
@@ -2135,6 +2249,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
     ]);
@@ -2225,6 +2340,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
     ]);
@@ -2467,6 +2583,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
     ]);
   });
@@ -2551,8 +2668,10 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
     ]);
@@ -2903,6 +3022,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
@@ -2942,6 +3062,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
       'WorkflowFailed',

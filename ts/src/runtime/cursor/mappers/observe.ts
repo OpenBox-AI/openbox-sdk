@@ -17,12 +17,14 @@ import { clearSession, isStarted, markStarted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import {
   assistantOutputTelemetryFields,
-  buildAssistantOutputSpan,
 } from '../../../governance/assistant-output.js';
 import {
-  buildSpan,
   withOpenBoxActivityMetadata,
 } from '../../../governance/spans.js';
+import {
+  buildCursorAssistantOutputSpan,
+  buildCursorSpan,
+} from './spans.js';
 import { normalizeOpenBoxUsage } from '../../../governance/usage.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
@@ -253,7 +255,7 @@ export async function handleAfterAgentResponse(
     input: [stampSource(payload, 'cursor')],
     output: stampSource({ ...payload, response: content }, 'cursor'),
     ...telemetry,
-    spans: buildAssistantOutputSpan({
+    spans: buildCursorAssistantOutputSpan({
       source: 'cursor',
       content,
       name: 'openbox.cursor.assistant_output',
@@ -330,7 +332,7 @@ export async function handleAfterShellExecution(
     toolName: 'Shell',
     toolType: 'shell',
     spans: [
-      buildSpan('cursor', 'shell', {
+      buildCursorSpan('shell', {
         stage: 'completed',
         command,
         cwd: env.cwd,
@@ -387,7 +389,7 @@ export async function handleAfterFileEdit(
     toolName: 'FileEdit',
     toolType: 'file_write',
     spans: [
-      buildSpan('cursor', 'file_write', {
+      buildCursorSpan('file_write', {
         stage: 'completed',
         file_path: filePath,
         tool_name: 'FileEdit',

@@ -8,7 +8,12 @@ import {
   buildUserPromptSubmitPayload,
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
-import { isStarted, markHalted, markStarted } from '../session-resolver.js';
+import {
+  isStarted,
+  markHalted,
+  markStarted,
+  recordGoal,
+} from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 
@@ -38,6 +43,7 @@ export async function handleUserPromptSubmit(
     sessionId: env.session_id,
     prompt,
   });
+  recordGoal(env.session_id, cfg, prompt, 'prompt');
 
   const payload = buildUserPromptSubmitPayload(env);
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
@@ -57,6 +63,7 @@ export async function handleUserPromptExpansion(
 ): Promise<WorkflowVerdict | undefined> {
   const prompt = (env.expanded_prompt ?? env.prompt ?? '').trim();
   if (!prompt) return undefined;
+  recordGoal(env.session_id, cfg, prompt, 'prompt');
   const payload = buildUserPromptExpansionPayload(env);
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],

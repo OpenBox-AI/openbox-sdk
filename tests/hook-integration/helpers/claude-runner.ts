@@ -1,26 +1,26 @@
 // Test helper. Spawns `claude -p ...` inside a project-scope test
-// workspace and returns the parsed JSON envelope. Shared across
+// directory and returns the parsed JSON envelope. Shared across
 // every `claude-code-*.test.ts` so each test stays focused on
 // what it's asserting.
 
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-export const WORKSPACE =
-  path.join(homedir(), 'workspace', 'openbox-claude-test');
+export const PROJECT_DIR =
+  process.env.OPENBOX_CLAUDE_HEADLESS_CWD ?? path.join(tmpdir(), 'openbox-claude-headless');
 export const PLUGIN_DIR =
-  path.join(WORKSPACE, '.claude', 'skills', 'openbox');
+  path.join(PROJECT_DIR, '.claude', 'skills', 'openbox');
 
 export const SHOULD_RUN =
-  projectHarnessEnabled() &&
   existsSync(path.join(PLUGIN_DIR, '.claude-plugin', 'plugin.json')) &&
-  existsSync(path.join(WORKSPACE, '.claude-hooks', 'config.json')) &&
+  existsSync(path.join(PROJECT_DIR, '.claude-hooks', 'config.json')) &&
   projectCoreIsLoopback();
 
 export const HOOK_LOG = path.join(
-  WORKSPACE,
+  PROJECT_DIR,
   '.claude-hooks',
   'log',
   'claude-code-hook.jsonl',
@@ -40,11 +40,16 @@ export interface RunOptions {
   /** Per-run override for `--allowedTools`. Empty string means
    *  the prompt should answer without any tool. */
   allowedTool?: string;
+  /** Per-run override for `--tools`; defaults to allowedTool for
+   *  official built-in tool-catalog narrowing. */
+  tools?: string;
   /** Hard ceiling on the spawn. Defaults to 150s; long enough for
    *  the SDK's `approvalMaxWaitMs` (60s) plus session boilerplate. */
   timeoutMs?: number;
   /** Extra env overrides. Merged after project-scope OpenBox env scrub. */
   env?: Record<string, string>;
+  /** Explicit Claude Code session id. Defaults to a fresh UUID per run. */
+  sessionId?: string;
 }
 
 const RUNTIME_ENV_KEYS = [
@@ -63,6 +68,10 @@ function claudeEnv(overrides: Record<string, string> = {}): Record<string, strin
   for (const key of RUNTIME_ENV_KEYS) {
     delete env[key];
   }
+  delete env.NODE_V8_COVERAGE;
+  delete env.VITEST;
+  delete env.VITEST_POOL_ID;
+  delete env.VITEST_WORKER_ID;
   return {
     ...env,
     ...overrides,
@@ -76,6 +85,9 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
     '--output-format',
     'json',
     '--dangerously-skip-permissions',
+    '--no-session-persistence',
+    '--session-id',
+    opts.sessionId ?? randomUUID(),
     '--plugin-dir',
     PLUGIN_DIR,
     '--setting-sources',
@@ -83,10 +95,14 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
   ];
   if (opts.allowedTool !== undefined) {
     args.push('--allowedTools', opts.allowedTool);
+    const tools = opts.tools ?? opts.allowedTool;
+    if (tools.trim().length > 0) {
+      args.push('--tools', tools);
+    }
   }
   const env = claudeEnv(opts.env);
   const result = spawnSync('claude', args, {
-    cwd: WORKSPACE,
+    cwd: PROJECT_DIR,
     encoding: 'utf-8',
     timeout: opts.timeoutMs ?? 150_000,
     input: '',
@@ -106,7 +122,7 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
 }
 
 function projectCoreIsLoopback(): boolean {
-  const configPath = path.join(WORKSPACE, '.claude-hooks', 'config.json');
+  const configPath = path.join(PROJECT_DIR, '.claude-hooks', 'config.json');
   if (!existsSync(configPath)) return false;
   try {
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
@@ -120,26 +136,16 @@ function projectCoreIsLoopback(): boolean {
   }
 }
 
-function projectHarnessEnabled(): boolean {
-  const configPath = path.join(WORKSPACE, '.claude-hooks', 'config.json');
-  if (!existsSync(configPath)) return false;
-  try {
-    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
-      testHarness?: boolean | string | { enabled?: boolean };
-      test_harness?: boolean | string | { enabled?: boolean };
-    };
-    const marker = config.testHarness ?? config.test_harness;
-    if (marker === true || marker === 'openbox-local') return true;
-    return typeof marker === 'object' && marker?.enabled === true;
-  } catch {
-    return false;
-  }
-}
-
 export interface HookLogLine {
   ts: string;
   event: string;
   verdict_kind?: 'permission' | 'observe' | 'none' | 'fallback';
+  session_id?: string;
+  tool_name?: string;
+  decision?: string;
+  reason?: string;
+  governance_event_id?: string;
+  fallback_used?: boolean;
   took_ms?: number;
   error?: string | null;
 }

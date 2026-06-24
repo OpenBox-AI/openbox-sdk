@@ -44,6 +44,7 @@ import {
   stoppedResult,
   verdictMetadata,
 } from '../../ts/src/copilotkit/results.ts';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 const ids = {
   workflowId: 'workflow-1',
@@ -524,6 +525,19 @@ describe('copilotkit helper coverage', () => {
       validation_passed: true,
     });
     expect(signalMapped?.inputType).toBe('signal_args');
+    const observedFieldStatuses = new Set<string>();
+    const specStatusMapped = mapGuardrailsResult({
+      fieldResults: GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses.map((status) => ({
+        field: `spec.${status}`,
+        status,
+      })),
+    });
+    for (const result of specStatusMapped?.fieldResults ?? []) {
+      observedFieldStatuses.add(result.status);
+    }
+    expect([...observedFieldStatuses].sort()).toEqual(
+      [...GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses].sort(),
+    );
     expect(
       applyOpenBoxTransform(
         ['open avery@example.com'],

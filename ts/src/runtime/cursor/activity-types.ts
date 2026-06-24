@@ -23,6 +23,7 @@ export const ACTIVITY_TYPES = {
   FILE_DELETE: defaultActivity.fileDelete,
   SHELL: defaultActivity.shell,
   MCP_CALL: defaultActivity.mcpToolCall,
+  DB_QUERY: defaultActivity.databaseQuery,
   AGENT_ACTION: defaultActivity.agentAction,
   AGENT_OBSERVATION: defaultActivity.agentAction,
   AGENT_DECISION: defaultActivity.agentAction,

@@ -5,12 +5,19 @@ import {
 } from '../../core-client/generated/runtime/codex.js';
 import {
   OpenBoxCoreClient,
+  type CodexSession,
   type WorkflowVerdict,
 } from '../../core-client/index.js';
 import { createLogger } from '../../logging/logger.js';
 import { makeHookLog } from '../../logging/hook-log.js';
 import { getConfigDir, loadConfig, type CodexConfig } from './config.js';
-import { resolveSession } from './session-resolver.js';
+import {
+  markStarted,
+  peekGoal,
+  recordGoal,
+  resolveSession,
+  stableCodexSessionKey,
+} from './session-resolver.js';
 import { handleUserPromptSubmit } from './mappers/prompt.js';
 import {
   handlePermissionRequest,
@@ -30,7 +37,7 @@ const DECISION_CAPABLE_EVENTS = new Set([
 ]);
 
 type HandlerResult = Promise<WorkflowVerdict | undefined | void>;
-type HookHandler = (env: CodexEnvelope, session: any) => HandlerResult;
+type HookHandler = (env: CodexEnvelope, session: CodexSession) => HandlerResult;
 
 function logged<E, S, R>(
   event: string,
@@ -41,11 +48,17 @@ function logged<E, S, R>(
     const start = Date.now();
     try {
       const out = await fn(env, s);
+      const decision = verdictDecision(out);
+      const reason = verdictReason(out);
       hookLog.record({
         ts: new Date().toISOString(),
         event,
         verdict_kind: verdictKind,
         took_ms: Date.now() - start,
+        ...envelopeLogMetadata(env),
+        ...(decision ? { decision } : {}),
+        ...(reason ? { reason } : {}),
+        ...verdictLogMetadata(out),
       });
       return out;
     } catch (err: any) {
@@ -58,6 +71,63 @@ function logged<E, S, R>(
       });
       throw err;
     }
+  };
+}
+
+function verdictDecision(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const decision = record.arm ?? record.verdict ?? record.action ?? record.decision;
+  return typeof decision === 'string' && decision.trim() ? decision.trim() : undefined;
+}
+
+function verdictReason(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const reason = (value as Record<string, unknown>).reason;
+  return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
+}
+
+function verdictUsesFallback(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
+    ? record.metadata as Record<string, unknown>
+    : {};
+  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
+    ? record.ageResult as Record<string, unknown>
+    : {};
+  return record.fallbackUsed === true
+    || metadata.age_fallback_used === true
+    || ageResult.fallback_used === true;
+}
+
+function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  return {
+    ...(typeof record.governanceEventId === 'string' && record.governanceEventId.trim()
+      ? { governance_event_id: record.governanceEventId.trim() }
+      : {}),
+    ...(verdictUsesFallback(value) ? { fallback_used: true } : {}),
+  };
+}
+
+function envelopeLogMetadata(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  return {
+    ...(typeof record.session_id === 'string' && record.session_id.trim()
+      ? { session_id: record.session_id.trim() }
+      : {}),
+    ...(typeof record.conversation_id === 'string' && record.conversation_id.trim()
+      ? { conversation_id: record.conversation_id.trim() }
+      : {}),
+    ...(typeof record.turn_id === 'string' && record.turn_id.trim()
+      ? { turn_id: record.turn_id.trim() }
+      : {}),
+    ...(typeof record.tool_name === 'string' && record.tool_name.trim()
+      ? { tool_name: record.tool_name.trim() }
+      : {}),
   };
 }
 
@@ -78,6 +148,38 @@ function isDecisionCapable(eventName: string | undefined): boolean {
   return DECISION_CAPABLE_EVENTS.has(String(eventName ?? ''));
 }
 
+function requiresGoalContext(env: CodexEnvelope): boolean {
+  return isDecisionCapable(env.hook_event_name) &&
+    !['UserPromptSubmit', 'Stop'].includes(String(env.hook_event_name ?? ''));
+}
+
+function ensureGoalContext(env: CodexEnvelope, cfg: CodexConfig): void {
+  if (!cfg.requireGoalContext || !requiresGoalContext(env)) return;
+  if (peekGoal(env, cfg)) return;
+  const configuredGoal = cfg.defaultGoal?.trim();
+  if (configuredGoal) {
+    recordGoal(env, cfg, configuredGoal, 'workflow_config');
+    return;
+  }
+  throw new Error(
+    'OpenBox goal context is required for AGE alignment, but this Codex session has no prompt/query/workflow goal.',
+  );
+}
+
+async function ensureWorkflowStartedForDecision(
+  env: CodexEnvelope,
+  session: CodexSession,
+  cfg: CodexConfig,
+): Promise<void> {
+  if (!isDecisionCapable(env.hook_event_name)) return;
+
+  // Hook subprocesses can start at the first tool gate. Re-emitting
+  // WorkflowStarted is idempotent server-side and keeps Core-owned hook span
+  // evaluation attached to the same session lifecycle as SDK and Claude Code.
+  await session.workflowStarted();
+  markStarted(env, cfg);
+}
+
 function guarded(
   cfg: CodexConfig,
   event: string,
@@ -86,7 +188,19 @@ function guarded(
 ): HookHandler {
   return logged(event, verdictKind, async (env, session) => {
     try {
-      return await fn(env, session);
+      await ensureWorkflowStartedForDecision(env, session, cfg);
+      ensureGoalContext(env, cfg);
+      const verdict = await fn(env, session);
+      if (
+        verdict &&
+        isDecisionCapable(env.hook_event_name) &&
+        verdictUsesFallback(verdict) &&
+        verdict.arm !== 'block' &&
+        verdict.arm !== 'halt'
+      ) {
+        return failClosedVerdict('OpenBox governance fallback used while processing Codex hook');
+      }
+      return verdict;
     } catch (err) {
       const reason = reasonFromError('OpenBox governance failed while processing Codex hook', err);
       if (cfg.verbose) console.error(`[openbox codex] ${reason}`);
@@ -183,6 +297,13 @@ export async function runCodexHook(): Promise<void> {
     if (cfg.verbose) console.error('[openbox codex] no OPENBOX_CORE_URL set; decision-capable hooks fail closed');
     process.exit(0);
   }
+  if (env && isDecisionCapable(env.hook_event_name) && !stableCodexSessionKey(env)) {
+    writeFailClosedIfPossible(env, 'missing Codex session identifier');
+    if (cfg.verbose) {
+      console.error('[openbox codex] no session_id, conversation_id, or turn_id set; decision-capable hooks fail closed');
+    }
+    process.exit(0);
+  }
 
   const core = new OpenBoxCoreClient({
     apiKey: cfg.openboxApiKey,
@@ -212,7 +333,7 @@ export async function runCodexHook(): Promise<void> {
     core,
     resolveSession: (env) => resolveSession(env, cfg),
     approvalMaxWaitMs,
-    inlineApproval: cfg.approvalMode === 'inline',
+    inlineApproval: cfg.approvalMode === 'inline' || cfg.approvalMode === 'defer',
     deferApproval: cfg.approvalMode === 'defer',
     readStdin: async () => raw,
     handlers,

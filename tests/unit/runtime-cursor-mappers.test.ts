@@ -226,8 +226,17 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     expect(promptGate?.args[2]).toMatchObject({
       sessionId: 'C',
       prompt: 'hi',
+      toolType: 'llm',
     });
-    expect(promptGate?.args[2].spans).toBeUndefined();
+    expect(promptGate?.args[2].spans?.[0]).toMatchObject({
+      module: 'cursor',
+      name: 'llm.chat.completion',
+      semantic_type: 'llm_completion',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'cursor',
+        'http.method': 'POST',
+      }),
+    });
     expect(session.calls.indexOf(promptGate)).toBeGreaterThan(session.calls.indexOf(goalSignal));
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
       await shellMod.handleBeforeShellExecution(
@@ -257,7 +266,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     });
   });
 
-  it('beforeTabFileRead skips routine workspace files but gates sensitive workspace files', async () => {
+  it('beforeTabFileRead skips routine project files but gates sensitive project files', async () => {
     const fileReadMod: any = await import('../../ts/src/runtime/cursor/mappers/file-read');
     const cfg = { sessionDir: dir } as any;
 
@@ -278,6 +287,19 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     );
     expect(sensitiveVerdict).toMatchObject({ arm: 'block' });
     expect(sensitive.calls.some((c: { method: string }) => c.method === 'activity')).toBe(true);
+    const gate = sensitive.calls.find(
+      (call: any) => call.method === 'activity' && call.args[1] === 'FileRead',
+    );
+    expect(gate?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'file_open' },
+    });
+    expect(gate?.args[2].spans?.[0]).toMatchObject({
+      semantic_type: 'file_open',
+      attributes: expect.objectContaining({
+        'file.operation': 'open',
+        'openbox.tool.name': 'TabRead',
+      }),
+    });
   });
 
   it('mcp + mcp-response handlers process MCP-shaped envelopes', async () => {

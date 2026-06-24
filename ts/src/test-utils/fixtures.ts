@@ -11,6 +11,7 @@
 //     the same default shape the e2e suite asserts on
 //   - any consumer that needs a sensible default for backend writes
 
+import { randomUUID } from 'node:crypto';
 import {
   CANONICAL_EVENT_TYPE,
   CANONICAL_VERDICT_ARMS,
@@ -22,7 +23,13 @@ import type {
   SpanData,
   Verdict,
 } from '../core-client/index.js';
-import { LOCAL_STACK_SCENARIO_PATHS } from '../governance/capability-matrix.js';
+import {
+  LOCAL_STACK_SCENARIO_PATHS,
+  OPA_ALIAS_DECISION_CASES,
+  OPA_DECISION_SCENARIOS,
+  OPA_EVALUATION_MATRIX,
+  OPA_GOVERNED_SURFACES,
+} from '../governance/capability-matrix.js';
 import type { components } from '../types/generated/backend.js';
 
 type CreateGuardrailDto = components['schemas']['CreateGuardrailDto'];
@@ -31,7 +38,8 @@ type EvaluateRegoDto = components['schemas']['EvaluateRegoDto'];
 type TestGuardrailDto = components['schemas']['TestGuardrailDto'];
 
 let counter = 0;
-const ts = () => `${Date.now().toString(36)}${(counter++).toString(36)}`;
+const ts = () =>
+  `${Date.now().toString(36)}${process.pid.toString(36)}${(counter++).toString(36)}${randomUUID().slice(0, 8)}`;
 
 export function makeCreateAgentDto(teamIds: string[], overrides: Record<string, any> = {}) {
   return {
@@ -227,193 +235,24 @@ export function makeApprovalExpirationConformanceCase(): ApprovalExpirationConfo
   };
 }
 
-type OpaMatrixDecision = 'ALLOW' | 'REQUIRE_APPROVAL' | 'BLOCK' | 'HALT';
-type OpaAliasDecision = 'continue' | 'stop' | 'require-approval';
+type OpaMatrixDecision = (typeof OPA_DECISION_SCENARIOS)[number]['decision'];
+type OpaAliasDecision = (typeof OPA_ALIAS_DECISION_CASES)[number]['decision'];
+type OpaGovernedSurface = (typeof OPA_GOVERNED_SURFACES)[number];
+type OpaCanonicalAction = Extract<LegacyAction, Exclude<Verdict, 'constrain'>>;
 
-const OPA_DECISION_ORDER = [
-  'ALLOW',
-  'REQUIRE_APPROVAL',
-  'BLOCK',
-  'HALT',
-] as const satisfies readonly OpaMatrixDecision[];
-
-const OPA_SUPPORTED_DECISIONS = OPA_DECISION_ORDER.filter((decision) =>
-  CANONICAL_VERDICT_ARMS.has(opaDecisionToVerdict(decision)),
-);
+const REQUIRED_OPA_VERDICTS = [...CANONICAL_VERDICT_ARMS]
+  .filter((verdict): verdict is Exclude<Verdict, 'constrain'> => verdict !== 'constrain')
+  .sort((left, right) => left.localeCompare(right));
+const GENERATED_OPA_VERDICTS = OPA_DECISION_SCENARIOS
+  .map((entry) => generatedOpaVerdict(entry.expectedVerdict, `${entry.decision}.expectedVerdict`))
+  .sort((left, right) => left.localeCompare(right));
 
 if (
-  OPA_SUPPORTED_DECISIONS.length !==
-    [...CANONICAL_VERDICT_ARMS].filter((verdict) => verdict !== 'constrain').length
+  REQUIRED_OPA_VERDICTS.length !== GENERATED_OPA_VERDICTS.length ||
+  REQUIRED_OPA_VERDICTS.some((verdict, index) => verdict !== GENERATED_OPA_VERDICTS[index])
 ) {
-  throw new Error('OPA decision matrix is out of sync with generated Core verdict arms');
+  throw new Error('Spec-generated OPA decision matrix is out of sync with generated Core verdict arms');
 }
-
-interface OpaGovernedSurface {
-  scenarioId: string;
-  label: string;
-  activityType: string;
-  semanticType: string;
-  activityInput: Record<string, unknown>;
-}
-
-const OPA_GOVERNED_SURFACES = [
-  {
-    scenarioId: 'behavior-db-query',
-    label: 'db query database_query',
-    activityType: 'DatabaseQuery',
-    semanticType: 'database_query',
-    activityInput: { query: 'SELECT 1', db_system: 'postgresql', db_operation: 'QUERY' },
-  },
-  {
-    scenarioId: 'behavior-db-query',
-    label: 'db select database_select',
-    activityType: 'DatabaseQuery',
-    semanticType: 'database_select',
-    activityInput: { query: 'SELECT * FROM accounts', db_system: 'postgresql', db_operation: 'SELECT' },
-  },
-  {
-    scenarioId: 'behavior-db-query',
-    label: 'db insert database_insert',
-    activityType: 'DatabaseQuery',
-    semanticType: 'database_insert',
-    activityInput: { query: 'INSERT INTO accounts(id) VALUES (1)', db_system: 'postgresql', db_operation: 'INSERT' },
-  },
-  {
-    scenarioId: 'behavior-db-query',
-    label: 'db update database_update',
-    activityType: 'DatabaseQuery',
-    semanticType: 'database_update',
-    activityInput: { query: 'UPDATE accounts SET status = active', db_system: 'postgresql', db_operation: 'UPDATE' },
-  },
-  {
-    scenarioId: 'behavior-db-query',
-    label: 'db delete database_delete',
-    activityType: 'DatabaseQuery',
-    semanticType: 'database_delete',
-    activityInput: { query: 'DELETE FROM accounts WHERE id = 1', db_system: 'postgresql', db_operation: 'DELETE' },
-  },
-  {
-    scenarioId: 'behavior-mcp',
-    label: 'mcp_tool_call',
-    activityType: 'MCPToolCall',
-    semanticType: 'mcp_tool_call',
-    activityInput: { tool: 'check_governance', arguments: {} },
-  },
-  {
-    scenarioId: 'behavior-http',
-    label: 'http GET http_get',
-    activityType: 'HTTPRequest',
-    semanticType: 'http_get',
-    activityInput: { method: 'GET', url: 'https://example.com/openbox-get' },
-  },
-  {
-    scenarioId: 'behavior-http',
-    label: 'http POST http_post',
-    activityType: 'HTTPRequest',
-    semanticType: 'http_post',
-    activityInput: { method: 'POST', url: 'https://example.com/openbox-post' },
-  },
-  {
-    scenarioId: 'behavior-http',
-    label: 'http PUT http_put',
-    activityType: 'HTTPRequest',
-    semanticType: 'http_put',
-    activityInput: { method: 'PUT', url: 'https://example.com/openbox-put' },
-  },
-  {
-    scenarioId: 'behavior-http',
-    label: 'http PATCH http_patch',
-    activityType: 'HTTPRequest',
-    semanticType: 'http_patch',
-    activityInput: { method: 'PATCH', url: 'https://example.com/openbox-patch' },
-  },
-  {
-    scenarioId: 'behavior-http',
-    label: 'http DELETE http_delete',
-    activityType: 'HTTPRequest',
-    semanticType: 'http_delete',
-    activityInput: { method: 'DELETE', url: 'https://example.com/openbox-delete' },
-  },
-  {
-    scenarioId: 'behavior-http',
-    label: 'http generic http',
-    activityType: 'HTTPRequest',
-    semanticType: 'http',
-    activityInput: { method: 'GET', url: 'https://example.com/openbox-generic' },
-  },
-  {
-    scenarioId: 'behavior-llm',
-    label: 'llm_gen_ai e2e-approve-llm',
-    activityType: 'LLMGeneration',
-    semanticType: 'llm_gen_ai',
-    activityInput: {
-      prompt: 'e2e-approve-llm prompt',
-      model: 'openbox-sdk-local',
-    },
-  },
-  {
-    scenarioId: 'behavior-llm',
-    label: 'llm_completion e2e-approve-llm',
-    activityType: 'LLMCompletion',
-    semanticType: 'llm_completion',
-    activityInput: {
-      completion: 'e2e-approve-llm completion',
-      model: 'openbox-sdk-local',
-    },
-  },
-  {
-    scenarioId: 'behavior-llm',
-    label: 'llm embedding llm_embedding e2e-approve-llm',
-    activityType: 'LLMGeneration',
-    semanticType: 'llm_embedding',
-    activityInput: {
-      prompt: 'e2e-approve-llm embedding prompt',
-      model: 'openbox-sdk-local',
-    },
-  },
-  {
-    scenarioId: 'behavior-tool-call',
-    label: 'llm_tool_call',
-    activityType: 'ToolCall',
-    semanticType: 'llm_tool_call',
-    activityInput: { tool: 'sdk-conformance-approval-tool', arguments: {} },
-  },
-  {
-    scenarioId: 'behavior-file-read',
-    label: 'file_read',
-    activityType: 'FileRead',
-    semanticType: 'file_read',
-    activityInput: { file_path: '/tmp/openbox-sdk-readme.md' },
-  },
-  {
-    scenarioId: 'behavior-file-read',
-    label: 'file open file_open',
-    activityType: 'FileRead',
-    semanticType: 'file_open',
-    activityInput: { file_path: '/tmp/openbox-sdk-open.md' },
-  },
-  {
-    scenarioId: 'behavior-file-write',
-    label: 'file_write',
-    activityType: 'FileEdit',
-    semanticType: 'file_write',
-    activityInput: { file_path: '/tmp/openbox-sdk-blocked.txt', content: 'blocked' },
-  },
-  {
-    scenarioId: 'behavior-file-write',
-    label: 'file delete file_delete',
-    activityType: 'FileDelete',
-    semanticType: 'file_delete',
-    activityInput: { file_path: '/tmp/openbox-sdk-delete.txt' },
-  },
-  {
-    scenarioId: 'behavior-shell',
-    label: 'shell',
-    activityType: 'ShellExecution',
-    semanticType: 'internal',
-    activityInput: { command: 'echo blocked' },
-  },
-] as const satisfies readonly OpaGovernedSurface[];
 
 export interface OpaVerdictMatrixCase {
   scenarioId: string;
@@ -575,8 +414,25 @@ function opaMatrixReason(decision: OpaMatrixDecision, label: string): string {
   return `SDK conformance OPA ${decision.toLowerCase()} ${label}`;
 }
 
-function opaDecisionToVerdict(decision: OpaMatrixDecision): Exclude<Verdict, 'constrain'> {
-  return decision.toLowerCase() as Exclude<Verdict, 'constrain'>;
+function generatedOpaVerdict<T extends Exclude<Verdict, 'constrain'>>(value: T, label: string): T {
+  const raw = String(value);
+  if (raw === 'constrain' || !CANONICAL_VERDICT_ARMS.has(value)) {
+    throw new Error(`Invalid spec-generated OPA verdict for ${label}: ${value}`);
+  }
+  return value;
+}
+
+function generatedOpaLegacyAction<T extends OpaCanonicalAction>(value: T, label: string): T {
+  const raw = String(value);
+  if (
+    raw === 'constrain' ||
+    raw === 'continue' ||
+    raw === 'stop' ||
+    !CANONICAL_VERDICT_ARMS.has(value)
+  ) {
+    throw new Error(`Invalid spec-generated OPA legacy action for ${label}: ${value}`);
+  }
+  return value;
 }
 
 function matrixCaseId(decision: OpaMatrixDecision | OpaAliasDecision, surface: OpaGovernedSurface): string {
@@ -584,31 +440,30 @@ function matrixCaseId(decision: OpaMatrixDecision | OpaAliasDecision, surface: O
 }
 
 export function makeOpaVerdictMatrixConformanceCase(): OpaVerdictMatrixConformanceCase {
-  const cases = OPA_SUPPORTED_DECISIONS.flatMap((decision) =>
+  const cases: OpaVerdictMatrixCase[] = OPA_DECISION_SCENARIOS.flatMap((decisionSpec) =>
     OPA_GOVERNED_SURFACES.map((surface) => {
+      const decision = decisionSpec.decision;
       const reason = opaMatrixReason(decision, surface.semanticType);
       const activityInput = {
         ...surface.activityInput,
         matrix_case: matrixCaseId(decision, surface),
       };
       return {
-        scenarioId: requireLocalStackScenarioId(
-          decision === 'ALLOW'
-            ? 'opa-allow'
-            : decision === 'REQUIRE_APPROVAL'
-              ? 'opa-require-approval'
-              : decision === 'BLOCK'
-                ? 'opa-block'
-                : 'opa-halt',
-        ),
+        scenarioId: requireLocalStackScenarioId(decisionSpec.scenarioId),
         name: `${decision} ${surface.label} path`,
         decision,
         activityType: surface.activityType,
         semanticType: surface.semanticType,
         activityInput,
         expected: {
-          verdict: opaDecisionToVerdict(decision),
-          action: opaDecisionToVerdict(decision),
+          verdict: generatedOpaVerdict(
+            decisionSpec.expectedVerdict,
+            `${decision}.expectedVerdict`,
+          ),
+          action: generatedOpaLegacyAction(
+            decisionSpec.expectedAction,
+            `${decision}.expectedAction`,
+          ),
           reason,
         },
         event: makeOpaMatrixEvent(
@@ -624,13 +479,7 @@ export function makeOpaVerdictMatrixConformanceCase(): OpaVerdictMatrixConforman
     }),
   );
 
-  const typedCases = cases.map((entry) => {
-    return {
-      ...entry,
-    };
-  });
-
-  const ruleBodies = typedCases
+  const ruleBodies = cases
     .map((entry) => [
       `result := {"decision": "${entry.decision}", "reason": ${JSON.stringify(entry.expected.reason)}} if {`,
       `    input.activity_input[_].matrix_case == ${JSON.stringify(entry.activityInput.matrix_case)}`,
@@ -645,59 +494,45 @@ export function makeOpaVerdictMatrixConformanceCase(): OpaVerdictMatrixConforman
       description: 'E2E conformance policy for OPA ALLOW/REQUIRE_APPROVAL/BLOCK/HALT verdicts',
       rego_code: [
         'package openbox.policy',
-        `default result = {"decision": "ALLOW", "reason": ${JSON.stringify(opaMatrixReason('ALLOW', 'default'))}}`,
+        `default result = {"decision": "ALLOW", "reason": ${JSON.stringify(OPA_EVALUATION_MATRIX.defaultAllowReason)}}`,
         '',
         ...ruleBodies,
       ].join('\n\n'),
       input: {},
       trust_impact: 'none',
     }),
-    cases: typedCases,
+    cases,
   };
 }
 
 export function makeOpaAliasDecisionConformanceCase(): OpaAliasDecisionConformanceCase {
-  const cases = [
-    {
-      scenarioId: requireLocalStackScenarioId('opa-allow'),
-      name: 'legacy continue alias allows database path',
-      decision: 'continue' as const,
-      activityType: 'DatabaseQuery',
-      semanticType: 'database_query',
-      activityInput: { query: 'SELECT 1', db_system: 'postgresql', alias: 'continue' },
-      expected: { verdict: 'allow' as const, action: 'allow' as const },
-    },
-    {
-      scenarioId: requireLocalStackScenarioId('opa-halt'),
-      name: 'legacy stop alias halts file write path',
-      decision: 'stop' as const,
-      activityType: 'FileEdit',
-      semanticType: 'file_write',
-      activityInput: { file_path: '/tmp/openbox-sdk-stop-alias.txt', content: 'halted' },
-      expected: { verdict: 'halt' as const, action: 'halt' as const },
-    },
-    {
-      scenarioId: requireLocalStackScenarioId('opa-require-approval'),
-      name: 'hyphenated require-approval alias requires approval',
-      decision: 'require-approval' as const,
-      activityType: 'FileRead',
-      semanticType: 'file_read',
-      activityInput: { file_path: '/tmp/openbox-sdk-require-approval-alias.md' },
-      expected: { verdict: 'require_approval' as const, action: 'require_approval' as const },
-    },
-  ].map((entry) => {
+  const cases: OpaVerdictMatrixCase[] = OPA_ALIAS_DECISION_CASES.map((entry) => {
     const reason = `SDK conformance OPA alias ${entry.decision}`;
+    const scenarioId = requireLocalStackScenarioId(entry.scenarioId);
+    const activityInput = { ...entry.activityInput };
     return {
-      ...entry,
+      scenarioId,
+      name: entry.name,
+      decision: entry.decision,
+      activityType: entry.activityType,
+      semanticType: entry.semanticType,
+      activityInput,
       expected: {
-        ...entry.expected,
+        verdict: generatedOpaVerdict(
+          entry.expectedVerdict,
+          `${entry.decision}.expectedVerdict`,
+        ),
+        action: generatedOpaLegacyAction(
+          entry.expectedAction,
+          `${entry.decision}.expectedAction`,
+        ),
         reason,
       },
       event: makeOpaMatrixEvent(
         entry.activityType,
-        entry.activityInput,
+        activityInput,
         makeConformanceSpan(entry.semanticType, entry.name, {
-          'openbox.matrix.scenario_id': entry.scenarioId,
+          'openbox.matrix.scenario_id': scenarioId,
           'openbox.matrix.decision': entry.decision,
         }),
       ),
@@ -720,7 +555,7 @@ export function makeOpaAliasDecisionConformanceCase(): OpaAliasDecisionConforman
       description: 'E2E conformance policy for OPA legacy decision aliases',
       rego_code: [
         'package openbox.policy',
-        `default result = {"decision": "ALLOW", "reason": ${JSON.stringify(opaMatrixReason('ALLOW', 'default'))}}`,
+        `default result = {"decision": "ALLOW", "reason": ${JSON.stringify(OPA_EVALUATION_MATRIX.defaultAllowReason)}}`,
         '',
         ...ruleBodies,
       ].join('\n\n'),
@@ -732,9 +567,12 @@ export function makeOpaAliasDecisionConformanceCase(): OpaAliasDecisionConforman
 }
 
 export function makeOpaUnsupportedConstrainConformanceCase(): OpaUnsupportedConstrainConformanceCase {
-  const reason = 'SDK conformance unsupported OPA CONSTRAIN boundary';
+  const spec = OPA_EVALUATION_MATRIX.unsupportedConstrain;
+  const scenarioId = requireLocalStackScenarioId(spec.scenarioId);
+  const reason = spec.reason;
+  const activityInput = { ...spec.activityInput };
   return {
-    scenarioId: requireLocalStackScenarioId('opa-constrain'),
+    scenarioId,
     createPolicyOperationId: 'AgentController_createPolicy',
     evaluateOperationId: 'evaluateGovernance',
     policyBody: makeCreatePolicyDto({
@@ -744,41 +582,44 @@ export function makeOpaUnsupportedConstrainConformanceCase(): OpaUnsupportedCons
         'package openbox.policy',
         'default result = {"decision": "ALLOW", "reason": null}',
         `result := {"decision": "CONSTRAIN", "reason": ${JSON.stringify(reason)}} if {`,
-        '    input.activity_type == "DatabaseQuery"',
+        `    input.activity_type == ${JSON.stringify(spec.activityType)}`,
         '}',
       ].join('\n'),
       input: {},
       trust_impact: 'none',
     }),
     event: makeOpaMatrixEvent(
-      'DatabaseQuery',
-      { query: 'SELECT constrain_boundary', db_system: 'postgresql' },
-      makeConformanceSpan('database_query', 'OPA unsupported CONSTRAIN boundary', {
-        'openbox.matrix.scenario_id': requireLocalStackScenarioId('opa-constrain'),
+      spec.activityType,
+      activityInput,
+      makeConformanceSpan(spec.semanticType, 'OPA unsupported CONSTRAIN boundary', {
+        'openbox.matrix.scenario_id': scenarioId,
         'openbox.matrix.decision': 'CONSTRAIN',
       }),
     ),
     expected: {
-      verdict: 'allow',
-      action: 'allow',
+      verdict: generatedOpaVerdict(spec.expectedVerdict, `${spec.scenarioId}.expectedVerdict`),
+      action: generatedOpaLegacyAction(spec.expectedAction, `${spec.scenarioId}.expectedAction`),
       reason,
     },
   };
 }
 
 export function makeOpaUnavailableFailClosedConformanceCase(): OpaUnavailableFailClosedConformanceCase {
-  const reason = 'active policy should block';
+  const spec = OPA_EVALUATION_MATRIX.unavailableFailClosed;
+  const scenarioId = requireLocalStackScenarioId(spec.scenarioId);
+  const reason = spec.policyReason;
+  const activityInput = { ...spec.activityInput };
   const event = makeOpaMatrixEvent(
-    'DatabaseQuery',
-    { query: 'SELECT secret FROM blocked' },
-    makeConformanceSpan('database_query', 'OPA unavailable active-policy probe', {
-      'openbox.matrix.scenario_id': requireLocalStackScenarioId('opa-unavailable-fail-closed'),
+    spec.activityType,
+    activityInput,
+    makeConformanceSpan(spec.semanticType, 'OPA unavailable active-policy probe', {
+      'openbox.matrix.scenario_id': scenarioId,
       'openbox.matrix.decision': 'OPA_UNAVAILABLE',
     }),
   );
 
   return {
-    scenarioId: requireLocalStackScenarioId('opa-unavailable-fail-closed'),
+    scenarioId,
     createPolicyOperationId: 'AgentController_createPolicy',
     evaluateOperationId: 'evaluateGovernance',
     policyBody: makeCreatePolicyDto({
@@ -788,7 +629,7 @@ export function makeOpaUnavailableFailClosedConformanceCase(): OpaUnavailableFai
         'package openbox.policy',
         'default result = {"decision": "ALLOW", "reason": null}',
         `result := {"decision": "BLOCK", "reason": ${JSON.stringify(reason)}} if {`,
-        '    input.activity_type == "DatabaseQuery"',
+        `    input.activity_type == ${JSON.stringify(spec.activityType)}`,
         '}',
       ].join('\n'),
       input: {},
@@ -796,11 +637,23 @@ export function makeOpaUnavailableFailClosedConformanceCase(): OpaUnavailableFai
     }),
     event,
     expected: {
-      availableVerdict: 'block',
-      availableAction: 'block',
-      unavailableVerdict: 'halt',
-      unavailableAction: 'halt',
-      unavailableReason: 'OPA unavailable - fail-closed security policy applied',
+      availableVerdict: generatedOpaVerdict(
+        spec.availableVerdict,
+        `${spec.scenarioId}.availableVerdict`,
+      ),
+      availableAction: generatedOpaLegacyAction(
+        spec.availableAction,
+        `${spec.scenarioId}.availableAction`,
+      ),
+      unavailableVerdict: generatedOpaVerdict(
+        spec.unavailableVerdict,
+        `${spec.scenarioId}.unavailableVerdict`,
+      ),
+      unavailableAction: generatedOpaLegacyAction(
+        spec.unavailableAction,
+        `${spec.scenarioId}.unavailableAction`,
+      ),
+      unavailableReason: spec.unavailableReason,
     },
   };
 }
@@ -989,7 +842,7 @@ export function makeGoalSignalOrderConformanceCase(): GoalSignalOrderConformance
     expected: {
       firstEventType: CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED,
       firstGovernedSurface: 'LLMCompletion',
-      fallbackUsed: true,
+      fallbackUsed: false,
       goalAlignmentChecked: false,
       goalDrifted: false,
     },
