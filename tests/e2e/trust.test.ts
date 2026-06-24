@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import { seedLocalStackTrustLedger } from '../helpers/local-stack-db';
 import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
@@ -23,97 +23,11 @@ describe('Trust Score', () => {
   async function ensureTrustLedger() {
     if (trustHistoryId) return;
 
-    const seedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'trust-ledger-wf-' || gen_random_uuid(),
-          'trust-ledger-run-' || gen_random_uuid(),
-          'completed',
-          'trust ledger conformance',
-          now() - interval '2 minutes',
-          now() - interval '1 minute',
-          now(),
-          '{"openbox_conformance":true,"source":"trust.e2e"}'::jsonb
-        )
-        returning id
-      ),
-      seeded_history as (
-        insert into agent_trust_scores_history (
-          agent_id,
-          trust_score,
-          trust_tier,
-          previous_score,
-          previous_tier,
-          change_type,
-          change_reason,
-          evaluated_by
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          72.5,
-          2,
-          86.0,
-          1,
-          'policy_violation',
-          'trust ledger conformance',
-          'sdk-e2e'
-        )
-        returning id
-      ),
-      seeded_trigger as (
-        insert into trust_rule_triggers (
-          agent_id,
-          session_id,
-          rule_type,
-          rule_name,
-          verdict
-        )
-        select
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          'policy',
-          'trust ledger conformance rule',
-          1
-        from seeded_session
-        returning id, session_id
-      ),
-      seeded_penalty as (
-        insert into trust_penalties (
-          agent_id,
-          session_id,
-          trust_impact,
-          penalty_amount,
-          component,
-          trust_rule_trigger_id
-        )
-        select
-          ${sqlLiteral(agentId)},
-          seeded_trigger.session_id,
-          'medium',
-          7.5,
-          'policy',
-          seeded_trigger.id
-        from seeded_trigger
-        returning id
-      )
-      select
-        (select id from seeded_history) || '|' ||
-        (select id from seeded_penalty);
-    `);
-    const seedLine = seedOutput.trim().split('\n').at(-1)!;
-    [trustHistoryId] = seedLine.split('|');
+    const ledger = await seedLocalStackTrustLedger({
+      agentId,
+      source: 'trust.e2e',
+    });
+    trustHistoryId = ledger.historyId;
   }
 
   beforeAll(async () => {

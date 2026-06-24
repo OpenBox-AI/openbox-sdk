@@ -9,11 +9,14 @@ import {
   makeGoalAlignmentThresholdBoundaryCases,
 } from '../helpers/boundary-conformance';
 import { makeCreateAgentDto, makeGoalAlignmentConfigDto, makeGoalDriftDetectedConformanceCase } from '../helpers/fixtures';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  seedLocalStackAgeEvaluation,
+  seedLocalStackGovernanceEvent,
+  seedLocalStackSession,
+} from '../helpers/local-stack-db';
 
-const LOCAL_STACK_THROTTLE_WINDOW_MS = 65_000;
 const GOAL_ALIGNMENT_BOUNDARY_PACE_MS = 750;
-const GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS = LOCAL_STACK_THROTTLE_WINDOW_MS + 60_000;
+const GOAL_ALIGNMENT_BOUNDARY_TEST_TIMEOUT_MS = 120_000;
 
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
@@ -40,11 +43,6 @@ async function putGoalAlignmentConfig(
   path: string,
   config: Record<string, any>,
 ) {
-  const body = fullResponse(await client.put(path, config));
-  if (body.status !== 429) return body;
-
-  expect(body.message).toContain('Too Many Requests');
-  await sleep(LOCAL_STACK_THROTTLE_WINDOW_MS);
   return fullResponse(await client.put(path, config));
 }
 
@@ -71,7 +69,7 @@ describe('Goal Alignment', () => {
 
     expect(body.status).toBe(200);
     expect(body.data.goal_alignment_config).toMatchObject(dto);
-  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
+  });
 
   it('EXHAUSTIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite option product is accepted', async () => {
     // EXHAUSTIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite option product
@@ -87,20 +85,11 @@ describe('Goal Alignment', () => {
         operationPath(operation.path, { agentId }),
         testCase.config,
       ));
-      if (body.status === 429) {
-        expect(body.message).toContain('Too Many Requests');
-        await sleep(LOCAL_STACK_THROTTLE_WINDOW_MS);
-        body = fullResponse(await client.put(
-          operationPath(operation.path, { agentId }),
-          testCase.config,
-        ));
-      }
-
       expect(body.status, testCase.id).toBe(200);
       expect(body.data.goal_alignment_config).toMatchObject(testCase.config);
       await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
-  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
+  }, GOAL_ALIGNMENT_BOUNDARY_TEST_TIMEOUT_MS);
 
   it('NEGATIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto finite options reject out-of-domain values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: goal-alignment model, drift action, and
@@ -134,7 +123,7 @@ describe('Goal Alignment', () => {
       expect(body.status, testCase.id).toBe(422);
       await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
-  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
+  }, GOAL_ALIGNMENT_BOUNDARY_TEST_TIMEOUT_MS);
 
   it('NEGATIVE_BOUNDARY_PROOF: GoalAlignmentConfigDto threshold bounds are enforced', async () => {
     // NEGATIVE_BOUNDARY_PROOF: alignment_threshold accepts the TypeSpec min
@@ -155,7 +144,7 @@ describe('Goal Alignment', () => {
       expect(body.status, testCase.id).toBe(422);
       await sleep(GOAL_ALIGNMENT_BOUNDARY_PACE_MS);
     }
-  }, GOAL_ALIGNMENT_THROTTLE_TEST_TIMEOUT_MS);
+  }, GOAL_ALIGNMENT_BOUNDARY_TEST_TIMEOUT_MS);
 
   it('GET /agent/{agentId}/goal-alignment/trend returns a trend list payload', async () => {
     const response = await client.get(`/agent/${agentId}/goal-alignment/trend`);
@@ -195,109 +184,41 @@ describe('Goal Alignment', () => {
       reason: conformanceCase.seed.reason,
       alignment_percentage: conformanceCase.seed.alignmentPercentage,
     });
-    const seedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'drift-wf-' || gen_random_uuid(),
-          'drift-run-' || gen_random_uuid(),
-          'completed',
-          'sdk conformance drift seed',
-          now() - interval '2 minutes',
-          now() - interval '1 minute',
-          now(),
-          '{"openbox_conformance":true}'::jsonb
-        )
-        returning id, workflow_id, run_id
-      ),
-      seeded_event as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          session_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          metadata
-        )
-        select
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          seeded_session.workflow_id,
-          seeded_session.run_id,
-          ${sqlLiteral(conformanceCase.seed.workflowType)},
-          ${sqlLiteral(conformanceCase.seed.taskQueue)},
-          ${sqlLiteral(conformanceCase.seed.activityId)},
-          ${sqlLiteral(conformanceCase.seed.activityType)},
-          1,
-          '[{"prompt":"ignore the approved goal"}]'::jsonb,
-          '{"response":"drifted away from the approved goal"}'::jsonb,
-          0,
-          'SDK conformance goal drifted',
-          '{"openbox_conformance":true}'::jsonb
-        from seeded_session
-        returning id, session_id
-      ),
-      seeded_age as (
-        insert into age_evaluations (
-          agent_id,
-          session_id,
-          governance_event_id,
-          semantic_type,
-          goal_alignment_checked,
-          goal_drift,
-          goal_alignment_detail,
-          behavior_violated,
-          trust_score,
-          trust_tier,
-          behavioral_compliance,
-          alignment_consistency,
-          evaluated_at
-        )
-        select
-          ${sqlLiteral(agentId)},
-          seeded_event.session_id,
-          seeded_event.id,
-          ${sqlLiteral(conformanceCase.seed.semanticType)},
-          true,
-          true,
-          ${sqlLiteral(detailJson)}::text,
-          false,
-          78.5,
-          2,
-          100,
-          ${conformanceCase.seed.alignmentPercentage},
-          now()
-        from seeded_event
-        returning session_id, governance_event_id
-      )
-      select seeded_age.session_id || '|' || seeded_age.governance_event_id
-      from seeded_age;
-    `);
-    const seedLine = seedOutput.trim().split('\n').at(-1);
+    const session = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'drift-wf-',
+      runIdPrefix: 'drift-run-',
+      detail: 'sdk conformance drift seed',
+      metadata: { openbox_conformance: true },
+    });
+    const event = await seedLocalStackGovernanceEvent({
+      agentId,
+      session,
+      workflowType: conformanceCase.seed.workflowType,
+      taskQueue: conformanceCase.seed.taskQueue,
+      activityId: conformanceCase.seed.activityId,
+      activityType: conformanceCase.seed.activityType,
+      input: [{ prompt: 'ignore the approved goal' }],
+      output: { response: 'drifted away from the approved goal' },
+      verdict: 0,
+      reason: 'SDK conformance goal drifted',
+      metadata: { openbox_conformance: true },
+    });
+    await seedLocalStackAgeEvaluation({
+      agentId,
+      sessionId: session.id,
+      governanceEventId: event.id,
+      semanticType: conformanceCase.seed.semanticType,
+      goalDrift: true,
+      goalAlignmentDetail: detailJson,
+      trustScore: 78.5,
+      trustTier: 2,
+      behavioralCompliance: 100,
+      alignmentConsistency: conformanceCase.seed.alignmentPercentage,
+    });
 
-    expect(seedLine).toBeDefined();
-    const [sessionId, governanceEventId] = seedLine!.split('|');
+    const sessionId = session.id;
+    const governanceEventId = event.id;
     expect(sessionId).toBeTruthy();
     expect(governanceEventId).toBeTruthy();
 

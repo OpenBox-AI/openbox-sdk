@@ -6,7 +6,11 @@ import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  seedLocalStackAgeEvaluation,
+  seedLocalStackGovernanceEvent,
+  seedLocalStackSession,
+} from '../helpers/local-stack-db';
 
 function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
@@ -130,136 +134,52 @@ describe('Sessions', () => {
       'SCENARIO_PROOF: workflow-session-lifecycle',
       'SCENARIO_PROOF: workflow-session-terminate',
     ]));
-    const completedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'workflow-session-wf-' || gen_random_uuid(),
-          'workflow-session-run-' || gen_random_uuid(),
-          'completed',
-          'seeded workflow session conformance',
-          now() - interval '3 minutes',
-          now() - interval '2 minutes',
-          now(),
-          '{"openbox_conformance":true,"source":"sessions.e2e"}'::jsonb
-        )
-        returning id, workflow_id, run_id
-      ),
-      seeded_event as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          session_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          metadata
-        )
-        select
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          seeded_session.workflow_id,
-          seeded_session.run_id,
-          'sdk-conformance',
-          'local-stack',
-          'workflow-session-log',
-          'LLMCompletion',
-          1,
-          '[{"prompt":"follow the workflow"}]'::jsonb,
-          '{"response":"workflow completed"}'::jsonb,
-          0,
-          'seeded workflow log',
-          '{"openbox_conformance":true,"source":"sessions.e2e"}'::jsonb
-        from seeded_session
-        returning id, session_id
-      ),
-      seeded_age as (
-        insert into age_evaluations (
-          agent_id,
-          session_id,
-          governance_event_id,
-          semantic_type,
-          goal_alignment_checked,
-          goal_drift,
-          goal_alignment_detail,
-          behavior_violated,
-          trust_score,
-          trust_tier,
-          behavioral_compliance,
-          alignment_consistency,
-          evaluated_at
-        )
-        select
-          ${sqlLiteral(agentId)},
-          seeded_event.session_id,
-          seeded_event.id,
-          'llm_gen_ai',
-          true,
-          false,
-          '{"reason":"workflow session aligned","alignment_percentage":100}'::text,
-          false,
-          91.5,
-          1,
-          100,
-          100,
-          now()
-        from seeded_event
-        returning session_id, governance_event_id
-      )
-      select seeded_age.session_id || '|' || seeded_age.governance_event_id
-      from seeded_age;
-    `);
-    const [completedSessionId, governanceEventId] = completedOutput
-      .trim()
-      .split('\n')
-      .at(-1)!
-      .split('|');
+    const completedSession = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'workflow-session-wf-',
+      runIdPrefix: 'workflow-session-run-',
+      detail: 'seeded workflow session conformance',
+      startedAt: new Date(Date.now() - 3 * 60_000),
+      completedAt: new Date(Date.now() - 2 * 60_000),
+      metadata: { openbox_conformance: true, source: 'sessions.e2e' },
+    });
+    const event = await seedLocalStackGovernanceEvent({
+      agentId,
+      session: completedSession,
+      activityId: 'workflow-session-log',
+      activityType: 'LLMCompletion',
+      input: [{ prompt: 'follow the workflow' }],
+      output: { response: 'workflow completed' },
+      verdict: 0,
+      reason: 'seeded workflow log',
+      metadata: { openbox_conformance: true, source: 'sessions.e2e' },
+    });
+    await seedLocalStackAgeEvaluation({
+      agentId,
+      sessionId: completedSession.id,
+      governanceEventId: event.id,
+      semanticType: 'llm_gen_ai',
+      goalAlignmentDetail: '{"reason":"workflow session aligned","alignment_percentage":100}',
+      trustScore: 91.5,
+      trustTier: 1,
+      behavioralCompliance: 100,
+      alignmentConsistency: 100,
+    });
+    const completedSessionId = completedSession.id;
+    const governanceEventId = event.id;
 
-    const activeOutput = await runLocalStackSql(`
-      with active_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'active-session-wf-' || gen_random_uuid(),
-          'active-session-run-' || gen_random_uuid(),
-          'pending',
-          'terminated workflow session conformance',
-          now(),
-          '{"openbox_conformance":true,"source":"sessions.e2e"}'::jsonb
-        )
-        returning id
-      )
-      select id from active_session;
-    `);
-    const activeSessionId = activeOutput.trim().split('\n').at(-1)!;
+    const activeSession = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'active-session-wf-',
+      runIdPrefix: 'active-session-run-',
+      status: 'pending',
+      detail: 'terminated workflow session conformance',
+      startedAt: new Date(),
+      completedAt: null,
+      trustEvaluatedAt: null,
+      metadata: { openbox_conformance: true, source: 'sessions.e2e' },
+    });
+    const activeSessionId = activeSession.id;
 
     const sessionsResponse = await client.get(`/agent/${agentId}/sessions`);
     const sessionsBody = fullResponse(sessionsResponse);

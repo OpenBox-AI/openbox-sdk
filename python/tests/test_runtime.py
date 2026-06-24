@@ -31,8 +31,13 @@ from openbox_sdk._govern_runtime import SessionAlreadyTerminatedError, map_verdi
 from openbox_sdk._utils import normalize_api_url, parse_datetime, render_path, retry_backoff_seconds
 from openbox_sdk.generated.backend_client import BACKEND_ENDPOINT_MANIFEST
 from openbox_sdk.generated.capability_matrix import (
+    CLAUDE_CODE_GOVERNANCE_AUDIT,
+    CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE,
+    CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
+    CLAUDE_CODE_SURFACE_MATRIX,
     GOAL_SIGNAL_GUARDS,
     GUARDRAIL_CAPABILITY_GUARDS,
+    GUARDRAILS_HUB_RECORDING_SURFACE,
     HITL_CAPABILITY_GUARDS,
     HOOK_CAPABILITY_GUARDS,
     INSTALL_DOCTOR_CAPABILITY_GUARDS,
@@ -456,6 +461,18 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert PROVIDER_CAPABILITY_MATRIX == fixture["providerCapabilityMatrix"]
     assert PROVIDER_EVENT_CATALOG == fixture["providerEventCatalog"]
     assert PROVIDER_PLUGIN_COMPONENTS == fixture["providerPluginComponents"]
+    assert CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]
+    assert CLAUDE_CODE_GOVERNANCE_AUDIT == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]["audit"]
+    assert CLAUDE_CODE_SURFACE_MATRIX == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]["surfaces"]
+    assert CLAUDE_CODE_SDK_CAPABILITY_MATRIX == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]["sdkCapabilities"]
     assert PUBLIC_INTEGRATION_SUPPORT == fixture["publicIntegrationSupport"]
     assert GOAL_SIGNAL_GUARDS == fixture["goalSignalGuards"]
     assert USAGE_COST_CAPABILITY_GUARDS == fixture["usageCostCapabilityGuards"]
@@ -463,6 +480,7 @@ def test_generated_python_matches_typespec_capability_fixture() -> None:
     assert TRACING_CAPABILITY_GUARDS == fixture["tracingCapabilityGuards"]
     assert HITL_CAPABILITY_GUARDS == fixture["hitlCapabilityGuards"]
     assert GUARDRAIL_CAPABILITY_GUARDS == fixture["guardrailCapabilityGuards"]
+    assert GUARDRAILS_HUB_RECORDING_SURFACE == fixture["guardrailsHubRecordingSurface"]
     assert POLICY_EVALUATION_GUARDS == fixture["policyEvaluationGuards"]
     assert RULES_INSTRUCTION_CAPABILITY_GUARDS == fixture["rulesInstructionCapabilityGuards"]
     assert HOOK_CAPABILITY_GUARDS == fixture["hookCapabilityGuards"]

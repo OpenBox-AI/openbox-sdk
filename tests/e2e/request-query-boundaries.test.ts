@@ -15,7 +15,7 @@ import {
   makeCreateBehaviorRuleDto,
   makeCreatePolicyDto,
 } from '../helpers/fixtures';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import { seedLocalStackSession } from '../helpers/local-stack-db';
 import { buildRequestConstraintConformance } from '../helpers/request-constraint-conformance';
 
 interface QueryBoundaryCase {
@@ -29,10 +29,6 @@ interface QueryBoundaryCase {
 
 const TRANSPORT_OR_PERMISSION_GATED = new Set([
   'OrganizationController_getMembers',
-]);
-
-const RAW_SEMANTIC_GAP_OPERATIONS = new Set([
-  'AgentController_getAgentEvaluations',
 ]);
 
 function sortedStrings(values: Iterable<string>): string[] {
@@ -86,9 +82,7 @@ function boundaryCases(params: Record<string, string>): QueryBoundaryCase[] {
         path: operationPath(operation.path, params),
         queryName,
         invalidValue,
-        expectedStatuses: RAW_SEMANTIC_GAP_OPERATIONS.has(rule.operationId)
-          ? [200]
-          : TRANSPORT_OR_PERMISSION_GATED.has(rule.operationId)
+        expectedStatuses: TRANSPORT_OR_PERMISSION_GATED.has(rule.operationId)
           ? [403]
           : [422],
       });
@@ -128,28 +122,12 @@ function expectedBoundaryConstraintKeysFromLedger(): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function rawSemanticGapBoundaryConstraintsFromLedger() {
-  const ledger = buildRequestConstraintConformance();
-  return ledger.constraints
-    .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
-    .filter((entry) => entry.service === 'backend')
-    .filter((entry) => ['query.page', 'query.perPage', 'query.pattern'].includes(entry.location))
-    .filter((entry) => ['minimum', 'maxLength'].includes(entry.kind))
-    .sort((left, right) => left.key.localeCompare(right.key));
-}
-
 async function rawBoundaryGet(
   client: ReturnType<typeof getBackendClient>,
   testCase: QueryBoundaryCase,
 ) {
   const separator = testCase.path.includes('?') ? '&' : '?';
   const path = `${testCase.path}${separator}${testCase.queryName}=${encodeURIComponent(testCase.invalidValue)}`;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await client.get(path);
-    const body = fullResponse(response);
-    if (body.status !== 429) return body;
-    await sleep(65_000);
-  }
   return fullResponse(await client.get(path));
 }
 
@@ -183,28 +161,17 @@ describe('Generated Backend Query Boundaries', () => {
     expect(behaviorBody.status).toBe(200);
     trackResource({ type: 'behavior-rule', id: behaviorBody.data.id, agentId });
 
-    const sessionOutput = await runLocalStackSql(`
-      insert into sessions (
-        agent_id,
-        workflow_id,
-        run_id,
-        status,
-        detail,
-        started_at,
-        metadata
-      )
-      values (
-        ${sqlLiteral(agentId)},
-        'query-boundary-wf-' || gen_random_uuid(),
-        'query-boundary-run-' || gen_random_uuid(),
-        'completed',
-        'query boundary conformance session',
-        now(),
-        '{"openbox_conformance":true,"source":"request-query-boundaries.e2e"}'::jsonb
-      )
-      returning id;
-    `);
-    const sessionId = sessionOutput.trim().split('\n').at(-1)!;
+    const session = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'query-boundary-wf-',
+      runIdPrefix: 'query-boundary-run-',
+      detail: 'query boundary conformance session',
+      startedAt: new Date(),
+      completedAt: null,
+      trustEvaluatedAt: null,
+      metadata: { openbox_conformance: true, source: 'request-query-boundaries.e2e' },
+    });
+    const sessionId = session.id;
 
     params = {
       agentId,
@@ -216,26 +183,19 @@ describe('Generated Backend Query Boundaries', () => {
     };
   });
 
-  it('NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values or expose raw gaps', async () => {
+  it('NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: every generated backend page/perPage/pattern
     // request preflight constraint is derived from OpenAPI, then driven
-    // against the real local stack via the raw fallback path to distinguish
-    // server validation from SDK-only preflight.
-    // SEMANTIC_GAP_PROOF: AgentController_getAgentEvaluations accepts
-    // page/perPage/pattern values outside the generated request constraints.
+    // against the real local stack via the raw fallback path so this proves
+    // server-side validation, not SDK-only preflight.
     const cases = boundaryCases(params);
-    const rawSemanticGapConstraints = rawSemanticGapBoundaryConstraintsFromLedger();
     expect(cases).toHaveLength(expectedBoundaryCaseCount());
     expect(sortedStrings(cases.map((testCase) => testCase.constraintKey))).toEqual(
       expectedBoundaryConstraintKeysFromLedger(),
     );
     expect(BACKEND_REQUEST_PREFLIGHT_RULES.length).toBeGreaterThan(0);
     expect(cases.some((testCase) => testCase.queryName === 'pattern')).toBe(true);
-    expect(sortedStrings(RAW_SEMANTIC_GAP_OPERATIONS)).toEqual(
-      sortedStrings(new Set(rawSemanticGapConstraints.map((entry) => entry.operationId))),
-    );
-    expect(RAW_SEMANTIC_GAP_OPERATIONS.has('AgentController_getAgentEvaluations')).toBe(true);
-    const semanticGapCases = cases.filter(
+    const agentEvaluationCases = cases.filter(
       (testCase) => testCase.operationId === 'AgentController_getAgentEvaluations',
     );
     const expectedAgentEvaluationConstraintKeys = [
@@ -243,25 +203,19 @@ describe('Generated Backend Query Boundaries', () => {
       'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
       'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
     ];
-    expect(sortedStrings(semanticGapCases.map((testCase) => testCase.constraintKey))).toEqual(
+    expect(sortedStrings(agentEvaluationCases.map((testCase) => testCase.constraintKey))).toEqual(
       expectedAgentEvaluationConstraintKeys,
     );
-    expect(rawSemanticGapConstraints.map((entry) => entry.key)).toEqual(
-      expectedAgentEvaluationConstraintKeys,
-    );
-    expect([...new Set(rawSemanticGapConstraints.flatMap((entry) => entry.semanticGapIds))]).toEqual([
-      'backend-agent-evaluations-query-boundaries-not-rejected',
-    ]);
-    expect(semanticGapCases.map((testCase) => testCase.queryName).sort()).toEqual([
+    expect(agentEvaluationCases.map((testCase) => testCase.queryName).sort()).toEqual([
       'page',
       'pattern',
       'perPage',
     ]);
-    expect(semanticGapCases.every((testCase) => testCase.expectedStatuses.includes(200))).toBe(
+    expect(agentEvaluationCases.every((testCase) => testCase.expectedStatuses.includes(422))).toBe(
       true,
     );
-    const semanticGapOperation = backendOperation('AgentController_getAgentEvaluations');
-    expect(semanticGapOperation.verb).toBe('get');
+    const agentEvaluationOperation = backendOperation('AgentController_getAgentEvaluations');
+    expect(agentEvaluationOperation.verb).toBe('get');
 
     const unexpected: Array<{
       operationId: string;
@@ -271,33 +225,11 @@ describe('Generated Backend Query Boundaries', () => {
       body: unknown;
     }> = [];
 
-    for (const testCase of semanticGapCases) {
-      expect(testCase.path).toBe(operationPath(semanticGapOperation.path, params));
-      let body: ReturnType<typeof fullResponse> | undefined;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const response = await client.get(
-          `${operationPath(semanticGapOperation.path, params)}?${testCase.queryName}=${encodeURIComponent(testCase.invalidValue)}`,
-        );
-        body = fullResponse(response);
-        if (body.status !== 429) break;
-        await sleep(65_000);
-      }
-      expect(body).toBeDefined();
-      if (!testCase.expectedStatuses.includes(body!.status)) {
-        unexpected.push({
-          operationId: testCase.operationId,
-          queryName: testCase.queryName,
-          expected: testCase.expectedStatuses,
-          actual: body!.status,
-          body,
-        });
-      }
-      await sleep(750);
+    for (const testCase of agentEvaluationCases) {
+      expect(testCase.path).toBe(operationPath(agentEvaluationOperation.path, params));
     }
 
-    for (const testCase of cases.filter(
-      (entry) => !RAW_SEMANTIC_GAP_OPERATIONS.has(entry.operationId),
-    )) {
+    for (const testCase of cases) {
       const body = await rawBoundaryGet(client, testCase);
       if (!testCase.expectedStatuses.includes(body.status)) {
         unexpected.push({

@@ -6,10 +6,7 @@ import {
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
 import { GOVERNANCE_BOUNDARY_DOMAINS } from '../helpers/boundary-conformance';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
-
-const LOCAL_STACK_THROTTLE_WINDOW_MS = 65_000;
-const ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS = LOCAL_STACK_THROTTLE_WINDOW_MS * 3 + 60_000;
+import { grantTemporaryLocalStackApiKeyPermissions } from '../helpers/local-stack-db';
 
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
@@ -30,55 +27,7 @@ async function withTemporaryApiKeyPermissions<T>(
 ): Promise<T> {
   const apiKey = process.env.OPENBOX_BACKEND_API_KEY;
   expect(apiKey).toMatch(/^obx_key_/);
-  const keyPrefix = apiKey!.slice(0, 12);
-  const original = (await runLocalStackSql(`
-    select array_to_string(permissions, ',')
-    from api_keys
-    where key_prefix = ${sqlLiteral(keyPrefix)}
-      and deleted_at is null
-    order by created_at desc
-    limit 1;
-  `)).trim();
-
-  expect(original.length).toBeGreaterThan(0);
-
-  try {
-    await runLocalStackSql(`
-      update api_keys
-      set permissions = (
-        select array_agg(distinct permission)
-        from unnest(permissions || array[${permissions.map(sqlLiteral).join(', ')}]::varchar[]) as permission
-      ),
-      updated_at = now()
-      where key_prefix = ${sqlLiteral(keyPrefix)}
-        and deleted_at is null;
-    `);
-
-    return await fn();
-  } finally {
-    await runLocalStackSql(`
-      update api_keys
-      set permissions = string_to_array(${sqlLiteral(original)}, ',')::varchar[],
-          updated_at = now()
-      where key_prefix = ${sqlLiteral(keyPrefix)}
-        and deleted_at is null;
-    `);
-  }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function afterLocalStackThrottleWindow<T>(
-  body: T & { status: number; message?: string },
-  retry: () => Promise<T>,
-) {
-  if (body.status !== 429) return body;
-
-  expect(body.message).toContain('Too Many Requests');
-  await sleep(LOCAL_STACK_THROTTLE_WINDOW_MS);
-  return retry();
+  return grantTemporaryLocalStackApiKeyPermissions(apiKey!, permissions, fn);
 }
 
 describe('Organization', () => {
@@ -93,13 +42,8 @@ describe('Organization', () => {
     // CONFORMANCE_PROOF: organization identity read follows the generated
     // operation path and asserts the local-stack organization identity.
     const operation = backendOperation('OrganizationController_getOrganization');
-    let body = fullResponse(
+    const body = fullResponse(
       await client.get(operationPath(operation.path, { organizationId: orgId })),
-    );
-    body = await afterLocalStackThrottleWindow(
-      body,
-      async () =>
-        fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId }))),
     );
 
     expect(body.status).toBe(200);
@@ -109,7 +53,7 @@ describe('Organization', () => {
         displayName: expect.any(String),
       }),
     );
-  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
+  });
 
   it('GET /organization/{orgId}/settings returns organization settings', async () => {
     // CONFORMANCE_PROOF: organization settings read returns the local-stack
@@ -224,11 +168,6 @@ describe('Organization', () => {
       delete body[field];
       const response = await client.post('/organization/register', body);
       const result = response.data;
-
-      if (result.status === 429) {
-        expect(result.message).toContain('Too Many Requests');
-        continue;
-      }
 
       expect(result.status, field).toBe(422);
       expect(JSON.stringify(result), field).toContain(field);
@@ -411,31 +350,21 @@ describe('Organization', () => {
     expect('SCENARIO_PROOF: trace-logs').toContain('trace-logs');
     const operation = backendOperation('OrganizationController_getGovernanceFeed');
     expect(operation.verb).toBe('get');
-    let body = fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId })));
-    body = await afterLocalStackThrottleWindow(
-      body,
-      async () => fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId }))),
-    );
+    const body = fullResponse(await client.get(operationPath(operation.path, { organizationId: orgId })));
 
     expect(body.status).toBe(200);
     expect(body.data).toBeDefined();
     expect(Array.isArray(body.data) || Array.isArray(body.data.data)).toBe(true);
-  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
+  });
 
   it('GET /organization/{orgId}/dashboard/trust-drift-lanes returns lane series', async () => {
     // CONFORMANCE_PROOF: trust drift dashboard conformance verifies lane
     // series fields used by the governance dashboard.
     const operation = backendOperation('OrganizationController_getTrustDriftLanes');
     expect(operation.verb).toBe('get');
-    let body = fullResponse(await client.get(
+    const body = fullResponse(await client.get(
       `${operationPath(operation.path, { organizationId: orgId })}?limit=3`,
     ));
-    body = await afterLocalStackThrottleWindow(
-      body,
-      async () => fullResponse(await client.get(
-        `${operationPath(operation.path, { organizationId: orgId })}?limit=3`,
-      )),
-    );
 
     expect(body.status).toBe(200);
     const lanes = Array.isArray(body.data) ? body.data : body.data.data;
@@ -453,7 +382,7 @@ describe('Organization', () => {
     );
     expect(lanes[0].series30d.length).toBeGreaterThan(0);
     expect(lanes[0].tiers30d.length).toBe(lanes[0].series30d.length);
-  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
+  });
 
   it('BOUNDARY_PROOF: organization query numeric/date boundaries are enforced', async () => {
     // BOUNDARY_PROOF: organization query numeric/date boundaries cover
@@ -463,15 +392,9 @@ describe('Organization', () => {
     const driftOperation = backendOperation('OrganizationController_getTrustDriftLanes');
     const auditOperation = backendOperation('OrganizationController_getAuditLogs');
     expect([feedOperation.verb, driftOperation.verb, auditOperation.verb]).toEqual(['get', 'get', 'get']);
-    let feedOneBody = fullResponse(await client.get(
+    const feedOneBody = fullResponse(await client.get(
       `${operationPath(feedOperation.path, { organizationId: orgId })}?limit=1`,
     ));
-    feedOneBody = await afterLocalStackThrottleWindow(
-      feedOneBody,
-      async () => fullResponse(await client.get(
-        `${operationPath(feedOperation.path, { organizationId: orgId })}?limit=1`,
-      )),
-    );
 
     expect(feedOneBody.status).toBe(200);
     const feedRows = Array.isArray(feedOneBody.data) ? feedOneBody.data : feedOneBody.data.data;
@@ -480,15 +403,9 @@ describe('Organization', () => {
     const feedZero = await client.get(`${operationPath(feedOperation.path, { organizationId: orgId })}?limit=0`);
     expect(feedZero.data.status).toBe(422);
 
-    let driftOneBody = fullResponse(await client.get(
+    const driftOneBody = fullResponse(await client.get(
       `${operationPath(driftOperation.path, { organizationId: orgId })}?limit=1`,
     ));
-    driftOneBody = await afterLocalStackThrottleWindow(
-      driftOneBody,
-      async () => fullResponse(await client.get(
-        `${operationPath(driftOperation.path, { organizationId: orgId })}?limit=1`,
-      )),
-    );
 
     expect(driftOneBody.status).toBe(200);
     const driftRows = Array.isArray(driftOneBody.data) ? driftOneBody.data : driftOneBody.data.data;
@@ -510,7 +427,7 @@ describe('Organization', () => {
     );
 
     expect(invalidAuditDates.data.status).toBe(500);
-  }, ORGANIZATION_THROTTLE_TEST_TIMEOUT_MS);
+  });
 
   it('CONFORMANCE: GET /organization/{orgId}/dashboard/governance-slo returns SLO counters', async () => {
     // CONFORMANCE_PROOF: governance SLO dashboard conformance verifies

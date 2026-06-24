@@ -1,6 +1,3 @@
-import { execFile } from 'node:child_process';
-import type { Server } from 'node:http';
-import { promisify } from 'node:util';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { CORE_ENDPOINT_MANIFEST } from '../../ts/src/core-client/generated/endpoint-manifest.js';
@@ -18,7 +15,12 @@ import {
   makeJsonObjectValueClassPayload,
 } from '../helpers/boundary-conformance';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  expireGovernanceApproval,
+  listUsageMetricRowsForKeys,
+  readGovernanceEventInputAndSpansText,
+  readGovernanceEventStorageText,
+} from '../helpers/local-stack-db';
 import {
   makeApprovalExpirationConformanceCase,
   makeCreateAgentDto,
@@ -35,12 +37,17 @@ import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
-import { startGuardrailProviderStub } from '../helpers/guardrail-provider-stub';
-import { buildRequestConstraintConformance } from '../helpers/request-constraint-conformance';
 
-const execFileAsync = promisify(execFile);
-const OPA_CONTAINER_NAME = process.env.OPENBOX_E2E_OPA_CONTAINER ?? 'openbox-local-sdk-opa';
+const OPA_URL = (process.env.OPENBOX_E2E_OPA_URL ?? 'http://127.0.0.1:8181').replace(/\/+$/, '');
+const OPA_POLICY_LOAD_TIMEOUT_MS = Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 30_000);
+const RUN_ISOLATED_AGE_UNAVAILABLE =
+  process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE === '1';
+const itIfIsolatedAgeUnavailable = RUN_ISOLATED_AGE_UNAVAILABLE ? it : it.skip;
+const RUN_ISOLATED_OPA_UNAVAILABLE =
+  process.env.OPENBOX_E2E_ISOLATED_OPA_UNAVAILABLE === '1';
+const itIfIsolatedOpaUnavailable = RUN_ISOLATED_OPA_UNAVAILABLE ? it : it.skip;
 const CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS = [
+  'cost_usd',
   'input_tokens',
   'output_tokens',
   'total_tokens',
@@ -58,6 +65,59 @@ const CORE_TELEMETRY_SPAN_NUMERIC_FIELDS = [
   'lines_count',
 ] as const;
 
+interface UsageWireCase {
+  caseId: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  prompt: string;
+  completion: string;
+  expectedMetricRows: Array<{
+    metricType: string;
+    metricKey: string;
+    metricValue: number;
+  }>;
+}
+
+function makeUsageWireCases(): UsageWireCase[] {
+  return GOVERNANCE_SPEC_DOMAINS.localStackUsageWireCaseIds.map((caseId) => {
+    switch (caseId) {
+      case 'nonzero-tokens-nonzero-cost':
+        return {
+          caseId,
+          input_tokens: 17,
+          output_tokens: 19,
+          total_tokens: 36,
+          cost_usd: 0.03125,
+          prompt: 'usage boundary nonzero prompt',
+          completion: 'usage boundary nonzero completion',
+          expectedMetricRows: [
+            { metricType: 'token', metricKey: 'input_tokens', metricValue: 17 },
+            { metricType: 'token', metricKey: 'output_tokens', metricValue: 19 },
+          ],
+        };
+      case 'zero-tokens-zero-cost':
+        return {
+          caseId,
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          cost_usd: 0,
+          prompt: 'usage boundary zero prompt',
+          completion: 'usage boundary zero completion',
+          expectedMetricRows: [],
+        };
+      default:
+        throw new Error(
+          `Unhandled LocalStackUsageWireCaseId: ${caseId}; sentinel=${invalidGovernanceSpecMember(
+            'localStackUsageWireCaseIds',
+          )}`,
+        );
+    }
+  });
+}
+
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
   expect(operation, operationId).toBeDefined();
@@ -70,22 +130,70 @@ function coreOperation(operationId: string) {
   return operation!;
 }
 
-function rawCoreGovernanceConstraintsFromLedger(gapId: string) {
-  const ledger = buildRequestConstraintConformance();
-  return ledger.constraints
-    .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
-    .filter((entry) => entry.service === 'core')
-    .filter((entry) => entry.operationId === 'evaluateGovernance')
-    .filter((entry) => entry.semanticGapIds.includes(gapId))
-    .sort((left, right) => left.key.localeCompare(right.key));
-}
-
 function operationPath(path: string, params: Record<string, string>) {
   return path.replace(/\{([^}]+)\}/g, (_, key: string) => params[key] ?? `{${key}}`);
 }
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+let governanceEventSequence = 0;
+
+function uniqueGovernanceSuffix(label: string) {
+  governanceEventSequence += 1;
+  return `${label}-${Date.now()}-${governanceEventSequence}`;
+}
+
+function scopedGovernanceEvent<T extends {
+  workflow_id?: string;
+  run_id?: string;
+  activity_id?: string;
+}>(event: T, label: string): T {
+  const suffix = uniqueGovernanceSuffix(label);
+  return {
+    ...event,
+    workflow_id: `${event.workflow_id ?? 'workflow'}-${suffix}`,
+    run_id: `${event.run_id ?? 'run'}-${suffix}`,
+    activity_id: event.activity_id ? `${event.activity_id}-${suffix}` : event.activity_id,
+  };
+}
+
+function scopedPollRequest<T extends {
+  workflow_id?: string;
+  run_id?: string;
+  activity_id?: string;
+}>(
+  request: T,
+  event: { workflow_id?: string; run_id?: string; activity_id?: string },
+): T {
+  return {
+    ...request,
+    workflow_id: event.workflow_id,
+    run_id: event.run_id,
+    activity_id: event.activity_id,
+  };
+}
+
+async function waitForUsageMetricRows(
+  agentId: string,
+  expectedRows: UsageWireCase['expectedMetricRows'],
+) {
+  const deadline = Date.now() + 5_000;
+  let rows: Awaited<ReturnType<typeof listUsageMetricRowsForKeys>> = [];
+
+  while (Date.now() < deadline) {
+    rows = await listUsageMetricRowsForKeys(agentId);
+    if (expectedRows.length > 0 && JSON.stringify(rows) === JSON.stringify(expectedRows)) {
+      return rows;
+    }
+    if (expectedRows.length === 0 && rows.length > 0) {
+      return rows;
+    }
+    await sleep(250);
+  }
+
+  return rows;
 }
 
 function expectedInvalidTelemetryCaseCount(): number {
@@ -96,37 +204,35 @@ function expectedInvalidTelemetryCaseCount(): number {
   );
 }
 
-async function docker(args: string[]) {
-  return execFileAsync('docker', args);
-}
+async function waitForOpaPolicyPath(policyResponseBody: any) {
+  const policyPath = policyResponseBody?.data?.config?.path;
+  expect(policyPath).toEqual(expect.any(String));
 
-async function ensureOpaSidecarContainer() {
-  try {
-    await docker(['container', 'inspect', OPA_CONTAINER_NAME]);
-  } catch {
-    throw new Error(
-      `local OPA sidecar container ${OPA_CONTAINER_NAME} is required for OPA unavailable conformance`,
-    );
-  }
-}
+  const deadline = Date.now() + OPA_POLICY_LOAD_TIMEOUT_MS;
+  let lastState = 'not queried';
 
-async function stopOpaSidecar() {
-  await docker(['stop', OPA_CONTAINER_NAME]);
-}
-
-async function startOpaSidecar() {
-  await docker(['start', OPA_CONTAINER_NAME]);
-  const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch('http://127.0.0.1:8181/health');
-      if (response.ok) return;
-    } catch {
-      // Retry until the sidecar starts accepting requests.
+      const response = await fetch(`${OPA_URL}/v1/data/${policyPath}`);
+      if (!response.ok) {
+        lastState = `HTTP ${response.status}`;
+      } else {
+        const body = await response.json();
+        if (Object.prototype.hasOwnProperty.call(body, 'result')) {
+          return;
+        }
+        lastState = 'undefined OPA data result';
+      }
+    } catch (error) {
+      lastState = error instanceof Error ? error.message : String(error);
     }
+
     await sleep(1000);
   }
-  throw new Error(`local OPA sidecar ${OPA_CONTAINER_NAME} did not become healthy`);
+
+  throw new Error(
+    `OPA policy path ${policyPath} did not load within ${OPA_POLICY_LOAD_TIMEOUT_MS}ms (${lastState})`,
+  );
 }
 
 function listItems(value: any): any[] {
@@ -280,48 +386,15 @@ describe('Core Governance API', () => {
     }
   });
 
-  it('SEMANTIC_GAP_PROOF: core governance attempt below min is accepted by local stack', async () => {
-    // SEMANTIC_GAP_PROOF: GovernanceEventPayload.attempt has a TypeSpec
-    // @minValue(1) annotation, but the current local stack accepts attempt=0
-    // and evaluates the event successfully. Keep this visible until Core
-    // rejects below-min attempt values.
-    const coreClient = getCoreClient(apiKey, agentIdentity);
-    const evaluateOperation = coreOperation('evaluateGovernance');
-    const rawAttemptConstraints = rawCoreGovernanceConstraintsFromLedger(
-      'core-governance-attempt-min-not-rejected',
-    );
-    expect(rawAttemptConstraints.map((entry) => entry.key)).toEqual([
-      'core:evaluateGovernance:body.attempt:minimum',
-    ]);
-    expect(rawAttemptConstraints).toEqual([
-      expect.objectContaining({
-        service: 'core',
-        operationId: 'evaluateGovernance',
-        location: 'body.attempt',
-        kind: 'minimum',
-        value: 1,
-        semanticGapIds: ['core-governance-attempt-min-not-rejected'],
-      }),
-    ]);
-    const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
-      event_type: 'ActivityStarted',
-      activity_id: `invalid-attempt-below-min-${Date.now()}`,
-      activity_type: 'InvalidAttemptProbe',
-      attempt: 0,
-    }));
-
-    expect(response.status).toBe(200);
-    expect(response.data).toHaveProperty('verdict');
-  });
-
-  it('NEGATIVE_BOUNDARY_PROOF: core governance attempt rejects fractional and nonnumeric values', async () => {
-    // NEGATIVE_BOUNDARY_PROOF: GovernanceEventPayload.attempt is an OpenAPI
-    // integer. The local Core body validator rejects fractional and nonnumeric
-    // values even though it still accepts below-min integers.
+  it('NEGATIVE_BOUNDARY_PROOF: core governance attempt rejects below-min, fractional, and nonnumeric values', async () => {
+    // NEGATIVE_BOUNDARY_PROOF: GovernanceEventPayload.attempt is generated
+    // from OpenAPI as int32 with @minValue(1). Drive every invalid class through
+    // the signed local Core path.
     const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
 
     for (const testCase of [
+      { id: 'below-min', activityType: 'InvalidAttemptBelowMinProbe', attempt: 0 },
       { id: 'fractional', activityType: 'FractionalAttemptProbe', attempt: 0.5 },
       { id: 'nonnumeric', activityType: 'NonnumericAttemptProbe', attempt: 'not-an-integer' },
     ] as const) {
@@ -336,94 +409,33 @@ describe('Core Governance API', () => {
     }
   });
 
-  it('SEMANTIC_GAP_PROOF: core governance timestamp format accepts invalid date-time values', async () => {
-    // SEMANTIC_GAP_PROOF: GovernanceEventPayload.timestamp is OpenAPI
-    // format=date-time, but the current local Core stack accepts an invalid
-    // date-time string and evaluates the event successfully. Keep this
-    // visible until Core rejects invalid timestamp formats.
-    const coreClient = getCoreClient(apiKey, agentIdentity);
-    const evaluateOperation = coreOperation('evaluateGovernance');
-    const rawTimestampConstraints = rawCoreGovernanceConstraintsFromLedger(
-      'core-governance-timestamp-format-not-rejected',
-    );
-    expect(rawTimestampConstraints.map((entry) => entry.key)).toEqual([
-      'core:evaluateGovernance:body.timestamp:format',
-    ]);
-    expect(rawTimestampConstraints).toEqual([
-      expect.objectContaining({
-        service: 'core',
-        operationId: 'evaluateGovernance',
-        location: 'body.timestamp',
-        kind: 'format',
-        value: 'date-time',
-        semanticGapIds: ['core-governance-timestamp-format-not-rejected'],
-      }),
-    ]);
-    const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
-      timestamp: 'not-a-date-time',
-      activity_id: `invalid-timestamp-format-${Date.now()}`,
-      activity_type: 'InvalidTimestampFormatProbe',
-    }));
-
-    expect(response.status).toBe(200);
-    expect(response.data).toHaveProperty('verdict');
-  });
-
-  it('NEGATIVE_BOUNDARY_PROOF: core governance timestamp rejects non-string values', async () => {
+  it('NEGATIVE_BOUNDARY_PROOF: core governance timestamp rejects invalid date-time and non-string values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: GovernanceEventPayload.timestamp is OpenAPI
-    // type=string. Non-string timestamp values are rejected by the local Core
-    // request body validator before the event is evaluated.
+    // type=string format=date-time. Invalid strings and non-string values are
+    // rejected before the event is evaluated.
     const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
-    const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
-      timestamp: 12345,
-      activity_id: `invalid-timestamp-type-${Date.now()}`,
-      activity_type: 'InvalidTimestampTypeProbe',
-    }));
 
-    expect([400, 422], JSON.stringify(response.data)).toContain(response.status);
-  });
+    for (const testCase of [
+      {
+        id: 'format',
+        timestamp: 'not-a-date-time',
+        activityType: 'InvalidTimestampFormatProbe',
+      },
+      {
+        id: 'type',
+        timestamp: 12345,
+        activityType: 'InvalidTimestampTypeProbe',
+      },
+    ] as const) {
+      const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
+        timestamp: testCase.timestamp,
+        activity_id: `invalid-timestamp-${testCase.id}-${Date.now()}`,
+        activity_type: testCase.activityType,
+      }));
 
-  it('SEMANTIC_GAP_PROOF: core governance cost accepts nonnumeric values', async () => {
-    // SEMANTIC_GAP_PROOF: GovernanceEventPayload.cost_usd is OpenAPI
-    // type=number format=double, but the current local Core stack accepts a
-    // nonnumeric value and evaluates the event successfully. Keep this visible
-    // until Core rejects invalid cost values.
-    const coreClient = getCoreClient(apiKey, agentIdentity);
-    const evaluateOperation = coreOperation('evaluateGovernance');
-    const rawCostConstraints = rawCoreGovernanceConstraintsFromLedger(
-      'core-governance-cost-type-not-rejected',
-    );
-    expect(rawCostConstraints.map((entry) => entry.key)).toEqual([
-      'core:evaluateGovernance:body.cost_usd:format',
-      'core:evaluateGovernance:body.cost_usd:type',
-    ]);
-    expect(rawCostConstraints).toEqual([
-      expect.objectContaining({
-        service: 'core',
-        operationId: 'evaluateGovernance',
-        location: 'body.cost_usd',
-        kind: 'format',
-        value: 'double',
-        semanticGapIds: ['core-governance-cost-type-not-rejected'],
-      }),
-      expect.objectContaining({
-        service: 'core',
-        operationId: 'evaluateGovernance',
-        location: 'body.cost_usd',
-        kind: 'type',
-        value: 'number',
-        semanticGapIds: ['core-governance-cost-type-not-rejected'],
-      }),
-    ]);
-    const response = await coreClient.post(evaluateOperation.path, makeGovernanceEvent({
-      cost_usd: 'not-a-number',
-      activity_id: `invalid-cost-usd-${Date.now()}`,
-      activity_type: 'InvalidCostUsdProbe',
-    }));
-
-    expect(response.status).toBe(200);
-    expect(response.data).toHaveProperty('verdict');
+      expect([400, 422], `${testCase.id}: ${JSON.stringify(response.data)}`).toContain(response.status);
+    }
   });
 
   it('NEGATIVE_BOUNDARY_PROOF: core governance numeric telemetry fields reject invalid request types', async () => {
@@ -435,6 +447,7 @@ describe('Core Governance API', () => {
     const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
     const nowNs = Date.now() * 1_000_000;
+    expect(CORE_TELEMETRY_TOP_LEVEL_NUMERIC_FIELDS).toContain('cost_usd');
     const validSpan = () => makeFiniteProbeSpan({
       start_time: nowNs,
       end_time: nowNs + 1_000_000,
@@ -553,66 +566,89 @@ describe('Core Governance API', () => {
     expect(bareObjectInputResponse.data).toHaveProperty('verdict');
   });
 
-  it('CONFORMANCE: Core usage/cost wire boundary accepts fields without fabricating backend metrics', async () => {
-    // CONFORMANCE_PROOF: Core usage/cost wire boundary sends top-level
-    // input_tokens, output_tokens, total_tokens, and cost_usd: 0 through
-    // evaluateGovernance. The local stack must accept the event and persist
-    // the governance row, but usage/cost dashboard metrics remain provider
-    // adapter/backend-owned and are not fabricated from this wire payload.
+  it('CONFORMANCE: Core usage/cost wire boundary accepts provider telemetry and materializes supported token metrics', async () => {
+    // CONFORMANCE_PROOF: Core usage/cost wire boundary sends every
+    // LocalStackUsageWireCaseId through evaluateGovernance. The local stack
+    // must accept top-level usage/cost fields, persist the governance row,
+    // materialize only supported nonzero token metrics, and avoid fabricating
+    // total-token or cost metric rows.
     expect(['SCENARIO_PROOF: usage-core-wire-boundary']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: usage-core-wire-boundary']),
     );
-    const coreClient = getCoreClient(apiKey, agentIdentity);
     const evaluateOperation = coreOperation('evaluateGovernance');
-    const activityId = `usage-cost-wire-${Date.now()}`;
-    const event = makeGovernanceEvent({
-      event_type: 'ActivityCompleted',
-      activity_id: activityId,
-      activity_type: 'LLMCompleted',
-      llm_model: 'openbox-sdk-usage-boundary',
-      input_tokens: 11,
-      output_tokens: 13,
-      total_tokens: 24,
-      cost_usd: 0,
-      prompt: 'usage boundary prompt',
-      completion: 'usage boundary completion',
-      finish_reason: 'stop',
-      activity_input: [{ prompt: 'usage boundary prompt' }],
-      activity_output: { completion: 'usage boundary completion' },
-    });
 
-    const response = await coreClient.post(evaluateOperation.path, event);
+    const usageWireCases = makeUsageWireCases();
+    expect(usageWireCases.map((entry) => entry.caseId)).toEqual(
+      GOVERNANCE_SPEC_DOMAINS.localStackUsageWireCaseIds,
+    );
+    expect(usageWireCases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ cost_usd: 0.03125 }),
+        expect.objectContaining({ input_tokens: 0 }),
+        expect.objectContaining({
+          expectedMetricRows: expect.arrayContaining([
+            expect.objectContaining({ metricKey: 'input_tokens' }),
+            expect.objectContaining({ metricKey: 'output_tokens' }),
+          ]),
+        }),
+      ]),
+    );
 
-    expect(response.status).toBe(200);
-    expect(response.data).toHaveProperty('verdict', 'allow');
-    expect(response.data).toHaveProperty('governance_event_id');
+    for (const usageWireCase of usageWireCases) {
+      const usageAgentResponse = await backendClient.post('/agent/create', makeCreateAgentDto(teamIds, {
+        agent_name: `usage-cost-wire-${usageWireCase.caseId}-${Date.now()}`,
+      }));
+      const usageAgentBody = fullResponse(usageAgentResponse);
+      expect(usageAgentBody.status, usageWireCase.caseId).toBe(200);
+      const usageAgentId = usageAgentBody.data.agent.id;
+      trackResource({ type: 'agent', id: usageAgentId });
 
-    const stored = await runLocalStackSql(`
-      select
-        coalesce(input::text, '') || E'\\n---OUTPUT---\\n' ||
-        coalesce(output::text, '') || E'\\n---META---\\n' ||
-        coalesce(metadata::text, '')
-      from governance_events
-      where id = ${sqlLiteral(response.data.governance_event_id)};
-    `);
-    const storedText = stored.trim();
+      const coreClient = getCoreClient(usageAgentBody.data.token, {
+        did: usageAgentBody.data.identity.did,
+        privateKey: usageAgentBody.data.identity.privateKey,
+      });
 
-    expect(storedText).toContain('usage boundary prompt');
-    expect(storedText).toContain('usage boundary completion');
-    expect(storedText).not.toContain('input_tokens');
-    expect(storedText).not.toContain('output_tokens');
-    expect(storedText).not.toContain('total_tokens');
-    expect(storedText).not.toContain('cost_usd');
+      const event = makeGovernanceEvent({
+        event_type: 'ActivityCompleted',
+        activity_id: `usage-cost-wire-${usageWireCase.caseId}-${Date.now()}`,
+        activity_type: 'LLMCompleted',
+        llm_model: 'openbox-sdk-usage-boundary',
+        input_tokens: usageWireCase.input_tokens,
+        output_tokens: usageWireCase.output_tokens,
+        total_tokens: usageWireCase.total_tokens,
+        cost_usd: usageWireCase.cost_usd,
+        prompt: usageWireCase.prompt,
+        completion: usageWireCase.completion,
+        finish_reason: 'stop',
+        activity_input: [{ prompt: usageWireCase.prompt }],
+        activity_output: { completion: usageWireCase.completion },
+      });
 
-    const metrics = await runLocalStackSql(`
-      select count(*)
-      from observability_metrics
-      where agent_id = ${sqlLiteral(agentId)}
-        and metric_key in ('input_tokens', 'output_tokens', 'total_tokens', 'cost_usd')
-        and metric_value in (0, 11, 13, 24);
-    `);
+      const response = await coreClient.post(evaluateOperation.path, event);
 
-    expect(Number(metrics.trim())).toBe(0);
+      expect(response.status, usageWireCase.caseId).toBe(200);
+      expect(response.data, usageWireCase.caseId).toHaveProperty('verdict', 'allow');
+      expect(response.data, usageWireCase.caseId).toHaveProperty('governance_event_id');
+
+      const stored = await readGovernanceEventStorageText(response.data.governance_event_id);
+      const storedText = stored.trim();
+
+      expect(storedText, usageWireCase.caseId).toContain(usageWireCase.prompt);
+      expect(storedText, usageWireCase.caseId).toContain(usageWireCase.completion);
+      expect(storedText, usageWireCase.caseId).not.toContain('input_tokens');
+      expect(storedText, usageWireCase.caseId).not.toContain('output_tokens');
+      expect(storedText, usageWireCase.caseId).not.toContain('total_tokens');
+      expect(storedText, usageWireCase.caseId).not.toContain('cost_usd');
+
+      const usageMetricRows = await waitForUsageMetricRows(
+        usageAgentId,
+        usageWireCase.expectedMetricRows,
+      );
+      expect(usageMetricRows, usageWireCase.caseId).toEqual(usageWireCase.expectedMetricRows);
+      const metricKeys = usageMetricRows.map((row) => row.metricKey);
+      expect(metricKeys, usageWireCase.caseId).not.toContain('cost_usd');
+      expect(metricKeys, usageWireCase.caseId).not.toContain('total_tokens');
+    }
   });
 
   it('EXHAUSTIVE_SPEC_PROOF: core governance finite payload members are accepted', async () => {
@@ -767,13 +803,9 @@ describe('Core Governance API', () => {
     expect(response.status).toBe(200);
     expect(response.data).toHaveProperty('governance_event_id');
 
-    const stored = await runLocalStackSql(`
-      select
-        coalesce(input::text, '') || E'\\n---SPANS---\\n' ||
-        coalesce(spans::text, '')
-      from governance_events
-      where id = ${sqlLiteral(response.data.governance_event_id)};
-    `);
+    const stored = await readGovernanceEventInputAndSpansText(
+      response.data.governance_event_id,
+    );
 
     expect(stored).toContain('_openbox_source');
     expect(stored).toContain('source-attribution');
@@ -789,10 +821,6 @@ describe('Core Governance API', () => {
     // this redacted guardrail path; OPA matrix covers allow, require_approval,
     // block, and halt.
     expect('SCENARIO_PROOF: guardrail-redact').toContain('guardrail-redact');
-    const guardrailProviderStub: Server = await startGuardrailProviderStub({
-      port: 8182,
-      paths: ['/api/v1/guardrails/evaluate'],
-    });
     const createdGuardrailIds: string[] = [];
     try {
       const coreClient = getCoreClient(apiKey, agentIdentity);
@@ -802,6 +830,7 @@ describe('Core Governance API', () => {
         {
           inputType: 'activity_input',
           processingStage: '0',
+          fieldsToCheck: ['input.0.text'],
           event: makeGovernanceEvent({
             event_type: 'ActivityStarted',
             activity_id: 'core-guardrail-redaction-input',
@@ -819,6 +848,7 @@ describe('Core Governance API', () => {
         {
           inputType: 'activity_output',
           processingStage: '1',
+          fieldsToCheck: ['output.text'],
           event: makeGovernanceEvent({
             event_type: 'ActivityCompleted',
             activity_id: 'core-guardrail-redaction-output',
@@ -843,6 +873,15 @@ describe('Core Governance API', () => {
             guardrail_type: '1',
             processing_stage: testCase.processingStage,
             trust_impact: 'none',
+            params: {},
+            settings: {
+              activities: [
+                {
+                  activity_type: testCase.event.activity_type,
+                  fields_to_check: testCase.fieldsToCheck,
+                },
+              ],
+            },
           }),
         );
         const createGuardrailBody = fullResponse(createGuardrailResponse);
@@ -858,7 +897,7 @@ describe('Core Governance API', () => {
           input_type: testCase.inputType,
           validation_passed: true,
         });
-        expect(JSON.stringify(response.data.guardrails_result)).toContain('[redacted-email]');
+        expect(JSON.stringify(response.data.guardrails_result)).toContain('<EMAIL_ADDRESS>');
         observedInputTypes.add(response.data.guardrails_result.input_type);
       }
 
@@ -870,9 +909,6 @@ describe('Core Governance API', () => {
       for (const id of createdGuardrailIds.reverse()) {
         await backendClient.delete(`/agent/${agentId}/guardrails/${id}`);
       }
-      await new Promise<void>((resolve, reject) => {
-        guardrailProviderStub.close((error) => error ? reject(error) : resolve());
-      });
     }
   });
 
@@ -881,9 +917,9 @@ describe('Core Governance API', () => {
     const operation = coreOperation('pollApproval');
     expect(operation.verb).toBe('post');
     const payload = {
-      workflow_id: 'fake',
-      run_id: 'fake',
-      activity_id: 'fake',
+      workflow_id: 'unknown-workflow',
+      run_id: 'unknown-run',
+      activity_id: 'unknown-activity',
     };
 
     const response = await coreClient.post(operationPath(operation.path, {}), payload);
@@ -952,12 +988,14 @@ describe('Core Governance API', () => {
     expect(createPolicyBody.data.rego_code).toContain('REQUIRE_APPROVAL');
 
     trackResource({ type: 'policy', id: createPolicyBody.data.id, agentId });
-    await sleep(Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 6000));
+    await waitForOpaPolicyPath(createPolicyBody);
 
     const coreClient = getCoreClient(apiKey, agentIdentity);
+    const approvalEvent = scopedGovernanceEvent(conformanceCase.event, 'approval-pending');
+    const approvalPollRequest = scopedPollRequest(conformanceCase.pollRequest, approvalEvent);
     const evaluateResponse = await coreClient.post(
       evaluateOperation.path,
-      conformanceCase.event,
+      approvalEvent,
     );
 
     expect(evaluateResponse.status).toBe(200);
@@ -968,7 +1006,7 @@ describe('Core Governance API', () => {
 
     const pollResponse = await coreClient.post(
       pollOperation.path,
-      conformanceCase.pollRequest,
+      approvalPollRequest,
     );
 
     expect(pollResponse.status).toBe(200);
@@ -1029,9 +1067,11 @@ describe('Core Governance API', () => {
     expect(historyApproval.approval_status ?? historyApproval.status).toBe('approved');
 
     const rejectedCase = makeRequireApprovalPolicyConformanceCase();
+    const rejectedEvent = scopedGovernanceEvent(rejectedCase.event, 'approval-rejected');
+    const rejectedPollRequest = scopedPollRequest(rejectedCase.pollRequest, rejectedEvent);
     const rejectEvaluateResponse = await coreClient.post(
       evaluateOperation.path,
-      rejectedCase.event,
+      rejectedEvent,
     );
 
     expect(rejectEvaluateResponse.status).toBe(200);
@@ -1040,7 +1080,7 @@ describe('Core Governance API', () => {
 
     const rejectPollResponse = await coreClient.post(
       pollOperation.path,
-      rejectedCase.pollRequest,
+      rejectedPollRequest,
     );
 
     expect(rejectPollResponse.status).toBe(200);
@@ -1103,12 +1143,14 @@ describe('Core Governance API', () => {
     expect(createPolicyBody.data.id).toBeDefined();
 
     trackResource({ type: 'policy', id: createPolicyBody.data.id, agentId });
-    await sleep(Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 6000));
+    await waitForOpaPolicyPath(createPolicyBody);
 
     const coreClient = getCoreClient(apiKey, agentIdentity);
+    const expirationEvent = scopedGovernanceEvent(conformanceCase.event, 'approval-expired');
+    const expirationPollRequest = scopedPollRequest(conformanceCase.pollRequest, expirationEvent);
     const evaluateResponse = await coreClient.post(
       evaluateOperation.path,
-      conformanceCase.event,
+      expirationEvent,
     );
 
     expect(evaluateResponse.status).toBe(200);
@@ -1118,24 +1160,18 @@ describe('Core Governance API', () => {
     const eventId = evaluateResponse.data.governance_event_id;
     const pollBeforeExpiration = await coreClient.post(
       pollOperation.path,
-      conformanceCase.pollRequest,
+      expirationPollRequest,
     );
 
     expect(pollBeforeExpiration.status).toBe(200);
     expect(pollBeforeExpiration.data).toHaveProperty('action', conformanceCase.expected.action);
     expect(pollBeforeExpiration.data).toHaveProperty('approval_expiration_time');
 
-    await runLocalStackSql(`
-      update governance_events
-      set approval_expired_at = now() - interval '1 minute',
-          updated_at = now()
-      where id = ${sqlLiteral(eventId)}
-      returning id;
-    `);
+    await expireGovernanceApproval(eventId);
 
     const pollAfterExpiration = await coreClient.post(
       pollOperation.path,
-      conformanceCase.pollRequest,
+      expirationPollRequest,
     );
 
     expect(pollAfterExpiration.status).toBe(200);
@@ -1285,7 +1321,7 @@ describe('Core Governance API', () => {
     expect(createPolicyBody.data.rego_code).toContain('REQUIRE_APPROVAL');
 
     trackResource({ type: 'policy', id: createPolicyBody.data.id, agentId });
-    await sleep(Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 6000));
+    await waitForOpaPolicyPath(createPolicyBody);
 
     const coreClient = getCoreClient(apiKey, agentIdentity);
 
@@ -1297,7 +1333,8 @@ describe('Core Governance API', () => {
       expect(matrixCase.event.activity_type).toBe(matrixCase.activityType);
       expect(matrixCase.event.spans?.[0]?.semantic_type).toBe(matrixCase.semanticType);
 
-      const response = await coreClient.post(evaluateOperation.path, matrixCase.event);
+      const event = scopedGovernanceEvent(matrixCase.event, `opa-matrix-${matrixCase.expected.verdict}`);
+      const response = await coreClient.post(evaluateOperation.path, event);
 
       expect(response.status).toBe(200);
       expect(response.data).toHaveProperty('verdict', matrixCase.expected.verdict);
@@ -1337,12 +1374,13 @@ describe('Core Governance API', () => {
     expect(createPolicyBody.data.id).toBeDefined();
 
     trackResource({ type: 'policy', id: createPolicyBody.data.id, agentId });
-    await sleep(Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 6000));
+    await waitForOpaPolicyPath(createPolicyBody);
 
     const coreClient = getCoreClient(apiKey, agentIdentity);
 
     for (const matrixCase of aliasCase.cases) {
-      const response = await coreClient.post(evaluateOperation.path, matrixCase.event);
+      const event = scopedGovernanceEvent(matrixCase.event, `opa-alias-${matrixCase.expected.verdict}`);
+      const response = await coreClient.post(evaluateOperation.path, event);
 
       expect(response.status, matrixCase.name).toBe(200);
       expect(response.data, matrixCase.name).toHaveProperty('verdict', matrixCase.expected.verdict);
@@ -1384,10 +1422,11 @@ describe('Core Governance API', () => {
     expect(createPolicyBody.data.id).toBeDefined();
 
     trackResource({ type: 'policy', id: createPolicyBody.data.id, agentId });
-    await sleep(Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 6000));
+    await waitForOpaPolicyPath(createPolicyBody);
 
     const coreClient = getCoreClient(apiKey, agentIdentity);
-    const response = await coreClient.post(evaluateOperation.path, constrainCase.event);
+    const event = scopedGovernanceEvent(constrainCase.event, 'opa-constrain');
+    const response = await coreClient.post(evaluateOperation.path, event);
 
     expect(response.status).toBe(200);
     expect(response.data).toHaveProperty('verdict', constrainCase.expected.verdict);
@@ -1395,14 +1434,14 @@ describe('Core Governance API', () => {
     expect(response.data).toHaveProperty('reason', constrainCase.expected.reason);
   });
 
-  it('CONFORMANCE: fails closed when OPA is unavailable for an active policy', async () => {
+  itIfIsolatedOpaUnavailable('CONFORMANCE: fails closed when OPA is unavailable for an active policy', async () => {
     // CONFORMANCE_PROOF: the generated OPA unavailable scenario uses a real
-    // active blocking policy, stops the local OPA sidecar, and proves Core
-    // returns "OPA unavailable - fail-closed security policy applied" with a
-    // halt verdict instead of allowing the action.
+    // active blocking policy and an isolated Core lane whose OPA_URL points to
+    // an unavailable endpoint. The shared local OPA sidecar is never stopped.
     expect(['SCENARIO_PROOF: opa-unavailable-fail-closed']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: opa-unavailable-fail-closed']),
     );
+    expect(process.env.OPENBOX_E2E_ISOLATED_OPA_UNAVAILABLE).toBe('1');
     const conformanceCase = makeOpaUnavailableFailClosedConformanceCase();
     const createPolicyOperation = backendOperation(conformanceCase.createPolicyOperationId);
     const evaluateOperation = coreOperation(conformanceCase.evaluateOperationId);
@@ -1423,66 +1462,46 @@ describe('Core Governance API', () => {
     expect(createPolicyBody.data.id).toBeDefined();
 
     trackResource({ type: 'policy', id: createPolicyBody.data.id, agentId });
-    await sleep(Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 6000));
 
     const coreClient = getCoreClient(apiKey, agentIdentity);
-    const availableResponse = await coreClient.post(
+    const suffix = Date.now();
+    const unavailableEvent = {
+      ...conformanceCase.event,
+      workflow_id: `sdk-opa-unavailable-${suffix}`,
+      run_id: `run-opa-unavailable-${suffix}`,
+      activity_id: `opa-unavailable-active-policy-${suffix}`,
+    };
+    const unavailableResponse = await coreClient.post(
       evaluateOperation.path,
-      conformanceCase.event,
+      unavailableEvent,
     );
 
-    expect(availableResponse.status).toBe(200);
-    expect(availableResponse.data).toHaveProperty(
+    expect(unavailableResponse.status).toBe(200);
+    expect(unavailableResponse.data).toHaveProperty(
       'verdict',
-      conformanceCase.expected.availableVerdict,
+      conformanceCase.expected.unavailableVerdict,
     );
-    expect(availableResponse.data).toHaveProperty(
+    expect(unavailableResponse.data).toHaveProperty(
       'action',
-      conformanceCase.expected.availableAction,
+      conformanceCase.expected.unavailableAction,
     );
-
-    await ensureOpaSidecarContainer();
-    await stopOpaSidecar();
-    try {
-      const unavailableResponse = await coreClient.post(
-        evaluateOperation.path,
-        {
-          ...conformanceCase.event,
-          activity_id: 'opa-unavailable-active-policy',
-        },
-      );
-
-      expect(unavailableResponse.status).toBe(200);
-      expect(unavailableResponse.data).toHaveProperty(
-        'verdict',
-        conformanceCase.expected.unavailableVerdict,
-      );
-      expect(unavailableResponse.data).toHaveProperty(
-        'action',
-        conformanceCase.expected.unavailableAction,
-      );
-      expect(unavailableResponse.data).toHaveProperty(
-        'reason',
-        conformanceCase.expected.unavailableReason,
-      );
-    } finally {
-      await startOpaSidecar();
-    }
+    expect(unavailableResponse.data).toHaveProperty(
+      'reason',
+      conformanceCase.expected.unavailableReason,
+    );
   });
 
-  it('CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE fallback', async () => {
+  it('CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE result', async () => {
     // CONFORMANCE_PROOF: the generated goal/order scenario IDs drive a
     // SignalReceived event that precedes the firstGovernedSurface. The
-    // same Core AGE result asserts goal_alignment_checked and fallback_used
-    // so goal fallback is visible instead of silently turning into allow.
+    // same Core AGE result asserts goal_alignment_checked and fallback_used,
+    // so the healthy AGE path cannot silently hide fallback state.
     expect([
       'SCENARIO_PROOF: behavior-order-goal-before-action',
       'SCENARIO_PROOF: goal-alignment-checked',
-      'SCENARIO_PROOF: goal-drift-fallback',
     ]).toEqual(expect.arrayContaining([
       'SCENARIO_PROOF: behavior-order-goal-before-action',
       'SCENARIO_PROOF: goal-alignment-checked',
-      'SCENARIO_PROOF: goal-drift-fallback',
     ]));
     const conformanceCase = makeGoalSignalOrderConformanceCase();
     const evaluateOperation = coreOperation(conformanceCase.evaluateOperationId);
@@ -1564,6 +1583,48 @@ describe('Core Governance API', () => {
     expect(observedOrder.indexOf(conformanceCase.expected.firstEventType)).toBeLessThan(
       observedOrder.indexOf(firstGovernedSurface),
     );
+  });
+
+  itIfIsolatedAgeUnavailable('CONFORMANCE: AGE unavailable surfaces goal drift fallback', async () => {
+    // SCENARIO_PROOF: goal-drift-fallback
+    // CONFORMANCE_PROOF: this test is only enabled by the isolated Core runner,
+    // which starts Core with AGE_URL pointed at an unavailable local port.
+    // The fallback flag must be true on the governed action response.
+    expect(process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE).toBe('1');
+    expect('AGE unavailable').toBe('AGE unavailable');
+    expect(['SCENARIO_PROOF: goal-drift-fallback']).toEqual(
+      expect.arrayContaining(['SCENARIO_PROOF: goal-drift-fallback']),
+    );
+    const conformanceCase = makeGoalSignalOrderConformanceCase();
+    const evaluateOperation = coreOperation(conformanceCase.evaluateOperationId);
+    const coreClient = getCoreClient(apiKey, agentIdentity);
+    const suffix = Date.now();
+    const workflowId = `sdk-age-unavailable-${suffix}`;
+    const runId = `run-age-unavailable-${suffix}`;
+    const goalSignalEvent = {
+      ...conformanceCase.goalSignalEvent,
+      workflow_id: workflowId,
+      run_id: runId,
+      activity_id: `goal-age-unavailable-${suffix}`,
+    };
+    const governedEvent = {
+      ...conformanceCase.firstGovernedEvent,
+      workflow_id: workflowId,
+      run_id: runId,
+      activity_id: `action-age-unavailable-${suffix}`,
+    };
+
+    const signalResponse = await coreClient.post(evaluateOperation.path, goalSignalEvent);
+    expect(signalResponse.status).toBe(200);
+
+    const actionResponse = await coreClient.post(evaluateOperation.path, governedEvent);
+    expect(actionResponse.status).toBe(200);
+    expect(actionResponse.data).toHaveProperty('fallback_used', true);
+    expect(actionResponse.data.age_result).toMatchObject({
+      goal_alignment_checked: expect.any(Boolean),
+      fallback_used: true,
+    });
+    expect(actionResponse.data.age_result).toHaveProperty('fallback_used', true);
   });
 
   afterAll(async () => {

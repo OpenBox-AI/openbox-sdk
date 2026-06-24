@@ -38,9 +38,9 @@ CASE_KINDS = [
     "type",
 ]
 
-KNOWN_GOVERNANCE_GAP_CLOSURE_CASES: list[Rule] = [
+GOVERNANCE_REQUEST_CONSTRAINT_CASES: list[Rule] = [
     {
-        "id": "approval-status-invalid-query-not-rejected",
+        "id": "approval-status-invalid-query",
         "operations": [
             "AgentController_getPendingApprovals",
             "AgentController_getApprovalHistory",
@@ -50,7 +50,7 @@ KNOWN_GOVERNANCE_GAP_CLOSURE_CASES: list[Rule] = [
         "enum": ["pending", "approved", "rejected", "expired"],
     },
     {
-        "id": "core-governance-attempt-min-not-rejected",
+        "id": "core-governance-attempt-min",
         "operations": ["evaluateGovernance"],
         "location": "body.attempt",
         "type": "integer",
@@ -58,21 +58,21 @@ KNOWN_GOVERNANCE_GAP_CLOSURE_CASES: list[Rule] = [
         "integer": True,
     },
     {
-        "id": "core-governance-timestamp-format-not-rejected",
+        "id": "core-governance-timestamp-format",
         "operations": ["evaluateGovernance"],
         "location": "body.timestamp",
         "type": "string",
         "format": "date-time",
     },
     {
-        "id": "core-governance-cost-type-not-rejected",
+        "id": "core-governance-cost-type",
         "operations": ["evaluateGovernance"],
         "location": "body.cost_usd",
         "type": "number",
         "format": "double",
     },
     {
-        "id": "backend-agent-evaluations-query-boundaries-not-rejected",
+        "id": "backend-agent-evaluations-query-boundaries",
         "operations": ["AgentController_getAgentEvaluations"],
         "location": "query.page|query.perPage|query.pattern",
         "page_minimum": 0,
@@ -81,7 +81,7 @@ KNOWN_GOVERNANCE_GAP_CLOSURE_CASES: list[Rule] = [
     },
 ]
 
-EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS = [
+EXPECTED_FORMER_GAP_CONSTRAINT_KEYS = [
     "backend:AgentController_getAgentEvaluations:query.page:minimum",
     "backend:AgentController_getAgentEvaluations:query.pattern:maxLength",
     "backend:AgentController_getAgentEvaluations:query.perPage:minimum",
@@ -130,12 +130,12 @@ def test_python_core_request_preflight_exhausts_every_generated_constraint() -> 
     assert result["type"] > 0
 
 
-def test_python_known_governance_gap_closures_are_generated() -> None:
+def test_python_governance_request_constraints_are_generated() -> None:
     backend = _normalize_rules(BACKEND_REQUEST_PREFLIGHT_RULES)
     core = _normalize_rules(CORE_REQUEST_PREFLIGHT_RULES)
 
-    for case in KNOWN_GOVERNANCE_GAP_CLOSURE_CASES:
-        if case["id"] == "approval-status-invalid-query-not-rejected":
+    for case in GOVERNANCE_REQUEST_CONSTRAINT_CASES:
+        if case["id"] == "approval-status-invalid-query":
             for operation_id in case["operations"]:
                 _assert_query_rule(
                     backend,
@@ -143,28 +143,28 @@ def test_python_known_governance_gap_closures_are_generated() -> None:
                     "status",
                     {"enum": case["enum"]},
                 )
-        elif case["id"] == "core-governance-attempt-min-not-rejected":
+        elif case["id"] == "core-governance-attempt-min":
             _assert_body_rule(
                 core,
                 "evaluateGovernance",
                 ["attempt"],
                 {"type": case["type"], "minimum": case["minimum"], "integer": case["integer"]},
             )
-        elif case["id"] == "core-governance-timestamp-format-not-rejected":
+        elif case["id"] == "core-governance-timestamp-format":
             _assert_body_rule(
                 core,
                 "evaluateGovernance",
                 ["timestamp"],
                 {"type": case["type"], "format": case["format"]},
             )
-        elif case["id"] == "core-governance-cost-type-not-rejected":
+        elif case["id"] == "core-governance-cost-type":
             _assert_body_rule(
                 core,
                 "evaluateGovernance",
                 ["cost_usd"],
                 {"type": case["type"], "format": case["format"]},
             )
-        elif case["id"] == "backend-agent-evaluations-query-boundaries-not-rejected":
+        elif case["id"] == "backend-agent-evaluations-query-boundaries":
             _assert_query_rule(
                 backend,
                 "AgentController_getAgentEvaluations",
@@ -184,12 +184,12 @@ def test_python_known_governance_gap_closures_are_generated() -> None:
                 {"max_length": case["pattern_max_length"]},
             )
         else:
-            raise AssertionError(f"unhandled gap closure case: {case['id']}")
+            raise AssertionError(f"unhandled request constraint case: {case['id']}")
 
 
-def test_python_known_governance_gap_closures_cover_every_raw_constraint_key() -> None:
-    cases = _raw_semantic_gap_constraint_cases()
-    assert [case["key"] for case in cases] == EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS
+def test_python_governance_request_constraints_cover_every_former_gap_key() -> None:
+    cases = _former_gap_constraint_cases()
+    assert [case["key"] for case in cases] == EXPECTED_FORMER_GAP_CONSTRAINT_KEYS
 
 
 @pytest.mark.asyncio
@@ -244,10 +244,10 @@ async def test_python_clients_apply_generated_preflight_before_transport() -> No
 
 
 @pytest.mark.asyncio
-async def test_python_clients_block_every_raw_semantic_gap_constraint_before_transport() -> None:
+async def test_python_clients_block_every_former_gap_constraint_before_transport() -> None:
     requests: list[httpx.Request] = []
-    cases = _raw_semantic_gap_constraint_cases()
-    assert [case["key"] for case in cases] == EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS
+    cases = _former_gap_constraint_cases()
+    assert [case["key"] for case in cases] == EXPECTED_FORMER_GAP_CONSTRAINT_KEYS
 
     async def transport(request: httpx.Request) -> httpx.Response:
         requests.append(request)
@@ -281,7 +281,7 @@ async def test_python_clients_block_every_raw_semantic_gap_constraint_before_tra
 
 
 @pytest.mark.asyncio
-async def test_python_clients_block_known_governance_gaps_before_transport() -> None:
+async def test_python_clients_block_former_backend_core_gap_inputs_before_transport() -> None:
     requests: list[httpx.Request] = []
 
     async def transport(request: httpx.Request) -> httpx.Response:
@@ -638,9 +638,9 @@ def _transport_gated_public_method_constraint_keys() -> list[str]:
     return sorted(keys)
 
 
-def _raw_semantic_gap_constraint_cases() -> list[Rule]:
+def _former_gap_constraint_cases() -> list[Rule]:
     cases: list[Rule] = []
-    expected_keys = set(EXPECTED_RAW_SEMANTIC_GAP_CONSTRAINT_KEYS)
+    expected_keys = set(EXPECTED_FORMER_GAP_CONSTRAINT_KEYS)
     for service, rules in [
         ("backend", _normalize_rules(BACKEND_REQUEST_PREFLIGHT_RULES)),
         ("core", _normalize_rules(CORE_REQUEST_PREFLIGHT_RULES)),

@@ -152,9 +152,7 @@ describe('generated request preflight conformance', () => {
     expect(result.caseCounts.type).toBeGreaterThan(0);
   });
 
-  it('keeps every raw semantic gap closure represented in generated preflight', () => {
-    const backend = normalizeRules(BACKEND_REQUEST_PREFLIGHT_RULES);
-    const core = normalizeRules(CORE_REQUEST_PREFLIGHT_RULES);
+  it('has no raw semantic gap closure constraints after backend/Core validation closure', () => {
     const ledger = buildRequestConstraintConformance();
     const rawGapConstraints = ledger.constraints.filter(
       (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
@@ -164,27 +162,7 @@ describe('generated request preflight conformance', () => {
     expect(ledger.summary.provenRawSemanticGapClosures).toEqual(
       ledger.summary.knownRawSemanticGaps,
     );
-    expect(rawGapConstraints.length).toBeGreaterThan(0);
-
-    for (const constraint of rawGapConstraints) {
-      const rules = constraint.service === 'backend' ? backend : core;
-      const rule = ruleFor(rules, constraint.operationId);
-      expect(rule, constraint.key).toBeDefined();
-
-      if (constraint.location.startsWith('query.')) {
-        const name = constraint.location.slice('query.'.length);
-        expect(
-          rule?.query?.find((entry) => entry.name === name),
-          constraint.key,
-        ).toMatchObject({ [constraint.kind]: constraint.value });
-      } else {
-        const path = constraint.location.slice('body.'.length);
-        expect(
-          rule?.body?.find((entry) => entry.path.join('.') === path),
-          constraint.key,
-        ).toMatchObject({ [constraint.kind]: constraint.value });
-      }
-    }
+    expect(rawGapConstraints).toEqual([]);
   });
 });
 

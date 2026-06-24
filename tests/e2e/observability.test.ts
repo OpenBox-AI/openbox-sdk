@@ -3,7 +3,13 @@ import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoin
 import { getBackendClient, fullResponse, getOrgId, getTeamIds } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  seedLocalStackAgeEvaluation,
+  seedLocalStackGovernanceEvent,
+  seedLocalStackObservabilityIssue,
+  seedLocalStackObservabilityMetric,
+  seedLocalStackSession,
+} from '../helpers/local-stack-db';
 
 function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
@@ -27,151 +33,55 @@ describe('Observability & Monitoring', () => {
   async function ensureObservabilityLedger() {
     if (governanceEventId && issueId) return;
 
-    const seedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'observability-wf-' || gen_random_uuid(),
-          'observability-run-' || gen_random_uuid(),
-          'completed',
-          'observability ledger conformance',
-          now() - interval '2 minutes',
-          now() - interval '1 minute',
-          now(),
-          '{"openbox_conformance":true,"source":"observability.e2e"}'::jsonb
-        )
-        returning id, workflow_id, run_id
-      ),
-      seeded_event as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          session_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          metadata
-        )
-        select
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          seeded_session.workflow_id,
-          seeded_session.run_id,
-          'sdk-conformance',
-          'local-stack',
-          'observability-ledger',
-          'LLMCompletion',
-          1,
-          '[{"prompt":"observability ledger conformance"}]'::jsonb,
-          '{"response":"observability ledger"}'::jsonb,
-          1,
-          'observability ledger conformance',
-          '{"openbox_conformance":true,"source":"observability.e2e"}'::jsonb
-        from seeded_session
-        returning id, session_id
-      ),
-      seeded_age as (
-        insert into age_evaluations (
-          agent_id,
-          session_id,
-          governance_event_id,
-          semantic_type,
-          goal_alignment_checked,
-          goal_drift,
-          behavior_violated,
-          behavior_compliance_detail,
-          trust_score,
-          trust_tier,
-          behavioral_compliance,
-          alignment_consistency,
-          evaluated_at
-        )
-        select
-          ${sqlLiteral(agentId)},
-          seeded_event.session_id,
-          seeded_event.id,
-          'llm_gen_ai',
-          true,
-          false,
-          true,
-          '{"reason":"observability violation ledger"}'::text,
-          70,
-          2,
-          40,
-          100,
-          now()
-        from seeded_event
-        returning id
-      ),
-      seeded_issue as (
-        insert into observability_issues (
-          agent_id,
-          session_id,
-          governance_event_id,
-          issue_type,
-          severity,
-          title,
-          source_tool,
-          source_workflow_id
-        )
-        select
-          ${sqlLiteral(agentId)},
-          seeded_event.session_id,
-          seeded_event.id,
-          'policy_violation',
-          'high',
-          'observability ledger issue',
-          'sdk-e2e',
-          'observability-ledger'
-        from seeded_event
-        returning id
-      ),
-      seeded_metric as (
-        insert into observability_metrics (
-          agent_id,
-          organization_id,
-          bucket_time,
-          metric_type,
-          metric_key,
-          metric_value
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          ${sqlLiteral(getOrgId())},
-          now(),
-          'tokens',
-          'input_tokens',
-          123
-        )
-        returning id
-      )
-      select
-        (select id from seeded_event) || '|' ||
-        (select id from seeded_issue) || '|' ||
-        (select id from seeded_metric);
-    `);
-    const seedLine = seedOutput.trim().split('\n').at(-1)!;
-    [governanceEventId, issueId] = seedLine.split('|');
+    const session = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'observability-wf-',
+      runIdPrefix: 'observability-run-',
+      detail: 'observability ledger conformance',
+      metadata: { openbox_conformance: true, source: 'observability.e2e' },
+    });
+    const event = await seedLocalStackGovernanceEvent({
+      agentId,
+      session,
+      activityId: 'observability-ledger',
+      activityType: 'LLMCompletion',
+      input: [{ prompt: 'observability ledger conformance' }],
+      output: { response: 'observability ledger' },
+      verdict: 1,
+      reason: 'observability ledger conformance',
+      metadata: { openbox_conformance: true, source: 'observability.e2e' },
+    });
+    await seedLocalStackAgeEvaluation({
+      agentId,
+      sessionId: session.id,
+      governanceEventId: event.id,
+      semanticType: 'llm_gen_ai',
+      behaviorViolated: true,
+      behaviorComplianceDetail: '{"reason":"observability violation ledger"}',
+      trustScore: 70,
+      trustTier: 2,
+      behavioralCompliance: 40,
+      alignmentConsistency: 100,
+    });
+    const seededIssueId = await seedLocalStackObservabilityIssue({
+      agentId,
+      sessionId: session.id,
+      governanceEventId: event.id,
+      issueType: 'policy_violation',
+      severity: 'high',
+      title: 'observability ledger issue',
+      sourceTool: 'sdk-e2e',
+      sourceWorkflowId: 'observability-ledger',
+    });
+    await seedLocalStackObservabilityMetric({
+      agentId,
+      organizationId: getOrgId(),
+      metricType: 'tokens',
+      metricKey: 'input_tokens',
+      metricValue: 123,
+    });
+    governanceEventId = event.id;
+    issueId = seededIssueId;
   }
 
   beforeAll(async () => {

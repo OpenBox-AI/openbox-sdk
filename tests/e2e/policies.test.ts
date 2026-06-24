@@ -14,7 +14,11 @@ import {
   makeCreatePolicyDto,
   makeEvaluateRegoConformanceCase,
 } from '../helpers/fixtures';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  seedLocalStackGovernanceEvent,
+  seedLocalStackPolicyEvaluation,
+  seedLocalStackSession,
+} from '../helpers/local-stack-db';
 
 const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && hasOrgId();
 const describeOrSkip = CAN_RUN ? describe : describe.skip;
@@ -401,93 +405,36 @@ describeOrSkip('Policies', () => {
     expect('SCENARIO_PROOF: policy-lifecycle-evaluations-metrics').toContain(
       'policy-lifecycle-evaluations-metrics',
     );
-    const seedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'policy-eval-wf-' || gen_random_uuid(),
-          'policy-eval-run-' || gen_random_uuid(),
-          'completed',
-          'policy evaluation ledger',
-          now() - interval '2 minutes',
-          now() - interval '1 minute',
-          now(),
-          '{"openbox_conformance":true,"source":"policies.e2e"}'::jsonb
-        )
-        returning id, workflow_id, run_id
-      ),
-      seeded_event as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          session_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          metadata
-        )
-        select
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          seeded_session.workflow_id,
-          seeded_session.run_id,
-          'sdk-conformance',
-          'local-stack',
-          'policy-evaluation-ledger',
-          'DatabaseQuery',
-          1,
-          '[{"query":"select * from payments"}]'::jsonb,
-          '{"decision":"block"}'::jsonb,
-          1,
-          'policy evaluation ledger',
-          '{"openbox_conformance":true,"source":"policies.e2e"}'::jsonb
-        from seeded_session
-        returning id
-      ),
-      seeded_policy_evaluation as (
-        insert into policy_evaluations (
-          policy_id,
-          governance_event_id,
-          input,
-          output,
-          evaluation_result,
-          evaluation_details,
-          slug
-        )
-        select
-          ${sqlLiteral(policyId)},
-          seeded_event.id,
-          '{"query":"select * from payments"}',
-          '{"decision":"block"}',
-          'block',
-          '{"reason":"policy evaluation ledger","decision_distribution":"block"}'::jsonb,
-          'policy-evaluation-ledger'
-        from seeded_event
-        returning id
-      )
-      select id from seeded_policy_evaluation;
-    `);
-    const policyEvaluationId = seedOutput.trim().split('\n').at(-1)!;
+    const session = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'policy-eval-wf-',
+      runIdPrefix: 'policy-eval-run-',
+      detail: 'policy evaluation ledger',
+      metadata: { openbox_conformance: true, source: 'policies.e2e' },
+    });
+    const event = await seedLocalStackGovernanceEvent({
+      agentId,
+      session,
+      activityId: 'policy-evaluation-ledger',
+      activityType: 'DatabaseQuery',
+      input: [{ query: 'select * from payments' }],
+      output: { decision: 'block' },
+      verdict: 1,
+      reason: 'policy evaluation ledger',
+      metadata: { openbox_conformance: true, source: 'policies.e2e' },
+    });
+    const policyEvaluationId = await seedLocalStackPolicyEvaluation({
+      policyId,
+      governanceEventId: event.id,
+      input: { query: 'select * from payments' },
+      output: { decision: 'block' },
+      evaluationResult: 'block',
+      evaluationDetails: {
+        reason: 'policy evaluation ledger',
+        decision_distribution: 'block',
+      },
+      slug: 'policy-evaluation-ledger',
+    });
 
     const evaluationsResponse = await client.get(
       `/agent/${agentId}/policies/${policyId}/evaluations`,

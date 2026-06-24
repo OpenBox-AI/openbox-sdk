@@ -5,7 +5,7 @@ import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import { deleteLocalStackAuditLog, seedLocalStackAuditLog } from '../helpers/local-stack-db';
 
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
@@ -36,34 +36,16 @@ describe('Audit Logs', () => {
     let logId: string | undefined;
 
     try {
-      const seedOutput = await runLocalStackSql(`
-        insert into organization_audit_logs (
-          organization_id,
-          event_type,
-          actor_id,
-          actor_name,
-          action,
-          resource_type,
-          result,
-          details,
-          created_at
-        )
-        values (
-          ${sqlLiteral(getOrgId())},
-          'security_event',
-          'sdk-e2e-audit-detail',
-          'OpenBox SDK',
-          'sdk deterministic audit detail',
-          'sdk_e2e',
-          'success',
-          '{"sdk_e2e": true}'::jsonb,
-          now()
-        )
-        returning id;
-      `);
-      const seededLogId = seedOutput.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
-      expect(seededLogId).toBeDefined();
-      logId = seededLogId!;
+      logId = await seedLocalStackAuditLog({
+        organizationId: getOrgId(),
+        eventType: 'security_event',
+        actorId: 'sdk-e2e-audit-detail',
+        actorName: 'OpenBox SDK',
+        action: 'sdk deterministic audit detail',
+        resourceType: 'sdk_e2e',
+        result: 'success',
+        details: { sdk_e2e: true },
+      });
 
       const response = await client.get(`${operationPath(listOperation.path, {})}?search=sdk%20deterministic%20audit%20detail`);
       const body = fullResponse(response);
@@ -84,10 +66,7 @@ describe('Audit Logs', () => {
       });
     } finally {
       if (logId) {
-        await runLocalStackSql(`
-          delete from organization_audit_logs
-          where id = ${sqlLiteral(logId)}::uuid;
-        `);
+        await deleteLocalStackAuditLog(logId);
       }
     }
   });

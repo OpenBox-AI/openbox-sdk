@@ -7,7 +7,7 @@ import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import { seedLocalStackGovernanceEvent } from '../helpers/local-stack-db';
 import { buildRequestConstraintConformance } from '../helpers/request-constraint-conformance';
 
 function listItems(value: any): any[] {
@@ -34,13 +34,17 @@ function operationPath(path: string, params: Record<string, string>) {
   });
 }
 
-function rawApprovalStatusConstraintsFromLedger() {
+function approvalStatusConstraintsFromLedger() {
   const ledger = buildRequestConstraintConformance();
   return ledger.constraints
-    .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
-    .filter((entry) =>
-      entry.semanticGapIds.includes('approval-status-invalid-query-not-rejected'),
-    )
+    .filter((entry) => entry.service === 'backend')
+    .filter((entry) => entry.location === 'query.status')
+    .filter((entry) => entry.kind === 'enum')
+    .filter((entry) => [
+      'AgentController_getApprovalHistory',
+      'AgentController_getPendingApprovals',
+      'OrganizationController_getApprovals',
+    ].includes(entry.operationId))
     .sort((left, right) => left.key.localeCompare(right.key));
 }
 
@@ -55,89 +59,36 @@ describe('Approvals', () => {
   async function ensureApprovalDashboardLedger() {
     if (pendingApprovalId && approvedApprovalId) return;
 
-    const seedOutput = await runLocalStackSql(`
-      with pending as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          approval_expired_at,
-          metadata
-        )
-        values (
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          'approval-dashboard-wf-pending-' || gen_random_uuid(),
-          'approval-dashboard-run-pending-' || gen_random_uuid(),
-          'sdk-conformance',
-          'local-stack',
-          'approval-dashboard-pending',
-          'tool_call',
-          1,
-          '[{"tool":"approval-dashboard"}]'::jsonb,
-          '{}'::jsonb,
-          2,
-          'approval dashboard conformance pending',
-          now() + interval '5 minutes',
-          '{"openbox_conformance":true,"source":"approvals.e2e"}'::jsonb
-        )
-        returning id
-      ),
-      approved as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          decided_at,
-          decided_by,
-          approval_expired_at,
-          metadata
-        )
-        values (
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          'approval-dashboard-wf-approved-' || gen_random_uuid(),
-          'approval-dashboard-run-approved-' || gen_random_uuid(),
-          'sdk-conformance',
-          'local-stack',
-          'approval-dashboard-approved',
-          'tool_call',
-          1,
-          '[{"tool":"approval-dashboard"}]'::jsonb,
-          '{}'::jsonb,
-          0,
-          'approval dashboard conformance approved',
-          now() - interval '1 minute',
-          'sdk-e2e',
-          now() + interval '5 minutes',
-          '{"openbox_conformance":true,"source":"approvals.e2e"}'::jsonb
-        )
-        returning id
-      )
-      select (select id from pending) || '|' || (select id from approved);
-    `);
-    const seedLine = seedOutput.trim().split('\n').at(-1)!;
-    [pendingApprovalId, approvedApprovalId] = seedLine.split('|');
+    const pending = await seedLocalStackGovernanceEvent({
+      agentId,
+      workflowIdPrefix: 'approval-dashboard-wf-pending-',
+      runIdPrefix: 'approval-dashboard-run-pending-',
+      activityId: 'approval-dashboard-pending',
+      activityType: 'tool_call',
+      input: [{ tool: 'approval-dashboard' }],
+      output: {},
+      verdict: 2,
+      reason: 'approval dashboard conformance pending',
+      approvalExpiredAt: new Date(Date.now() + 5 * 60_000),
+      metadata: { openbox_conformance: true, source: 'approvals.e2e' },
+    });
+    const approved = await seedLocalStackGovernanceEvent({
+      agentId,
+      workflowIdPrefix: 'approval-dashboard-wf-approved-',
+      runIdPrefix: 'approval-dashboard-run-approved-',
+      activityId: 'approval-dashboard-approved',
+      activityType: 'tool_call',
+      input: [{ tool: 'approval-dashboard' }],
+      output: {},
+      verdict: 0,
+      reason: 'approval dashboard conformance approved',
+      decidedAt: new Date(Date.now() - 60_000),
+      decidedBy: 'sdk-e2e',
+      approvalExpiredAt: new Date(Date.now() + 5 * 60_000),
+      metadata: { openbox_conformance: true, source: 'approvals.e2e' },
+    });
+    pendingApprovalId = pending.id;
+    approvedApprovalId = approved.id;
   }
 
   beforeAll(async () => {
@@ -277,40 +228,37 @@ describe('Approvals', () => {
     }
   });
 
-  it('SEMANTIC_GAP_PROOF: approval status query out-of-domain values are accepted by local stack', async () => {
-    // SEMANTIC_GAP_PROOF: approval status query members are finite in
-    // TypeSpec, but the current local stack accepts an out-of-domain status
-    // on agent pending, agent history, and org approvals. Keep this visible
-    // until backend validation rejects invalid approval statuses.
+  it('NEGATIVE_FINITE_DOMAIN_PROOF: approval status query rejects out-of-domain values', async () => {
+    // NEGATIVE_FINITE_DOMAIN_PROOF: approval status query members are finite in
+    // TypeSpec, and the local backend must reject out-of-domain values before
+    // returning approval list payloads.
     await ensureApprovalDashboardLedger();
 
-    const rawApprovalStatusConstraints = rawApprovalStatusConstraintsFromLedger();
-    expect(rawApprovalStatusConstraints.map((entry) => entry.key)).toEqual([
+    const approvalStatusConstraints = approvalStatusConstraintsFromLedger();
+    expect(approvalStatusConstraints.map((entry) => entry.key)).toEqual([
       'backend:AgentController_getApprovalHistory:query.status:enum',
       'backend:AgentController_getPendingApprovals:query.status:enum',
       'backend:OrganizationController_getApprovals:query.status:enum',
     ]);
-    expect(rawApprovalStatusConstraints.every((entry) => entry.service === 'backend')).toBe(true);
-    expect(rawApprovalStatusConstraints.every((entry) => entry.location === 'query.status')).toBe(
+    expect(approvalStatusConstraints.every((entry) => entry.service === 'backend')).toBe(true);
+    expect(approvalStatusConstraints.every((entry) => entry.location === 'query.status')).toBe(
       true,
     );
-    expect(rawApprovalStatusConstraints.every((entry) => entry.kind === 'enum')).toBe(true);
-    expect(rawApprovalStatusConstraints.every((entry) =>
+    expect(approvalStatusConstraints.every((entry) => entry.kind === 'enum')).toBe(true);
+    expect(approvalStatusConstraints.every((entry) =>
       sortedStrings((entry.value as string[] | undefined) ?? []).join('|') ===
         sortedStrings(GOVERNANCE_SPEC_DOMAINS.approvalStatuses).join('|'),
-    )).toBe(true);
-    expect(rawApprovalStatusConstraints.every((entry) =>
-      entry.semanticGapIds.includes('approval-status-invalid-query-not-rejected'),
     )).toBe(true);
 
     const invalidStatus = invalidGovernanceSpecMember('approvalStatuses');
     const observedOperationIds: string[] = [];
 
-    const pendingConstraint = rawApprovalStatusConstraints.find(
+    const pendingConstraint = approvalStatusConstraints.find(
       (entry) => entry.operationId === 'AgentController_getPendingApprovals',
     );
     expect(pendingConstraint).toBeDefined();
     const pendingOperation = backendOperation('AgentController_getPendingApprovals');
+    const pendingConstraintKey = pendingConstraint!.key;
     expect(pendingConstraint!.operationId).toBe(pendingOperation.operationId);
     expect(pendingOperation.verb, pendingConstraint!.key).toBe('get');
     expect(operationPath(pendingOperation.path, { agentId })).toBe(
@@ -320,15 +268,15 @@ describe('Approvals', () => {
       `${operationPath(pendingOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}`,
     );
     const pendingBody = fullResponse(pendingResponse);
-    expect(pendingBody.status, pendingConstraint!.key).toBe(200);
-    expect(Array.isArray(listItems(pendingBody.data)), pendingConstraint!.key).toBe(true);
+    expect(pendingBody.status, pendingConstraintKey).toBe(422);
     observedOperationIds.push(pendingConstraint!.operationId);
 
-    const historyConstraint = rawApprovalStatusConstraints.find(
+    const historyConstraint = approvalStatusConstraints.find(
       (entry) => entry.operationId === 'AgentController_getApprovalHistory',
     );
     expect(historyConstraint).toBeDefined();
     const historyOperation = backendOperation('AgentController_getApprovalHistory');
+    const historyConstraintKey = historyConstraint!.key;
     expect(historyConstraint!.operationId).toBe(historyOperation.operationId);
     expect(historyOperation.verb, historyConstraint!.key).toBe('get');
     expect(operationPath(historyOperation.path, { agentId })).toBe(
@@ -338,15 +286,15 @@ describe('Approvals', () => {
       `${operationPath(historyOperation.path, { agentId })}?status=${encodeURIComponent(invalidStatus)}`,
     );
     const historyBody = fullResponse(historyResponse);
-    expect(historyBody.status, historyConstraint!.key).toBe(200);
-    expect(Array.isArray(listItems(historyBody.data)), historyConstraint!.key).toBe(true);
+    expect(historyBody.status, historyConstraintKey).toBe(422);
     observedOperationIds.push(historyConstraint!.operationId);
 
-    const orgConstraint = rawApprovalStatusConstraints.find(
+    const orgConstraint = approvalStatusConstraints.find(
       (entry) => entry.operationId === 'OrganizationController_getApprovals',
     );
     expect(orgConstraint).toBeDefined();
     const orgOperation = backendOperation('OrganizationController_getApprovals');
+    const orgConstraintKey = orgConstraint!.key;
     expect(orgConstraint!.operationId).toBe(orgOperation.operationId);
     expect(orgOperation.verb, orgConstraint!.key).toBe('get');
     expect(operationPath(orgOperation.path, { organizationId: orgId })).toBe(
@@ -356,12 +304,11 @@ describe('Approvals', () => {
       `${operationPath(orgOperation.path, { organizationId: orgId })}?status=${encodeURIComponent(invalidStatus)}`,
     );
     const orgBody = fullResponse(orgResponse);
-    expect(orgBody.status, orgConstraint!.key).toBe(200);
-    expect(Array.isArray(listItems(orgBody.data)), orgConstraint!.key).toBe(true);
+    expect(orgBody.status, orgConstraintKey).toBe(422);
     observedOperationIds.push(orgConstraint!.operationId);
 
     expect(sortedStrings(observedOperationIds)).toEqual(
-      sortedStrings(rawApprovalStatusConstraints.map((entry) => entry.operationId)),
+      sortedStrings(approvalStatusConstraints.map((entry) => entry.operationId)),
     );
   });
 

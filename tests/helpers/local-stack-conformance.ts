@@ -277,6 +277,7 @@ export interface ScenarioPathCoverage extends LocalStackScenarioPathSpec {
   scenarioProofMarker: string;
   scenarioProofMarkerBlockKeys: string[];
   markerOnlyProofBlockKeys: string[];
+  throttleTolerantProofBlockKeys: string[];
   missingScenarioProofMarker: boolean;
   providerGuardTestRefs: ProviderGuardCoverage['guardTestRefs'];
   providerGuardProofBlockKeys: string[];
@@ -393,6 +394,8 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   unexpectedProviderOwnedScenarioIds: string[];
   underConformanceLocalStackRequiredProofLevelRefs: string[];
   unknownScenarioProofMarkerRefs: string[];
+  markerOnlyScenarioProofBlockRefs: string[];
+  throttleTolerantScenarioProofBlockRefs: string[];
   duplicateScenarioPathRefs: string[];
   duplicateOutcomeRefs: string[];
   duplicateScenarioMatrixContractRefs: string[];
@@ -401,6 +404,7 @@ export interface ScenarioMatrixCoverage extends LocalStackScenarioMatrixContract
   underConformanceOperationRefs: string[];
   underConformanceObjectiveOperationRefs: string[];
   underConformanceLocalStackOutcomeRefs: string[];
+  underConformanceProviderGuardOutcomeRefs: string[];
   missingOperationEvidencePatternRefs: string[];
   unknownOperationEvidencePatternRefs: string[];
   duplicateOperationEvidencePatternRefs: string[];
@@ -1974,10 +1978,15 @@ function walk(dir: string): string[] {
   return out;
 }
 
+const TEST_CALL_NAME_PATTERN = String.raw`(?:it|test|itIf[A-Za-z0-9_]*)`;
+
 function extractTestBlocks(source: string): Array<{ name: string; source: string }> {
   const out: Array<{ name: string; source: string }> = [];
   const skippedRanges = findSkippedDescribeRanges(source);
-  const testRe = /\b(?:it|test)\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/g;
+  const testRe = new RegExp(
+    String.raw`\b${TEST_CALL_NAME_PATTERN}\(\s*(['"\`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,`,
+    'g',
+  );
   for (const match of source.matchAll(testRe)) {
     const start = match.index ?? 0;
     if (isInsideRange(start, skippedRanges)) continue;
@@ -2191,7 +2200,11 @@ export function providerGuardTestRefMatchesBlockForTesting(
 }
 
 function extractTestTitle(source: string): string {
-  const match = source.match(/\b(?:it|test)\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,/);
+  const match = source.match(
+    new RegExp(
+      String.raw`\b${TEST_CALL_NAME_PATTERN}\(\s*(['"\`])((?:\\.|(?!\1)[\s\S])*?)\1\s*,`,
+    ),
+  );
   return match?.[2] ?? '';
 }
 
@@ -2204,7 +2217,7 @@ function hasConformanceProofTitle(title: string): boolean {
 }
 
 function hasExecutableBehavioralAssertion(normalizedSource: string): boolean {
-  return /toHaveProperty|toEqual|arrayContaining|objectContaining|\.find\(|\.toMatch(?:Object)?\(|\.toBeGreaterThan|\.toBeGreaterThanOrEqual|\.toBeLessThan|\.toContain\(|(?:body|response)\.data(?:\?\.|\.)[A-Za-z_$]|(?:body|response)\.data\)\.toBe\(|result\.[A-Za-z_]|expectValidationOrThrottle\(/.test(normalizedSource);
+  return /toHaveProperty|toEqual|arrayContaining|objectContaining|\.find\(|\.toMatch(?:Object)?\(|\.toBeGreaterThan|\.toBeGreaterThanOrEqual|\.toBeLessThan|\.toContain\(|(?:body|response)\.data(?:\?\.|\.)[A-Za-z_$]|(?:body|response)\.data\)\.toBe\(|result\.[A-Za-z_]/.test(normalizedSource);
 }
 
 function hasExecutablePrimitiveAssertion(normalizedSource: string): boolean {
@@ -2212,7 +2225,7 @@ function hasExecutablePrimitiveAssertion(normalizedSource: string): boolean {
 }
 
 function hasExecutableConformanceEvidence(normalizedSource: string): boolean {
-  return /\bmake[A-Za-z0-9]+ConformanceCases?\(|\bGOVERNANCE_(?:SPEC|BOUNDARY)_DOMAINS\.|\bUSAGE_NORMALIZATION_SURFACE\.|\brunLocalStackSql\(|\b(?:backendOperation|coreOperation)\(|\boperationPath\(|\bensure[A-Za-z0-9]+Ledger\b/.test(normalizedSource);
+  return /\bmake[A-Za-z0-9]+ConformanceCases?\(|\bGOVERNANCE_(?:SPEC|BOUNDARY)_DOMAINS\.|\bUSAGE_NORMALIZATION_SURFACE\.|\bseedLocalStack[A-Za-z0-9]+\(|\b(?:backendOperation|coreOperation)\(|\boperationPath\(|\bensure[A-Za-z0-9]+Ledger\b/.test(normalizedSource);
 }
 
 function hasConditionalSkipPath(normalizedSource: string): boolean {
@@ -3019,6 +3032,13 @@ function summarizeScenarioPaths(
     const proofFiles = [...new Set(matchingBlocks.map((block) => block.file))].sort();
     const proofTestNames = [...new Set(matchingBlocks.map((block) => block.name))].sort();
     const proofBlockKeys = [...new Set(matchingBlocks.map(testBlockKey))].sort();
+    const throttleTolerantProofBlockKeys = spec.localStackRequired
+      ? uniqueSorted(
+        matchingBlocks
+          .filter(blockHasThrottleTolerance)
+          .map(testBlockKey),
+      )
+      : [];
     const evidencePatternBlockKeys = spec.evidencePatterns.map((pattern) => ({
       pattern,
       blockKeys: [
@@ -3210,6 +3230,7 @@ function summarizeScenarioPaths(
       scenarioProofMarker: markerPattern,
       scenarioProofMarkerBlockKeys,
       markerOnlyProofBlockKeys,
+      throttleTolerantProofBlockKeys,
       missingScenarioProofMarker,
       providerGuardTestRefs: providerProofAvailable ? providerGuardTestRefs : [],
       providerGuardProofBlockKeys: providerProofAvailable ? providerGuardProofBlockKeys : [],
@@ -3662,6 +3683,11 @@ function summarizeScenarioMatrixContract(
     .filter((entry) => PROOF_ORDER[entry.minimumProofLevel] < PROOF_ORDER.conformance)
     .map((entry) => `${entry.id}:${entry.minimumProofLevel}`)
     .sort();
+  const underConformanceProviderGuardOutcomeRefs = outcomes
+    .filter((entry) => entry.source === 'provider-guard-fixture')
+    .filter((entry) => PROOF_ORDER[entry.minimumProofLevel] < PROOF_ORDER.conformance)
+    .map((entry) => `${entry.id}:${entry.minimumProofLevel}`)
+    .sort();
   const underConformanceOperationRefs = coverage
     .filter((entry) => PROOF_ORDER[entry.proofLevel] < PROOF_ORDER.conformance)
     .map((entry) => `${entry.operation.service}:${entry.operation.operationId}:${entry.proofLevel}`)
@@ -3754,6 +3780,16 @@ function summarizeScenarioMatrixContract(
       entry.duplicateOperationEvidencePatternIds.map((operationId) => `${entry.id}:${operationId}`),
     ),
   );
+  const markerOnlyScenarioProofBlockRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.markerOnlyProofBlockKeys.map((blockKey) => `${entry.id}:${blockKey}`),
+    ),
+  );
+  const throttleTolerantScenarioProofBlockRefs = uniqueSorted(
+    scenarioPaths.flatMap((entry) =>
+      entry.throttleTolerantProofBlockKeys.map((blockKey) => `${entry.id}:${blockKey}`),
+    ),
+  );
   const weakScenarioEvidencePatternRefs = uniqueSorted(
     scenarioPaths.flatMap((entry) =>
       entry.weakEvidencePatterns.map((pattern) => `${entry.id}:${pattern}`),
@@ -3817,6 +3853,8 @@ function summarizeScenarioMatrixContract(
     unexpectedProviderOwnedScenarioIds,
     underConformanceLocalStackRequiredProofLevelRefs,
     unknownScenarioProofMarkerRefs,
+    markerOnlyScenarioProofBlockRefs,
+    throttleTolerantScenarioProofBlockRefs,
     duplicateScenarioPathRefs,
     duplicateOutcomeRefs,
     duplicateScenarioMatrixContractRefs,
@@ -3825,6 +3863,7 @@ function summarizeScenarioMatrixContract(
     underConformanceOperationRefs,
     underConformanceObjectiveOperationRefs,
     underConformanceLocalStackOutcomeRefs,
+    underConformanceProviderGuardOutcomeRefs,
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
@@ -3912,6 +3951,8 @@ function summarizeScenarioMatrixContract(
     unexpectedProviderOwnedScenarioIds,
     underConformanceLocalStackRequiredProofLevelRefs,
     unknownScenarioProofMarkerRefs,
+    markerOnlyScenarioProofBlockRefs,
+    throttleTolerantScenarioProofBlockRefs,
     duplicateScenarioPathRefs,
     duplicateOutcomeRefs,
     duplicateScenarioMatrixContractRefs,
@@ -3920,6 +3961,7 @@ function summarizeScenarioMatrixContract(
     underConformanceOperationRefs,
     underConformanceObjectiveOperationRefs,
     underConformanceLocalStackOutcomeRefs,
+    underConformanceProviderGuardOutcomeRefs,
     missingOperationEvidencePatternRefs,
     unknownOperationEvidencePatternRefs,
     duplicateOperationEvidencePatternRefs,
@@ -4273,6 +4315,13 @@ function blockHasGeneratedScenarioConformanceEvidence(block: TestBlock): boolean
   );
 }
 
+function blockHasThrottleTolerance(block: TestBlock): boolean {
+  const normalized = stripCodeComments(block.source).replace(/\s+/g, ' ');
+  return /\b429\b|Too Many Requests|expectValidationOrThrottle\(|afterLocalStackThrottleWindow\(|guardrailRunTestWithThrottleRetry\(|OPENBOX_E2E_THROTTLE_WAIT_MS|LOCAL_STACK_THROTTLE_WINDOW_MS/i.test(
+    normalized,
+  );
+}
+
 function operationEvidencePatternsFor(
   spec: LocalStackScenarioPathSpec,
   operationId: string,
@@ -4338,7 +4387,10 @@ function stripTestTitles(source: string): string {
 }
 
 function isTestCallExpression(expression: ts.Expression): boolean {
-  return ts.isIdentifier(expression) && (expression.text === 'it' || expression.text === 'test');
+  return (
+    ts.isIdentifier(expression) &&
+    (expression.text === 'it' || expression.text === 'test' || /^itIf[A-Za-z0-9_]*$/.test(expression.text))
+  );
 }
 
 function testBlockKey(block: TestBlock): string {

@@ -9,6 +9,7 @@ import {
 } from '../../ts/src/core-client/generated/request-preflight.js';
 import {
   LOCAL_STACK_SCENARIO_MATRIX,
+  type RawBackendCoreSemanticGapSpec,
 } from '../../ts/src/governance/generated/capability-matrix.js';
 import {
   BOUNDARY_CONFORMANCE_EVIDENCE,
@@ -124,7 +125,7 @@ const DISPOSITIONS: Disposition[] = [
   'sdk-generated-preflight',
 ];
 
-const RAW_BACKEND_CORE_SEMANTIC_GAPS =
+const RAW_BACKEND_CORE_SEMANTIC_GAPS: readonly RawBackendCoreSemanticGapSpec[] =
   LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps;
 
 const RAW_BACKEND_CORE_SEMANTIC_GAPS_BY_CONSTRAINT_KEY: ReadonlyMap<

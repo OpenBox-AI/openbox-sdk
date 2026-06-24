@@ -4,6 +4,7 @@ import {
 } from '../helpers/request-constraint-conformance';
 import {
   LOCAL_STACK_SCENARIO_MATRIX,
+  type RawBackendCoreSemanticGapSpec,
 } from '../../ts/src/governance/generated/capability-matrix.js';
 
 describe('generated request constraint conformance ledger', () => {
@@ -29,8 +30,10 @@ describe('generated request constraint conformance ledger', () => {
     expect(ledger.summary.totalConstraints).toBe(ledger.constraints.length);
   });
 
-  it('keeps raw backend/core gaps separate from SDK preflight closures', () => {
-    const expectedRawSemanticGapConstraintKeys = [
+  it('keeps former backend/core gap constraints in local-stack evidence after raw closure', () => {
+    const rawBackendCoreSemanticGaps: readonly RawBackendCoreSemanticGapSpec[] =
+      LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps;
+    const formerRawSemanticGapConstraintKeys = [
       'backend:AgentController_getAgentEvaluations:query.page:minimum',
       'backend:AgentController_getAgentEvaluations:query.pattern:maxLength',
       'backend:AgentController_getAgentEvaluations:query.perPage:minimum',
@@ -43,8 +46,10 @@ describe('generated request constraint conformance ledger', () => {
       'core:evaluateGovernance:body.timestamp:format',
     ];
 
+    expect(rawBackendCoreSemanticGaps).toEqual([]);
+    expect(ledger.summary.knownRawSemanticGaps).toEqual([]);
     expect(ledger.summary.provenRawSemanticGapClosures).toEqual(
-      LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps.map((entry) => entry.id).sort(),
+      rawBackendCoreSemanticGaps.map((entry) => entry.id).sort(),
     );
     expect(ledger.summary.provenRawSemanticGapClosures).toEqual(
       ledger.summary.knownRawSemanticGaps,
@@ -52,13 +57,12 @@ describe('generated request constraint conformance ledger', () => {
     expect(ledger.summary.missingRawSemanticGapClosures).toEqual([]);
     expect(ledger.constraints.filter(
       (entry) => entry.disposition === 'raw-semantic-gap-sdk-closed',
-    ).map((entry) => entry.key)).toEqual(expectedRawSemanticGapConstraintKeys);
+    ).map((entry) => entry.key)).toEqual([]);
     expect(ledger.constraints
-      .filter((entry) => entry.disposition === 'raw-semantic-gap-sdk-closed')
-      .flatMap((entry) => entry.semanticGapIds)
-      .filter((value, index, values) => values.indexOf(value) === index)
-      .sort()).toEqual(
-      LOCAL_STACK_SCENARIO_MATRIX.rawBackendCoreSemanticGaps.map((entry) => entry.id).sort(),
+      .filter((entry) => formerRawSemanticGapConstraintKeys.includes(entry.key))
+      .map((entry) => [entry.key, entry.disposition])
+      .sort(([left], [right]) => left.localeCompare(right))).toEqual(
+      formerRawSemanticGapConstraintKeys.map((key) => [key, 'local-stack-e2e']),
     );
   });
 

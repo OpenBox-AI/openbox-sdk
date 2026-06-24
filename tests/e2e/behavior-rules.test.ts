@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { getBackendClient, fullResponse, getTeamIds, hasOrgId } from '../helpers/api-client';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  seedLocalStackAgeEvaluation,
+  seedLocalStackGovernanceEvent,
+  seedLocalStackSession,
+} from '../helpers/local-stack-db';
 import {
   GOVERNANCE_BOUNDARY_DOMAINS,
   invalidBoundarySpecMember,
@@ -55,105 +59,36 @@ describeOrSkip('Behavior Rules', () => {
   async function ensureBehaviorViolationLedger() {
     if (behaviorViolationId) return;
 
-    const seedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'behavior-rule-wf-' || gen_random_uuid(),
-          'behavior-rule-run-' || gen_random_uuid(),
-          'completed',
-          'behavior rule violation conformance',
-          now() - interval '2 minutes',
-          now() - interval '1 minute',
-          now(),
-          '{"openbox_conformance":true,"source":"behavior-rules.e2e"}'::jsonb
-        )
-        returning id, workflow_id, run_id
-      ),
-      seeded_event as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          session_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          metadata
-        )
-        select
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          seeded_session.workflow_id,
-          seeded_session.run_id,
-          'sdk-conformance',
-          'local-stack',
-          'behavior-rule-violation',
-          'LLMCompletion',
-          1,
-          '[{"prompt":"behavior rule violation"}]'::jsonb,
-          '{"response":"violation"}'::jsonb,
-          1,
-          'behavior rule violation',
-          '{"openbox_conformance":true,"source":"behavior-rules.e2e"}'::jsonb
-        from seeded_session
-        returning id, session_id
-      )
-      insert into age_evaluations (
-        agent_id,
-        session_id,
-        governance_event_id,
-        semantic_type,
-        goal_alignment_checked,
-        goal_drift,
-        behavior_violated,
-        behavior_compliance_detail,
-        trust_score,
-        trust_tier,
-        behavioral_compliance,
-        alignment_consistency,
-        evaluated_at
-      )
-      select
-        ${sqlLiteral(agentId)},
-        seeded_event.session_id,
-        seeded_event.id,
-        'llm_gen_ai',
-        true,
-        false,
-        true,
-        '{"reason":"behavior rule violation conformance"}'::text,
-        70,
-        2,
-        40,
-        100,
-        now()
-      from seeded_event
-      returning id;
-    `);
-    behaviorViolationId = seedOutput
-      .trim()
-      .split('\n')
-      .find((line) => /^[0-9a-f-]{36}$/i.test(line));
+    const session = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'behavior-rule-wf-',
+      runIdPrefix: 'behavior-rule-run-',
+      detail: 'behavior rule violation conformance',
+      metadata: { openbox_conformance: true, source: 'behavior-rules.e2e' },
+    });
+    const event = await seedLocalStackGovernanceEvent({
+      agentId,
+      session,
+      activityId: 'behavior-rule-violation',
+      activityType: 'LLMCompletion',
+      input: [{ prompt: 'behavior rule violation' }],
+      output: { response: 'violation' },
+      verdict: 1,
+      reason: 'behavior rule violation',
+      metadata: { openbox_conformance: true, source: 'behavior-rules.e2e' },
+    });
+    behaviorViolationId = await seedLocalStackAgeEvaluation({
+      agentId,
+      sessionId: session.id,
+      governanceEventId: event.id,
+      semanticType: 'llm_gen_ai',
+      behaviorViolated: true,
+      behaviorComplianceDetail: '{"reason":"behavior rule violation conformance"}',
+      trustScore: 70,
+      trustTier: 2,
+      behavioralCompliance: 40,
+      alignmentConsistency: 100,
+    });
     expect(behaviorViolationId).toBeDefined();
   }
 

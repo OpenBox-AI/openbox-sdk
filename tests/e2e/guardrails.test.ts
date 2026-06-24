@@ -1,6 +1,8 @@
-import type { Server } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
+import { GUARDRAILS_HUB_RECORDING_SURFACE } from '../../ts/src/governance/capability-matrix.js';
 import { getBackendClient, fullResponse, getTeamIds } from '../helpers/api-client';
 import {
   GOVERNANCE_BOUNDARY_DOMAINS,
@@ -12,15 +14,22 @@ import { trackResource, cleanupAll } from '../helpers/cleanup';
 import {
   makeCreateAgentDto,
   makeCreateGuardrailDto,
-  makeGuardrailRunTestConformanceCases,
   makeGuardrailServiceUnavailableConformanceCase,
 } from '../helpers/fixtures';
 import {
   GOVERNANCE_SPEC_DOMAINS,
   invalidGovernanceSpecMember,
 } from '../helpers/governance-spec-domains';
-import { startGuardrailProviderStub } from '../helpers/guardrail-provider-stub';
-import { runLocalStackSql, sqlLiteral } from '../helpers/local-stack-db';
+import {
+  seedLocalStackGovernanceEvent,
+  seedLocalStackGuardrailEvaluation,
+  seedLocalStackSession,
+} from '../helpers/local-stack-db';
+
+const RUN_ISOLATED_GUARDRAIL_UNAVAILABLE =
+  process.env.OPENBOX_E2E_ISOLATED_GUARDRAIL_UNAVAILABLE === '1';
+const itIfIsolatedGuardrailUnavailable = RUN_ISOLATED_GUARDRAIL_UNAVAILABLE ? it : it.skip;
+const GUARDRAIL_RUN_TEST_TIMEOUT_MS = 120_000;
 
 function listItems(value: any): any[] {
   if (Array.isArray(value)) return value;
@@ -41,8 +50,98 @@ function operationPath(path: string, params: Record<string, string>) {
   });
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+interface RealGuardrailRunTestCase {
+  scenarioId: 'guardrail-allow' | 'guardrail-block' | 'guardrail-redact';
+  name: string;
+  request: {
+    guardrail_type: string;
+    params: Record<string, unknown>;
+    settings: Record<string, unknown>;
+    logs: Record<string, unknown>;
+  };
+  expected: {
+    detail: string | null;
+    semanticStatus: 'allowed' | 'violation' | 'failure';
+    success: boolean;
+    violationsDetected: boolean;
+    validatedLogs: unknown;
+  };
+}
+
+interface RecordedGuardrailsHubFixture {
+  status: 'recorded';
+  records: Array<{
+    caseId: string;
+    variantId: string;
+    guardrailType: string;
+    expectedSemanticStatus: 'allowed' | 'violation' | 'failure';
+    sampleCount: number;
+    stable: boolean;
+    samples: Array<{
+      detail: string | null;
+      semanticStatus: 'allowed' | 'violation' | 'failure';
+      success: boolean;
+      validatedLogs: unknown;
+      violationsDetected: boolean;
+    }>;
+  }>;
+}
+
+function loadRecordedGuardrailsHubFixture(): RecordedGuardrailsHubFixture {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), GUARDRAILS_HUB_RECORDING_SURFACE.fixturePath), 'utf8'),
+  ) as RecordedGuardrailsHubFixture;
+}
+
+function recordedHubSampleByVariant() {
+  const fixture = loadRecordedGuardrailsHubFixture();
+  expect(fixture.status).toBe('recorded');
+  const samples = new Map<string, RecordedGuardrailsHubFixture['records'][number]['samples'][number]>();
+  for (const record of fixture.records) {
+    expect(record.stable, `${record.caseId}/${record.variantId} recorded stability`).toBe(true);
+    expect(record.samples, `${record.caseId}/${record.variantId} recorded samples`).toHaveLength(
+      record.sampleCount,
+    );
+    samples.set(`${record.caseId}/${record.variantId}`, record.samples[0]);
+  }
+  return samples;
+}
+
+function makeRealGuardrailRunTestCases(): RealGuardrailRunTestCase[] {
+  const samples = recordedHubSampleByVariant();
+  return GUARDRAILS_HUB_RECORDING_SURFACE.cases.flatMap((recordingCase) =>
+    recordingCase.variants.map((variant) => {
+      const expected = samples.get(`${recordingCase.id}/${variant.id}`);
+      expect(expected, `${recordingCase.id}/${variant.id} recorded sample`).toBeDefined();
+      const scenarioId = variant.expectedSemanticStatus === 'allowed'
+        ? 'guardrail-allow'
+        : recordingCase.guardrailType === '1'
+          ? 'guardrail-redact'
+          : 'guardrail-block';
+      return {
+        scenarioId,
+        name: `${recordingCase.id}/${variant.id}`,
+        request: {
+          guardrail_type: recordingCase.guardrailType,
+          params: variant.params,
+          settings: variant.settings,
+          logs: variant.logs,
+        },
+        expected: expected!,
+      };
+    }),
+  );
+}
+
+function expectRealGuardrailRunTestResult(body: any, testCase: RealGuardrailRunTestCase) {
+  expect(body.data, testCase.name).toMatchObject({
+    raw_logs: testCase.request.logs,
+    success: testCase.expected.success,
+    violations_detected: testCase.expected.violationsDetected,
+  });
+  expect(body.data.validated_logs, testCase.name).toBeDefined();
+  expect(body.data.detail, testCase.name).toBe(testCase.expected.detail);
+  expect(body.data.validated_logs, testCase.name).toEqual(testCase.expected.validatedLogs);
 }
 
 describe('Guardrails', () => {
@@ -52,32 +151,8 @@ describe('Guardrails', () => {
   let guardrailEvaluationId: string;
   let guardrailName: string;
   let teamIds: string[];
-  let guardrailProviderStub: Server | undefined;
-
-  async function closeGuardrailProviderStub() {
-    if (!guardrailProviderStub) return;
-    const server = guardrailProviderStub;
-    guardrailProviderStub = undefined;
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error ? reject(error) : resolve());
-    });
-  }
-
-  async function guardrailRunTestWithThrottleRetry(
-    request: () => ReturnType<typeof client.post>,
-  ) {
-    const throttleWaitMs = Number(process.env.OPENBOX_E2E_THROTTLE_WAIT_MS ?? 65_000);
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await request();
-      const result = fullResponse(response);
-      if (result.status !== 429) return result;
-      await sleep(throttleWaitMs);
-    }
-    return fullResponse(await request());
-  }
 
   beforeAll(async () => {
-    guardrailProviderStub = await startGuardrailProviderStub();
     teamIds = await getTeamIds();
 
     const dto = makeCreateAgentDto(teamIds);
@@ -312,39 +387,15 @@ describe('Guardrails', () => {
     });
   });
 
-  it('runs guardrail test', async () => {
-    // CONFORMANCE_PROOF: generated guardrail scenario paths drive allow,
-    // blocked, and redacted run-test outcomes through the real backend route.
-    for (const testCase of makeGuardrailRunTestConformanceCases()) {
-      const body = await guardrailRunTestWithThrottleRetry(() =>
-        client.post('/guardrails/run-test', testCase.request),
-      );
-
-      expect(body.status).toBe(200);
-      expect(body.data).toHaveProperty('validation_passed', testCase.expected.validationPassed);
-      expect(body.data.field_results?.[0]).toMatchObject({
-        status: testCase.expected.fieldStatus,
-      });
-      if (testCase.expected.redactedInput) {
-        expect(body.data).toHaveProperty('redacted_input');
-        expect(body.data.redacted_input).toMatchObject(testCase.expected.redactedInput);
-      }
-      if (testCase.expected.reasonIncludes) {
-        expect(body.data.field_results?.[0]?.reason).toContain(testCase.expected.reasonIncludes);
-      }
-    }
-  });
-
   it('EXHAUSTIVE_BOUNDARY_PROOF: GuardrailController_runTest covers every guardrail type and outcome', async () => {
     // SCENARIO_PROOF: guardrail-block
     // SCENARIO_PROOF: guardrail-redact
     // EXHAUSTIVE_BOUNDARY_PROOF: GuardrailController_runTest covers every
     // guardrail type and outcome by taking the TypeSpec finite
-    // CreateGuardrailDto guardrail_type domain across allowed, blocked,
-    // redacted, transformed, and skipped provider outcomes.
-    // EXHAUSTIVE_SPEC_PROOF: guardrail finite field statuses are extracted
-    // from TypeSpec and every GuardrailFieldResult.status member is returned
-    // by the local provider stub.
+    // CreateGuardrailDto guardrail_type domain through the real Guardrails
+    // service run-test contract. The endpoint returns success plus
+    // violations_detected; field-level statuses are a Core evaluation result,
+    // not part of this backend run-test provider contract.
     expect([
       'SCENARIO_PROOF: guardrail-allow',
       'SCENARIO_PROOF: guardrail-block',
@@ -354,66 +405,76 @@ describe('Guardrails', () => {
       'SCENARIO_PROOF: guardrail-block',
       'SCENARIO_PROOF: guardrail-redact',
     ]));
-    const guardrailRunTestCases = makeGuardrailRunTestConformanceCases();
-    const expectedFieldStatuses = [...GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses].sort();
-    expect(guardrailRunTestCases.map((testCase) => testCase.expected.fieldStatus).sort()).toEqual(
-      expectedFieldStatuses,
+    const observedGuardrailTypes = new Set<string>();
+    const observedSemanticStatuses = new Set<string>();
+    const observedSuccessResults = new Set<boolean>();
+    const observedViolationResults = new Set<boolean>();
+    const canonicalCases = makeRealGuardrailRunTestCases();
+    const expectedVariantCount = GUARDRAILS_HUB_RECORDING_SURFACE.cases.reduce(
+      (count, recordingCase) => count + recordingCase.variants.length,
+      0,
     );
-    expect(guardrailRunTestCases).toHaveLength(expectedFieldStatuses.length);
+    const allowCase = canonicalCases.find((testCase) =>
+      testCase.scenarioId === 'guardrail-allow'
+    );
+    const blockCase = canonicalCases.find((testCase) =>
+      testCase.scenarioId === 'guardrail-block'
+    );
+    const redactCase = canonicalCases.find((testCase) =>
+      testCase.scenarioId === 'guardrail-redact'
+    );
+    const banListBlockCase = canonicalCases.find((testCase) =>
+      testCase.name === 'ban-list/violation'
+    );
+    const detectPiiRedactCase = canonicalCases.find((testCase) =>
+      testCase.name === 'detect-pii/email-violation'
+    );
 
-    const observedStatuses = new Set<string>();
-    const observedGuardrailTypeStatuses = new Map<string, Set<string>>();
-    const observedGuardrailTypeStatusPairs = new Set<string>();
-    const observedValidationResults = new Set<boolean>();
+    expect(allowCase).toBeDefined();
+    expect(blockCase).toBeDefined();
+    expect(redactCase).toBeDefined();
+    expect(banListBlockCase?.scenarioId).toBe('guardrail-block');
+    expect(detectPiiRedactCase?.scenarioId).toBe('guardrail-redact');
+    expect(JSON.stringify(banListBlockCase?.expected.validatedLogs)).toContain('contains r text');
+    expect(JSON.stringify(detectPiiRedactCase?.expected.validatedLogs)).toContain('<EMAIL_ADDRESS>');
+    expect(canonicalCases).toHaveLength(expectedVariantCount);
 
-    for (const guardrailType of GOVERNANCE_SPEC_DOMAINS.guardrailTypes) {
-      const observedTypeStatuses = new Set<string>();
-      observedGuardrailTypeStatuses.set(guardrailType, observedTypeStatuses);
+    for (const testCase of canonicalCases) {
+      const body = fullResponse(await client.post('/guardrails/run-test', testCase.request));
 
-      for (const testCase of guardrailRunTestCases) {
-        const body = await guardrailRunTestWithThrottleRetry(() =>
-          client.post('/guardrails/run-test', {
-            ...testCase.request,
-            guardrail_type: guardrailType,
-          }),
+      expect(body.status, testCase.scenarioId).toBe(200);
+      expectRealGuardrailRunTestResult(body, testCase);
+      observedGuardrailTypes.add(testCase.request.guardrail_type);
+      observedSemanticStatuses.add(testCase.expected.semanticStatus);
+      observedSuccessResults.add(Boolean(body.data.success));
+      observedViolationResults.add(Boolean(body.data.violations_detected));
+
+      if (testCase.scenarioId === 'guardrail-allow') {
+        expect(body.data.success, 'guardrail-allow').toBe(true);
+        expect(body.data.violations_detected, 'guardrail-allow').toBe(false);
+      }
+      if (testCase.scenarioId === 'guardrail-block') {
+        expect(body.data.violations_detected, 'guardrail-block').toBe(true);
+        expect(JSON.stringify(body.data.validated_logs), 'guardrail-block').not.toEqual(
+          JSON.stringify(testCase.request.logs),
         );
-
-        expect(body.status, `${guardrailType}:${testCase.name}`).toBe(200);
-        expect(body.data).toHaveProperty('validation_passed', testCase.expected.validationPassed);
-        observedValidationResults.add(Boolean(body.data.validation_passed));
-        expect(body.data.field_results?.[0]).toMatchObject({
-          status: testCase.expected.fieldStatus,
-        });
-        const observedStatus = String(body.data.field_results?.[0]?.status);
-        observedStatuses.add(observedStatus);
-        observedTypeStatuses.add(observedStatus);
-        observedGuardrailTypeStatusPairs.add(`${guardrailType}:${observedStatus}`);
-        expect(body.data.results?.[0]).toMatchObject({
-          guardrail_type: guardrailType,
-        });
-        if (testCase.expected.redactedInput) {
-          expect(body.data.redacted_input).toMatchObject(testCase.expected.redactedInput);
-        }
+      }
+      if (testCase.scenarioId === 'guardrail-redact') {
+        expect(body.data.violations_detected, 'guardrail-redact').toBe(true);
+        expect(JSON.stringify(body.data.validated_logs), 'guardrail-redact').not.toEqual(
+          JSON.stringify(testCase.request.logs),
+        );
       }
     }
 
-    expect([...observedStatuses].sort()).toEqual(expectedFieldStatuses);
-    for (const guardrailType of GOVERNANCE_SPEC_DOMAINS.guardrailTypes) {
-      expect([...(observedGuardrailTypeStatuses.get(guardrailType) ?? [])].sort()).toEqual(
-        expectedFieldStatuses,
-      );
-    }
-    expect(observedGuardrailTypeStatusPairs.size).toBe(
-      GOVERNANCE_SPEC_DOMAINS.guardrailTypes.length * expectedFieldStatuses.length,
+    expect([...observedGuardrailTypes].sort()).toEqual(
+      [...GOVERNANCE_SPEC_DOMAINS.guardrailTypes].sort(),
     );
-    expect(observedStatuses).toContain('allowed');
-    expect(observedStatuses).toContain('blocked');
-    expect(observedStatuses).toContain('redacted');
-    expect(observedStatuses).toContain('transformed');
-    expect(observedStatuses).toContain('skipped');
-    expect(observedValidationResults).toContain(true);
-    expect(observedValidationResults).toContain(false);
-  });
+    expect([...observedSemanticStatuses].sort()).toEqual(['allowed', 'violation']);
+    expect(observedSuccessResults).toContain(true);
+    expect(observedViolationResults).toContain(true);
+    expect(observedViolationResults).toContain(false);
+  }, GUARDRAIL_RUN_TEST_TIMEOUT_MS);
 
   it('BOUNDARY_PROOF: TestGuardrailDto preserves every JSON value class', async () => {
     // BOUNDARY_PROOF: TestGuardrailDto preserves every JSON value class for
@@ -422,8 +483,8 @@ describe('Guardrails', () => {
     expect(operation.verb).toBe('post');
     const payload = makeJsonObjectValueClassPayload();
     expect(operation.path).toBe('/guardrails/run-test');
-    const body = await guardrailRunTestWithThrottleRetry(() =>
-      client.post('/guardrails/run-test', {
+    const body = fullResponse(
+      await client.post('/guardrails/run-test', {
         guardrail_type: 'custom_open_type',
         params: {
           ...payload,
@@ -434,6 +495,8 @@ describe('Guardrails', () => {
           enabled: true,
         },
         logs: {
+          event_type: 'ActivityStarted',
+          activity_type: 'json_value_classes',
           ...payload,
           text: 'safe json value classes',
         },
@@ -442,24 +505,16 @@ describe('Guardrails', () => {
 
     expect(body.status).toBe(200);
     expect(body.data).toMatchObject({
-      validation_passed: true,
-      raw_params: {
-        ...payload,
-        threshold: 1,
-      },
-      raw_settings: {
-        ...payload,
-        enabled: true,
-      },
+      success: false,
       raw_logs: {
+        event_type: 'ActivityStarted',
+        activity_type: 'json_value_classes',
         ...payload,
         text: 'safe json value classes',
       },
     });
-    expect(body.data.results?.[0]).toMatchObject({
-      guardrail_type: 'custom_open_type',
-    });
-  });
+    expect(String(body.data.detail)).toContain('Invalid guardrail type: custom_open_type');
+  }, GUARDRAIL_RUN_TEST_TIMEOUT_MS);
 
   it('BOUNDARY_PROOF: guardrail create/update params and settings preserve every JSON value class', async () => {
     // BOUNDARY_PROOF: CreateGuardrailDto and UpdateGuardrailDto preserve
@@ -591,10 +646,11 @@ describe('Guardrails', () => {
     }
   });
 
-  it('fails closed when guardrail service is unavailable', async () => {
+  itIfIsolatedGuardrailUnavailable('CONFORMANCE: fails closed when guardrail service is unavailable in an isolated lane', async () => {
     // SCENARIO_PROOF: guardrail-service-unavailable-fail-closed
     // NEGATIVE_PATH_PROOF: generated guardrail service unavailable scenario
-    // closes the provider stub, then asserts the backend does not allow the
+    // runs only in an isolated backend lane whose GUARDRAIL_API_URL points to
+    // an unavailable provider, then asserts the backend does not allow the
     // run-test request through as a successful validation.
     expect(['SCENARIO_PROOF: guardrail-service-unavailable-fail-closed']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: guardrail-service-unavailable-fail-closed']),
@@ -603,11 +659,7 @@ describe('Guardrails', () => {
     expect(testCase.scenarioId).toBe('guardrail-service-unavailable-fail-closed');
     expect(testCase.expected.messageIncludes).toBe('Guardrails test execution failed');
 
-    await closeGuardrailProviderStub();
-
-    const body = await guardrailRunTestWithThrottleRetry(() =>
-      client.post('/guardrails/run-test', testCase.request),
-    );
+    const body = fullResponse(await client.post('/guardrails/run-test', testCase.request));
 
     expect(body.status).toBe(testCase.expected.status);
     expect(JSON.stringify(body)).toContain(testCase.expected.messageIncludes);
@@ -620,95 +672,34 @@ describe('Guardrails', () => {
     expect('SCENARIO_PROOF: guardrail-lifecycle-order-metrics').toContain(
       'guardrail-lifecycle-order-metrics',
     );
-    const seedOutput = await runLocalStackSql(`
-      with seeded_session as (
-        insert into sessions (
-          agent_id,
-          workflow_id,
-          run_id,
-          status,
-          detail,
-          started_at,
-          completed_at,
-          trust_evaluated_at,
-          metadata
-        )
-        values (
-          ${sqlLiteral(agentId)},
-          'guardrail-eval-wf-' || gen_random_uuid(),
-          'guardrail-eval-run-' || gen_random_uuid(),
-          'completed',
-          'guardrail violation ledger',
-          now() - interval '2 minutes',
-          now() - interval '1 minute',
-          now(),
-          '{"openbox_conformance":true,"source":"guardrails.e2e"}'::jsonb
-        )
-        returning id, workflow_id, run_id
-      ),
-      seeded_event as (
-        insert into governance_events (
-          event_type,
-          agent_id,
-          session_id,
-          workflow_id,
-          run_id,
-          workflow_type,
-          task_queue,
-          activity_id,
-          activity_type,
-          span_count,
-          input,
-          output,
-          verdict,
-          reason,
-          metadata
-        )
-        select
-          'ActivityCompleted',
-          ${sqlLiteral(agentId)},
-          seeded_session.id,
-          seeded_session.workflow_id,
-          seeded_session.run_id,
-          'sdk-conformance',
-          'local-stack',
-          'guardrail-violation-ledger',
-          'LLMCompletion',
-          1,
-          '[{"text":"BLOCK_ME"}]'::jsonb,
-          '{"decision":"blocked"}'::jsonb,
-          1,
-          'guardrail violation ledger',
-          '{"openbox_conformance":true,"source":"guardrails.e2e"}'::jsonb
-        from seeded_session
-        returning id
-      ),
-      seeded_guardrail_evaluation as (
-        insert into guardrails_evaluations (
-          guardrails_id,
-          governance_event_id,
-          guardrails_type,
-          input,
-          output,
-          passed,
-          details,
-          status
-        )
-        select
-          ${sqlLiteral(guardrailId)},
-          seeded_event.id,
-          'pii_detection',
-          'BLOCK_ME',
-          'blocked',
-          false,
-          '{"reason":"guardrail violation ledger","field":"logs.text"}'::jsonb,
-          'blocked'
-        from seeded_event
-        returning id
-      )
-      select id from seeded_guardrail_evaluation;
-    `);
-    guardrailEvaluationId = seedOutput.trim().split('\n').at(-1)!;
+    const session = await seedLocalStackSession({
+      agentId,
+      workflowIdPrefix: 'guardrail-eval-wf-',
+      runIdPrefix: 'guardrail-eval-run-',
+      detail: 'guardrail violation ledger',
+      metadata: { openbox_conformance: true, source: 'guardrails.e2e' },
+    });
+    const event = await seedLocalStackGovernanceEvent({
+      agentId,
+      session,
+      activityId: 'guardrail-violation-ledger',
+      activityType: 'LLMCompletion',
+      input: [{ text: 'BLOCK_ME' }],
+      output: { decision: 'blocked' },
+      verdict: 1,
+      reason: 'guardrail violation ledger',
+      metadata: { openbox_conformance: true, source: 'guardrails.e2e' },
+    });
+    guardrailEvaluationId = await seedLocalStackGuardrailEvaluation({
+      guardrailId,
+      governanceEventId: event.id,
+      guardrailType: 'pii_detection',
+      input: 'BLOCK_ME',
+      output: 'blocked',
+      passed: false,
+      details: { reason: 'guardrail violation ledger', field: 'logs.text' },
+      status: 'blocked',
+    });
 
     const operation = backendOperation('AgentController_getGuardrailMetrics');
     expect(operation.verb).toBe('get');
@@ -780,6 +771,5 @@ describe('Guardrails', () => {
 
   afterAll(async () => {
     await cleanupAll();
-    await closeGuardrailProviderStub();
   });
 });

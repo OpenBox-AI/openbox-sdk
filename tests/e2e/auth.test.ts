@@ -9,12 +9,7 @@ function backendOperation(operationId: string) {
   return operation!;
 }
 
-function expectValidationOrThrottle(body: any, fields: string[]) {
-  if (body.status === 429) {
-    expect(body.message).toContain('Too Many Requests');
-    return;
-  }
-
+function expectValidation(body: any, fields: string[]) {
   expect(body.status).toBe(422);
   const message = JSON.stringify(body);
   for (const field of fields) {
@@ -88,13 +83,13 @@ describe('Auth Endpoints', () => {
     };
     for (const field of requiredFields('LoginDto')) {
       const response = await client.post(loginOperation.path, withoutField(loginBody, field));
-      expectValidationOrThrottle(response.data, [field]);
+      expectValidation(response.data, [field]);
     }
 
     const logoutBody = { refreshToken: 'invalid-refresh-token' };
     for (const field of requiredFields('LogoutDto')) {
       const response = await client.post(logoutOperation.path, withoutField(logoutBody, field));
-      expectValidationOrThrottle(response.data, [field]);
+      expectValidation(response.data, [field]);
     }
 
     const forgotPasswordBody = {
@@ -103,7 +98,7 @@ describe('Auth Endpoints', () => {
     };
     for (const field of requiredFields('ForgotPasswordDto')) {
       const response = await client.post(forgotPasswordOperation.path, withoutField(forgotPasswordBody, field));
-      expectValidationOrThrottle(response.data, [field]);
+      expectValidation(response.data, [field]);
     }
 
     const resetPasswordBody = {
@@ -112,7 +107,7 @@ describe('Auth Endpoints', () => {
     };
     for (const field of requiredFields('ResetPasswordDto')) {
       const response = await client.post(resetPasswordOperation.path, withoutField(resetPasswordBody, field));
-      expectValidationOrThrottle(response.data, [field]);
+      expectValidation(response.data, [field]);
     }
 
     const changePasswordBody = {
@@ -122,13 +117,13 @@ describe('Auth Endpoints', () => {
     };
     for (const field of requiredFields('ChangePasswordDto')) {
       const response = await client.post(changePasswordOperation.path, withoutField(changePasswordBody, field));
-      expectValidationOrThrottle(response.data, [field]);
+      expectValidation(response.data, [field]);
     }
 
     const refreshBody = { refreshToken: 'invalid-refresh-token' };
     for (const field of requiredFields('RefreshDto')) {
       const response = await client.post(refreshOperation.path, withoutField(refreshBody, field));
-      expectValidationOrThrottle(response.data, [field]);
+      expectValidation(response.data, [field]);
     }
   });
 
