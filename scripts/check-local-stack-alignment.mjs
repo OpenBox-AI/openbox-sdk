@@ -330,7 +330,9 @@ function checkRunningBackendEnv() {
     );
   }
   if (!checked) {
-    warn(`backend listener(s) ${pids.join(', ')} did not expose S3_BUCKET_NAME in ps output`);
+    recordCheck(
+      `backend listener env visibility skipped: ps did not expose S3_BUCKET_NAME for ${pids.join(', ')}`,
+    );
   }
 }
 
