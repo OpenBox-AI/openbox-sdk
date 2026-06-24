@@ -152,7 +152,7 @@ jobs:
           UV_PYTHON: ${{ env.PYTHON_VERSION }}
 
       - name: Run tests with coverage
-        run: OPENBOX_CLI=./scripts/openbox-cli-dev.mjs npx vitest run --coverage --project unit --project contract --project hook-integration --coverage.reporter=lcov
+        run: OPENBOX_CLI=./scripts/openbox-cli-dev.mjs npx vitest run --coverage --project unit --project openapi-mock --project contract --coverage.reporter=lcov
 
       - name: Lint generated banners
         run: npm run lint:generated-banners
