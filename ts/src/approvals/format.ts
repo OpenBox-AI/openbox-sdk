@@ -1,5 +1,5 @@
 // Approval activity-label formatter. Spec-driven primary path, with an
-// acronym-aware fallback for free-form custom-preset activity_types.
+// acronym-aware formatter for free-form custom-preset activity_types.
 //
 // Originally implemented for the iOS app; lifted here so every consumer
 // (mobile, web, CLI, IDE extensions) renders the same label for the same
@@ -19,7 +19,7 @@ export function verdictLabel(v: number | undefined | null): string | undefined {
   return v == null ? undefined : VERDICT_LABEL[v];
 }
 
-// Acronyms the spec table doesn't cover (see fallback path below). The
+// Acronyms the spec table doesn't cover (see custom path below). The
 // canonical activity_type vocabulary all routes through CANONICAL_ACTIVITY_LABELS;
 // this allowlist is only consulted for free-form custom-preset activity_types
 // that domain agents (FinOps/IAM/RPA/...) emit outside the canonical set.
@@ -61,7 +61,7 @@ export function formatLabel(s?: string | null): string {
   const specLabel = CANONICAL_ACTIVITY_LABELS[s];
   if (specLabel) return specLabel;
 
-  // Fallback: free-form custom-preset activity_types (domain agents) and
+  // Custom path: free-form custom-preset activity_types (domain agents) and
   // any other non-canonical strings flow through a generic Title-Case
   // formatter. Splits on _ first, then on case-boundary segments inside
   // each chunk. Two boundaries that matter:

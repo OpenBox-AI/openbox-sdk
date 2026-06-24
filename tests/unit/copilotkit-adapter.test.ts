@@ -624,7 +624,7 @@ describe('CopilotKit OpenBox adapter', () => {
           verdict: 'allow',
           action: 'allow',
           risk_score: 0,
-          fallback_used: false,
+          governance_checks_incomplete: false,
         };
       }
       return {
@@ -632,7 +632,7 @@ describe('CopilotKit OpenBox adapter', () => {
         verdict: 'allow',
         action: 'allow',
         risk_score: 0,
-        fallback_used: false,
+        governance_checks_incomplete: false,
         guardrails_result: {
           input_type: 'activity_output',
           redacted_input: {
@@ -1699,7 +1699,7 @@ describe('CopilotKit OpenBox adapter', () => {
         ? {
             allowed: true,
             verdict: 'allow',
-            fallback_used: false,
+            governance_checks_incomplete: false,
             goal_alignment_checked: true,
             goal_drifted: false,
             span_results: [],
@@ -1948,6 +1948,18 @@ describe('CopilotKit OpenBox adapter', () => {
         },
       },
       {
+        name: 'mcp__web__request',
+        args: { method: 'POST', url: 'https://example.com/mcp' },
+        toolType: 'http',
+        span: {
+          span_type: 'http',
+          attributes: expect.objectContaining({
+            'http.method': 'POST',
+            'http.url': 'https://example.com/mcp',
+          }),
+        },
+      },
+      {
         name: 'mcp__openbox__status',
         args: {},
         toolType: 'mcp',
@@ -2018,7 +2030,7 @@ describe('CopilotKit OpenBox adapter', () => {
     const ageResult = {
       allowed: true,
       verdict: 'allow',
-      fallback_used: false,
+      governance_checks_incomplete: false,
       goal_alignment_checked: true,
       goal_drifted: false,
       span_results: [],
@@ -2058,7 +2070,7 @@ describe('CopilotKit OpenBox adapter', () => {
     const ageResult = {
       allowed: true,
       verdict: 'allow',
-      fallback_used: false,
+      governance_checks_incomplete: false,
       goal_alignment_checked: true,
       goal_drifted: false,
       span_results: [],

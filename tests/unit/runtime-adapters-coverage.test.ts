@@ -443,7 +443,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     expect(session.calls[0]?.method).toBe('activity');
   });
 
-  it('routes unknown post-tool events through the generic agent action fallback', async () => {
+  it('routes unknown post-tool events through the generic agent action mapper', async () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
     const env: any = { tool_name: 'UnknownTool', tool_input: {}, tool_response: 'ok', session_id: 'S5b' };

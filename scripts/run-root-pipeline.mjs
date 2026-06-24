@@ -12,7 +12,7 @@ import {
   sdkTargetsFixturePath,
 } from './lib/spec-steps.mjs';
 
-const fallbackPipelines = new Map([
+const bootstrapPipelines = new Map([
   [
     'build',
     [
@@ -57,8 +57,8 @@ const fallbackPipelines = new Map([
   ],
 ]);
 
-function fallbackSteps(pipelineId, reason) {
-  const steps = fallbackPipelines.get(pipelineId);
+function bootstrapSteps(pipelineId, reason) {
+  const steps = bootstrapPipelines.get(pipelineId);
   if (!steps) {
     throw new Error(`Unknown root pipeline "${pipelineId}"`);
   }
@@ -68,13 +68,13 @@ function fallbackSteps(pipelineId, reason) {
 
 function readPipelineSteps(pipelineId) {
   if (!existsSync(sdkTargetsFixturePath)) {
-    return fallbackSteps(pipelineId, 'generated SDK targets fixture was not found');
+    return bootstrapSteps(pipelineId, 'generated SDK targets fixture was not found');
   }
 
   const fixture = readJsonFile(sdkTargetsFixturePath);
   assertRecord(fixture, 'sdk-targets fixture');
   if (fixture.rootPipelines === undefined) {
-    return fallbackSteps(pipelineId, 'generated SDK targets fixture has no rootPipelines section');
+    return bootstrapSteps(pipelineId, 'generated SDK targets fixture has no rootPipelines section');
   }
   assertRecord(fixture.rootPipelines, 'rootPipelines');
   const pipelines = fixture.rootPipelines.pipelines;

@@ -290,7 +290,7 @@ describe('cursor hook local-stack governance', () => {
 function workflowIdForConversation(conversationId: string): string {
   if (!projectRoot) throw new Error('project root was not initialized');
   const safe = conversationId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const sessionFile = path.join(projectRoot, '.cursor-hooks', 'sessions', `${safe}.json`);
+  const sessionFile = path.join(projectRoot, '.openbox', 'cursor', 'sessions', `${safe}.json`);
   expect(existsSync(sessionFile), `missing Cursor session store file for ${conversationId}`).toBe(true);
   const session = JSON.parse(readFileSync(sessionFile, 'utf-8')) as {
     workflowId?: unknown;
@@ -332,8 +332,8 @@ async function expectCursorSessionLog(
   const serialized = JSON.stringify(matched);
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('cursor');
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(

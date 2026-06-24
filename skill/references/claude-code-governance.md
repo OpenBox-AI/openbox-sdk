@@ -107,6 +107,6 @@ CopilotKit abstractions.
 | Behavior-rule spans | Prompt, shell, file, HTTP, and MCP paths attach SDK spans for behavior-rule matching. |
 | MCP connector | Plugin `.mcp.json` uses the bundled project-local runner for `mcp serve`, including `openbox_status`, `claude_code_doctor`, approvals, agents, policies, guardrails, and `check_governance`. |
 | Plugin diagnostics | The plugin ships component inventory, governance matrix, SDK capability matrix, monitor opt-in metadata, a project-local bin runner, and a doctor shim. |
-| Project-local config | Claude hooks read project `.claude-hooks/config.json` or `.env`; host-level Claude config is not mutated. |
+| Project-local config | Claude hooks read runtime env from project `.claude/settings.local.json` and OpenBox hook settings/state from `.openbox/claude-code`; host-level Claude config is not mutated. |
 | CopilotKit UI wrappers | Explicitly out of scope for Claude Code; Claude maps the same primitives through hooks/MCP instead. |
 | Non-Claude SDK presets | Diagnose only; they remain SDK-wide capabilities, not Claude host surfaces. |

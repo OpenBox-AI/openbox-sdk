@@ -3,13 +3,17 @@
 // and skills; the extension owns the approval UI.
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import { configStorePath } from '../../config/index.js';
 import { normalizeServiceUrl } from '../../env/connection.js';
 import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { verifyCursorPlugin, verifyCursorRepoMode } from './plugin.js';
+import {
+  cursorRuntimeConfigFile,
+  cursorRuntimeEnvFile,
+  verifyCursorPlugin,
+  verifyCursorRepoMode,
+} from './plugin.js';
 
 export type CursorInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -40,13 +44,14 @@ function isPlaceholderKey(value: string | undefined): boolean {
 }
 
 function buildHookRuntimeEnv(cwd = process.cwd()) {
-  const configDir = path.join(cwd, '.cursor-hooks');
-  const configFile = path.join(configDir, 'config.json');
-  const envFile = path.join(configDir, '.env');
+  const configFile = cursorRuntimeConfigFile(cwd);
+  const envFile = cursorRuntimeEnvFile(cwd);
   const fileConfig = loadJsonConfig(configFile);
   const envConfig = loadDotenv(envFile);
   const get = (key: string): string | undefined =>
-    process.env[key] ?? fileConfig[key] ?? envConfig[key];
+    process.env[key] ??
+    envConfig[key] ??
+    fileConfig[key];
 
   const rawCoreUrl = get('OPENBOX_CORE_URL');
   let coreUrl = '';
@@ -78,6 +83,7 @@ async function checkRuntimeReadiness(cwd: string | undefined, validateRuntime: b
   const runtime = buildHookRuntimeEnv(cwd);
   const details = [
     `config=${runtime.configFile}`,
+    `env=${runtime.envFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
     `core=${runtime.coreUrl || '(missing)'}`,
   ];

@@ -18,6 +18,7 @@ export { createGovernedCopilotTool } from './governed-tool.js';
 export { createOpenBoxApprovalRoute } from './approval-route.js';
 export { createOpenBoxHeadlessApprovalClient } from './headless-approval.js';
 export { createOpenBoxReadinessCheck } from './readiness.js';
+export { resolveProjectConfigDir } from './config-utils.js';
 export { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 export { parseToolResult } from './internal-utils.js';
 export { OpenBoxCopilotKitError } from './types.js';

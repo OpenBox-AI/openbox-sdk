@@ -12,11 +12,11 @@ namespace OpenBox.Env;
 
 /**
  * Marks a property as environment-variable-backed. Target emitters
- * generate environment lookups with `defaultValue` as the fallback
+ * generate environment lookups with `defaultValue` when the env var is unset
  * when unset.
  *
  * @param name The OS environment variable name. SCREAMING_SNAKE_CASE.
- * @param defaultValue Optional fallback when the env var is unset.
+ * @param defaultValue Optional value when the env var is unset.
  */
 extern dec env_var(target: ModelProperty, name: valueof string, defaultValue?: valueof string);
 

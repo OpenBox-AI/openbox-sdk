@@ -18,7 +18,7 @@ import {
   publishClaimDecision,
   isFileDeleteCommand,
   rememberCompletionActivity,
-  verdictUsesGovernanceFallback,
+  verdictHasIncompleteGovernanceChecks,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 import { ACTIVITY_TYPES } from '../activity-types.js';
@@ -64,13 +64,13 @@ export async function handleBeforeShellExecution(
       };
     }
     if (
-      decision.fallbackUsed &&
+      decision.governanceChecksIncomplete &&
       decision.arm !== 'block' &&
       decision.arm !== 'halt'
     ) {
       return {
         arm: 'block',
-        reason: '[OpenBox] OpenBox governance fallback used while processing Cursor shell hook',
+        reason: '[OpenBox] OpenBox required governance checks did not complete while processing Cursor shell hook',
         riskScore: 1,
       };
     }
@@ -122,7 +122,7 @@ export async function handleBeforeShellExecution(
     publishClaimDecision(claim, {
       arm: verdict.arm,
       reason: verdict.reason ?? '',
-      fallbackUsed: verdictUsesGovernanceFallback(verdict),
+      governanceChecksIncomplete: verdictHasIncompleteGovernanceChecks(verdict),
     });
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;

@@ -258,8 +258,8 @@ async function expectCopilotKitSessionLog(
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('copilotkit');
   if (options.expectedContent) expect(serialized).toContain(options.expectedContent);
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(

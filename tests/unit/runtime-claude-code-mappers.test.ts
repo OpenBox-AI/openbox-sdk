@@ -194,6 +194,59 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     );
   });
 
+  it('classifies HTTP-shaped MCP tools as HTTPRequest across pre/post hooks', async () => {
+    const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
+    const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
+    const session = recordingSession();
+    const cfg = { sessionDir: dir } as any;
+    const env = {
+      session_id: 'S-mcp-http',
+      tool_use_id: 'toolu_mcp_http',
+      tool_name: 'mcp__web__request',
+      tool_input: { url: 'https://example.test/ping', method: 'post' },
+    } as any;
+
+    await handlePreToolUse(env, session, cfg);
+    await handlePostToolUse(
+      {
+        ...env,
+        tool_response: { status: 200 },
+        duration_ms: 15,
+      },
+      session,
+      cfg,
+    );
+
+    const opened = session.calls.find((call: any) => call.method === 'openActivity');
+    expect(opened?.args[0]).toBe('HTTPRequest');
+    expect(opened?.args[1]).toMatchObject({
+      toolName: 'mcp__web__request',
+      toolType: 'http',
+    });
+    expect(opened?.args[1].input).toContainEqual({
+      __openbox: { tool_type: 'http' },
+    });
+    const completed = session.calls.find(
+      (call: any) => call.method === 'activity' && call.args[0] === 'ActivityCompleted',
+    );
+    expect(completed?.args[1]).toBe('HTTPRequest');
+    expect(completed?.args[2]).toMatchObject({
+      toolName: 'mcp__web__request',
+      toolType: 'http',
+      durationMs: 15,
+    });
+    expect(completed?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'http' },
+    });
+    expect(completed?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'http.method': 'POST',
+        'http.url': 'https://example.test/ping',
+      }),
+    });
+  });
+
   it('post tool failure marks the completed hook span as errored', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const { handlePostToolUseFailure } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');

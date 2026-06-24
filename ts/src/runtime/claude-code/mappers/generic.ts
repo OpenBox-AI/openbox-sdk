@@ -132,14 +132,14 @@ export async function handleMessageDisplay(
       output: stampSource({ text, event_category: options.eventCategory }, 'claude-code'),
       ...(env.final === true
         ? claudeAssistantTelemetryFields(env, {
-            fallbackText: text,
+            defaultText: text,
             preferTranscriptContent: true,
           })
         : {}),
       spans: env.final === true
         ? buildClaudeAssistantOutputSpan(env, {
             event: 'MessageDisplay',
-            fallbackText: text,
+            defaultText: text,
             preferTranscriptContent: true,
           })
         : undefined,

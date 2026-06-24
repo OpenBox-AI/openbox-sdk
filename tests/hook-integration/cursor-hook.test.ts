@@ -6,7 +6,7 @@
 //      and still exit 0).
 //   2. Stdout is parseable JSON for `before*`/`preToolUse`/`after*`
 //      events; sessionStart/stop emit nothing per the spec.
-//   3. The JSONL log line at <project>/.cursor-hooks/log/cursor-hook.jsonl has a
+//   3. The JSONL log line at <project>/.openbox/cursor/log/cursor-hook.jsonl has a
 //      matching record (event name + verdict_kind).
 //
 // Auth: each invocation uses a syntactically valid test runtime key and an
@@ -24,7 +24,7 @@ import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
 const CLI = requireOpenBoxCli();
 const HOOK_ROOT = mkdtempSync(join(tmpdir(), 'openbox-cursor-hook-'));
-const HOOK_HOME = join(HOOK_ROOT, '.cursor-hooks');
+const HOOK_HOME = join(HOOK_ROOT, '.openbox', 'cursor');
 const LOG = join(HOOK_HOME, 'log', 'cursor-hook.jsonl');
 
 interface HookOutcome {

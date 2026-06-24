@@ -228,7 +228,7 @@ function checkBackendEnvFile() {
 function checkOpaConfigFile() {
   if (!existsSync(opaConfigPath)) {
     fail(
-      `OPA runtime config is unavailable and fallback config file is missing at ${opaConfigPath}`,
+      `OPA runtime config is unavailable and explicit config file is missing at ${opaConfigPath}`,
     );
     return false;
   }

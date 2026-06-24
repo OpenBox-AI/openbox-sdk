@@ -120,7 +120,7 @@ function verdictResponse(verdict: WorkflowVerdict): GovernanceVerdictResponse {
     behavioral_violations: verdict.behavioralViolations,
     constraints: verdict.constraints,
     metadata: verdict.metadata,
-    fallback_used: verdict.fallbackUsed,
+    governance_checks_incomplete: verdict.governanceChecksIncomplete,
     guardrails_result: verdict.guardrailsResult as never,
     age_result: verdict.ageResult,
   } as GovernanceVerdictResponse;

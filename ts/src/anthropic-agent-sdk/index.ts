@@ -47,6 +47,8 @@ export {
   DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
   DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE,
   OpenBoxAnthropicAgentSDKError,
+  createOpenBoxAnthropicRuntimeContext,
+  resolveProjectConfigDir,
   verifyOpenBoxAnthropicAgentSDKConfig,
 } from './config.js';
 export type {

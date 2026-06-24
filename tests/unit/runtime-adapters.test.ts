@@ -581,7 +581,7 @@ describe('createClaudeCodeAdapter', () => {
     expect(cap.exitCodes).toEqual([0]);
   });
 
-  test('missing handler → fallback allow stdout', async () => {
+  test('missing handler emits default allow stdout', async () => {
     const cap = capture();
     await createClaudeCodeAdapter({
       core: makeMockCore(),

@@ -28,7 +28,7 @@ const BACKEND_KEY_PREFIX = /^obx_key_/;
 const PROJECT_OPENBOX = path.resolve(process.cwd(), '.openbox');
 const MATRIX_VERIFY_MAX_ATTEMPTS = 12;
 const MATRIX_VERIFY_RETRY_MS = 5_000;
-const fallbackRunId = `pid-${process.pid}-${Date.now().toString(36)}`;
+const defaultRunId = `pid-${process.pid}-${Date.now().toString(36)}`;
 
 interface LocalGovernanceRuntime {
   apiUrl: string;
@@ -108,7 +108,7 @@ function normalizeRunIdPart(value: string | undefined): string | undefined {
 }
 
 function localRunId(): string {
-  return normalizeRunIdPart(process.env.OPENBOX_E2E_RUN_ID) ?? fallbackRunId;
+  return normalizeRunIdPart(process.env.OPENBOX_E2E_RUN_ID) ?? defaultRunId;
 }
 
 function localAgentName(): string {
@@ -119,8 +119,8 @@ function localAgentName(): string {
 function configuredUrl(kind: 'api' | 'core'): string {
   const value = kind === 'api' ? process.env.OPENBOX_API_URL : process.env.OPENBOX_CORE_URL;
   const unit = kind === 'api' ? UNIT_API_URL : UNIT_CORE_URL;
-  const fallback = kind === 'api' ? DEFAULT_API_URL : DEFAULT_CORE_URL;
-  return value && value !== unit ? value : fallback;
+  const defaultUrl = kind === 'api' ? DEFAULT_API_URL : DEFAULT_CORE_URL;
+  return value && value !== unit ? value : defaultUrl;
 }
 
 function readAgentRecords(): AgentKeyRecord[] {
@@ -264,13 +264,13 @@ function normalizeVerdict(value: unknown): Verdict | undefined {
     : INT_TO_VERDICT[normalized];
 }
 
-function resultUsesAgeFallback(result: unknown): boolean {
+function resultHasIncompleteGovernanceChecks(result: unknown): boolean {
   const body = objectRecord(result);
   const metadata = objectRecord(body.metadata);
   const ageResult = objectRecord(body.age_result);
-  return body.fallback_used === true
-    || ageResult.fallback_used === true
-    || metadata.age_fallback_used === true;
+  return body.governance_checks_incomplete === true
+    || ageResult.governance_checks_incomplete === true
+    || metadata.age_governance_checks_incomplete === true;
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -361,15 +361,15 @@ async function ensureTeamIds(
 async function ensureUnsignedLocalAgent(
   client: OpenBoxClient,
   agent: AgentRecord,
-  fallbackTeamIds: string[],
-  fallbackName: string,
+  defaultTeamIds: string[],
+  defaultName: string,
 ): Promise<void> {
   const id = agentId(agent);
   if (!id) return;
   const teamIds = agentTeamIds(agent);
   await client.updateAgent(id, {
-    agent_name: agentName(agent) ?? fallbackName,
-    team_ids: teamIds.length > 0 ? teamIds : fallbackTeamIds,
+    agent_name: agentName(agent) ?? defaultName,
+    team_ids: teamIds.length > 0 ? teamIds : defaultTeamIds,
     signing_required: false,
   } as never);
 }
@@ -473,13 +473,13 @@ async function verifyMatrix(agentId: string, runtimeKey: string, coreUrl: string
         spanType: c.spanType,
         activityInput: c.activityInput,
       });
-      if (!resultUsesAgeFallback(result)) break;
+      if (!resultHasIncompleteGovernanceChecks(result)) break;
       if (attempt < MATRIX_VERIFY_MAX_ATTEMPTS) await sleep(MATRIX_VERIFY_RETRY_MS);
     }
     if (!result) throw new Error(`local governance matrix did not return a result for ${c.expectedRule}`);
-    if (resultUsesAgeFallback(result)) {
+    if (resultHasIncompleteGovernanceChecks(result)) {
       throw new Error(
-        `local governance matrix still used AGE fallback for ${c.expectedRule}: ${JSON.stringify(result).slice(0, 500)}`,
+        `local governance matrix left required governance checks incomplete for ${c.expectedRule}: ${JSON.stringify(result).slice(0, 500)}`,
       );
     }
     const verdict = normalizeVerdict(result.verdict ?? result.action);

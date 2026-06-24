@@ -11,7 +11,7 @@ import {
   sdkTargetsFixturePath,
 } from './lib/spec-steps.mjs';
 
-const fallbackCommands = new Map([
+const bootstrapCommands = new Map([
   [
     'compile',
     {
@@ -36,8 +36,8 @@ const fallbackCommands = new Map([
   ],
 ]);
 
-function fallbackCommand(commandId, reason) {
-  const command = fallbackCommands.get(commandId);
+function bootstrapCommand(commandId, reason) {
+  const command = bootstrapCommands.get(commandId);
   if (!command) {
     throw new Error(`Unknown spec command "${commandId}"`);
   }
@@ -47,13 +47,13 @@ function fallbackCommand(commandId, reason) {
 
 function readSpecCommand(commandId) {
   if (!existsSync(sdkTargetsFixturePath)) {
-    return fallbackCommand(commandId, 'generated SDK targets fixture was not found');
+    return bootstrapCommand(commandId, 'generated SDK targets fixture was not found');
   }
 
   const fixture = readJsonFile(sdkTargetsFixturePath);
   assertRecord(fixture, 'sdk-targets fixture');
   if (fixture.specCommands === undefined) {
-    return fallbackCommand(commandId, 'generated SDK targets fixture has no specCommands section');
+    return bootstrapCommand(commandId, 'generated SDK targets fixture has no specCommands section');
   }
   assertRecord(fixture.specCommands, 'specCommands');
   const commands = normalizeCommandSteps(fixture.specCommands.commands, 'specCommands.commands');

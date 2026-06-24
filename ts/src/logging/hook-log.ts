@@ -11,7 +11,7 @@
 // The writer is parameterized by host name (for example `cursor`
 // or `claude-code`) so each adapter writes to its own file under the
 // active OpenBox data root. Claude Code sets that root to the resolved
-// project `.claude-hooks/` directory before recording hook events.
+// project `.openbox/claude-code/` directory before recording hook events.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -33,7 +33,7 @@ export const MAX_BYTES = 5 * 1024 * 1024;
 export interface HookLogLine {
   ts: string;
   event: string;
-  verdict_kind?: 'permission' | 'observe' | 'none' | 'fallback';
+  verdict_kind?: 'permission' | 'observe' | 'none';
   took_ms?: number;
   error?: string;
 }

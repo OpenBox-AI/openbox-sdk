@@ -66,19 +66,28 @@ function runtimeEnv(): Record<string, string> {
 
 function configureProject(runtime: Awaited<ReturnType<typeof ensureLocalGovernanceMatrix>>): string {
   const root = mkdtempSync(path.join(tmpdir(), 'openbox-claude-stdin-local-stack-'));
-  const configDir = path.join(root, '.claude-hooks');
+  const configDir = path.join(root, '.openbox', 'claude-code');
   mkdirSync(configDir, { recursive: true });
   writeFileSync(
     path.join(configDir, 'config.json'),
     JSON.stringify({
-      OPENBOX_API_KEY: runtime.runtimeKey,
-      OPENBOX_CORE_URL: runtime.coreUrl,
       governanceTimeout: LOCAL_GOVERNANCE_TIMEOUT_SEC,
       approvalMode: 'defer',
       hitlEnabled: true,
       hitlMaxWait: 5,
       hitlPollInterval: 1,
       taskQueue: 'claude-code',
+    }, null, 2),
+  );
+  const settingsLocal = path.join(root, '.claude', 'settings.local.json');
+  mkdirSync(path.dirname(settingsLocal), { recursive: true });
+  writeFileSync(
+    settingsLocal,
+    JSON.stringify({
+      env: {
+        OPENBOX_API_KEY: runtime.runtimeKey,
+        OPENBOX_CORE_URL: runtime.coreUrl,
+      },
     }, null, 2),
   );
   return root;
@@ -192,8 +201,8 @@ async function expectClaudeSessionLog(
   const serialized = JSON.stringify(matched);
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('claude-code');
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(
@@ -217,7 +226,7 @@ async function resolveBackendSessionId(
 function readRuntimeSessionMapping(hostSessionId: string): { workflowId?: string; runId?: string } | undefined {
   if (!projectRoot) throw new Error('project root was not initialized');
   const safeSessionId = hostSessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const sessionFile = path.join(projectRoot, '.claude-hooks', 'sessions', `${safeSessionId}.json`);
+  const sessionFile = path.join(projectRoot, '.openbox', 'claude-code', 'sessions', `${safeSessionId}.json`);
   if (!existsSync(sessionFile)) return undefined;
   const record = objectRecord(JSON.parse(readFileSync(sessionFile, 'utf-8')));
   return {

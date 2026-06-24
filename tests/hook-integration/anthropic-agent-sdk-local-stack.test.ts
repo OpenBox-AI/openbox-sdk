@@ -196,8 +196,8 @@ async function expectAnthropicSessionLog(
   const serialized = JSON.stringify(matched);
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('anthropic-agent-sdk');
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(

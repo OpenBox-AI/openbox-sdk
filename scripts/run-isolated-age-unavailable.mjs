@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Run the goal-drift-fallback scenario against temporary Core processes.
+// Run the AGE-unavailable goal-drift scenario against temporary Core processes.
 
 import { runIsolatedCoreVitestScenario } from './lib/isolated-core-runner.mjs';
 

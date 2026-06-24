@@ -776,7 +776,7 @@ describe('Core Governance API', () => {
     // SCENARIO_PROOF: trace-source-attribution
     // CONFORMANCE_PROOF: sourceAttribution is retained through Core into
     // governance_events input. Provider adapters stamp _openbox_source on
-    // activity input as the local-stack fallback when span attributes are not
+    // activity input as the local-stack source field when span attributes are not
     // retained on the governance event row.
     expect(['SCENARIO_PROOF: trace-source-attribution']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: trace-source-attribution']),
@@ -1494,8 +1494,9 @@ describe('Core Governance API', () => {
   it('CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE result', async () => {
     // CONFORMANCE_PROOF: the generated goal/order scenario IDs drive a
     // SignalReceived event that precedes the firstGovernedSurface. The
-    // same Core AGE result asserts goal_alignment_checked and fallback_used,
-    // so the healthy AGE path cannot silently hide fallback state.
+    // same Core AGE result asserts goal_alignment_checked and the Core
+    // governance-checks-incomplete flag, so the healthy AGE path cannot silently hide
+    // required-check completion state.
     expect([
       'SCENARIO_PROOF: behavior-order-goal-before-action',
       'SCENARIO_PROOF: goal-alignment-checked',
@@ -1526,7 +1527,7 @@ describe('Core Governance API', () => {
     expect(conformanceCase.scenarioIds).toMatchObject({
       order: 'behavior-order-goal-before-action',
       alignmentChecked: 'goal-alignment-checked',
-      fallback: 'goal-drift-fallback',
+      ageUnavailable: 'goal-drift-unavailable-fail-closed',
     });
 
     const signalResponse = await coreClient.post(
@@ -1539,11 +1540,11 @@ describe('Core Governance API', () => {
     expect(signalResponse.data).toHaveProperty('verdict');
     expect(signalResponse.data.age_result).toMatchObject({
       goal_alignment_checked: expect.any(Boolean),
-      fallback_used: conformanceCase.expected.fallbackUsed,
+      governance_checks_incomplete: conformanceCase.expected.governanceChecksIncomplete,
     });
     expect(signalResponse.data.age_result).toHaveProperty(
-      'fallback_used',
-      conformanceCase.expected.fallbackUsed,
+      'governance_checks_incomplete',
+      conformanceCase.expected.governanceChecksIncomplete,
     );
 
     const actionResponse = await coreClient.post(
@@ -1560,13 +1561,13 @@ describe('Core Governance API', () => {
     expect(actionResponse.status).toBe(200);
     expect(actionResponse.data).toHaveProperty('verdict', 'allow');
     expect(actionResponse.data).toHaveProperty(
-      'fallback_used',
-      conformanceCase.expected.fallbackUsed,
+      'governance_checks_incomplete',
+      conformanceCase.expected.governanceChecksIncomplete,
     );
     expect(actionResponse.data.age_result).toMatchObject({
       goal_alignment_checked: conformanceCase.expected.goalAlignmentChecked,
       goal_drifted: conformanceCase.expected.goalDrifted,
-      fallback_used: conformanceCase.expected.fallbackUsed,
+      governance_checks_incomplete: conformanceCase.expected.governanceChecksIncomplete,
     });
     if (actionResponse.data.age_result?.trust_score?.trust_tier !== undefined) {
       expectRange(
@@ -1585,15 +1586,15 @@ describe('Core Governance API', () => {
     );
   });
 
-  itIfIsolatedAgeUnavailable('CONFORMANCE: AGE unavailable surfaces goal drift fallback', async () => {
-    // SCENARIO_PROOF: goal-drift-fallback
+  itIfIsolatedAgeUnavailable('CONFORMANCE: AGE unavailable marks governance checks incomplete', async () => {
+    // SCENARIO_PROOF: goal-drift-unavailable-fail-closed
     // CONFORMANCE_PROOF: this test is only enabled by the isolated Core runner,
     // which starts Core with AGE_URL pointed at an unavailable local port.
-    // The fallback flag must be true on the governed action response.
+    // The Core governance-checks-incomplete flag must be true on the governed action response.
     expect(process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE).toBe('1');
     expect('AGE unavailable').toBe('AGE unavailable');
-    expect(['SCENARIO_PROOF: goal-drift-fallback']).toEqual(
-      expect.arrayContaining(['SCENARIO_PROOF: goal-drift-fallback']),
+    expect(['SCENARIO_PROOF: goal-drift-unavailable-fail-closed']).toEqual(
+      expect.arrayContaining(['SCENARIO_PROOF: goal-drift-unavailable-fail-closed']),
     );
     const conformanceCase = makeGoalSignalOrderConformanceCase();
     const evaluateOperation = coreOperation(conformanceCase.evaluateOperationId);
@@ -1619,12 +1620,12 @@ describe('Core Governance API', () => {
 
     const actionResponse = await coreClient.post(evaluateOperation.path, governedEvent);
     expect(actionResponse.status).toBe(200);
-    expect(actionResponse.data).toHaveProperty('fallback_used', true);
+    expect(actionResponse.data).toHaveProperty('governance_checks_incomplete', true);
     expect(actionResponse.data.age_result).toMatchObject({
       goal_alignment_checked: expect.any(Boolean),
-      fallback_used: true,
+      governance_checks_incomplete: true,
     });
-    expect(actionResponse.data.age_result).toHaveProperty('fallback_used', true);
+    expect(actionResponse.data.age_result).toHaveProperty('governance_checks_incomplete', true);
   });
 
   afterAll(async () => {

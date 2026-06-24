@@ -139,7 +139,7 @@ model CodexEnvelope {
   key: "hooks",
   style: "codex-array",
   command: "openbox codex hook",
-  configDir: ".codex-hooks",
+  configDir: ".openbox/codex",
 })
 interface CodexAdapter {
   @hookEvent("UserPromptSubmit")
@@ -183,69 +183,69 @@ interface CodexAdapter {
       Read: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.path" },
         content: #{ sideEffect: "readFile", from: "tool_input.file_path" },
         event_category: #{ literal: "file_read" },
       },
       Write: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.path" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       Edit: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.path" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       Delete: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.path" },
         event_category: #{ literal: "file_delete" },
       },
       Bash: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        command: #{ from: "tool_input.command", fallback: "command" },
-        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        command: #{ from: "tool_input.command", alternate: "command" },
+        cwd: #{ from: "tool_input.cwd", alternate: "cwd" },
         event_category: #{ literal: "agent_action" },
       },
       Shell: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        command: #{ from: "tool_input.command", fallback: "command" },
-        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        command: #{ from: "tool_input.command", alternate: "command" },
+        cwd: #{ from: "tool_input.cwd", alternate: "cwd" },
         event_category: #{ literal: "agent_action" },
       },
       WebFetch: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
-        http_method: #{ from: "tool_input.method", fallback: "tool_input.http_method", default: "GET" },
+        url: #{ from: "tool_input.url", alternate: "tool_input.query" },
+        http_method: #{ from: "tool_input.method", alternate: "tool_input.http_method", default: "GET" },
         event_category: #{ literal: "http_request" },
       },
       WebSearch: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
-        http_method: #{ from: "tool_input.method", fallback: "tool_input.http_method", default: "GET" },
+        url: #{ from: "tool_input.url", alternate: "tool_input.query" },
+        http_method: #{ from: "tool_input.method", alternate: "tool_input.http_method", default: "GET" },
         event_category: #{ literal: "http_request" },
       },
       Agent: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        agent_type: #{ from: "tool_input.agent_type", fallback: "tool_input.description" },
+        agent_type: #{ from: "tool_input.agent_type", alternate: "tool_input.description" },
         prompt: #{ from: "tool_input.prompt" },
         event_category: #{ literal: "agent_action" },
       },
       Task: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        agent_type: #{ from: "tool_input.agent_type", fallback: "tool_input.description" },
+        agent_type: #{ from: "tool_input.agent_type", alternate: "tool_input.description" },
         prompt: #{ from: "tool_input.prompt" },
         event_category: #{ literal: "agent_action" },
       },
@@ -274,7 +274,7 @@ interface CodexAdapter {
     default: #{
       tool_name: #{ from: "tool_name" },
       tool_input: #{ from: "tool_input" },
-      output: #{ from: "tool_output", fallback: "response" },
+      output: #{ from: "tool_output", alternate: "response" },
       duration_ms: #{ from: "duration_ms" },
       event_category: #{ literal: "agent_observation" },
     },
@@ -304,7 +304,7 @@ interface CodexAdapter {
   key: "hooks",
   style: "claude-array",
   command: "openbox claude-code hook",
-  configDir: ".claude-hooks",
+  configDir: ".openbox/claude-code",
 })
 interface ClaudeCodeAdapter {
   /**
@@ -313,7 +313,7 @@ interface ClaudeCodeAdapter {
    * table; the per-tool payload field map lives in @payloadShape.
    *
    * Tools not listed (`Glob`, `Grep`, etc.) are pass-through (allow).
-   * mcp__* tools resolve to MCPToolCall via runtime fallback.
+   * mcp__* tools resolve to MCPToolCall via runtime routing.
    */
   @hookEvent("PreToolUse")
   @hookEventLabel("Tool call")
@@ -353,84 +353,84 @@ interface ClaudeCodeAdapter {
     byTool: #{
       Read: #{
         text: #{ sideEffect: "readFile", from: "tool_input.file_path" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
         content: #{ sideEffect: "readFile", from: "tool_input.file_path" },
         event_category: #{ literal: "file_read" },
       },
       Delete: #{
-        text: #{ from: "tool_input.path", fallback: "tool_input.file_path" },
-        file_path: #{ from: "tool_input.path", fallback: "tool_input.file_path" },
+        text: #{ from: "tool_input.path", alternate: "tool_input.file_path" },
+        file_path: #{ from: "tool_input.path", alternate: "tool_input.file_path" },
         event_category: #{ literal: "file_delete" },
       },
       Write: #{
-        text: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        text: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       Edit: #{
-        text: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        text: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       MultiEdit: #{
-        text: #{ from: "tool_input.edits", fallback: "tool_input.content" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
-        content: #{ from: "tool_input.edits", fallback: "tool_input.content" },
+        text: #{ from: "tool_input.edits", alternate: "tool_input.content" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
+        content: #{ from: "tool_input.edits", alternate: "tool_input.content" },
         event_category: #{ literal: "file_write" },
       },
       NotebookEdit: #{
-        text: #{ from: "tool_input.new_source", fallback: "tool_input.content" },
-        file_path: #{ from: "tool_input.notebook_path", fallback: "tool_input.file_path" },
-        content: #{ from: "tool_input.new_source", fallback: "tool_input.content" },
+        text: #{ from: "tool_input.new_source", alternate: "tool_input.content" },
+        file_path: #{ from: "tool_input.notebook_path", alternate: "tool_input.file_path" },
+        content: #{ from: "tool_input.new_source", alternate: "tool_input.content" },
         event_category: #{ literal: "file_write" },
       },
       NotebookRead: #{
         text: #{ sideEffect: "readFile", from: "tool_input.notebook_path" },
-        file_path: #{ from: "tool_input.notebook_path", fallback: "tool_input.file_path" },
+        file_path: #{ from: "tool_input.notebook_path", alternate: "tool_input.file_path" },
         content: #{ sideEffect: "readFile", from: "tool_input.notebook_path" },
         event_category: #{ literal: "file_read" },
       },
       Glob: #{
         text: #{ from: "tool_input.pattern" },
-        file_path: #{ from: "tool_input.path", fallback: "cwd" },
+        file_path: #{ from: "tool_input.path", alternate: "cwd" },
         event_category: #{ literal: "file_read" },
       },
       Grep: #{
         text: #{ from: "tool_input.pattern" },
-        file_path: #{ from: "tool_input.path", fallback: "cwd" },
+        file_path: #{ from: "tool_input.path", alternate: "cwd" },
         event_category: #{ literal: "file_read" },
       },
       Bash: #{
         text: #{ from: "tool_input.command" },
         command: #{ from: "tool_input.command" },
-        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        cwd: #{ from: "tool_input.cwd", alternate: "cwd" },
         event_category: #{ literal: "agent_action" },
       },
       PowerShell: #{
         text: #{ from: "tool_input.command" },
         command: #{ from: "tool_input.command" },
-        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        cwd: #{ from: "tool_input.cwd", alternate: "cwd" },
         event_category: #{ literal: "agent_action" },
       },
       WebFetch: #{
-        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
+        url: #{ from: "tool_input.url", alternate: "tool_input.query" },
         http_method: #{ literal: "GET" },
         event_category: #{ literal: "http_request" },
       },
       WebSearch: #{
-        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
+        url: #{ from: "tool_input.url", alternate: "tool_input.query" },
         http_method: #{ literal: "GET" },
         event_category: #{ literal: "http_request" },
       },
       Agent: #{
-        agent_type: #{ from: "tool_input.subagent_type", fallback: "tool_input.description" },
+        agent_type: #{ from: "tool_input.subagent_type", alternate: "tool_input.description" },
         prompt: #{ from: "tool_input.prompt" },
         event_category: #{ literal: "agent_action" },
       },
       AskUserQuestion: #{
-        text: #{ from: "tool_input.question", fallback: "tool_input.message" },
+        text: #{ from: "tool_input.question", alternate: "tool_input.message" },
         event_category: #{ literal: "agent_action" },
       },
       ExitPlanMode: #{
@@ -490,7 +490,7 @@ interface ClaudeCodeAdapter {
     default: #{
       tool_name: #{ from: "tool_name" },
       tool_input: #{ from: "tool_input" },
-      error: #{ from: "error", fallback: "reason" },
+      error: #{ from: "error", alternate: "reason" },
       event_category: #{ literal: "agent_observation" },
     },
   })
@@ -528,8 +528,8 @@ interface ClaudeCodeAdapter {
   @installTimeout(86400)
   @payloadShape(#{
     default: #{
-      text: #{ from: "expanded_prompt", fallback: "prompt" },
-      prompt: #{ from: "expanded_prompt", fallback: "prompt" },
+      text: #{ from: "expanded_prompt", alternate: "prompt" },
+      prompt: #{ from: "expanded_prompt", alternate: "prompt" },
       command_name: #{ from: "command_name" },
       command_args: #{ from: "command_args" },
       event_category: #{ literal: "llm_prompt" },
@@ -576,29 +576,29 @@ interface ClaudeCodeAdapter {
       Read: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
         event_category: #{ literal: "file_read" },
       },
       Delete: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        file_path: #{ from: "tool_input.path", fallback: "tool_input.file_path" },
+        file_path: #{ from: "tool_input.path", alternate: "tool_input.file_path" },
         event_category: #{ literal: "file_delete" },
       },
       Write: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        text: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        text: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       Edit: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        text: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        text: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       Bash: #{
@@ -606,20 +606,20 @@ interface ClaudeCodeAdapter {
         tool_input: #{ from: "tool_input" },
         text: #{ from: "tool_input.command" },
         command: #{ from: "tool_input.command" },
-        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        cwd: #{ from: "tool_input.cwd", alternate: "cwd" },
         event_category: #{ literal: "agent_action" },
       },
       WebFetch: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
+        url: #{ from: "tool_input.url", alternate: "tool_input.query" },
         http_method: #{ literal: "GET" },
         event_category: #{ literal: "http_request" },
       },
       WebSearch: #{
         tool_name: #{ from: "tool_name" },
         tool_input: #{ from: "tool_input" },
-        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
+        url: #{ from: "tool_input.url", alternate: "tool_input.query" },
         http_method: #{ literal: "GET" },
         event_category: #{ literal: "http_request" },
       },
@@ -791,7 +791,7 @@ interface ClaudeCodeAdapter {
   @verdictShape("none")
   @payloadShape(#{
     default: #{
-      error: #{ from: "error", fallback: "reason" },
+      error: #{ from: "error", alternate: "reason" },
       event_category: #{ literal: "workflow_failed" },
     },
   })
@@ -825,8 +825,8 @@ interface ClaudeCodeAdapter {
   @verdictShape("none")
   @payloadShape(#{
     default: #{
-      message: #{ from: "message", fallback: "display_content" },
-      display_content: #{ from: "display_content", fallback: "displayContent" },
+      message: #{ from: "message", alternate: "display_content" },
+      display_content: #{ from: "display_content", alternate: "displayContent" },
       event_category: #{ literal: "llm_output" },
     },
   })
@@ -875,7 +875,7 @@ interface ClaudeCodeAdapter {
   @verdictShape("worktree-path")
   @payloadShape(#{
     default: #{
-      name: #{ from: "name", fallback: "worktree_name" },
+      name: #{ from: "name", alternate: "worktree_name" },
       cwd: #{ from: "cwd" },
       worktree_path: #{ from: "worktree_path" },
       event_category: #{ literal: "worktree_create" },
@@ -1051,7 +1051,7 @@ model CursorEnvelope {
   key: "hooks",
   style: "cursor-keyed",
   command: "openbox cursor hook",
-  configDir: ".cursor-hooks",
+  configDir: ".openbox/cursor",
 })
 interface CursorAdapter {
   @hookEvent("beforeSubmitPrompt")
@@ -1139,18 +1139,18 @@ interface CursorAdapter {
   @payloadShape(#{
     byTool: #{
       Read: #{
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
         content: #{ sideEffect: "readFile", from: "tool_input.file_path" },
         event_category: #{ literal: "file_read" },
       },
       Write: #{
-        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.filePath" },
-        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        file_path: #{ from: "tool_input.file_path", alternate: "tool_input.filePath" },
+        content: #{ from: "tool_input.content", alternate: "tool_input.new_string" },
         event_category: #{ literal: "file_write" },
       },
       Shell: #{
         command: #{ from: "tool_input.command" },
-        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        cwd: #{ from: "tool_input.cwd", alternate: "cwd" },
         event_category: #{ literal: "agent_action" },
       },
     },
@@ -1220,7 +1220,7 @@ interface CursorAdapter {
   @payloadShape(#{
     default: #{
       tool_name: #{ from: "tool_name" },
-      tool_output: #{ sideEffect: "extractMcpText", from: "result_json", fallback: "tool_output" },
+      tool_output: #{ sideEffect: "extractMcpText", from: "result_json", alternate: "tool_output" },
       duration_ms: #{ from: "duration" },
       generation_id: #{ from: "generation_id" },
       event_category: #{ literal: "agent_observation" },

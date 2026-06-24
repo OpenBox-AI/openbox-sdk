@@ -87,18 +87,15 @@ function verdictReason(value: unknown): string | undefined {
   return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
 }
 
-function verdictUsesFallback(value: unknown): boolean {
+function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
-    ? record.metadata as Record<string, unknown>
-    : {};
   const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
     ? record.ageResult as Record<string, unknown>
     : {};
-  return record.fallbackUsed === true
-    || metadata.age_fallback_used === true
-    || ageResult.fallback_used === true;
+  return record.governanceChecksIncomplete === true
+    || ageResult.governanceChecksIncomplete === true
+    || ageResult.governance_checks_incomplete === true;
 }
 
 function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
@@ -108,7 +105,7 @@ function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
     ...(typeof record.governanceEventId === 'string' && record.governanceEventId.trim()
       ? { governance_event_id: record.governanceEventId.trim() }
       : {}),
-    ...(verdictUsesFallback(value) ? { fallback_used: true } : {}),
+    ...(verdictHasIncompleteGovernanceChecks(value) ? { governance_checks_incomplete: true } : {}),
   };
 }
 
@@ -194,11 +191,11 @@ function guarded(
       if (
         verdict &&
         isDecisionCapable(env.hook_event_name) &&
-        verdictUsesFallback(verdict) &&
+        verdictHasIncompleteGovernanceChecks(verdict) &&
         verdict.arm !== 'block' &&
         verdict.arm !== 'halt'
       ) {
-        return failClosedVerdict('OpenBox governance fallback used while processing Codex hook');
+        return failClosedVerdict('OpenBox required governance checks did not complete while processing Codex hook');
       }
       return verdict;
     } catch (err) {

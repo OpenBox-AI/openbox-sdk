@@ -136,7 +136,7 @@ export async function pickTeam(controller: FilterController) {
 export async function pickOwner(controller: FilterController) {
   const members = controller.members();
   const sub = controller.currentUserSub();
-  // Degraded picker when read:user is denied: just "Anyone" and "Me".
+  // Reduced picker when read:user is denied: just "Anyone" and "Me".
   if (members.length === 0) {
     const items: (vscode.QuickPickItem & { id?: string })[] = [
       { label: "Anyone" },

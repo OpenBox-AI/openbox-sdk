@@ -146,7 +146,7 @@ export function verifyOpenBoxAgentsSDKConfig(
     checks.push(coreUrlCheck(config.coreUrl ?? values.get('OPENBOX_CORE_URL')));
   }
 
-  checks.push(agentIdentityCheck(config.agentIdentity));
+  checks.push(agentIdentityCheck(config.agentIdentity, values));
   checks.push({
     name: 'runtime-defaults',
     status: 'pass',
@@ -160,7 +160,11 @@ function getAgentIdentity(
 ): AgentIdentityConfig | undefined {
   if (config.agentIdentity) return config.agentIdentity;
   try {
-    return resolveAgentIdentity();
+    const values = openBoxAgentsConfigValues(config);
+    return resolveAgentIdentity({
+      OPENBOX_AGENT_DID: values.get('OPENBOX_AGENT_DID'),
+      OPENBOX_AGENT_PRIVATE_KEY: values.get('OPENBOX_AGENT_PRIVATE_KEY'),
+    });
   } catch {
     throw new OpenBoxAgentsSDKError(
       'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
@@ -169,17 +173,17 @@ function getAgentIdentity(
 }
 
 function openBoxAgentsConfigValues(config: OpenBoxAgentsSDKConfig): {
-  get(key: string, fallback?: string): string | undefined;
+  get(key: string, defaultValue?: string): string | undefined;
 } {
   const configDir = resolveProjectConfigDir(config.cwd);
   const fileConfig = loadJsonConfig(path.join(configDir, 'config.json'));
   const envConfig = loadDotenv(path.join(configDir, '.env'));
   return {
-    get: (key: string, fallback?: string) =>
+    get: (key: string, defaultValue?: string) =>
       process.env[key] ??
-      (fileConfig[key] as string | undefined) ??
       (envConfig[key] as string | undefined) ??
-      fallback,
+      (fileConfig[key] as string | undefined) ??
+      defaultValue,
   };
 }
 
@@ -232,6 +236,7 @@ function coreUrlCheck(coreUrl: string | undefined): OpenBoxAgentsSDKDiagnosticCh
 
 function agentIdentityCheck(
   agentIdentity: AgentIdentityConfig | undefined,
+  values: { get(key: string, defaultValue?: string): string | undefined },
 ): OpenBoxAgentsSDKDiagnosticCheck {
   if (agentIdentity) {
     return {
@@ -240,7 +245,9 @@ function agentIdentityCheck(
       detail: 'Signed agent identity is provided in config.',
     };
   }
-  if (!process.env.OPENBOX_AGENT_DID && !process.env.OPENBOX_AGENT_PRIVATE_KEY) {
+  const did = values.get('OPENBOX_AGENT_DID');
+  const privateKey = values.get('OPENBOX_AGENT_PRIVATE_KEY');
+  if (!did && !privateKey) {
     return {
       name: 'signed-agent-identity',
       status: 'skip',
@@ -248,7 +255,10 @@ function agentIdentityCheck(
     };
   }
   try {
-    resolveAgentIdentity();
+    resolveAgentIdentity({
+      OPENBOX_AGENT_DID: did,
+      OPENBOX_AGENT_PRIVATE_KEY: privateKey,
+    });
     return {
       name: 'signed-agent-identity',
       status: 'pass',

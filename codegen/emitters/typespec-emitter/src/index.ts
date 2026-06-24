@@ -688,7 +688,7 @@ function wrapperMethodFor(
   if (methodNames[opId]) {
     methodName = methodNames[opId];
   } else {
-    // Fallback heuristic: strip the `<Tag>Controller_` prefix. Used
+    // Bootstrap heuristic: strip the `<Tag>Controller_` prefix. Used
     // only for new ops that haven't been added to @sdkMethodNames
     // yet. They get the bare verb, such as `list`, and may collide.
     // Add a public method name in specs/typespec/backend/method-names.tsp.
@@ -881,8 +881,8 @@ function emitWrapperBaseClass(opts: WrapperEmitOptions, methods: WrapperMethodSp
   // required BOTH keys to be present and silently fell through to `unknown`
   // for every endpoint that returns just 200, erasing the typed response.
   // Match each status individually. Also match text/plain (used by
-  // simple endpoints like /health that return a string body) as a
-  // fallback when application/json isn't declared.
+  // simple endpoints like /health that return a string body) when
+  // application/json isn't declared.
   lines.push(`type ResponseOf<P extends keyof Paths, V extends keyof Paths[P]> =`);
   lines.push(
     `  Paths[P][V] extends { responses: infer R }`,
@@ -1901,7 +1901,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  requireApprovalSurface: string;`,
     `  sourceAttribution: string;`,
     `  nativeSurface: string;`,
-    `  fallbackSurface: string;`,
+    `  continuationSurface: string;`,
     `  guardTest: string;`,
     `  failClosedBehavior: string;`,
     `}`,
@@ -2093,7 +2093,7 @@ function emitProviderCapabilities(program: Program, project: Project, repoRoot: 
     `  hookSurface: string;`,
     `  eventCoverage: string;`,
     `  enforcementBoundary: string;`,
-    `  fallbackOrOutOfScope: string;`,
+    `  scopeBoundary: string;`,
     `  guardTest: string;`,
     `}`,
     '',
@@ -3112,12 +3112,12 @@ function sourcePathForNamespace(namespace: Namespace): string {
   return 'specs/typespec/backend/main.tsp';
 }
 
-function sourcePathForType(type: Type, fallback: string): string {
+function sourcePathForType(type: Type, defaultPath: string): string {
   const rawPath = (type.node as { file?: { path?: string } } | undefined)?.file?.path;
-  if (!rawPath) return fallback;
+  if (!rawPath) return defaultPath;
   const marker = '/specs/typespec/';
   const index = rawPath.lastIndexOf(marker);
-  return index >= 0 ? rawPath.slice(index + 1) : fallback;
+  return index >= 0 ? rawPath.slice(index + 1) : defaultPath;
 }
 
 function namespaceFullName(namespace: Namespace): string {
@@ -3701,7 +3701,7 @@ interface AdapterMethod {
 }
 
 interface AdapterEntry {
-  /** Adapter name (`claude-hooks`, `cursor-hooks`). */
+  /** Adapter name (`claude-code`, `cursor`). */
   name: string;
   /** Bound preset name (`claude-code`, `cursor`). */
   preset: string;
@@ -3855,7 +3855,7 @@ function emitAdapterModule(a: AdapterEntry): string {
       (m) =>
         `    case ${JSON.stringify(m.eventName)}: {
       if (!handlers.${m.name}) {
-        writeFallback(${JSON.stringify(m.shape)}, undefined, env);
+        writeDefaultOutput(${JSON.stringify(m.shape)}, undefined, env);
         return;
       }
       const verdict = await handlers.${m.name}(env, session);
@@ -4018,7 +4018,7 @@ export function ${factoryName}(config: ${configIface}) {
   const write = config.writeStdout ?? ((data: string) => process.stdout.write(data));
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
-  function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}): void {
+  function writeDefaultOutput(shape: string, _v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}): void {
     const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
@@ -4062,7 +4062,7 @@ export function ${factoryName}(config: ${configIface}) {
 
       const handlers = config.handlers;
       try {
-        await dispatch(eventName, env, session, handlers, writeFallback, writeVerdict);
+        await dispatch(eventName, env, session, handlers, writeDefaultOutput, writeVerdict);
       } finally {
         return exit(0);
       }
@@ -4075,7 +4075,7 @@ async function dispatch(
   env: ${a.envelopeName},
   session: ${presetSessionTy},
   handlers: ${handlersIface},
-  writeFallback: (shape: string, v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}) => void,
+  writeDefaultOutput: (shape: string, v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}) => void,
   writeVerdict: (shape: string, v: WorkflowVerdict | undefined | void, env: ${a.envelopeName}) => void,
 ): Promise<void> {
   switch (eventName) {
@@ -4185,7 +4185,7 @@ function compileFieldSource(src: FieldSource): string {
     case 'literal':
       return JSON.stringify(src.value);
     case 'from': {
-      const paths = [src.path, ...src.fallbacks];
+      const paths = [src.path, ...src.alternates];
       const lookups = paths.map((p) => `getPath(env, ${JSON.stringify(p)})`);
       const chain = lookups.join(' ?? ');
       const tail = src.defaultLiteral !== undefined ? ` ?? ${JSON.stringify(src.defaultLiteral)}` : '';
@@ -4751,7 +4751,7 @@ function randomUUID(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
-  // Fallback for ancient runtimes without Web Crypto. Math.random
+  // Compatibility path for ancient runtimes without Web Crypto. Math.random
   // is fine here; workflow/run/activity IDs need uniqueness, not
   // cryptographic strength (the runtime API key is the auth surface).
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -4883,7 +4883,7 @@ export interface GovernedSessionConfig {
   /**
    * Fired the moment the backend returns a \`require_approval\` verdict
    * with an \`approval_id\`; BEFORE pollApproval starts the long wait.
-   * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
+   * Lets host adapters (Cursor hooks, Claude Code hooks) surface inline approval
    * UI in their host IDE without first waiting through the poll loop.
    * Errors thrown here are swallowed; this hook is observability, not
    * a gate.
@@ -5003,8 +5003,8 @@ export class BaseGovernedSession {
 
   /**
    * Fire WorkflowStarted. Idempotent; safe to call multiple times,
-   * only the first emits. Public so harness-owned consumers (claude-hooks,
-   * cursor-hooks) can drive lifecycle when the workflow spans processes.
+   * only the first emits. Public so host-owned consumers (Claude Code hooks,
+   * Cursor hooks) can drive lifecycle when the workflow spans processes.
    * \`govern()\` calls this automatically before the body runs;
    * \`govern.attach()\` does NOT; caller decides when (if ever).
    *
@@ -5070,7 +5070,7 @@ export class BaseGovernedSession {
   /**
    * Public escape for firing arbitrary (eventType, activityType, payload)
    * tuples beyond what the bound preset's typed methods cover. Used by
-   * runtime adapters (claude-hooks / cursor-hooks) when one hook event
+   * runtime adapters (Claude Code hooks / Cursor hooks) when one hook event
    * needs to dispatch to multiple activity_types based on internal
    * routing; e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
    * ShellExecution etc. depending on \`tool_name\`.
@@ -6102,9 +6102,9 @@ ${methods}
 
 function activityTypeExpression(
   activityType: string | undefined,
-  fallback: string,
+  defaultActivityType: string,
 ): string {
-  const resolved = activityType ?? fallback;
+  const resolved = activityType ?? defaultActivityType;
   if (resolved === 'on_tool_start' || resolved === 'on_tool_end') {
     return 'toolActivityTypeFromPayload(payload)';
   }
@@ -6150,7 +6150,7 @@ function emitGovernHelper(verdictModelName: string): string {
  * runtime dies mid-session.
  *
  * For single-process consumers (mobile, extension, MCP, custom Node).
- * For cross-process / harness-owned workflows (claude-hooks, cursor-hooks)
+ * For cross-process / host-owned workflows (Claude Code hooks, Cursor hooks)
  * use \`govern.attach()\` instead.
  *
  * \`\`\`ts
@@ -6240,7 +6240,7 @@ function emitVerdictHelpers(verdictModelName: string): string {
     alignmentScore?: number;
     policyId?: string;
     behavioralViolations?: string[];
-    fallbackUsed?: boolean;
+    governanceChecksIncomplete?: boolean;
     guardrailsResult?: GovernanceVerdictResponse['guardrails_result'];
     ageResult?: GovernanceVerdictResponse['age_result'];
   };
@@ -6272,7 +6272,7 @@ function emitVerdictHelpers(verdictModelName: string): string {
     behavioralViolations: response.behavioral_violations ?? raw.behavioralViolations,
     constraints: response.constraints,
     metadata: response.metadata,
-    fallbackUsed: response.fallback_used ?? raw.fallbackUsed,
+    governanceChecksIncomplete: response.governance_checks_incomplete ?? raw.governanceChecksIncomplete,
     guardrailsResult,
     ageResult: response.age_result ?? raw.ageResult,
   };
@@ -6488,7 +6488,7 @@ function mergePeerVerdicts(
     metadata: hook.metadata || base.metadata
       ? { ...(hook.metadata ?? {}), ...(base.metadata ?? {}) }
       : undefined,
-    fallbackUsed: base.fallbackUsed ?? hook.fallbackUsed,
+    governanceChecksIncomplete: base.governanceChecksIncomplete ?? hook.governanceChecksIncomplete,
     guardrailsResult: base.guardrailsResult ?? hook.guardrailsResult,
     ageResult: base.ageResult ?? hook.ageResult,
   };

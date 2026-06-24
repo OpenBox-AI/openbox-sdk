@@ -133,7 +133,7 @@ export const HOOK_SPEC: HookSpec = {
   "key": "hooks",
   "style": "claude-array",
   "command": "openbox claude-code hook",
-  "configDir": ".claude-hooks",
+  "configDir": ".openbox/claude-code",
   "events": [
     {
       "name": "PreToolUse",
@@ -889,7 +889,7 @@ export function createClaudeCodeAdapter(config: ClaudeCodeAdapterConfig) {
   const write = config.writeStdout ?? ((data: string) => process.stdout.write(data));
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
-  function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope): void {
+  function writeDefaultOutput(shape: string, _v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope): void {
     const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
@@ -933,7 +933,7 @@ export function createClaudeCodeAdapter(config: ClaudeCodeAdapterConfig) {
 
       const handlers = config.handlers;
       try {
-        await dispatch(eventName, env, session, handlers, writeFallback, writeVerdict);
+        await dispatch(eventName, env, session, handlers, writeDefaultOutput, writeVerdict);
       } finally {
         return exit(0);
       }
@@ -946,13 +946,13 @@ async function dispatch(
   env: ClaudeCodeEnvelope,
   session: ClaudeCodeSession,
   handlers: ClaudeCodeAdapterHandlers,
-  writeFallback: (shape: string, v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope) => void,
+  writeDefaultOutput: (shape: string, v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope) => void,
   writeVerdict: (shape: string, v: WorkflowVerdict | undefined | void, env: ClaudeCodeEnvelope) => void,
 ): Promise<void> {
   switch (eventName) {
     case "PreToolUse": {
       if (!handlers.preToolUse) {
-        writeFallback("permission-decision", undefined, env);
+        writeDefaultOutput("permission-decision", undefined, env);
         return;
       }
       const verdict = await handlers.preToolUse(env, session);
@@ -961,7 +961,7 @@ async function dispatch(
     }
     case "PostToolUse": {
       if (!handlers.postToolUse) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.postToolUse(env, session);
@@ -970,7 +970,7 @@ async function dispatch(
     }
     case "PostToolUseFailure": {
       if (!handlers.postToolUseFailure) {
-        writeFallback("additional-context", undefined, env);
+        writeDefaultOutput("additional-context", undefined, env);
         return;
       }
       const verdict = await handlers.postToolUseFailure(env, session);
@@ -979,7 +979,7 @@ async function dispatch(
     }
     case "PostToolBatch": {
       if (!handlers.postToolBatch) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.postToolBatch(env, session);
@@ -988,7 +988,7 @@ async function dispatch(
     }
     case "UserPromptSubmit": {
       if (!handlers.userPromptSubmit) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.userPromptSubmit(env, session);
@@ -997,7 +997,7 @@ async function dispatch(
     }
     case "UserPromptExpansion": {
       if (!handlers.userPromptExpansion) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.userPromptExpansion(env, session);
@@ -1006,7 +1006,7 @@ async function dispatch(
     }
     case "PermissionRequest": {
       if (!handlers.permissionRequest) {
-        writeFallback("permission-request", undefined, env);
+        writeDefaultOutput("permission-request", undefined, env);
         return;
       }
       const verdict = await handlers.permissionRequest(env, session);
@@ -1015,7 +1015,7 @@ async function dispatch(
     }
     case "PermissionDenied": {
       if (!handlers.permissionDenied) {
-        writeFallback("permission-denied-retry", undefined, env);
+        writeDefaultOutput("permission-denied-retry", undefined, env);
         return;
       }
       const verdict = await handlers.permissionDenied(env, session);
@@ -1024,7 +1024,7 @@ async function dispatch(
     }
     case "Setup": {
       if (!handlers.setup) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.setup(env, session);
@@ -1033,7 +1033,7 @@ async function dispatch(
     }
     case "InstructionsLoaded": {
       if (!handlers.instructionsLoaded) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.instructionsLoaded(env, session);
@@ -1042,7 +1042,7 @@ async function dispatch(
     }
     case "PreCompact": {
       if (!handlers.preCompact) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.preCompact(env, session);
@@ -1051,7 +1051,7 @@ async function dispatch(
     }
     case "PostCompact": {
       if (!handlers.postCompact) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.postCompact(env, session);
@@ -1060,7 +1060,7 @@ async function dispatch(
     }
     case "SessionStart": {
       if (!handlers.sessionStart) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.sessionStart(env, session);
@@ -1069,7 +1069,7 @@ async function dispatch(
     }
     case "SessionEnd": {
       if (!handlers.sessionEnd) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.sessionEnd(env, session);
@@ -1078,7 +1078,7 @@ async function dispatch(
     }
     case "SubagentStart": {
       if (!handlers.subagentStart) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.subagentStart(env, session);
@@ -1087,7 +1087,7 @@ async function dispatch(
     }
     case "SubagentStop": {
       if (!handlers.subagentStop) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.subagentStop(env, session);
@@ -1096,7 +1096,7 @@ async function dispatch(
     }
     case "TaskCreated": {
       if (!handlers.taskCreated) {
-        writeFallback("continue-block", undefined, env);
+        writeDefaultOutput("continue-block", undefined, env);
         return;
       }
       const verdict = await handlers.taskCreated(env, session);
@@ -1105,7 +1105,7 @@ async function dispatch(
     }
     case "TaskCompleted": {
       if (!handlers.taskCompleted) {
-        writeFallback("continue-block", undefined, env);
+        writeDefaultOutput("continue-block", undefined, env);
         return;
       }
       const verdict = await handlers.taskCompleted(env, session);
@@ -1114,7 +1114,7 @@ async function dispatch(
     }
     case "Stop": {
       if (!handlers.stop) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.stop(env, session);
@@ -1123,7 +1123,7 @@ async function dispatch(
     }
     case "StopFailure": {
       if (!handlers.stopFailure) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.stopFailure(env, session);
@@ -1132,7 +1132,7 @@ async function dispatch(
     }
     case "TeammateIdle": {
       if (!handlers.teammateIdle) {
-        writeFallback("continue-block", undefined, env);
+        writeDefaultOutput("continue-block", undefined, env);
         return;
       }
       const verdict = await handlers.teammateIdle(env, session);
@@ -1141,7 +1141,7 @@ async function dispatch(
     }
     case "Notification": {
       if (!handlers.notification) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.notification(env, session);
@@ -1150,7 +1150,7 @@ async function dispatch(
     }
     case "MessageDisplay": {
       if (!handlers.messageDisplay) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.messageDisplay(env, session);
@@ -1159,7 +1159,7 @@ async function dispatch(
     }
     case "ConfigChange": {
       if (!handlers.configChange) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.configChange(env, session);
@@ -1168,7 +1168,7 @@ async function dispatch(
     }
     case "CwdChanged": {
       if (!handlers.cwdChanged) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.cwdChanged(env, session);
@@ -1177,7 +1177,7 @@ async function dispatch(
     }
     case "FileChanged": {
       if (!handlers.fileChanged) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.fileChanged(env, session);
@@ -1186,7 +1186,7 @@ async function dispatch(
     }
     case "WorktreeCreate": {
       if (!handlers.worktreeCreate) {
-        writeFallback("worktree-path", undefined, env);
+        writeDefaultOutput("worktree-path", undefined, env);
         return;
       }
       const verdict = await handlers.worktreeCreate(env, session);
@@ -1195,7 +1195,7 @@ async function dispatch(
     }
     case "WorktreeRemove": {
       if (!handlers.worktreeRemove) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.worktreeRemove(env, session);
@@ -1204,7 +1204,7 @@ async function dispatch(
     }
     case "Elicitation": {
       if (!handlers.elicitation) {
-        writeFallback("elicitation-response", undefined, env);
+        writeDefaultOutput("elicitation-response", undefined, env);
         return;
       }
       const verdict = await handlers.elicitation(env, session);
@@ -1213,7 +1213,7 @@ async function dispatch(
     }
     case "ElicitationResult": {
       if (!handlers.elicitationResult) {
-        writeFallback("elicitation-response", undefined, env);
+        writeDefaultOutput("elicitation-response", undefined, env);
         return;
       }
       const verdict = await handlers.elicitationResult(env, session);

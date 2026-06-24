@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe('approval shared formatters', () => {
-  it('formats verdicts, canonical labels, and acronym-aware fallback labels', () => {
+  it('formats verdicts, canonical labels, and acronym-aware custom labels', () => {
     expect(verdictLabel(0)).toBe('Allow');
     expect(verdictLabel(4)).toBe('Halt');
     expect(verdictLabel(null)).toBeUndefined();
@@ -42,7 +42,7 @@ describe('approval shared formatters', () => {
     expect(formatLabel('')).toBe('');
   });
 
-  it('derives status from explicit status, decided rows, expiry, and pending fallback', () => {
+  it('derives status from explicit status, decided rows, expiry, and pending default', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-25T12:00:00Z'));
 
@@ -140,7 +140,7 @@ describe('approval filters', () => {
     expect(approvals.map((a) => a.id)).toEqual(['new', 'old']);
   });
 
-  it('covers permissive filter and summary fallbacks', () => {
+  it('covers permissive filter and summary defaults', () => {
     expect(summarizeFilters({ sort: 'newest', dateRange: 'all' })).toBeUndefined();
     expect(
       summarizeFilters(

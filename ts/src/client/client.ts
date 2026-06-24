@@ -109,7 +109,7 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
    * { status, data: {...} }; core returns flat; both shapes are normalized.
    *
    * Returns null on any error (timeout, network, non-OK, malformed body).
-   * Callers fall through to whatever fallback they have.
+   * Callers decide how to continue.
    */
   static async getVersion(
     baseUrl: string,

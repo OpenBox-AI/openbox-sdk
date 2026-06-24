@@ -7,6 +7,8 @@ import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import {
   claudeCodePluginTargetDir,
   claudeCodeRuntimeConfigDir,
+  claudeCodeSettingsLocalFile,
+  readClaudeCodeSettingsLocalEnv,
   verifyClaudeCodePlugin,
 } from './plugin.js';
 
@@ -49,10 +51,15 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
   const configDir = claudeCodeRuntimeConfigDir(cwd);
   const configFile = path.join(configDir, 'config.json');
   const envFile = path.join(configDir, '.env');
+  const settingsLocalFile = claudeCodeSettingsLocalFile(cwd);
   const fileConfig = loadJsonConfig(configFile);
   const envConfig = loadDotenv(envFile);
+  const settingsLocalEnv = readClaudeCodeSettingsLocalEnv(cwd);
   const getRuntime = (key: string): string | undefined =>
-    process.env[key] ?? fileConfig[key] ?? envConfig[key];
+    process.env[key] ??
+    settingsLocalEnv[key] ??
+    envConfig[key] ??
+    fileConfig[key];
   const getSetting = (key: string): string | undefined =>
     fileConfig[key] ?? envConfig[key];
 
@@ -76,8 +83,10 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     configDir,
     configFile,
     envFile,
+    settingsLocalFile,
     projectConfigPresent: existsSync(configFile),
     projectEnvPresent: existsSync(envFile),
+    settingsLocalPresent: existsSync(settingsLocalFile),
     coreUrl,
     coreUrlError,
     apiKey: getRuntime('OPENBOX_API_KEY') ?? '',
@@ -93,10 +102,12 @@ export function claudeCodeRuntimeDiagnostics(cwd = process.cwd()): Record<string
     configDir: runtime.configDir,
     configFile: runtime.configFile,
     envFile: runtime.envFile,
+    settingsLocalFile: runtime.settingsLocalFile,
     projectScoped: true,
     runtimeEnv: {
       projectConfigPresent: runtime.projectConfigPresent,
       projectEnvPresent: runtime.projectEnvPresent,
+      settingsLocalPresent: runtime.settingsLocalPresent,
       runtimeApiKeyPresent: Boolean(runtime.apiKey),
       runtimeApiKeyPlaceholder: isPlaceholderKey(runtime.apiKey),
       coreUrlPresent: Boolean(runtime.coreUrl),
@@ -122,6 +133,7 @@ async function checkRuntimeReadiness(
   const runtime = buildProjectRuntimeEnv(cwd);
   const details = [
     `config=${runtime.configFile}`,
+    `env=${runtime.settingsLocalFile}`,
     `core=${runtime.coreUrl || '(missing)'}`,
     `failMode=${runtime.governancePolicy}`,
     `approvalMode=${runtime.approvalMode}`,

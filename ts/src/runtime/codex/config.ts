@@ -3,19 +3,25 @@ import path from 'node:path';
 import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import type { AgentIdentityConfig } from '../../core-client/index.js';
 import { resolveAgentIdentity } from '../../env/agent-identity.js';
+import { codexRuntimeConfigDir } from './install.js';
+
+function hasRuntimeConfig(dir: string): boolean {
+  return fs.existsSync(path.join(dir, 'config.json')) ||
+    fs.existsSync(path.join(dir, '.env'));
+}
 
 export function resolveConfigDir(startDir: string = process.cwd()): string {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
-    const candidate = path.join(cur, '.codex-hooks');
-    if (fs.existsSync(path.join(candidate, 'config.json'))) {
+    const candidate = codexRuntimeConfigDir(cur);
+    if (hasRuntimeConfig(candidate)) {
       return candidate;
     }
     const parent = path.dirname(cur);
     if (parent === cur) break;
     cur = parent;
   }
-  return path.join(startDir, '.codex-hooks');
+  return codexRuntimeConfigDir(startDir);
 }
 
 const CONFIG_DIR = resolveConfigDir();
@@ -48,22 +54,22 @@ export interface CodexConfig {
 export function loadConfig(): CodexConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
-  const getRuntime = (key: string, fileFallback?: string) => {
+  const getRuntime = (key: string, defaultValue?: string) => {
     if (process.env[key] !== undefined) return process.env[key]!;
-    if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    return fileFallback ?? '';
+    if (fileConfig[key] !== undefined) return fileConfig[key];
+    return defaultValue ?? '';
   };
-  const getSetting = (key: string, fileFallback?: string) => {
+  const getSetting = (key: string, defaultValue?: string) => {
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    return fileFallback ?? '';
+    return defaultValue ?? '';
   };
 
   const coreUrl =
     process.env.OPENBOX_CORE_URL ??
-    fileConfig.OPENBOX_CORE_URL ??
     envConfig.OPENBOX_CORE_URL ??
+    fileConfig.OPENBOX_CORE_URL ??
     '';
 
   return {

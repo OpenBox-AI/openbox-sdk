@@ -127,7 +127,7 @@ export interface GovernanceVerdictResponse {
   approval_id?: string;
   constraints?: string[];
   approval_expiration_time?: string;
-  fallback_used: boolean;
+  governance_checks_incomplete?: boolean;
   reason?: string;
   policy_id?: string;
   metadata?: Record<string, unknown>;
@@ -164,7 +164,7 @@ export interface AGEResult {
   reason?: string;
   goal_alignment_checked: boolean;
   goal_drifted: boolean;
-  fallback_used: boolean;
+  governance_checks_incomplete?: boolean;
   final_trust_score?: AGETrustScore;
   span_results: AGESpanResult[];
   total_spans: number;

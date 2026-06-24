@@ -64,6 +64,7 @@ export function toolActivityType(toolName: string, toolInput: Record<string, unk
   if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return defaultActivity.shell;
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return defaultActivity.httpRequest;
   if (isDatabaseMcpTool(toolName, toolInput)) return defaultActivity.databaseQuery;
+  if (isHttpMcpTool(toolName, toolInput)) return defaultActivity.httpRequest;
   if (toolName.startsWith('mcp__')) return defaultActivity.mcpToolCall;
   if (toolName === 'Agent' || toolName === 'Task') return defaultActivity.agentSpawn;
   return defaultActivity.agentAction;
@@ -386,6 +387,7 @@ function spanTypeFor(
   if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
   if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
+  if (isHttpMcpTool(toolName, toolInput)) return 'http';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return 'llm_tool_call';
 }
@@ -541,4 +543,17 @@ function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>)
     lowerName.includes('query') ||
     lowerName.includes('execute') ||
     lowerName.includes('select');
+}
+
+function isHttpMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {
+  if (!toolName.startsWith('mcp__')) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksHttp =
+    lowerName.includes('http') ||
+    lowerName.includes('fetch') ||
+    lowerName.includes('request') ||
+    lowerName.includes('web');
+  if (!nameLooksHttp) return false;
+  return Boolean(httpTargetFor(toolInput)) ||
+    Boolean(firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod));
 }

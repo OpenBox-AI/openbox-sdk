@@ -35,9 +35,11 @@ ts/*/src/**/*.d.ts.map
 
 # Project-local hook runtime output. Hook config/install files can be
 # intentionally committed, but per-session state and logs are local runtime data.
-.claude-hooks/sessions/
-.claude-hooks/log/
-.codex-hooks/sessions/
-.codex-hooks/log/
-.cursor-hooks/sessions/
-.cursor-hooks/log/
+.openbox/claude-code/sessions/
+.openbox/claude-code/log/
+.openbox/codex/.env
+.openbox/codex/sessions/
+.openbox/codex/log/
+.openbox/cursor/.env
+.openbox/cursor/sessions/
+.openbox/cursor/log/

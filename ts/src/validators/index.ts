@@ -150,7 +150,7 @@ function hintForDetail(detail: string | null): string | null {
     );
   }
   // Core's fail-closed when OPA service is unreachable; the policy
-  // result auto-converts to BLOCK with `fallback_used: true`. Useful
+  // result auto-converts to BLOCK with a governance-checks-incomplete marker. Useful
   // to call out so users don't think their policy "decided" to block.
   if (detail.includes('OPA unavailable')) {
     return (

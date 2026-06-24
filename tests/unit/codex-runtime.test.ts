@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { Command } from 'commander';
 import type {
@@ -102,6 +102,28 @@ function readJson(file: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
 }
 
+function readDotenv(file: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of readFileSync(file, 'utf-8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    out[trimmed.slice(0, eq)] = JSON.parse(trimmed.slice(eq + 1)) as string;
+  }
+  return out;
+}
+
+function writeEnv(file: string, values: Record<string, string>): void {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    Object.entries(values)
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join('\n') + '\n',
+  );
+}
+
 async function run(program: Command, args: string[]): Promise<void> {
   await program.parseAsync(args, { from: 'user' });
 }
@@ -136,8 +158,23 @@ async function runCodexHookWithConfig(
   const oldCoreUrl = process.env.OPENBOX_CORE_URL;
   const oldAgentDid = process.env.OPENBOX_AGENT_DID;
   const oldAgentPrivateKey = process.env.OPENBOX_AGENT_PRIVATE_KEY;
-  mkdirSync(join(root, '.codex-hooks'), { recursive: true });
-  writeFileSync(join(root, '.codex-hooks', 'config.json'), JSON.stringify(config));
+  const runtimeKeys = new Set([
+    'OPENBOX_API_KEY',
+    'OPENBOX_CORE_URL',
+    'OPENBOX_AGENT_DID',
+    'OPENBOX_AGENT_PRIVATE_KEY',
+  ]);
+  const runtimeEnv: Record<string, string> = {};
+  const configJson: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (runtimeKeys.has(key)) runtimeEnv[key] = String(value);
+    else configJson[key] = value;
+  }
+  mkdirSync(join(root, '.openbox', 'codex'), { recursive: true });
+  writeFileSync(join(root, '.openbox', 'codex', 'config.json'), JSON.stringify(configJson));
+  if (Object.keys(runtimeEnv).length > 0) {
+    writeEnv(join(root, '.openbox', 'codex', '.env'), runtimeEnv);
+  }
   process.chdir(root);
   delete process.env.OPENBOX_HOME;
   delete process.env.OPENBOX_API_KEY;
@@ -506,6 +543,17 @@ describe('Codex runtime adapter', () => {
         session,
         runtimeCfg,
       );
+      await handlePreToolUse(
+        {
+          hook_event_name: 'PreToolUse',
+          session_id: 'codex-route-mcp-http',
+          tool_use_id: 'mcp-http-1',
+          tool_name: 'mcp__web__request',
+          tool_input: { url: 'https://example.com/mcp', method: 'patch' },
+        },
+        session,
+        runtimeCfg,
+      );
       await handlePostToolUse(
         {
           hook_event_name: 'PostToolUse',
@@ -569,6 +617,7 @@ describe('Codex runtime adapter', () => {
           { activityType: 'FileEdit', toolName: 'Write', toolType: 'file_write' },
           { activityType: 'MCPToolCall', toolName: 'mcp__filesystem__read', toolType: 'mcp' },
           { activityType: 'DatabaseQuery', toolName: 'mcp__postgres__query_database', toolType: 'db' },
+          { activityType: 'HTTPRequest', toolName: 'mcp__web__request', toolType: 'http' },
           { activityType: 'HTTPRequest', toolName: 'WebFetch', toolType: 'http' },
           { activityType: 'AgentAction', toolName: 'CustomTool', toolType: undefined },
           { activityType: 'FileDelete', toolName: 'Delete', toolType: 'file_delete' },
@@ -629,22 +678,22 @@ describe('Codex runtime adapter', () => {
     }
   });
 
-  it('resolves Codex hook config upward and falls back to the start directory', async () => {
+  it('resolves Codex runtime config upward and uses the start directory by default', async () => {
     const root = mkdtempSync(join(tmpdir(), 'openbox-codex-config-'));
-    const fallbackRoot = mkdtempSync(join(tmpdir(), 'openbox-codex-config-fallback-'));
+    const defaultRoot = mkdtempSync(join(tmpdir(), 'openbox-codex-config-default-'));
     try {
       const nested = join(root, 'a', 'b');
-      mkdirSync(join(root, '.codex-hooks'), { recursive: true });
+      mkdirSync(join(root, '.openbox', 'codex'), { recursive: true });
       mkdirSync(nested, { recursive: true });
-      writeFileSync(join(root, '.codex-hooks', 'config.json'), '{}');
+      writeFileSync(join(root, '.openbox', 'codex', 'config.json'), '{}');
 
       vi.resetModules();
       const { resolveConfigDir } = await import('../../ts/src/runtime/codex/config.js');
-      expect(resolveConfigDir(nested)).toBe(join(root, '.codex-hooks'));
-      expect(resolveConfigDir(fallbackRoot)).toBe(join(fallbackRoot, '.codex-hooks'));
+      expect(resolveConfigDir(nested)).toBe(join(root, '.openbox', 'codex'));
+      expect(resolveConfigDir(defaultRoot)).toBe(join(defaultRoot, '.openbox', 'codex'));
     } finally {
       rmSync(root, { recursive: true, force: true });
-      rmSync(fallbackRoot, { recursive: true, force: true });
+      rmSync(defaultRoot, { recursive: true, force: true });
     }
   });
 
@@ -653,12 +702,10 @@ describe('Codex runtime adapter', () => {
     const oldKey = process.env.OPENBOX_API_KEY;
     const oldCore = process.env.OPENBOX_CORE_URL;
     try {
-      mkdirSync(join(root, '.codex-hooks'), { recursive: true });
+      mkdirSync(join(root, '.openbox', 'codex'), { recursive: true });
       writeFileSync(
-        join(root, '.codex-hooks', 'config.json'),
+        join(root, '.openbox', 'codex', 'config.json'),
         JSON.stringify({
-          OPENBOX_API_KEY: 'obx_file_' + 'a'.repeat(48),
-          OPENBOX_CORE_URL: 'https://file-core.example',
           governanceTimeout: '0',
           sessionDir: 'sessions-file',
           logFile: '',
@@ -673,8 +720,13 @@ describe('Codex runtime adapter', () => {
         }),
       );
       writeFileSync(
-        join(root, '.codex-hooks', '.env'),
-        ['taskQueue=codex-env', 'approvalMode=defer'].join('\n'),
+        join(root, '.openbox', 'codex', '.env'),
+        [
+          `OPENBOX_API_KEY=${JSON.stringify('obx_file_' + 'a'.repeat(48))}`,
+          'OPENBOX_CORE_URL="https://file-core.example"',
+          'taskQueue=codex-env',
+          'approvalMode=defer',
+        ].join('\n'),
       );
       process.chdir(root);
       process.env.OPENBOX_API_KEY = 'obx_env_' + 'b'.repeat(48);
@@ -772,7 +824,7 @@ describe('Codex runtime adapter', () => {
     expect(invalidJson).toEqual([]);
   });
 
-  it('reads Codex side-effect file content with redaction and fallbacks', () => {
+  it('reads Codex side-effect file content with redaction and default empty content', () => {
     const root = mkdtempSync(join(tmpdir(), 'openbox-codex-side-effects-'));
     try {
       const file = join(root, 'plain.txt');
@@ -861,13 +913,16 @@ describe('Codex runtime adapter', () => {
         '--hitl-poll-interval',
         '4',
       ]);
-      const runtimeConfig = readJson(join(project, '.codex-hooks', 'config.json'));
-      expect(runtimeConfig.OPENBOX_API_KEY).toBe(runtimeKey);
-      expect(runtimeConfig.OPENBOX_CORE_URL).toBe(coreUrl);
+      const runtimeEnv = readDotenv(join(project, '.openbox', 'codex', '.env'));
+      expect(runtimeEnv.OPENBOX_API_KEY).toBe(runtimeKey);
+      expect(runtimeEnv.OPENBOX_CORE_URL).toBe(coreUrl);
+      const runtimeConfig = readJson(join(project, '.openbox', 'codex', 'config.json'));
       expect(runtimeConfig.approvalMode).toBe('defer');
       expect(runtimeConfig.governanceTimeout).toBe('18');
       expect(runtimeConfig.hitlMaxWait).toBe(90);
       expect(runtimeConfig.hitlPollInterval).toBe(4);
+      expect(runtimeConfig.OPENBOX_API_KEY).toBeUndefined();
+      expect(runtimeConfig.OPENBOX_CORE_URL).toBeUndefined();
       await run(codex, ['codex', 'doctor', '--cwd', project, '--surface-only', '--json']);
       await run(codex, [
         'codex',

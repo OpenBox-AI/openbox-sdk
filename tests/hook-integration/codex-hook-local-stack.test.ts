@@ -171,7 +171,7 @@ function hookOutput(result: HookResult): CodexHookOutput {
 }
 
 function hookLogFile(root: string): string {
-  return path.join(root, '.codex-hooks', 'log', 'codex-hook.jsonl');
+  return path.join(root, '.openbox', 'codex', 'log', 'codex-hook.jsonl');
 }
 
 function readHookLog(root: string): HookLogLine[] {

@@ -160,9 +160,9 @@ function parameterString(
   ctx: IExecuteFunctions,
   name: string,
   itemIndex: number,
-  fallback?: unknown,
+  defaultValue?: unknown,
 ): string | undefined {
-  return stringFrom(ctx.getNodeParameter(name, itemIndex, fallback as never));
+  return stringFrom(ctx.getNodeParameter(name, itemIndex, defaultValue as never));
 }
 
 async function createCore(ctx: IExecuteFunctions): Promise<{

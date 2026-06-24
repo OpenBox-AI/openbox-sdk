@@ -115,13 +115,13 @@ async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: n
 
 async function viaSdkOrRawBackend<T>(
   call: () => Promise<T>,
-  fallback: () => Promise<{ data: any; status: number }>,
+  retryWithoutQuery: () => Promise<{ data: any; status: number }>,
 ): Promise<{ data: any; status: number }> {
   try {
     return await viaSdk(call);
   } catch (err) {
     if (err instanceof RequestPreflightError) {
-      return fallback();
+      return retryWithoutQuery();
     }
     throw err;
   }

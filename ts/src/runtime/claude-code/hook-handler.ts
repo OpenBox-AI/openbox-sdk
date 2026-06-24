@@ -82,18 +82,15 @@ function verdictReason(value: unknown): string | undefined {
   return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
 }
 
-function verdictUsesFallback(value: unknown): boolean {
+function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
-    ? record.metadata as Record<string, unknown>
-    : {};
   const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
     ? record.ageResult as Record<string, unknown>
     : {};
-  return record.fallbackUsed === true
-    || metadata.age_fallback_used === true
-    || ageResult.fallback_used === true;
+  return record.governanceChecksIncomplete === true
+    || ageResult.governanceChecksIncomplete === true
+    || ageResult.governance_checks_incomplete === true;
 }
 
 function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
@@ -103,7 +100,7 @@ function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
     ...(typeof record.governanceEventId === 'string' && record.governanceEventId.trim()
       ? { governance_event_id: record.governanceEventId.trim() }
       : {}),
-    ...(verdictUsesFallback(value) ? { fallback_used: true } : {}),
+    ...(verdictHasIncompleteGovernanceChecks(value) ? { governance_checks_incomplete: true } : {}),
   };
 }
 
@@ -234,11 +231,11 @@ function guarded(
         verdict &&
         isDecisionCapable(env.hook_event_name) &&
         !isActiveStopRetry(env) &&
-        verdictUsesFallback(verdict) &&
+        verdictHasIncompleteGovernanceChecks(verdict) &&
         verdict.arm !== 'block' &&
         verdict.arm !== 'halt'
       ) {
-        return failClosedVerdict('OpenBox governance fallback used while processing Claude Code hook');
+        return failClosedVerdict('OpenBox required governance checks did not complete while processing Claude Code hook');
       }
       return verdict;
     } catch (err) {
@@ -348,7 +345,7 @@ export async function runClaudeHook(): Promise<void> {
   const cfg = loadConfig();
   // Claude Code governance is project-scoped. Keep hook-owned
   // auxiliary state such as JSONL logs under the resolved
-  // `.claude-hooks/` tree unless the caller intentionally overrides
+  // `.openbox/claude-code/` tree unless the caller intentionally overrides
   // OPENBOX_HOME for tests or an alternate project-local location.
   if (!process.env.OPENBOX_HOME) {
     process.env.OPENBOX_HOME = getConfigDir();
@@ -385,9 +382,8 @@ export async function runClaudeHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Legacy adapter option. The generated session treats this as a
-  // no-op for Core polling; the server-supplied approval expiration is
-  // authoritative.
+  // Generated adapter option retained for API compatibility. Core polling
+  // uses the server-supplied approval expiration as authoritative.
   const approvalMaxWaitMs = Math.min(
     Math.max(1, cfg.hitlMaxWait) * 1000,
     3600_000,

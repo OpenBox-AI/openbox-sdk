@@ -170,7 +170,7 @@ async function revertToDisk(doc: vscode.TextDocument): Promise<vscode.TextEdit[]
  * if any. The backend's `Approval.input` is freeform per action type;
  * for file-touching actions (FileEdit, Write, MultiEdit) the path
  * lives at `input[0].file_path` (canonical), with `filePath` and
- * `path` accepted as fallbacks for older/alternate adapters. Returns
+ * `path` accepted for older/alternate adapters. Returns
  * the path coerced to a `file://` URI string so it matches what
  * `vscode.Uri.toString()` produces on open editors.
  *

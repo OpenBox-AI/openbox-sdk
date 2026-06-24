@@ -412,8 +412,8 @@ model GovernanceVerdictResponse {
    *  behavior_rule with `--verdict 2 --approval-timeout <seconds>`. */
   approval_expiration_time?: utcDateTime;
 
-  /** True if any evaluation branch used a fallback path. */
-  fallback_used: boolean;
+  /** True when one or more required governance checks did not complete. */
+  governance_checks_incomplete?: boolean;
 
   reason?: string;
 
@@ -484,7 +484,7 @@ model AGEResult {
   /** True if alignment score crossed the agent's threshold. */
   goal_drifted: boolean;
 
-  fallback_used: boolean;
+  governance_checks_incomplete?: boolean;
   final_trust_score?: AGETrustScore;
   span_results: AGESpanResult[];
   total_spans: int32;

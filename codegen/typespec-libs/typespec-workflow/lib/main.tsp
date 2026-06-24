@@ -72,7 +72,7 @@ extern dec maps_to(
  * bound preset method, and translates the verdict into the operation's
  * @verdictShape output.
  *
- * @param name Lowercase-hyphen identifier; `claude-hooks`, `cursor-hooks`.
+ * @param name Lowercase-hyphen identifier; `claude-code`, `cursor`.
  *   Becomes the runtime module suffix.
  * @param preset @preset name this adapter binds to (`claude-code`, `cursor`).
  * @param discriminator Stdin JSON route field. Almost always `hook_event_name`.
@@ -170,7 +170,7 @@ extern dec activityRouting(target: Operation, table: valueof Record<string>);
  *
  * Field sources (the value attached to each output field):
  *   #{ from: "envelope.path" }                  ; pull at the path
- *   #{ from: "envelope.path", fallback: "alt" } ; alt is another path
+ *   #{ from: "envelope.path", alternate: "alt" } ; alt is another path
  *   #{ from: "path", default: "literal" }       ; path or literal default
  *   #{ literal: "value" }                       ; fixed literal string
  *   #{ sideEffect: "readFile", from: "path" }   ; invoke a sideEffect
@@ -207,7 +207,7 @@ extern dec noPayload(target: Operation);
  *     key: "hooks",                         // top-level key under settings
  *     style: "claude-array" | "codex-array" | "cursor-keyed",
  *     command: "openbox claude-code hook",  // bin command for each event
- *     configDir: ".claude-hooks",          // project config drop dir
+ *     configDir: ".openbox/claude-code",  // project state/config drop dir
  *   }
  *
  * `style` controls the per-event JSON shape:
@@ -311,12 +311,12 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
  *       policyBoundary: "...",
  *     },
  *     tracingCapabilityGuards: #[#{ provider, tier, traceSurface, spanCoverage, spanEmission, sourceAttribution, guardTest }, ...],
- *     hitlCapabilityGuards: #[#{ provider, tier, requireApprovalSurface, sourceAttribution, nativeSurface, fallbackSurface, guardTest, failClosedBehavior }, ...],
+ *     hitlCapabilityGuards: #[#{ provider, tier, requireApprovalSurface, sourceAttribution, nativeSurface, continuationSurface, guardTest, failClosedBehavior }, ...],
  *     guardrailCapabilityGuards: #[#{ provider, tier, governedSurfaces, coreContract, redactionBehavior, failClosedBehavior, guardTest }, ...],
  *     guardrailsHubRecordingSurface: #{ id, recorderScript, fixturePath, recordEnv, tokenEnv, defaultSampleCount, cases: #[#{ id, guardrailType, sampleCount, variants }] },
  *     policyEvaluationGuards: #[#{ provider, tier, authority, sdkResponsibility, allowedLocalWork, forbiddenLocalWork, guardTest }, ...],
  *     rulesInstructionCapabilityGuards: #[#{ provider, tier, projectionSurface, sourceOfTruth, allowedProjectionWork, forbiddenLocalWork, hostBoundary, guardTest }, ...],
- *     hookCapabilityGuards: #[#{ provider, tier, hookSurface, eventCoverage, enforcementBoundary, fallbackOrOutOfScope, guardTest }, ...],
+ *     hookCapabilityGuards: #[#{ provider, tier, hookSurface, eventCoverage, enforcementBoundary, scopeBoundary, guardTest }, ...],
  *     subagentsAgentsCapabilityGuards: #[#{ provider, tier, agentSurface, lifecycleCoverage, ownershipBoundary, guardTest }, ...],
  *     pluginCapabilityGuards: #[#{ provider, tier, packageSurface, componentCoverage, installSurface, scopeBoundary, guardTest }, ...],
  *     skillCapabilityGuards: #[#{ provider, tier, skillSurface, installSurface, discoverySurface, hostBoundary, guardTest }, ...],

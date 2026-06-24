@@ -794,7 +794,7 @@ describe('provider capability matrix', () => {
       expect(guard.sourceAttribution, `${guard.provider} sourceAttribution`).toContain('metadata.source');
       expect(guard.sourceAttribution, `${guard.provider} sourceAttribution`).toContain('_openbox_source');
       expect(guard.nativeSurface.length, `${guard.provider} nativeSurface`).toBeGreaterThan(0);
-      expect(guard.fallbackSurface.length, `${guard.provider} fallbackSurface`).toBeGreaterThan(0);
+      expect(guard.continuationSurface.length, `${guard.provider} continuationSurface`).toBeGreaterThan(0);
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
       expect(guard.failClosedBehavior.length, `${guard.provider} failClosedBehavior`).toBeGreaterThan(20);
     }
@@ -1337,7 +1337,7 @@ describe('provider capability matrix', () => {
       expect(guard.hookSurface.length, `${guard.provider} hookSurface`).toBeGreaterThan(30);
       expect(guard.eventCoverage.length, `${guard.provider} eventCoverage`).toBeGreaterThan(30);
       expect(guard.enforcementBoundary.length, `${guard.provider} enforcementBoundary`).toBeGreaterThan(30);
-      expect(guard.fallbackOrOutOfScope.length, `${guard.provider} fallbackOrOutOfScope`).toBeGreaterThan(20);
+      expect(guard.scopeBoundary.length, `${guard.provider} scopeBoundary`).toBeGreaterThan(20);
       expect(guard.guardTest, `${guard.provider} guardTest`).toMatch(/^tests\/.+#/);
 
       const eventCatalog = eventCatalogByProvider.get(guard.provider);
@@ -1357,7 +1357,7 @@ describe('provider capability matrix', () => {
         expect(guard.hookSurface).toContain('emitN8nNodePreExecute');
       } else {
         expect(guard.tier, `${guard.provider} tier`).toBe('out-of-scope');
-        expect(guard.fallbackOrOutOfScope, `${guard.provider} fallbackOrOutOfScope`).toContain('Out-of-scope');
+        expect(guard.scopeBoundary, `${guard.provider} scopeBoundary`).toContain('Out-of-scope');
       }
 
       if (guard.tier !== 'out-of-scope') {

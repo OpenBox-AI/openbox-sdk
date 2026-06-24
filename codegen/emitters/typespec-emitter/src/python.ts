@@ -1087,7 +1087,7 @@ function emitRuntimeContract(program: Program): string {
         core: 'behavioral_violations',
         govern: 'behavioralViolations',
       },
-      { target: 'fallbackUsed', core: 'fallback_used', govern: 'fallbackUsed' },
+      { target: 'governanceChecksIncomplete', core: 'governance_checks_incomplete', govern: 'governanceChecksIncomplete' },
       { target: 'guardrailsResult', core: 'guardrails_result', govern: 'guardrailsResult' },
       { target: 'ageResult', core: 'age_result', govern: 'ageResult' },
     ],
@@ -1147,7 +1147,7 @@ function emitRuntimeContract(program: Program): string {
   assertSubset(
     ['verdict'],
     modelPropertyNames(governanceVerdictResponse),
-    'APPROVAL_STATUS_FIELD_ALIASES arm fallback',
+    'APPROVAL_STATUS_FIELD_ALIASES arm compatibility',
   );
   const spanAliasSnakeFields = [
     'span_id',

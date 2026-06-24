@@ -122,7 +122,7 @@ export interface components {
             goal_alignment_checked: boolean;
             /** @description True if alignment score crossed the agent's threshold. */
             goal_drifted: boolean;
-            fallback_used: boolean;
+            governance_checks_incomplete?: boolean;
             final_trust_score?: components["schemas"]["AGETrustScore"];
             span_results: components["schemas"]["AGESpanResult"][];
             /** Format: int32 */
@@ -393,8 +393,8 @@ export interface components {
              *     behavior_rule with `--verdict 2 --approval-timeout <seconds>`.
              */
             approval_expiration_time?: string;
-            /** @description True if any evaluation branch used a fallback path. */
-            fallback_used: boolean;
+            /** @description True when one or more required governance checks did not complete. */
+            governance_checks_incomplete?: boolean;
             reason?: string;
             /** @description Policy that produced the verdict, when applicable. */
             policy_id?: string;

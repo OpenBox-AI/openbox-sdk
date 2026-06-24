@@ -186,10 +186,11 @@ export class OpenBoxCoreClient {
       payload.sdk_version && payload.sdk_version !== ''
         ? payload
         : { ...payload, sdk_version: OPENBOX_SDK_VERSION };
-    return this.request('POST', '/api/v1/governance/evaluate', {
+    const response = await this.request('POST', '/api/v1/governance/evaluate', {
       data: makeGovernancePayloadJsonSafe(versionedPayload),
       retryable: false,
-    }) as Promise<GovernanceVerdictResponse>;
+    }) as GovernanceVerdictResponse;
+    return normalizeGovernanceChecksIncomplete(response);
   }
 
   async pollApproval(
@@ -389,6 +390,21 @@ function makeGovernancePayloadJsonSafe(
   payload: GovernanceEventPayload,
 ): GovernanceEventPayload {
   return JSON.parse(JSON.stringify(toGovernanceJsonSafe(payload))) as GovernanceEventPayload;
+}
+
+function normalizeGovernanceChecksIncomplete(
+  response: GovernanceVerdictResponse,
+): GovernanceVerdictResponse {
+  return {
+    ...response,
+    governance_checks_incomplete: response.governance_checks_incomplete ?? false,
+    age_result: response.age_result
+      ? {
+          ...response.age_result,
+          governance_checks_incomplete: response.age_result.governance_checks_incomplete ?? false,
+        }
+      : response.age_result,
+  };
 }
 
 function toGovernanceJsonSafe(value: unknown, seen = new WeakSet<object>()): unknown {

@@ -266,12 +266,12 @@ def _request_id(request: Any) -> str:
     return str(uuid.uuid4())
 
 
-def _request_name(request: Any, fallback: str) -> str:
+def _request_name(request: Any, default_name: str) -> str:
     for key in ("name", "tool_name", "tool"):
         value = _value(request, key)
         if isinstance(value, str) and value:
             return value
-    return fallback
+    return default_name
 
 
 def _plain_request(request: Any) -> Any:

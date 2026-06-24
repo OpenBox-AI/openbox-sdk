@@ -186,7 +186,7 @@ describe('Generated Backend Query Boundaries', () => {
   it('NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: every generated backend page/perPage/pattern
     // request preflight constraint is derived from OpenAPI, then driven
-    // against the real local stack via the raw fallback path so this proves
+    // against the real local stack via the raw request path so this proves
     // server-side validation, not SDK-only preflight.
     const cases = boundaryCases(params);
     expect(cases).toHaveLength(expectedBoundaryCaseCount());

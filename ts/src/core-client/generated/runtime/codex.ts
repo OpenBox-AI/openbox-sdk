@@ -44,7 +44,7 @@ export const HOOK_SPEC: HookSpec = {
   "key": "hooks",
   "style": "codex-array",
   "command": "openbox codex hook",
-  "configDir": ".codex-hooks",
+  "configDir": ".openbox/codex",
   "events": [
     {
       "name": "UserPromptSubmit",
@@ -311,7 +311,7 @@ export function createCodexAdapter(config: CodexAdapterConfig) {
   const write = config.writeStdout ?? ((data: string) => process.stdout.write(data));
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
-  function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: CodexEnvelope): void {
+  function writeDefaultOutput(shape: string, _v: WorkflowVerdict | undefined | void, env: CodexEnvelope): void {
     const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
@@ -355,7 +355,7 @@ export function createCodexAdapter(config: CodexAdapterConfig) {
 
       const handlers = config.handlers;
       try {
-        await dispatch(eventName, env, session, handlers, writeFallback, writeVerdict);
+        await dispatch(eventName, env, session, handlers, writeDefaultOutput, writeVerdict);
       } finally {
         return exit(0);
       }
@@ -368,13 +368,13 @@ async function dispatch(
   env: CodexEnvelope,
   session: CodexSession,
   handlers: CodexAdapterHandlers,
-  writeFallback: (shape: string, v: WorkflowVerdict | undefined | void, env: CodexEnvelope) => void,
+  writeDefaultOutput: (shape: string, v: WorkflowVerdict | undefined | void, env: CodexEnvelope) => void,
   writeVerdict: (shape: string, v: WorkflowVerdict | undefined | void, env: CodexEnvelope) => void,
 ): Promise<void> {
   switch (eventName) {
     case "UserPromptSubmit": {
       if (!handlers.userPromptSubmit) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.userPromptSubmit(env, session);
@@ -383,7 +383,7 @@ async function dispatch(
     }
     case "PreToolUse": {
       if (!handlers.preToolUse) {
-        writeFallback("permission-decision", undefined, env);
+        writeDefaultOutput("permission-decision", undefined, env);
         return;
       }
       const verdict = await handlers.preToolUse(env, session);
@@ -392,7 +392,7 @@ async function dispatch(
     }
     case "PermissionRequest": {
       if (!handlers.permissionRequest) {
-        writeFallback("permission-request", undefined, env);
+        writeDefaultOutput("permission-request", undefined, env);
         return;
       }
       const verdict = await handlers.permissionRequest(env, session);
@@ -401,7 +401,7 @@ async function dispatch(
     }
     case "PostToolUse": {
       if (!handlers.postToolUse) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.postToolUse(env, session);
@@ -410,7 +410,7 @@ async function dispatch(
     }
     case "Stop": {
       if (!handlers.stop) {
-        writeFallback("decision-block", undefined, env);
+        writeDefaultOutput("decision-block", undefined, env);
         return;
       }
       const verdict = await handlers.stop(env, session);

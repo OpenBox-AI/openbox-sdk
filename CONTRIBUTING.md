@@ -17,7 +17,7 @@ Consistent rule for what gets specced vs hand-coded:
 | Per-tool activity payload field map via `@payloadShape` | Algorithmic transforms: redaction, JSON merge |
 | Adapter install target and per-event timeout via `@installTarget` | Display formatting in `output.ts`, `outputList.ts` |
 | Env var names and OS path semantics | Test fixtures, mock state |
-| CLI command structure: args, flags, validators, body-key map, output kind, backend method, maturity, feature flags | Non-canonical CLI command bodies: preflight checks, `--body` fallbacks, runtime-key one-time prints |
+| CLI command structure: args, flags, validators, body-key map, output kind, backend method, maturity, feature flags | Non-canonical CLI command bodies: preflight checks, `--body` merging, runtime-key one-time prints |
 
 Roughly: **structural and contractual code goes in the spec;
 data-shaping logic and platform-boundary primitives stay hand-coded**.
@@ -93,7 +93,7 @@ The TypeScript boundary is enforced by:
    file picks up the new entry. No hand-written commander wiring
    needed.
 4. If the command body is genuinely non-canonical (preflight checks,
-   hand-rolled DTO defaults, --body fallback merging), use
+   hand-rolled DTO defaults, --body merging), use
    `@cli_output_kind("custom")` and put the action body in
    `ts/src/cli/commands/<name>.ts`.
 
