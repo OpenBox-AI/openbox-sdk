@@ -92,7 +92,7 @@ function spawnIsolatedBackend() {
     KMS_PROVIDER: process.env.KMS_PROVIDER ?? 'local',
     OPENBOX_LOCAL_KMS_SECRET:
       process.env.OPENBOX_LOCAL_KMS_SECRET ?? 'openbox-local-sdk-secret',
-    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME ?? 'openbox-local-sdk',
+    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME ?? 'openbox-local',
     AWS_ENDPOINT_URL: process.env.AWS_ENDPOINT_URL ?? 'http://127.0.0.1:5001',
     AWS_ENDPOINT_URL_S3: process.env.AWS_ENDPOINT_URL_S3 ?? 'http://127.0.0.1:5001',
     AWS_ENDPOINT_URL_KMS: process.env.AWS_ENDPOINT_URL_KMS ?? 'http://127.0.0.1:5001',
