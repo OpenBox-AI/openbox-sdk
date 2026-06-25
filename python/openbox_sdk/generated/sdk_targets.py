@@ -2624,7 +2624,10 @@ SDK_TARGET_MANIFEST = {
     "paths": [
       "dist",
       "dist-pack",
-      "apps/extension/dist"
+      "apps/extension/dist",
+      ".coverage",
+      ".openbox/cache",
+      ".openbox/locks"
     ],
     "nestedNames": [
       {

@@ -2622,7 +2622,10 @@
     "paths": [
       "dist",
       "dist-pack",
-      "apps/extension/dist"
+      "apps/extension/dist",
+      ".coverage",
+      ".openbox/cache",
+      ".openbox/locks"
     ],
     "nestedNames": [
       {

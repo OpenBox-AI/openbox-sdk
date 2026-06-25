@@ -389,6 +389,9 @@ using OpenBox.Workflow;
       "dist",
       "dist-pack",
       "apps/extension/dist",
+      ".coverage",
+      ".openbox/cache",
+      ".openbox/locks",
     ],
     nestedNames: #[
       #{ root: "codegen", names: #["dist", "tsconfig.tsbuildinfo"] },

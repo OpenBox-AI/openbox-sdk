@@ -969,6 +969,9 @@ describe('SDK target validation manifest', () => {
       'dist',
       'dist-pack',
       'apps/extension/dist',
+      '.coverage',
+      '.openbox/cache',
+      '.openbox/locks',
     ]);
     expect(fixture.cleanArtifacts.nestedNames).toEqual([
       { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
