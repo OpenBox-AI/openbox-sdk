@@ -317,6 +317,8 @@ describe('Test Fixtures', () => {
         action: 'constrain',
         reason: 'SDK conformance OPA CONSTRAIN propagation boundary',
       });
+      expect(testCase.expected.verdict).not.toBe('allow');
+      expect(testCase.expected.action).not.toBe('allow');
     });
   });
 
