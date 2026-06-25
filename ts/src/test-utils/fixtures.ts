@@ -291,8 +291,8 @@ export interface OpaUnsupportedConstrainConformanceCase {
   policyBody: CreatePolicyDto;
   event: GovernanceEventPayload;
   expected: {
-    verdict: Extract<Verdict, 'allow'>;
-    action: Extract<LegacyAction, 'allow'>;
+    verdict: Extract<Verdict, 'constrain'>;
+    action: Extract<LegacyAction, 'constrain'>;
     reason: string;
   };
 }
