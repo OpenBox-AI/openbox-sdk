@@ -319,6 +319,7 @@ describe('Test Fixtures', () => {
       });
       expect(testCase.expected.verdict).not.toBe('allow');
       expect(testCase.expected.action).not.toBe('allow');
+      expect(testCase.expected.reason).toContain('CONSTRAIN');
     });
   });
 
