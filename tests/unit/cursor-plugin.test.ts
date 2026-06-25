@@ -109,13 +109,13 @@ describe('Cursor plugin asset', () => {
       fs.readFileSync(path.join(out, 'hooks', 'hooks.json'), 'utf-8'),
     );
     expect(hooks.hooks.beforeShellExecution[0].matcher).toBe('\\b(rm|sudo)\\b');
-    expect(hooks.hooks.sessionEnd[0].command).toBe('openbox cursor hook');
+    expect(hooks.hooks.sessionEnd[0].command).toBe('./.openbox/bin/openbox cursor hook');
 
     const mcp = JSON.parse(
       fs.readFileSync(path.join(out, 'mcp.json'), 'utf-8'),
     );
     expect(mcp.mcpServers.openbox).toEqual({
-      command: 'openbox',
+      command: './.openbox/bin/openbox',
       args: ['mcp', 'serve'],
     });
     const workspaceOpen = JSON.parse(
@@ -165,6 +165,7 @@ describe('Cursor plugin asset', () => {
     expect(fs.existsSync(path.join(cwd, '.openbox', 'cursor', 'config.json'))).toBe(
       true,
     );
+    expect(fs.existsSync(path.join(cwd, '.openbox', 'bin', 'openbox'))).toBe(true);
 
     uninstallCursorPlugin({ cwd, target });
     expect(fs.existsSync(target)).toBe(false);
@@ -194,6 +195,7 @@ describe('Cursor plugin asset', () => {
     );
     expect(hooks.hooks.beforeShellExecution[0].matcher).toBe('\\b(rm|sudo)\\b');
     expect(fs.existsSync(path.join(cwd, '.cursor', 'mcp.json'))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, '.openbox', 'bin', 'openbox'))).toBe(true);
     expect(
       fs.existsSync(
         path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'),

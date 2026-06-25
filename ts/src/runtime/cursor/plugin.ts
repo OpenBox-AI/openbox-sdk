@@ -27,6 +27,11 @@ import {
   OPENBOX_CURSOR_RULE_HEADER_MARKER,
   renderRulesProjection,
 } from './rules.js';
+import {
+  ensureProjectOpenBoxRuntime,
+  projectOpenBoxHookCommand,
+  projectOpenBoxMcpServerEntry,
+} from '../project-openbox-runtime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -343,8 +348,9 @@ function cursorHooksJson(
   matchers?: Record<string, string>,
 ): Record<string, unknown> {
   const hooks: Record<string, Array<Record<string, unknown>>> = {};
+  const command = projectOpenBoxHookCommand('cursor');
   for (const event of HOOK_SPEC.events) {
-    const entry: Record<string, unknown> = { command: HOOK_SPEC.command };
+    const entry: Record<string, unknown> = { command };
     if (event.timeout !== undefined) entry.timeout = event.timeout;
     const matcher = matchers?.[event.name];
     if (matcher) entry.matcher = matcher;
@@ -356,10 +362,7 @@ function cursorHooksJson(
 function mcpJson(): Record<string, unknown> {
   return {
     mcpServers: {
-      openbox: {
-        command: 'openbox',
-        args: ['mcp', 'serve'],
-      },
+      openbox: projectOpenBoxMcpServerEntry(),
     },
   };
 }
@@ -487,6 +490,7 @@ export function installCursorPlugin(
     options.target ?? cursorPluginTargetDir(cwd),
     cwd,
   );
+  ensureProjectOpenBoxRuntime({ cwd });
   if (options.symlink) {
     const source = safeOutDir(options.symlink);
     if (!existsSync(source)) {
@@ -532,6 +536,7 @@ export function installCursorRepoMode(
   options: InstallCursorRepoOptions = {},
 ): string {
   const cwd = options.cwd ?? process.cwd();
+  ensureProjectOpenBoxRuntime({ cwd });
   writeJson(
     path.join(cwd, '.cursor', 'hooks.json'),
     cursorHooksJson(options.matchers),
@@ -661,6 +666,7 @@ function checkHooks(file: string): CursorPluginCheck {
     | Record<string, unknown>
     | undefined;
   const problems: string[] = [];
+  const command = projectOpenBoxHookCommand('cursor');
   if (!hooks || typeof hooks !== 'object') {
     problems.push('hooks block missing');
   } else {
@@ -671,7 +677,7 @@ function checkHooks(file: string): CursorPluginCheck {
         continue;
       }
       const entry = value[0] as { command?: unknown; timeout?: unknown };
-      if (entry.command !== HOOK_SPEC.command) {
+      if (entry.command !== command) {
         problems.push(`${event.name}: command drift`);
       }
       if (event.timeout !== undefined && entry.timeout !== event.timeout) {
@@ -696,17 +702,17 @@ function checkMcp(file: string): CursorPluginCheck {
   const json = readJson(file);
   const openbox = (json?.mcpServers as Record<string, unknown> | undefined)
     ?.openbox as { command?: unknown; args?: unknown } | undefined;
+  const expected = projectOpenBoxMcpServerEntry();
   const ok =
-    openbox?.command === 'openbox' &&
+    openbox?.command === expected.command &&
     Array.isArray(openbox.args) &&
-    openbox.args[0] === 'mcp' &&
-    openbox.args[1] === 'serve';
+    JSON.stringify(openbox.args) === JSON.stringify(expected.args);
   return {
     name: 'plugin-mcp',
     status: ok ? 'pass' : 'fail',
     path: file,
     detail: ok
-      ? 'openbox mcp serve'
+      ? './.openbox/bin/openbox mcp serve'
       : 'openbox server entry missing or malformed',
   };
 }

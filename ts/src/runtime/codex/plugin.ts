@@ -1,5 +1,4 @@
 import {
-  chmodSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -20,6 +19,10 @@ import {
   renderCodexCommandRules,
   type RulesProjection,
 } from '../../governance/rules-projection.js';
+import {
+  ensureProjectOpenBoxRuntime,
+  writeOpenBoxCliRunner,
+} from '../project-openbox-runtime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -255,63 +258,7 @@ function commandRules(projection = defaultRulesProjection()): string {
 }
 
 function writePluginCliRunner(file: string): void {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(
-    file,
-    [
-      '#!/usr/bin/env node',
-      "import { existsSync } from 'node:fs';",
-      "import path from 'node:path';",
-      "import { spawnSync } from 'node:child_process';",
-      '',
-      'const args = process.argv.slice(2);',
-      '',
-      'function projectRoots() {',
-      '  const roots = [];',
-      '  if (process.env.CODEX_PROJECT_DIR) roots.push(process.env.CODEX_PROJECT_DIR);',
-      '  roots.push(process.cwd());',
-      '  const out = [];',
-      '  for (const root of roots) {',
-      '    let cur = path.resolve(root);',
-      '    for (let i = 0; i < 8; i += 1) {',
-      '      if (!out.includes(cur)) out.push(cur);',
-      '      const parent = path.dirname(cur);',
-      '      if (parent === cur) break;',
-      '      cur = parent;',
-      '    }',
-      '  }',
-      '  return out;',
-      '}',
-      '',
-      'function candidateFromProjectNodeModules() {',
-      '  for (const root of projectRoots()) {',
-      "    const candidate = path.join(root, 'node_modules', '@openbox-ai', 'openbox-sdk', 'dist', 'cli', 'index.js');",
-      '    if (existsSync(candidate)) return candidate;',
-      '  }',
-      '  return undefined;',
-      '}',
-      '',
-      'const cli = candidateFromProjectNodeModules();',
-      'if (!cli) {',
-      "  console.error('OpenBox SDK CLI not found for project-scoped Codex plugin. Install @openbox-ai/openbox-sdk in the project.');",
-      '  process.exit(127);',
-      '}',
-      '',
-      'const result = spawnSync(process.execPath, [cli, ...args], {',
-      "  stdio: 'inherit',",
-      '  env: process.env,',
-      '});',
-      '',
-      'if (result.error) {',
-      '  console.error(result.error.message);',
-      '  process.exit(127);',
-      '}',
-      'process.exit(result.status ?? 1);',
-      '',
-    ].join('\n'),
-    'utf-8',
-  );
-  chmodSync(file, 0o755);
+  writeOpenBoxCliRunner(file, 'Codex plugin');
 }
 
 export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
@@ -341,6 +288,7 @@ export function exportCodexPlugin(options: ExportCodexPluginOptions): string {
 export function installCodexPlugin(options: InstallCodexPluginOptions = {}): string {
   const cwd = options.cwd ?? process.cwd();
   const target = assertProjectTarget(options.target ?? codexPluginTargetDir(cwd), cwd);
+  ensureProjectOpenBoxRuntime({ cwd });
   if (options.symlink) {
     const source = safeOutDir(options.symlink);
     if (!existsSync(source)) {

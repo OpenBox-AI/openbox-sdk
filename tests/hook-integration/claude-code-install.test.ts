@@ -39,8 +39,13 @@ function expectClaudePlugin(project: string): void {
   expect(existsSync(path.join(root, 'agents', 'openbox-reviewer.md'))).toBe(true);
   expect(existsSync(path.join(root, 'bin', 'openbox-cli.mjs'))).toBe(true);
   expect(existsSync(path.join(root, 'bin', 'openbox-plugin-doctor'))).toBe(true);
+  expect(existsSync(path.join(project, '.openbox', 'bin', 'openbox'))).toBe(true);
+  expect(existsSync(path.join(project, '.openbox', 'sdk', 'dist', 'cli', 'index.js'))).toBe(true);
   expect(existsSync(path.join(project, '.openbox', 'claude-code', 'config.json'))).toBe(true);
   expect(existsSync(path.join(project, '.claude', 'settings.json'))).toBe(false);
+  const gitignore = readFileSync(path.join(project, '.gitignore'), 'utf-8');
+  expect(gitignore).toContain('.openbox/');
+  expect(gitignore).toContain('.claude/settings.local.json');
 
   const runtimeConfig = JSON.parse(
     readFileSync(path.join(project, '.openbox', 'claude-code', 'config.json'), 'utf-8'),

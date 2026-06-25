@@ -17,6 +17,7 @@ import {
   validateAgentIdentityConfig,
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
+import { checkProjectOpenBoxRuntime } from '../project-openbox-runtime.js';
 
 export type CodexInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -85,6 +86,9 @@ function hookEntryContainsOpenBox(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
   if (typeof record.command === 'string' && record.command.includes('openbox codex hook')) {
+    return true;
+  }
+  if (typeof record.command === 'string' && record.command.includes('.openbox/bin/openbox codex hook')) {
     return true;
   }
   return hookEntryContainsOpenBox(record.hooks);
@@ -307,7 +311,7 @@ export function verifyCodexInstall(
       name: 'openbox-hook',
       status: entries.some(hookEntryContainsOpenBox) ? 'pass' : 'fail',
       path: paths.hooksFile,
-      detail: 'project hook command is openbox codex hook',
+      detail: 'project hook command is project-local OpenBox Codex hook',
     },
     {
       name: 'runtime-config',
@@ -315,6 +319,7 @@ export function verifyCodexInstall(
       path: configFile,
       detail: fs.existsSync(configFile) ? 'project .openbox/codex/config.json exists' : 'missing project runtime config',
     },
+    checkProjectOpenBoxRuntime(opts.cwd),
     {
       name: 'hook-trust',
       status: 'skip',
