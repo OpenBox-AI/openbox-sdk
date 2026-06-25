@@ -11397,7 +11397,7 @@ export const OPA_EVALUATION_MATRIX = {
   ],
   "unsupportedConstrain": {
     "scenarioId": "opa-constrain",
-    "reason": "SDK conformance unsupported OPA CONSTRAIN boundary",
+    "reason": "SDK conformance OPA CONSTRAIN propagation boundary",
     "activityType": "DatabaseQuery",
     "semanticType": "database_query",
     "activityInput": {
@@ -11405,8 +11405,8 @@ export const OPA_EVALUATION_MATRIX = {
       "db_operation": "QUERY",
       "db_statement": "classifier opa constrain boundary"
     },
-    "expectedVerdict": "allow",
-    "expectedAction": "allow"
+    "expectedVerdict": "constrain",
+    "expectedAction": "constrain"
   },
   "unavailableFailClosed": {
     "scenarioId": "opa-unavailable-fail-closed",
@@ -12264,7 +12264,7 @@ export const LOCAL_STACK_SCENARIO_PATHS = [
         ]
       }
     ],
-    "requiredBehavior": "A generated CONSTRAIN policy must prove the real backend/Core boundary: backend accepts the policy, Core falls through to allow, and SDK validation rejects CONSTRAIN as unsupported authoring input."
+    "requiredBehavior": "A generated CONSTRAIN policy must prove the real backend/Core boundary: backend accepts the policy and Core propagates the constrain verdict/action to SDK callers."
   },
   {
     "id": "opa-unavailable-fail-closed",

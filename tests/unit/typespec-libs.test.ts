@@ -311,8 +311,9 @@ describe('typespec-workflow', () => {
               steps: Array<{
                 id: string;
                 command?: string;
+                args?: string[];
                 workingDirectory?: string;
-                steps?: Array<{ id: string; command: string; workingDirectory: string }>;
+                steps?: Array<{ id: string; command: string; args?: string[]; workingDirectory: string }>;
               }>;
             }>;
           }
@@ -452,25 +453,62 @@ describe('typespec-workflow', () => {
     ]);
     expect(rootPipelines?.pipelines.find((entry) => entry.id === 'local-stack')?.steps.map((entry) => entry.id)).toEqual([
       'ci-local',
-      'live-governance-lanes',
+      'live-provider-governance-lanes',
+      'live-domain-governance-lanes',
+      'isolated-unavailable-lanes',
       'live-platform-e2e',
     ]);
     expect(
       rootPipelines?.pipelines
         .find((entry) => entry.id === 'local-stack')
-        ?.steps.find((entry) => entry.id === 'live-governance-lanes')?.steps?.map((entry) => entry.id),
+        ?.steps.find((entry) => entry.id === 'live-provider-governance-lanes')?.args,
     ).toEqual([
-      'hook-claude-host',
-      'hook-claude-stdin-local-stack',
-      'hook-codex-local-stack',
-      'hook-cursor-local-stack',
-      'openai-agents-sdk-local-stack',
-      'anthropic-agent-sdk-local-stack',
-      'copilotkit-local-stack',
-      'n8n-local-stack',
-      'kms-signing-local-stack',
-      'live-governance-e2e',
-      'local-llamafirewall',
+      'run',
+      'local-stack:lane',
+      '--',
+      'claude-code-host-governance',
+      'claude-code-stdin-governance',
+      'codex-governance',
+      'cursor-governance',
+      'openai-agents-sdk-governance',
+      'anthropic-agent-sdk-governance',
+      'copilotkit-governance',
+      'n8n-governance',
+      'kms-signing-governance',
+      'llamafirewall-governance',
+    ]);
+    expect(
+      rootPipelines?.pipelines
+        .find((entry) => entry.id === 'local-stack')
+        ?.steps.find((entry) => entry.id === 'live-domain-governance-lanes')?.args,
+    ).toEqual([
+      'run',
+      'local-stack:lane',
+      '--',
+      'sdk-direct-governance',
+      'approvals-governance',
+      'audit-logs-governance',
+      'behavior-rules-governance',
+      'goal-alignment-governance',
+      'guardrails-pii-governance',
+      'observability-governance',
+      'sessions-governance',
+      'trust-age-governance',
+      'violations-governance',
+      'opa-rego-governance',
+      'request-query-boundaries-governance',
+    ]);
+    expect(
+      rootPipelines?.pipelines
+        .find((entry) => entry.id === 'local-stack')
+        ?.steps.find((entry) => entry.id === 'isolated-unavailable-lanes')?.args,
+    ).toEqual([
+      'run',
+      'local-stack:lane',
+      '--',
+      'isolated-opa-unavailable',
+      'isolated-guardrail-unavailable',
+      'isolated-age-unavailable',
     ]);
     expect(testSuites?.defaultSuites).toEqual([
       'unit',

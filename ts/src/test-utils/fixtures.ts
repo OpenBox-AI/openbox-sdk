@@ -238,7 +238,7 @@ export function makeApprovalExpirationConformanceCase(): ApprovalExpirationConfo
 type OpaMatrixDecision = (typeof OPA_DECISION_SCENARIOS)[number]['decision'];
 type OpaAliasDecision = (typeof OPA_ALIAS_DECISION_CASES)[number]['decision'];
 type OpaGovernedSurface = (typeof OPA_GOVERNED_SURFACES)[number];
-type OpaCanonicalAction = Extract<LegacyAction, Exclude<Verdict, 'constrain'>>;
+type OpaCanonicalAction = Extract<LegacyAction, Verdict>;
 
 const REQUIRED_OPA_VERDICTS = [...CANONICAL_VERDICT_ARMS]
   .filter((verdict): verdict is Exclude<Verdict, 'constrain'> => verdict !== 'constrain')
@@ -414,9 +414,8 @@ function opaMatrixReason(decision: OpaMatrixDecision, label: string): string {
   return `SDK conformance OPA ${decision.toLowerCase()} ${label}`;
 }
 
-function generatedOpaVerdict<T extends Exclude<Verdict, 'constrain'>>(value: T, label: string): T {
-  const raw = String(value);
-  if (raw === 'constrain' || !CANONICAL_VERDICT_ARMS.has(value)) {
+function generatedOpaVerdict<T extends Verdict>(value: T, label: string): T {
+  if (!CANONICAL_VERDICT_ARMS.has(value)) {
     throw new Error(`Invalid spec-generated OPA verdict for ${label}: ${value}`);
   }
   return value;
@@ -425,7 +424,6 @@ function generatedOpaVerdict<T extends Exclude<Verdict, 'constrain'>>(value: T, 
 function generatedOpaLegacyAction<T extends OpaCanonicalAction>(value: T, label: string): T {
   const raw = String(value);
   if (
-    raw === 'constrain' ||
     raw === 'continue' ||
     raw === 'stop' ||
     !CANONICAL_VERDICT_ARMS.has(value)
@@ -577,7 +575,7 @@ export function makeOpaUnsupportedConstrainConformanceCase(): OpaUnsupportedCons
     evaluateOperationId: 'evaluateGovernance',
     policyBody: makeCreatePolicyDto({
       name: `test-policy-opa-constrain-boundary-${ts()}`,
-      description: 'E2E conformance policy proving unsupported OPA CONSTRAIN behavior',
+      description: 'E2E conformance policy proving OPA CONSTRAIN propagation',
       rego_code: [
         'package openbox.policy',
         'default result = {"decision": "ALLOW", "reason": null}',
@@ -591,7 +589,7 @@ export function makeOpaUnsupportedConstrainConformanceCase(): OpaUnsupportedCons
     event: makeOpaMatrixEvent(
       spec.activityType,
       activityInput,
-      makeConformanceSpan(spec.semanticType, 'OPA unsupported CONSTRAIN boundary', {
+      makeConformanceSpan(spec.semanticType, 'OPA CONSTRAIN propagation boundary', {
         'openbox.matrix.scenario_id': scenarioId,
         'openbox.matrix.decision': 'CONSTRAIN',
       }),
