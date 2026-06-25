@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Run the AGE-unavailable goal-drift scenario against temporary Core processes.
+// Run the AGE/LlamaFirewall-unavailable goal-alignment scenario against temporary Core processes.
 
 import { runIsolatedCoreVitestScenario } from './lib/isolated-core-runner.mjs';
 
 const port = process.env.OPENBOX_E2E_ISOLATED_CORE_PORT ?? '8116';
-const unavailableAgeUrl =
-  process.env.OPENBOX_E2E_UNAVAILABLE_AGE_URL ?? 'http://127.0.0.1:9';
+const unavailableGoalAlignmentUrl =
+  process.env.OPENBOX_E2E_UNAVAILABLE_GOAL_ALIGNMENT_URL ??
+  process.env.OPENBOX_E2E_UNAVAILABLE_AGE_URL ??
+  'http://127.0.0.1:9';
 const taskQueue =
   process.env.OPENBOX_E2E_ISOLATED_AGE_TASK_QUEUE ??
   `openbox-age-unavailable-${Date.now()}`;
@@ -19,10 +21,14 @@ runIsolatedCoreVitestScenario({
   taskQueue,
   workflowPrefix,
   coreEnv: {
-    AGE_URL: unavailableAgeUrl,
+    LLAMAFIREWALL_HOST: unavailableGoalAlignmentUrl,
+    AGE_URL: unavailableGoalAlignmentUrl,
     AGE_HTTP_TIMEOUT_SEC: process.env.AGE_HTTP_TIMEOUT_SEC ?? '1',
   },
-  statusLines: [`AGE_URL=${unavailableAgeUrl}`],
+  statusLines: [
+    `LLAMAFIREWALL_HOST=${unavailableGoalAlignmentUrl}`,
+    `AGE_URL=${unavailableGoalAlignmentUrl}`,
+  ],
   vitestArgs: [
     'vitest',
     'run',

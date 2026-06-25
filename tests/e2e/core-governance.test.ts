@@ -1621,8 +1621,9 @@ describe('Core Governance API', () => {
   itIfIsolatedAgeUnavailable('CONFORMANCE: AGE unavailable marks governance checks incomplete', async () => {
     // SCENARIO_PROOF: goal-drift-unavailable-fail-closed
     // CONFORMANCE_PROOF: this test is only enabled by the isolated Core runner,
-    // which starts Core with AGE_URL pointed at an unavailable local port.
-    // The Core governance-checks-incomplete flag must be true on the governed action response.
+    // which starts Core with LLAMAFIREWALL_HOST pointed at an unavailable local port.
+    // The Core governance-checks-incomplete flag must be true when the next
+    // goal signal forces the previous assistant trace through goal alignment.
     expect(process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE).toBe('1');
     expect('AGE unavailable').toBe('AGE unavailable');
     expect(['SCENARIO_PROOF: goal-drift-unavailable-fail-closed']).toEqual(
@@ -1639,25 +1640,70 @@ describe('Core Governance API', () => {
       workflow_id: workflowId,
       run_id: runId,
       activity_id: `goal-age-unavailable-${suffix}`,
+      signal_args: 'Complete the approved OpenBox local-stack conformance goal before actions.',
     };
-    const governedEvent = {
+    const assistantResponseBody = JSON.stringify({
+      choices: [{
+        message: {
+          content: 'Here is the approved conformance summary for the active goal.',
+        },
+      }],
+    });
+    const assistantCompletionEvent = {
       ...conformanceCase.firstGovernedEvent,
       workflow_id: workflowId,
       run_id: runId,
-      activity_id: `action-age-unavailable-${suffix}`,
+      event_type: 'ActivityCompleted',
+      activity_id: `assistant-age-unavailable-${suffix}`,
+      activity_type: 'LLMCompletion',
+      activity_output: {
+        text: 'Here is the approved conformance summary for the active goal.',
+      },
+      span_count: 1,
+      spans: [{
+        ...conformanceCase.firstGovernedEvent.spans?.[0],
+        name: 'openai.chat.completion',
+        semantic_type: 'llm_completion',
+        stage: 'completed',
+        http_method: 'POST',
+        http_url: 'https://api.openai.com/v1/chat/completions',
+        attributes: {
+          ...conformanceCase.firstGovernedEvent.spans?.[0]?.attributes,
+          'openbox.semantic_type': 'llm_completion',
+          'http.method': 'POST',
+          'http.url': 'https://api.openai.com/v1/chat/completions',
+          'gen_ai.operation.name': 'chat.completion',
+        },
+        response_body: assistantResponseBody,
+      }],
+    };
+    const followupSignalEvent = {
+      ...conformanceCase.goalSignalEvent,
+      workflow_id: workflowId,
+      run_id: runId,
+      activity_id: `followup-age-unavailable-${suffix}`,
+      signal_args: 'Continue the approved OpenBox local-stack conformance goal.',
+      activity_input: [
+        {
+          goal: 'Continue the approved OpenBox local-stack conformance goal.',
+        },
+      ],
     };
 
     const signalResponse = await coreClient.post(evaluateOperation.path, goalSignalEvent);
     expect(signalResponse.status).toBe(200);
 
-    const actionResponse = await coreClient.post(evaluateOperation.path, governedEvent);
-    expect(actionResponse.status).toBe(200);
-    expect(actionResponse.data).toHaveProperty('governance_checks_incomplete', true);
-    expect(actionResponse.data.age_result).toMatchObject({
-      goal_alignment_checked: expect.any(Boolean),
+    const assistantResponse = await coreClient.post(evaluateOperation.path, assistantCompletionEvent);
+    expect(assistantResponse.status).toBe(200);
+
+    const followupResponse = await coreClient.post(evaluateOperation.path, followupSignalEvent);
+    expect(followupResponse.status).toBe(200);
+    expect(followupResponse.data).toHaveProperty('governance_checks_incomplete', true);
+    expect(followupResponse.data.age_result).toMatchObject({
+      goal_alignment_checked: true,
       governance_checks_incomplete: true,
     });
-    expect(actionResponse.data.age_result).toHaveProperty('governance_checks_incomplete', true);
+    expect(followupResponse.data.age_result).toHaveProperty('fallback_used', true);
   });
 
   afterAll(async () => {
