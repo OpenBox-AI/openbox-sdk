@@ -17,7 +17,10 @@ import {
   type VerdictMatrixCase,
   type ProviderDriver,
 } from './fixtures/verdict-matrix.js';
-import { ensureLocalGovernanceMatrix } from './helpers/local-governance-matrix.js';
+import {
+  LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS,
+  ensureLocalGovernanceMatrix,
+} from './helpers/local-governance-matrix.js';
 
 const OPENBOX = requireOpenBoxCli();
 const LOCAL_GOVERNANCE_TIMEOUT_SEC = Number(
@@ -202,7 +205,7 @@ describe('codex hook local-stack governance', () => {
 
     const checks = verifyCodexPlugin({ cwd: projectRoot, includeProjectSurfaces: true });
     expect(checks.filter((check) => check.status === 'fail')).toEqual([]);
-  }, 180_000);
+  }, LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS);
 
   afterAll(() => {
     if (projectRoot) rmSync(projectRoot, { recursive: true, force: true });

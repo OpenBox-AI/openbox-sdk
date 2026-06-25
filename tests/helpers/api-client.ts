@@ -17,6 +17,10 @@ export interface AgentIdentityForSigning {
   privateKey: string;
 }
 
+const E2E_HTTP_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_HTTP_TIMEOUT_MS ?? 120_000,
+);
+
 async function makeRequest(
   method: string,
   url: string,
@@ -27,29 +31,29 @@ async function makeRequest(
   const body = data ? JSON.stringify(data) : undefined;
   const signedHeaders = agentIdentity
     ? signAgentIdentityRequest({
-      identity: agentIdentity,
-      method,
-      path: new URL(url).pathname,
-      body,
-    })
+        identity: agentIdentity,
+        method,
+        path: new URL(url).pathname,
+        body,
+      })
     : {};
   const opts: RequestInit = {
     method,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
-      'X-Openbox-Client': 'openbox-cli',
+      "X-Openbox-Client": "openbox-cli",
       ...signedHeaders,
     },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(E2E_HTTP_TIMEOUT_MS),
   };
   if (body) opts.body = body;
 
   const response = await fetch(url, opts);
-  const contentType = response.headers.get('content-type');
+  const contentType = response.headers.get("content-type");
 
   let responseBody: any;
-  if (contentType?.includes('application/json')) {
+  if (contentType?.includes("application/json")) {
     responseBody = await response.json();
   } else {
     responseBody = await response.text();
@@ -70,9 +74,9 @@ async function makeRequest(
 // `{ status, data }`); the wrapper translates OpenBoxClient's
 // "throw on non-2xx" model into a never-throws envelope so existing
 // `expect(body.status).toBe(422)` style tests still work.
-import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client';
-import { signAgentIdentityRequest } from '../../ts/src/core-client/core-client.js';
-import { RequestPreflightError } from '../../ts/src/client/generated/request-preflight.js';
+import { OpenBoxClient, OpenBoxApiError } from "../../ts/src/client";
+import { signAgentIdentityRequest } from "../../ts/src/core-client/core-client.js";
+import { RequestPreflightError } from "../../ts/src/client/generated/request-preflight.js";
 
 /**
  * Subclass that exposes OpenBoxClient's `protected` HTTP methods to the
@@ -81,14 +85,26 @@ import { RequestPreflightError } from '../../ts/src/client/generated/request-pre
  * production guarantee; only the test build pierces it.
  */
 class TestOpenBoxClient extends OpenBoxClient {
-  publicGet<T>(p: string, q?: any): Promise<T> { return this.httpGet<T>(p, q); }
-  publicPost<T>(p: string, d?: unknown): Promise<T> { return this.httpPost<T>(p, d); }
-  publicPut<T>(p: string, d?: unknown, q?: any): Promise<T> { return this.httpPut<T>(p, d, q); }
-  publicPatch<T>(p: string, d?: unknown): Promise<T> { return this.httpPatch<T>(p, d); }
-  publicDelete<T>(p: string, d?: unknown): Promise<T> { return this.httpDelete<T>(p, d); }
+  publicGet<T>(p: string, q?: any): Promise<T> {
+    return this.httpGet<T>(p, q);
+  }
+  publicPost<T>(p: string, d?: unknown): Promise<T> {
+    return this.httpPost<T>(p, d);
+  }
+  publicPut<T>(p: string, d?: unknown, q?: any): Promise<T> {
+    return this.httpPut<T>(p, d, q);
+  }
+  publicPatch<T>(p: string, d?: unknown): Promise<T> {
+    return this.httpPatch<T>(p, d);
+  }
+  publicDelete<T>(p: string, d?: unknown): Promise<T> {
+    return this.httpDelete<T>(p, d);
+  }
 }
 
-async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: number }> {
+async function viaSdk<T>(
+  call: () => Promise<T>,
+): Promise<{ data: any; status: number }> {
   // OpenBoxClient.request() unwraps the backend's `{ status, data }`
   // envelope before returning; callers normally see only the inner
   // `data`. The e2e suite (and `fullResponse(response)`) expects the
@@ -104,7 +120,9 @@ async function viaSdk<T>(call: () => Promise<T>): Promise<{ data: any; status: n
       // already shaped { status, ... }, pass it through; otherwise
       // synthesize one so `body.status` is always defined.
       const body =
-        err.body && typeof err.body === 'object' && 'status' in (err.body as Record<string, unknown>)
+        err.body &&
+        typeof err.body === "object" &&
+        "status" in (err.body as Record<string, unknown>)
           ? err.body
           : { status: err.status, message: err.message, data: err.body };
       return { data: body as any, status: err.status };
@@ -137,17 +155,17 @@ async function makeBackendRequest(
   const opts: RequestInit = {
     method,
     headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
-      'X-Openbox-Client': 'openbox-e2e-server-boundary',
+      "Content-Type": "application/json",
+      "X-API-Key": apiKey,
+      "X-Openbox-Client": "openbox-e2e-server-boundary",
     },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(E2E_HTTP_TIMEOUT_MS),
   };
   if (body !== undefined) opts.body = body;
 
   const response = await fetch(url, opts);
-  const contentType = response.headers.get('content-type');
-  const responseBody = contentType?.includes('application/json')
+  const contentType = response.headers.get("content-type");
+  const responseBody = contentType?.includes("application/json")
     ? await response.json()
     : await response.text();
   return { data: responseBody, status: response.status };
@@ -160,12 +178,12 @@ async function makeBackendRequest(
  *  own e2e tests do too. JWT auth is the mobile-only path; SDK tests
  *  must not depend on a session token to run. */
 export function getBackendClient(): HttpClient {
-  const baseURL = process.env.OPENBOX_API_URL || 'https://api.openbox.ai';
-  const apiKey = process.env.OPENBOX_BACKEND_API_KEY || '';
+  const baseURL = process.env.OPENBOX_API_URL || "https://api.openbox.ai";
+  const apiKey = process.env.OPENBOX_BACKEND_API_KEY || "";
   if (!apiKey) {
     throw new Error(
-      'No OPENBOX_BACKEND_API_KEY found. Set the backend X-API-Key, ' +
-        'e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^API_KEY= .openbox/tokens | cut -d= -f2)`; ' +
+      "No OPENBOX_BACKEND_API_KEY found. Set the backend X-API-Key, " +
+        "e.g. `export OPENBOX_BACKEND_API_KEY=$(grep ^API_KEY= .openbox/tokens | cut -d= -f2)`; " +
         "or let tests/setup-creds.ts populate it from your tokens file.",
     );
   }
@@ -173,67 +191,71 @@ export function getBackendClient(): HttpClient {
   const sdk = new TestOpenBoxClient({
     apiUrl: baseURL,
     apiKey,
-    clientName: 'openbox-e2e',
+    clientName: "openbox-e2e",
     // E2E negative-path tests intentionally exercise validation and throttler
     // failures. Do not retry local-stack 429/500 responses here; retries turn
     // deterministic backend statuses into Vitest timeouts.
     retry: { maxRetries: 0 },
+    timeoutMs: E2E_HTTP_TIMEOUT_MS,
   });
 
   return {
     async get(path: string) {
       return viaSdkOrRawBackend(
         () => sdk.publicGet(path),
-        () => makeBackendRequest('GET', baseURL + path, apiKey),
+        () => makeBackendRequest("GET", baseURL + path, apiKey),
       );
     },
     async post(path: string, data?: any) {
       return viaSdkOrRawBackend(
         () => sdk.publicPost(path, data),
-        () => makeBackendRequest('POST', baseURL + path, apiKey, data),
+        () => makeBackendRequest("POST", baseURL + path, apiKey, data),
       );
     },
     async put(path: string, data?: any) {
       return viaSdkOrRawBackend(
         () => sdk.publicPut(path, data),
-        () => makeBackendRequest('PUT', baseURL + path, apiKey, data),
+        () => makeBackendRequest("PUT", baseURL + path, apiKey, data),
       );
     },
     async patch(path: string, data?: any) {
       return viaSdkOrRawBackend(
         () => sdk.publicPatch(path, data),
-        () => makeBackendRequest('PATCH', baseURL + path, apiKey, data),
+        () => makeBackendRequest("PATCH", baseURL + path, apiKey, data),
       );
     },
     async delete(path: string, data?: any) {
       return viaSdkOrRawBackend(
         () => sdk.publicDelete(path, data),
-        () => makeBackendRequest('DELETE', baseURL + path, apiKey, data),
+        () => makeBackendRequest("DELETE", baseURL + path, apiKey, data),
       );
     },
   };
 }
 
 /** Core governance API client (core.openbox.ai) */
-export function getCoreClient(apiKey?: string, agentIdentity?: AgentIdentityForSigning): HttpClient {
-  const baseURL = process.env.OPENBOX_CORE_URL || 'https://core.openbox.ai';
-  const key = apiKey || process.env.OPENBOX_API_KEY || '';
+export function getCoreClient(
+  apiKey?: string,
+  agentIdentity?: AgentIdentityForSigning,
+): HttpClient {
+  const baseURL = process.env.OPENBOX_CORE_URL || "https://core.openbox.ai";
+  const key = apiKey || process.env.OPENBOX_API_KEY || "";
 
   return {
     async get(path: string) {
-      return makeRequest('GET', baseURL + path, key, agentIdentity);
+      return makeRequest("GET", baseURL + path, key, agentIdentity);
     },
     async post(path: string, data?: any) {
-      return makeRequest('POST', baseURL + path, key, agentIdentity, data);
+      return makeRequest("POST", baseURL + path, key, agentIdentity, data);
     },
     async put(path: string, data?: any) {
-      return makeRequest('PUT', baseURL + path, key, agentIdentity, data);
+      return makeRequest("PUT", baseURL + path, key, agentIdentity, data);
     },
     async patch(path: string, data?: any) {
-      return makeRequest('PATCH', baseURL + path, key, agentIdentity, data);
+      return makeRequest("PATCH", baseURL + path, key, agentIdentity, data);
     },
     async delete(path: string, data?: any) {
-      return makeRequest('DELETE', baseURL + path, key, agentIdentity, data);
+      return makeRequest("DELETE", baseURL + path, key, agentIdentity, data);
     },
   };
 }
@@ -244,7 +266,9 @@ export function unwrap<T = any>(response: { data: ApiResponse<T> }): T {
 }
 
 /** Get the full response including status */
-export function fullResponse<T = any>(response: { data: ApiResponse<T> }): ApiResponse<T> {
+export function fullResponse<T = any>(response: {
+  data: ApiResponse<T>;
+}): ApiResponse<T> {
   return response.data;
 }
 
@@ -266,9 +290,9 @@ export function getOrgId(): string {
   const id = globalThis.__OBX_TEST_ORG_ID__;
   if (!id) {
     throw new Error(
-      'test org id is not populated. tests/setup-creds.ts should have ' +
-        'fetched it from /auth/profile during setup; confirm OPENBOX_API_URL ' +
-        'and OPENBOX_BACKEND_API_KEY were set before the suite started.',
+      "test org id is not populated. tests/setup-creds.ts should have " +
+        "fetched it from /auth/profile during setup; confirm OPENBOX_API_URL " +
+        "and OPENBOX_BACKEND_API_KEY were set before the suite started.",
     );
   }
   return id;

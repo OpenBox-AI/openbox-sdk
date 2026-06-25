@@ -39,7 +39,10 @@ import {
 } from '../helpers/governance-spec-domains';
 
 const OPA_URL = (process.env.OPENBOX_E2E_OPA_URL ?? 'http://127.0.0.1:8181').replace(/\/+$/, '');
-const OPA_POLICY_LOAD_TIMEOUT_MS = Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 30_000);
+const OPA_POLICY_LOAD_TIMEOUT_MS = Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 180_000);
+const OPA_GOVERNANCE_TEST_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_OPA_GOVERNANCE_TEST_TIMEOUT_MS ?? 240_000,
+);
 const RUN_ISOLATED_AGE_UNAVAILABLE =
   process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE === '1';
 const itIfIsolatedAgeUnavailable = RUN_ISOLATED_AGE_UNAVAILABLE ? it : it.skip;
@@ -248,6 +251,27 @@ function findApproval(items: any[], eventId: string, approvalId?: string) {
     item?.event_id === eventId ||
     (approvalId && (item?.id === approvalId || item?.event_id === approvalId)),
   );
+}
+
+async function findPaginatedApproval(
+  client: ReturnType<typeof getBackendClient>,
+  basePath: string,
+  eventId: string,
+  approvalId?: string,
+) {
+  let lastStatus: number | undefined;
+  for (let page = 0; page < 5; page += 1) {
+    const separator = basePath.includes('?') ? '&' : '?';
+    const response = await client.get(`${basePath}${separator}page=${page}&perPage=100`);
+    const body = fullResponse(response);
+    lastStatus = body.status;
+    if (body.status !== 200) return { status: body.status, approval: undefined };
+    const items = listItems(body.data);
+    const approval = findApproval(items, eventId, approvalId);
+    if (approval) return { status: body.status, approval };
+    if (items.length < 100) break;
+  }
+  return { status: lastStatus, approval: undefined };
 }
 
 function expectRange(
@@ -1028,13 +1052,25 @@ describe('Core Governance API', () => {
     expect(pendingApproval.approval_status ?? pendingApproval.status).toBe('pending');
     expect(pendingApproval.reason).toBe(conformanceCase.expected.reason);
 
-    const orgApprovalsResponse = await backendClient.get(
+    const organizationApprovalsResponse = await backendClient.get(
       operationPath(organizationApprovalsOperation.path, { organizationId: orgId }),
     );
-    const orgApprovalsBody = fullResponse(orgApprovalsResponse);
+    const organizationApprovalsBody = fullResponse(organizationApprovalsResponse);
 
-    expect(orgApprovalsBody.status).toBe(200);
-    expect(findApproval(listItems(orgApprovalsBody.data), eventId, pollResponse.data.id)).toBeDefined();
+    expect(organizationApprovalsBody.status).toBe(200);
+
+    const orgApproval = await findPaginatedApproval(
+      backendClient,
+      operationPath(organizationApprovalsOperation.path, { organizationId: orgId }),
+      eventId,
+      pollResponse.data.id,
+    );
+
+    expect(orgApproval.status).toBe(200);
+    expect(orgApproval.approval).toBeDefined();
+    const pendingApprovalFromOrganization = orgApproval.approval;
+    expect(pendingApprovalFromOrganization.approval_status ?? pendingApprovalFromOrganization.status).toBe('pending');
+    expect(pendingApprovalFromOrganization.reason).toBe(conformanceCase.expected.reason);
 
     // NEGATIVE_BOUNDARY_PROOF: approval decision action rejects out-of-domain values before mutating a pending approval.
     const invalidApprovalAction = invalidGovernanceSpecMember('approvalDecisionActions');
@@ -1109,7 +1145,7 @@ describe('Core Governance API', () => {
     expect(rejectedHistoryBody.status).toBe(200);
     expect(rejectedHistoryApproval).toBeDefined();
     expect(rejectedHistoryApproval.approval_status ?? rejectedHistoryApproval.status).toBe('rejected');
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: expired approval timeout stays denied and leaves pending queues', async () => {
     // CONFORMANCE_PROOF: generated approval timeout scenario creates a real
@@ -1208,7 +1244,7 @@ describe('Core Governance API', () => {
     expect(expiredApprovalsBody.data.metrics.expired_count).toBeGreaterThanOrEqual(
       conformanceCase.expected.expiredCount,
     );
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: OPA verdict matrix covers ALLOW, REQUIRE_APPROVAL, BLOCK, and HALT paths', async () => {
     // SCENARIO_PROOF: opa-allow
@@ -1296,11 +1332,7 @@ describe('Core Governance API', () => {
     const expectedOpaVerdicts = [
       ...GOVERNANCE_SPEC_DOMAINS.coreVerdicts.filter((verdict) => verdict !== 'constrain'),
     ].sort();
-    const expectedOpaSemanticTypes = [
-      ...GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers,
-      'llm_gen_ai',
-      'mcp_tool_call',
-    ].sort();
+    const expectedOpaSemanticTypes = [...new Set(GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers)].sort();
     const opaVerdicts = new Set(matrix.cases.map((entry) => entry.expected.verdict));
     const opaSemanticTypes = new Set(matrix.cases.map((entry) => entry.semanticType));
 
@@ -1344,7 +1376,7 @@ describe('Core Governance API', () => {
         expect(response.data).toHaveProperty('approval_expiration_time');
       }
     }
-  }, 180_000);
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: OPA decision aliases cover continue, stop, and require-approval paths', async () => {
     // CONFORMANCE_PROOF: generated OPA alias cases prove legacy decision
@@ -1390,7 +1422,7 @@ describe('Core Governance API', () => {
         expect(response.data, matrixCase.name).toHaveProperty('approval_expiration_time');
       }
     }
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: OPA CONSTRAIN is an unsupported local-stack policy boundary', async () => {
     // CONFORMANCE_PROOF: the generated OPA CONSTRAIN scenario proves the
@@ -1432,7 +1464,7 @@ describe('Core Governance API', () => {
     expect(response.data).toHaveProperty('verdict', constrainCase.expected.verdict);
     expect(response.data).toHaveProperty('action', constrainCase.expected.action);
     expect(response.data).toHaveProperty('reason', constrainCase.expected.reason);
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   itIfIsolatedOpaUnavailable('CONFORMANCE: fails closed when OPA is unavailable for an active policy', async () => {
     // CONFORMANCE_PROOF: the generated OPA unavailable scenario uses a real

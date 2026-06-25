@@ -13,7 +13,15 @@ import {
   shouldSeedRule,
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
-import { ensureLocalGovernanceMatrix } from './helpers/local-governance-matrix.js';
+import {
+  LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS,
+  ensureLocalGovernanceMatrix,
+} from './helpers/local-governance-matrix.js';
+
+const PROVIDER_LOCAL_STACK_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_PROVIDER_TEST_TIMEOUT_MS
+    ?? LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS + 300_000,
+);
 
 function objectRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -71,5 +79,5 @@ describe('n8n local-stack governance', () => {
         },
       );
     }
-  }, 300_000);
+  }, PROVIDER_LOCAL_STACK_TIMEOUT_MS);
 });

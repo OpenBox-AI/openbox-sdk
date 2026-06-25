@@ -12500,11 +12500,15 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "backend:AgentController_createBehaviorRule:body.states.*:enum",
         "backend:AgentController_createBehaviorRule:body.states.*:type",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_createBehaviorRule:body.trigger:enum",
         "backend:AgentController_createBehaviorRule:body.trigger:type",
         "backend:AgentController_getBehaviorRuleList:query.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:type",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_updateBehaviorRule:body.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.trigger:type"
       ]
@@ -12514,11 +12518,15 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "backend:AgentController_createBehaviorRule:body.states.*:enum",
         "backend:AgentController_createBehaviorRule:body.states.*:type",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_createBehaviorRule:body.trigger:enum",
         "backend:AgentController_createBehaviorRule:body.trigger:type",
         "backend:AgentController_getBehaviorRuleList:query.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:type",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_updateBehaviorRule:body.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.trigger:type"
       ]

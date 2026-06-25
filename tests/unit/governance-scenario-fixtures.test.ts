@@ -67,10 +67,10 @@ describe('governance scenario fixtures', () => {
     const expectedVerdicts = sorted(
       [...CANONICAL_VERDICT_ARMS].filter((verdict) => verdict !== 'constrain'),
     );
-    const expectedSemantics = sorted([
+    const expectedSemantics = sorted(new Set([
       ...GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers,
       ...SCENARIO_ONLY_OPA_SEMANTICS,
-    ]);
+    ]));
 
     expect(sorted(new Set(matrix.cases.map((entry) => entry.expected.verdict)))).toEqual(
       expectedVerdicts,

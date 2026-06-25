@@ -418,7 +418,7 @@ describe('local-stack conformance matrix', () => {
       transportGatedPublicWrapperClosures:
         requestConstraints.summary.transportGatedPublicWrapperClosures,
     });
-    expect(matrix.summary.requestConstraints.total).toBe(365);
+    expect(matrix.summary.requestConstraints.total).toBe(369);
     expect(matrix.summary.requestConstraints.unclassified).toBe(0);
     expect(matrix.summary.requestConstraints.sdkGeneratedPreflightOnly).toBe(0);
     expect(matrix.summary.requestConstraints.missingRawSemanticGapClosures).toBe(0);

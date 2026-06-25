@@ -11096,7 +11096,16 @@ export const LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE = {
       ]
     }
   ],
-  "undrivableTriggers": []
+  "undrivableTriggers": [
+    {
+      "trigger": "llm_gen_ai",
+      "reason": "The current public SDK/host verdict-matrix API accepts LocalGovernanceSpanType=llm and computes llm_completion. Direct llm_gen_ai classification is still covered by the Core/OPA local-stack scenario matrix until the SDK exposes an explicit generation span type."
+    },
+    {
+      "trigger": "mcp_tool_call",
+      "reason": "The verdict matrix drives MCP calls through the SDK/MCP span path and proves Core default-allow behavior. Backend behavior-rule seeding does not currently produce a rule-specific allow reason for this trigger, so rule-backed mcp_tool_call enforcement stays covered by the Core/OPA scenario matrix."
+    }
+  ]
 } as const satisfies LocalGovernanceVerdictMatrixSurface;
 export const LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES = LOCAL_GOVERNANCE_VERDICT_MATRIX_SURFACE.cases;
 export const LOCAL_GOVERNANCE_HOST_PORTABLE_VERDICT_MATRIX = LOCAL_GOVERNANCE_VERDICT_MATRIX_CASES.filter((entry) => entry.hostPortable);
@@ -14802,11 +14811,15 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "backend:AgentController_createBehaviorRule:body.states.*:enum",
         "backend:AgentController_createBehaviorRule:body.states.*:type",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_createBehaviorRule:body.trigger:enum",
         "backend:AgentController_createBehaviorRule:body.trigger:type",
         "backend:AgentController_getBehaviorRuleList:query.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:type",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_updateBehaviorRule:body.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.trigger:type"
       ]
@@ -14816,11 +14829,15 @@ export const LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "backend:AgentController_createBehaviorRule:body.states.*:enum",
         "backend:AgentController_createBehaviorRule:body.states.*:type",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_createBehaviorRule:body.trigger:enum",
         "backend:AgentController_createBehaviorRule:body.trigger:type",
         "backend:AgentController_getBehaviorRuleList:query.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:type",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_updateBehaviorRule:body.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.trigger:type"
       ]

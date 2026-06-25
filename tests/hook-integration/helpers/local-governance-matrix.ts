@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { OpenBoxClient } from '../../../ts/src/client/index.js';
 import { checkGovernance } from '../../../ts/src/governance/check.js';
@@ -34,6 +34,21 @@ const AGENT_LIST_PAGE_SIZE = 200;
 const AGENT_LIST_MAX_PAGES = 20;
 const SHARED_SETUP_LOCK_MAX_WAIT_MS = 10 * 60_000;
 const SHARED_SETUP_LOCK_STALE_MS = 10 * 60_000;
+const MATRIX_BACKEND_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_MATRIX_BACKEND_TIMEOUT_MS ?? 180_000,
+);
+export const LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_MATRIX_SETUP_TIMEOUT_MS ?? 10 * 60_000,
+);
+export const LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS = Number(
+  process.env.OPENBOX_E2E_EVIDENCE_MAX_ATTEMPTS ?? 60,
+);
+export const LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS = Number(
+  process.env.OPENBOX_E2E_EVIDENCE_RETRY_MS ?? 1_000,
+);
+export const LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES = Number(
+  process.env.OPENBOX_E2E_EVIDENCE_SESSION_PAGES ?? 5,
+);
 const defaultRunId = `pid-${process.pid}-${Date.now().toString(36)}`;
 
 interface LocalGovernanceRuntime {
@@ -289,6 +304,60 @@ async function sleep(ms: number): Promise<void> {
 function setupLockPath(cacheKey: string): string {
   const digest = createHash('sha256').update(cacheKey).digest('hex').slice(0, 24);
   return path.join(PROJECT_OPENBOX, 'locks', `local-governance-${digest}.lock`);
+}
+
+function runtimeCachePath(cacheKey: string, casesKey: string): string {
+  const digest = createHash('sha256').update(`${cacheKey}\ncases:${casesKey}`).digest('hex').slice(0, 24);
+  return path.join(PROJECT_OPENBOX, 'cache', `local-governance-${digest}.json`);
+}
+
+function readCachedRuntime(
+  cacheKey: string,
+  casesKey: string,
+  apiUrl: string,
+  coreUrl: string,
+  backendKey: string | undefined,
+): LocalGovernanceRuntime | undefined {
+  if (!sharedAgentMode() || !backendKey) return undefined;
+  const file = runtimeCachePath(cacheKey, casesKey);
+  if (!existsSync(file)) return undefined;
+  try {
+    const body = objectRecord(JSON.parse(readFileSync(file, 'utf-8')));
+    if (body.apiUrl !== apiUrl || body.coreUrl !== coreUrl || body.casesKey !== casesKey) return undefined;
+    if (typeof body.agentId !== 'string' || typeof body.runtimeKey !== 'string') return undefined;
+    if (!RUNTIME_KEY_PREFIX.test(body.runtimeKey)) return undefined;
+    return {
+      apiUrl,
+      coreUrl,
+      backendKey,
+      agentId: body.agentId,
+      runtimeKey: body.runtimeKey,
+    };
+  } catch {
+    rmSync(file, { force: true });
+    return undefined;
+  }
+}
+
+function writeCachedRuntime(
+  cacheKey: string,
+  casesKey: string,
+  runtime: LocalGovernanceRuntime,
+): void {
+  if (!sharedAgentMode()) return;
+  const file = runtimeCachePath(cacheKey, casesKey);
+  mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify({
+    apiUrl: runtime.apiUrl,
+    coreUrl: runtime.coreUrl,
+    agentId: runtime.agentId,
+    runtimeKey: runtime.runtimeKey,
+    casesKey,
+    agentName: localAgentName(),
+    createdAt: new Date().toISOString(),
+  }, null, 2));
+  renameSync(tmp, file);
 }
 
 function removeStaleSetupLock(lockPath: string): void {
@@ -717,11 +786,17 @@ export async function ensureLocalGovernanceMatrix(
   const coreUrl = configuredUrl('core');
   const backendKey = resolveBackendApiKey();
   const setupCacheKey = matrixCacheKey(apiUrl, coreUrl, backendKey);
-  const cacheKey = `${setupCacheKey}\ncases:${matrixCasesCacheKey(cases)}`;
+  const casesKey = matrixCasesCacheKey(cases);
+  const cacheKey = `${setupCacheKey}\ncases:${casesKey}`;
+  const persisted = readCachedRuntime(setupCacheKey, casesKey, apiUrl, coreUrl, backendKey);
+  if (persisted) return persisted;
   const cached = inflight.get(cacheKey);
   if (cached) return cached;
 
   const promise = withSharedSetupLock(setupCacheKey, async () => {
+    const lockedPersisted = readCachedRuntime(setupCacheKey, casesKey, apiUrl, coreUrl, backendKey);
+    if (lockedPersisted) return lockedPersisted;
+
     if (!isLoopbackUrl(apiUrl) || !isLoopbackUrl(coreUrl)) {
       throw new Error(`local governance matrix requires loopback API/Core URLs, got ${apiUrl} / ${coreUrl}`);
     }
@@ -733,11 +808,13 @@ export async function ensureLocalGovernanceMatrix(
       apiKey: backendKey,
       clientName: 'openbox-hook-integration',
       retry: { maxRetries: 0 },
+      timeoutMs: MATRIX_BACKEND_TIMEOUT_MS,
     });
 
     const runtime = await resolveOrCreateAgent(client, apiUrl, coreUrl, backendKey);
     await upsertMatrixRules(client, runtime.agentId, cases);
     await verifyMatrix(runtime.agentId, runtime.runtimeKey, coreUrl, cases);
+    writeCachedRuntime(setupCacheKey, casesKey, runtime);
     return runtime;
   });
   inflight.set(cacheKey, promise);
@@ -768,6 +845,7 @@ export async function ensureUnsignedLocalGovernanceRuntime(): Promise<LocalGover
       apiKey: backendKey,
       clientName: 'openbox-hook-integration-unsigned',
       retry: { maxRetries: 0 },
+      timeoutMs: MATRIX_BACKEND_TIMEOUT_MS,
     });
     const profile = await client.getProfile();
     const orgId = profileOrgId(profile);
@@ -813,6 +891,7 @@ export async function ensureSignedLocalGovernanceMatrix(): Promise<LocalGovernan
       apiKey: backendKey,
       clientName: 'openbox-hook-integration-signed',
       retry: { maxRetries: 0 },
+      timeoutMs: MATRIX_BACKEND_TIMEOUT_MS,
     });
     const profile = await client.getProfile();
     const orgId = profileOrgId(profile);

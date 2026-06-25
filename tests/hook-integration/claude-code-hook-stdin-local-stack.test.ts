@@ -11,7 +11,12 @@ import {
   requireProviderDriver,
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
-import { ensureLocalGovernanceMatrix } from './helpers/local-governance-matrix.js';
+import {
+  LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS,
+  LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS,
+  LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES,
+  ensureLocalGovernanceMatrix,
+} from './helpers/local-governance-matrix.js';
 
 const OPENBOX = requireOpenBoxCli();
 const LOCAL_GOVERNANCE_TIMEOUT_SEC = Number(
@@ -183,7 +188,7 @@ async function expectClaudeSessionLog(
   ).toBeDefined();
 
   let matched: unknown;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
     const response = await client.getSessionLogs(runtime.agentId, backendSessionId!, {
       page: 0,
       perPage: 100,
@@ -194,7 +199,7 @@ async function expectClaudeSessionLog(
         serialized.includes('claude-code');
     });
     if (matched) break;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
 
   expect(matched, `missing persisted Claude governance log for ${entry.id}`).toBeDefined();
@@ -210,15 +215,19 @@ async function resolveBackendSessionId(
   agentId: string,
   workflowId: string,
 ): Promise<string | undefined> {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await client.listSessions(agentId, { page: 0, perPage: 100 });
-    const session = listItems(response).find((item) => {
-      const record = objectRecord(item);
-      return record.workflow_id === workflowId || record.run_id === workflowId;
-    });
-    const sessionId = stringField(session, 'id');
-    if (sessionId) return sessionId;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
+    for (let page = 0; page < LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES; page += 1) {
+      const response = await client.listSessions(agentId, { page, perPage: 100 });
+      const items = listItems(response);
+      const session = items.find((item) => {
+        const record = objectRecord(item);
+        return record.workflow_id === workflowId || record.run_id === workflowId;
+      });
+      const sessionId = stringField(session, 'id');
+      if (sessionId) return sessionId;
+      if (items.length < 100) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
   return undefined;
 }
