@@ -411,7 +411,7 @@ describe('Test Fixtures', () => {
       expect(testCase.scenarioIds).toEqual({
         order: 'behavior-order-goal-before-action',
         alignmentChecked: 'goal-alignment-checked',
-        fallback: 'goal-drift-fallback',
+        ageUnavailable: 'goal-drift-unavailable-fail-closed',
       });
       expect(signal.event_type).toBe('SignalReceived');
       expect(signal.workflow_id).toBe(action.workflow_id);
@@ -423,7 +423,7 @@ describe('Test Fixtures', () => {
         'openbox.goal_signal_order': 'after-signal',
       });
       expect(testCase.expected).toMatchObject({
-        fallbackUsed: false,
+        governanceChecksIncomplete: false,
         goalAlignmentChecked: false,
         goalDrifted: false,
       });

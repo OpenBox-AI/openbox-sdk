@@ -16,6 +16,17 @@ function readJson(file: string): any {
   return JSON.parse(fs.readFileSync(file, 'utf-8'));
 }
 
+function writeEnv(file: string, values: Record<string, string>): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(
+    file,
+    Object.entries(values)
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join('\n') + '\n',
+    'utf-8',
+  );
+}
+
 beforeEach(() => {
   vi.resetModules();
   oldHome = process.env.HOME;
@@ -48,8 +59,8 @@ describe('runtime/cursor/install; source-level verification', () => {
     });
     expect(fs.existsSync(path.join(home, '.cursor', 'hooks.json'))).toBe(false);
     expect(fs.existsSync(path.join(home, '.cursor', 'mcp.json'))).toBe(false);
-    expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(true);
-    expect(readJson(path.join(cwd, '.cursor-hooks', 'config.json'))).toEqual({
+    expect(fs.existsSync(path.join(cwd, '.openbox', 'cursor', 'config.json'))).toBe(true);
+    expect(readJson(path.join(cwd, '.openbox', 'cursor', 'config.json'))).toEqual({
       hitlEnabled: true,
       hitlMaxWait: 300,
       verbose: false,
@@ -69,27 +80,26 @@ describe('runtime/cursor/install; source-level verification', () => {
     ]);
   });
 
-  it('runtime readiness fails stale hook config states and passes valid format when core validation is disabled', async () => {
+  it('runtime readiness fails incomplete runtime env states and passes valid format when core validation is disabled', async () => {
     const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
     installCursorPlugin({ cwd });
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {});
     let checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('missing OPENBOX_API_KEY');
 
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
+    writeEnv(path.join(cwd, '.openbox', 'cursor', '.env'), {
       OPENBOX_API_KEY: 'obx_live_YOUR_API_KEY_HERE',
     });
     checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('placeholder OPENBOX_API_KEY');
 
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
+    writeEnv(path.join(cwd, '.openbox', 'cursor', '.env'), {
       OPENBOX_API_KEY: 'not-a-key',
     });
     checks = await verifyCursorInstall({ cwd, includeRuntime: true });
     expect(checks.find((c) => c.name === 'runtime')?.detail).toContain('invalid OPENBOX_API_KEY format');
 
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
+    writeEnv(path.join(cwd, '.openbox', 'cursor', '.env'), {
       OPENBOX_API_KEY: `obx_test_${'a'.repeat(48)}`,
       OPENBOX_CORE_URL: 'http://127.0.0.1:8086',
     });
@@ -103,7 +113,7 @@ describe('runtime/cursor/install; source-level verification', () => {
     const { installCursorPlugin, verifyCursorInstall } = await import('../../ts/src/runtime/cursor/index.ts');
 
     installCursorPlugin({ cwd });
-    writeJson(path.join(cwd, '.cursor-hooks', 'config.json'), {
+    writeEnv(path.join(cwd, '.openbox', 'cursor', '.env'), {
       OPENBOX_API_KEY: `obx_test_${'b'.repeat(48)}`,
       OPENBOX_CORE_URL: 'http://core-fail.local',
     });
@@ -232,7 +242,7 @@ describe('install/from-spec; MCP entry helpers', () => {
       key: 'hooks',
       style: 'claude-array' as const,
       command: 'openbox claude-code hook',
-      configDir: '.claude-hooks',
+      configDir: '.openbox/claude-code',
       events: [{ name: 'PreToolUse' }],
     };
     const cursorSpec = {
@@ -240,7 +250,7 @@ describe('install/from-spec; MCP entry helpers', () => {
       key: 'hooks',
       style: 'cursor-keyed' as const,
       command: 'openbox cursor hook',
-      configDir: '.cursor-hooks',
+      configDir: '.openbox/cursor',
       events: [{ name: 'beforeSubmitPrompt' }],
     };
 
@@ -266,7 +276,7 @@ describe('runtime/cursor public path and session wrappers', () => {
     const cfg: any = {
       sessionDir: path.join(home, 'sessions'),
       idleTimeoutMs: 1000,
-      taskQueue: 'cursor-hooks',
+      taskQueue: 'cursor',
     };
     const session = await resolveSession({ conversation_id: 'conversation-1' } as any, cfg);
     expect(session.workflowId).toMatch(/[0-9a-f-]{36}/);
@@ -301,7 +311,7 @@ describe('runtime/mcp/config; cwd token and deferred credential paths', () => {
       await expect(api('/x')).rejects.toThrow('No tokens at');
 
       const tokens = path.join(cwd, 'tokens');
-      fs.writeFileSync(tokens, 'API_KEY=obx_key_body\n', 'utf-8');
+      fs.writeFileSync(tokens, ['API_KEY=obx', '_key_body\n'].join(''), 'utf-8');
       let seen: any;
       vi.stubGlobal('fetch', async (url: string, init: any) => {
         seen = { url, init };

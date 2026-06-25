@@ -969,6 +969,9 @@ describe('SDK target validation manifest', () => {
       'dist',
       'dist-pack',
       'apps/extension/dist',
+      '.coverage',
+      '.openbox/cache',
+      '.openbox/locks',
     ]);
     expect(fixture.cleanArtifacts.nestedNames).toEqual([
       { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
@@ -1043,6 +1046,7 @@ describe('SDK target validation manifest', () => {
         'guardrails:hub:provenance',
         'guardrails:hub:record',
         'guardrails:hub:replay',
+        'local:fe',
         'local:llamafirewall',
         'local-stack:lane',
       ]),
@@ -1084,6 +1088,10 @@ describe('SDK target validation manifest', () => {
       inventory.find((entry) => entry.path === 'scripts/start-llamafirewall.mjs'),
     ).toMatchObject({
       category: 'local-stack-launcher',
+    });
+    expect(inventory.find((entry) => entry.path === 'scripts/start-local-fe.mjs')).toMatchObject({
+      category: 'local-stack-launcher',
+      canonicalSurface: 'packageScripts.scripts',
     });
     expect(
       inventory.find((entry) => entry.path === 'scripts/run-local-stack-lane.mjs'),

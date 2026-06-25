@@ -626,7 +626,10 @@ def map_verdict(response: Any) -> WorkflowVerdict:
         ),
         "constraints": raw.get("constraints"),
         "metadata": raw.get("metadata"),
-        "fallbackUsed": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["fallbackUsed"]),
+        "governanceChecksIncomplete": _pick_alias(
+            raw,
+            WORKFLOW_VERDICT_FIELD_ALIASES["governanceChecksIncomplete"],
+        ),
         "guardrailsResult": guardrails,
         "ageResult": _pick_alias(raw, WORKFLOW_VERDICT_FIELD_ALIASES["ageResult"]),
     }
@@ -1061,8 +1064,8 @@ def _timestamp() -> str:
     return utc_now().isoformat().replace("+00:00", "Z")
 
 
-def _coerce_int(value: Any, fallback: int) -> int:
-    return value if isinstance(value, int) else fallback
+def _coerce_int(value: Any, default: int) -> int:
+    return value if isinstance(value, int) else default
 
 
 def _error_info(error: object | None) -> JsonDict | None:

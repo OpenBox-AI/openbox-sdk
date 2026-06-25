@@ -39,6 +39,10 @@ const generatedDriftScript = readFileSync(resolve(process.cwd(), 'scripts/check-
 const checkSdksScript = readFileSync(resolve(process.cwd(), 'scripts/check-sdks.mjs'), 'utf8');
 const securityAuditScript = readFileSync(resolve(process.cwd(), 'scripts/security-audit.mjs'), 'utf8');
 const specDriftScript = readFileSync(resolve(process.cwd(), 'scripts/spec-drift.ts'), 'utf8');
+const localStackAlignmentScript = readFileSync(
+  resolve(process.cwd(), 'scripts/check-local-stack-alignment.mjs'),
+  'utf8',
+);
 
 describe('package scripts', () => {
   test('root package scripts match the TypeSpec-emitted script surface exactly', () => {
@@ -76,7 +80,7 @@ describe('package scripts', () => {
     expect(packageJson.scripts['check:sdks']).not.toContain('check-sdks.mjs');
     expect(packageJson.scripts['ci:local-stack']).not.toContain('test:e2e');
     expect(runRootPipelineScript).toContain('rootPipelines');
-    expect(runRootPipelineScript).toContain('fallbackPipelines');
+    expect(runRootPipelineScript).toContain('bootstrapPipelines');
     expect(runRootPipelineScript).toContain("from './lib/spec-steps.mjs'");
   });
 
@@ -88,7 +92,7 @@ describe('package scripts', () => {
     expect(packageJson.scripts['specs:compile']).not.toContain('tsp compile');
     expect(packageJson.scripts['specs:watch']).not.toContain('--watch');
     expect(runSpecCommandScript).toContain('specCommands.commands');
-    expect(runSpecCommandScript).toContain('fallbackCommands');
+    expect(runSpecCommandScript).toContain('bootstrapCommands');
     expect(runSpecCommandScript).toContain("from './lib/spec-steps.mjs'");
   });
 
@@ -182,6 +186,21 @@ describe('package scripts', () => {
     expect(localGovernanceMatrixHelper).toContain('const inflight = new Map');
     expect(localGovernanceMatrixHelper).not.toContain('process.env.OPENBOX_AGENT_ID =');
     expect(localGovernanceMatrixHelper).not.toContain('process.env.OPENBOX_API_KEY =');
+  });
+
+  test('local stack checker validates live OPA bundle polling config', () => {
+    expect(localStackAlignmentScript).toContain('/v1/config');
+    expect(localStackAlignmentScript).toContain('validateOpaRuntimeConfig');
+    expect(localStackAlignmentScript).toContain('host.docker.internal');
+    expect(localStackAlignmentScript).toContain('expectedOpaBundleResource');
+    expect(localStackAlignmentScript).toContain('bundle.tar.gz');
+    expect(localStackAlignmentScript).toContain('coreWorkerCommandPattern');
+    expect(localStackAlignmentScript).toContain('go\\\\s+run\\\\s+\\\\./cmd/core');
+    expect(localStackAlignmentScript).toContain('env visibility skipped; ${coreEnvLabel} validated');
+    expect(localStackAlignmentScript).not.toContain('launchctl');
+    expect(localStackAlignmentScript).not.toContain('openbox-core-local');
+    expect(localStackAlignmentScript).not.toContain('OPA config file not found');
+    expect(localStackAlignmentScript).not.toContain('set OPENBOX_OPA_CONFIG_PATH');
   });
 
   test('root test scripts read the TypeSpec-emitted suite routing table', () => {

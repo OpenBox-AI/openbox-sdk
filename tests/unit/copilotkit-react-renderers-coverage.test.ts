@@ -153,7 +153,7 @@ describe('CopilotKit React renderer coverage', () => {
     expect(walk(rendered).some((item: any) => item?.type === 'artifact')).toBe(true);
   });
 
-  it('renders header logo, fallback, and busy branches', async () => {
+  it('renders header logo, text mark, and busy branches', async () => {
     const { OpenBoxHeader } = await import(
       '../../ts/src/copilotkit/react-renderer-header.ts'
     );
@@ -382,7 +382,7 @@ describe('CopilotKit React renderer coverage', () => {
     expect(hasText(error, 'Governance unavailable')).toBe(true);
   });
 
-  it('renders governance redaction labels, timing fallbacks, and default scenarios', async () => {
+  it('renders governance redaction labels, timing defaults, and default scenarios', async () => {
     const { OpenBoxGovernanceDecision } = await import(
       '../../ts/src/copilotkit/react-governance-decision.ts'
     );
@@ -449,7 +449,7 @@ describe('CopilotKit React renderer coverage', () => {
           steps: [
             { key: 'output', label: 'Output policy check', kind: 'openbox', ms: '25' },
             { key: 'openbox', label: 'Already OpenBox labeled', kind: 'openbox', ms: 12000 },
-            { key: 'fallback-key', kind: 'workflow', ms: 5 },
+            { key: 'default-key', kind: 'workflow', ms: 5 },
             { key: 'bad-negative', label: 'Bad', kind: 'tool', ms: -1 },
             { key: 'bad-ms', label: 'Bad', kind: 'tool', ms: 'NaN' },
             null,
@@ -460,6 +460,6 @@ describe('CopilotKit React renderer coverage', () => {
     expect(hasText(timed, '12s total')).toBe(true);
     expect(hasText(timed, 'OpenBox output check')).toBe(true);
     expect(hasText(timed, 'OpenBox already OpenBox labeled')).toBe(true);
-    expect(hasText(timed, 'fallback-key')).toBe(true);
+    expect(hasText(timed, 'default-key')).toBe(true);
   });
 });

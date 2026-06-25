@@ -134,28 +134,30 @@ describe('platform / OS awareness contract', () => {
     const claudeSrc = readFileSync(`${SRC_ROOT}/runtime/claude-code/config.ts`, 'utf-8');
     expect(claudeSrc).not.toContain("from 'node:os'");
     expect(claudeSrc).not.toContain('os.homedir()');
-    expect(claudeSrc).toContain("path.join(startDir, '.claude-hooks')");
+    expect(claudeSrc).toContain('claudeCodeRuntimeConfigDir');
 
     const cursorSrc = readFileSync(`${SRC_ROOT}/runtime/cursor/config.ts`, 'utf-8');
     expect(cursorSrc).not.toContain("from 'node:os'");
     expect(cursorSrc).not.toContain('os.homedir()');
-    expect(cursorSrc).toContain("path.join(startDir, '.cursor-hooks')");
+    expect(cursorSrc).toContain('cursorRuntimeConfigDir');
 
     const codexSrc = readFileSync(`${SRC_ROOT}/runtime/codex/config.ts`, 'utf-8');
     expect(codexSrc).not.toContain("from 'node:os'");
     expect(codexSrc).not.toContain('os.homedir()');
-    expect(codexSrc).toContain("path.join(startDir, '.codex-hooks')");
+    expect(codexSrc).toContain('codexRuntimeConfigDir');
   });
 
   it('does not track hook runtime session or log output', () => {
     const ignored = readFileSync('.gitignore', 'utf-8');
     for (const path of [
-      '.claude-hooks/sessions/',
-      '.claude-hooks/log/',
-      '.codex-hooks/sessions/',
-      '.codex-hooks/log/',
-      '.cursor-hooks/sessions/',
-      '.cursor-hooks/log/',
+      '.openbox/claude-code/sessions/',
+      '.openbox/claude-code/log/',
+      '.openbox/codex/.env',
+      '.openbox/codex/sessions/',
+      '.openbox/codex/log/',
+      '.openbox/cursor/.env',
+      '.openbox/cursor/sessions/',
+      '.openbox/cursor/log/',
     ]) {
       expect(ignored).toContain(path);
     }
@@ -165,7 +167,7 @@ describe('platform / OS awareness contract', () => {
       .filter(Boolean);
     const offenders = tracked.filter(
       (file) =>
-        /^(?:\.claude-hooks|\.codex-hooks|\.cursor-hooks)\/(?:sessions|log)\//.test(file) &&
+        /^\.openbox\/(?:claude-code|codex|cursor)\/(?:sessions|log)\//.test(file) &&
         existsSync(file),
     );
     expect(offenders).toEqual([]);

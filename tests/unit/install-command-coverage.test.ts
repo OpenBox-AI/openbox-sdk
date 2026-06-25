@@ -23,19 +23,55 @@ function readJson(file: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
 }
 
+function readDotenv(file: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of readFileSync(file, 'utf-8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    out[trimmed.slice(0, eq)] = JSON.parse(trimmed.slice(eq + 1)) as string;
+  }
+  return out;
+}
+
 function expectRuntimeConfig(
-  file: string,
+  project: string,
+  provider: 'codex' | 'cursor',
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
 ): void {
-  const config = readJson(file);
-  expect(config.OPENBOX_API_KEY).toBe(runtimeKey);
-  expect(config.OPENBOX_CORE_URL).toBe(coreUrl);
+  const env = readDotenv(join(project, '.openbox', provider, '.env'));
+  expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+
+  const config = readJson(join(project, '.openbox', provider, 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
   expect(config.governanceTimeout).toBe('21');
   expect(config.hitlMaxWait).toBe(120);
   expect(config.hitlPollInterval).toBe(3);
+  expect(config.OPENBOX_API_KEY).toBeUndefined();
+  expect(config.OPENBOX_CORE_URL).toBeUndefined();
+}
+
+function expectClaudeRuntimeConfig(
+  project: string,
+  runtimeKey: string,
+  coreUrl: string,
+  approvalMode: string,
+): void {
+  const settings = readJson(join(project, '.claude', 'settings.local.json'));
+  const env = settings.env as Record<string, unknown>;
+  expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+
+  const config = readJson(join(project, '.openbox', 'claude-code', 'config.json'));
+  expect(config.approvalMode).toBe(approvalMode);
+  expect(config.governanceTimeout).toBe('21');
+  expect(config.hitlMaxWait).toBe(120);
+  expect(config.hitlPollInterval).toBe(3);
+  expect(config.OPENBOX_API_KEY).toBeUndefined();
 }
 
 afterEach(() => {
@@ -104,7 +140,7 @@ describe('minimal install command', () => {
     expect(existsSync(join(plugin, 'hooks', 'hooks.json'))).toBe(true);
     expect(existsSync(join(plugin, 'mcp.json'))).toBe(true);
     expect(existsSync(join(plugin, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
-    expect(existsSync(join(project, '.cursor-hooks', 'config.json'))).toBe(true);
+    expect(existsSync(join(project, '.openbox', 'cursor', 'config.json'))).toBe(true);
     expect(existsSync(join(home, '.cursor', 'hooks.json'))).toBe(false);
     expect(existsSync(join(home, '.cursor', 'mcp.json'))).toBe(false);
     expect(existsSync(join(home, '.cursor', 'plugins', 'local', 'openbox'))).toBe(false);
@@ -138,7 +174,7 @@ describe('minimal install command', () => {
     expect(existsSync(join(plugin, '.mcp.json'))).toBe(true);
     expect(existsSync(join(plugin, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(plugin, 'instructions', 'CLAUDE.md'))).toBe(true);
-    expect(existsSync(join(project, '.claude-hooks', 'config.json'))).toBe(true);
+    expect(existsSync(join(project, '.openbox', 'claude-code', 'config.json'))).toBe(true);
     expect(existsSync(join(project, '.claude', 'settings.json'))).toBe(false);
 
     await runInstallCli(['uninstall', 'claude-code', '--scope', 'project', '--cwd', project]);
@@ -219,9 +255,9 @@ describe('minimal install command', () => {
       ...runtimeFlags,
     ]);
 
-    expectRuntimeConfig(join(cursorProject, '.cursor-hooks', 'config.json'), runtimeKey, coreUrl, 'inline');
-    expectRuntimeConfig(join(claudeProject, '.claude-hooks', 'config.json'), runtimeKey, coreUrl, 'remote');
-    expectRuntimeConfig(join(codexProject, '.codex-hooks', 'config.json'), runtimeKey, coreUrl, 'defer');
+    expectRuntimeConfig(cursorProject, 'cursor', runtimeKey, coreUrl, 'inline');
+    expectClaudeRuntimeConfig(claudeProject, runtimeKey, coreUrl, 'remote');
+    expectRuntimeConfig(codexProject, 'codex', runtimeKey, coreUrl, 'defer');
   });
 
   it('rejects old direct Cursor install flags', async () => {

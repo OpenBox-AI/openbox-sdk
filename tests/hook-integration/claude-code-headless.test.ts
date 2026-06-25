@@ -9,7 +9,8 @@
 //
 // Skipped unless `OPENBOX_CLAUDE_HEADLESS_CWD` points at a test project
 // configured against a loopback Core and containing
-//     `.claude/skills/openbox` and `.claude-hooks/config.json`
+//     `.claude/skills/openbox`, `.claude/settings.local.json`, and
+//     `.openbox/claude-code/config.json`
 //
 // Set up the project once with:
 //

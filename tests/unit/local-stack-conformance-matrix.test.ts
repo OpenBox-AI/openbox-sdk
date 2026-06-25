@@ -418,7 +418,7 @@ describe('local-stack conformance matrix', () => {
       transportGatedPublicWrapperClosures:
         requestConstraints.summary.transportGatedPublicWrapperClosures,
     });
-    expect(matrix.summary.requestConstraints.total).toBe(365);
+    expect(matrix.summary.requestConstraints.total).toBe(369);
     expect(matrix.summary.requestConstraints.unclassified).toBe(0);
     expect(matrix.summary.requestConstraints.sdkGeneratedPreflightOnly).toBe(0);
     expect(matrix.summary.requestConstraints.missingRawSemanticGapClosures).toBe(0);
@@ -1238,7 +1238,7 @@ describe('local-stack conformance matrix', () => {
         'trust-aivss-ledger',
         'goal-alignment-checked',
         'goal-drift-detected',
-        'goal-drift-fallback',
+        'goal-drift-unavailable-fail-closed',
         'trace-session',
         'trace-logs',
         'trace-reasoning',
@@ -1446,7 +1446,7 @@ describe('local-stack conformance matrix', () => {
     expect(scenario(matrix, 'behavior-order-goal-before-action').status).toBe('proven');
     expect(scenario(matrix, 'goal-alignment-checked').status).toBe('proven');
     expect(scenario(matrix, 'goal-drift-detected').status).toBe('proven');
-    expect(scenario(matrix, 'goal-drift-fallback').status).toBe('proven');
+    expect(scenario(matrix, 'goal-drift-unavailable-fail-closed').status).toBe('proven');
     expect(scenario(matrix, 'approval-expired-timeout').status).toBe('proven');
     expect(scenario(matrix, 'approval-dashboard-metrics-history').status).toBe('proven');
     expect(scenario(matrix, 'behavior-rule-lifecycle-current').status).toBe('proven');

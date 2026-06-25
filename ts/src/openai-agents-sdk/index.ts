@@ -579,7 +579,7 @@ function nativeGuardrailOutput(verdict: WorkflowVerdict) {
 
 function nativeToolGuardrailOutput(
   verdict: WorkflowVerdict,
-  fallbackMessage: string,
+  defaultMessage: string,
 ) {
   const outputInfo = openBoxVerdictInfo(verdict);
   if (verdict.arm === 'allow') {
@@ -592,7 +592,7 @@ function nativeToolGuardrailOutput(
     return {
       behavior: {
         type: 'rejectContent' as const,
-        message: brandedReason(verdict.reason) || fallbackMessage,
+        message: brandedReason(verdict.reason) || defaultMessage,
       },
       outputInfo,
     };

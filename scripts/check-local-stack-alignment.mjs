@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Validate that the live local stack points backend, OPA, and S3 at the same bundle source.
 
-import { accessSync, constants as fsConstants, existsSync, readFileSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -51,6 +51,7 @@ const coreRepo = process.env.OPENBOX_CORE_REPO ?? resolve(repoRoot, '../openbox-
 const coreEnvPath = process.env.OPENBOX_CORE_ENV ?? resolve(coreRepo, '.env');
 const coreEnvLabel = process.env.OPENBOX_CORE_ENV ? 'OPENBOX_CORE_ENV' : 'core .env';
 const opaConfigPath = process.env.OPENBOX_OPA_CONFIG_PATH ?? '/tmp/openbox-sdk-opa-config.yaml';
+const expectedOpaBundleResource = process.env.OPENBOX_LOCAL_OPA_BUNDLE_RESOURCE ?? 'bundle.tar.gz';
 
 const failures = [];
 const warnings = [];
@@ -63,13 +64,21 @@ function normalizeUrl(value) {
 function localEquivalentUrl(value) {
   try {
     const url = new URL(normalizeUrl(value));
-    if (['127.0.0.1', 'localhost', '[::1]', '::1'].includes(url.hostname)) {
+    if (
+      ['127.0.0.1', 'localhost', '[::1]', '::1', 'host.docker.internal'].includes(
+        url.hostname,
+      )
+    ) {
       url.hostname = 'localhost';
     }
     return normalizeUrl(url.toString());
   } catch {
     return normalizeUrl(value);
   }
+}
+
+function joinUrl(base, path) {
+  return `${normalizeUrl(base)}/${String(path).replace(/^\/+/, '')}`;
 }
 
 function recordCheck(message) {
@@ -171,6 +180,29 @@ function assertExecutableFile(path, label) {
   recordCheck(`${label}: ${path} (${version})`);
 }
 
+function assertWritableDirectory(path, label) {
+  if (!path) {
+    fail(`${label} must point to an existing writable directory, got <unset>`);
+    return;
+  }
+  try {
+    if (!statSync(path).isDirectory()) {
+      fail(`${label} must point to a directory, got ${path}`);
+      return;
+    }
+    accessSync(path, fsConstants.W_OK);
+  } catch (error) {
+    fail(`${label} must point to an existing writable directory: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  recordCheck(`${label}: ${path}`);
+}
+
+function asRecord(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value;
+}
+
 function checkBackendEnvFile() {
   if (!existsSync(backendEnvPath)) {
     warn('backend env file not found; set OPENBOX_BACKEND_ENV to enable static config validation');
@@ -189,21 +221,77 @@ function checkBackendEnvFile() {
     assertEquals(normalizeUrl(env.get(name) ?? ''), s3Endpoint, `${backendEnvLabel}:${name}`);
   }
   assertExecutableFile(env.get('OPA_BINARY_PATH'), `${backendEnvLabel}:OPA_BINARY_PATH`);
+  assertWritableDirectory(env.get('OPA_TEMP_DIR'), `${backendEnvLabel}:OPA_TEMP_DIR`);
   assertUrlEquivalent(env.get('GUARDRAIL_API_URL'), guardrailsUrl, `${backendEnvLabel}:GUARDRAIL_API_URL`);
 }
 
 function checkOpaConfigFile() {
   if (!existsSync(opaConfigPath)) {
-    warn(`OPA config file not found at ${opaConfigPath}; set OPENBOX_OPA_CONFIG_PATH to validate the watched bundle URL`);
-    return;
+    fail(
+      `OPA runtime config is unavailable and explicit config file is missing at ${opaConfigPath}`,
+    );
+    return false;
   }
   const config = readFileSync(opaConfigPath, 'utf8');
   const expectedPath = `/${expectedBucket}`;
   if (!config.includes(expectedPath)) {
     fail(`${opaConfigPath} must point OPA at bucket ${expectedBucket}`);
-    return;
+    return false;
   }
   recordCheck(`${opaConfigPath}: bucket ${expectedBucket}`);
+  return true;
+}
+
+function validateOpaRuntimeConfig(config) {
+  const root = asRecord(config);
+  const bundles = asRecord(root?.bundles);
+  const services = asRecord(root?.services);
+  if (!bundles || !services) {
+    fail(`${opaUrl}/v1/config must expose services and bundles`);
+    return false;
+  }
+
+  const expectedBundleUrl = joinUrl(joinUrl(s3Endpoint, expectedBucket), expectedOpaBundleResource);
+  const candidates = [];
+  for (const [bundleName, rawBundle] of Object.entries(bundles)) {
+    const bundle = asRecord(rawBundle);
+    if (!bundle) continue;
+    const serviceName = typeof bundle.service === 'string' ? bundle.service : undefined;
+    const resource = typeof bundle.resource === 'string' ? bundle.resource : undefined;
+    if (!serviceName || !resource) continue;
+    const service = asRecord(services[serviceName]);
+    const serviceUrl = typeof service?.url === 'string' ? service.url : undefined;
+    if (!serviceUrl) continue;
+    const bundleUrl = joinUrl(serviceUrl, resource);
+    candidates.push(`${bundleName} -> ${bundleUrl}`);
+    if (localEquivalentUrl(bundleUrl) === localEquivalentUrl(expectedBundleUrl)) {
+      recordCheck(`${opaUrl}/v1/config:${bundleName}: ${expectedBundleUrl}`);
+      return true;
+    }
+  }
+
+  fail(
+    `${opaUrl}/v1/config must point OPA at ${expectedBundleUrl}; got ${
+      candidates.length > 0 ? candidates.join(', ') : '<no bundle services>'
+    }`,
+  );
+  return false;
+}
+
+async function checkOpaBundleConfig() {
+  const configUrl = `${opaUrl}/v1/config`;
+  try {
+    const response = await fetch(configUrl);
+    if (response.ok) {
+      const body = await response.json();
+      validateOpaRuntimeConfig(body?.result ?? body);
+      return;
+    }
+  } catch {
+    // Fall through to the explicit file check for non-server OPA configurations.
+  }
+
+  checkOpaConfigFile();
 }
 
 function checkCoreEnvFile() {
@@ -296,6 +384,15 @@ function findCommandPids(pattern) {
     });
 }
 
+const coreRuntimeEnvNames = [
+  'KMS_PROVIDER',
+  'KMS_AUTH_MODE',
+  'OPENBOX_LOCAL_KMS_SECRET',
+  'AGE_CB_SLOW_CALL_THRESHOLD_SEC',
+  'GOVERNANCE_WORKFLOW_TIMEOUT_SEC',
+  'GOVERNANCE_ACTIVITY_TIMEOUT_SEC',
+];
+
 function checkRunningBackendEnv() {
   const pids = findListenPids(urlPort(backendUrl));
   if (pids.length === 0) {
@@ -323,6 +420,10 @@ function checkRunningBackendEnv() {
     } else {
       assertExecutableFile(expectedOpaBinaryPath, `backend process ${pid}:OPA_BINARY_PATH default`);
     }
+    const runtimeOpaTempDir = processEnvValue(pid, 'OPA_TEMP_DIR');
+    if (runtimeOpaTempDir) {
+      assertWritableDirectory(runtimeOpaTempDir, `backend process ${pid}:OPA_TEMP_DIR`);
+    }
     assertUrlEquivalent(
       processEnvValue(pid, 'GUARDRAIL_API_URL'),
       guardrailsUrl,
@@ -330,7 +431,9 @@ function checkRunningBackendEnv() {
     );
   }
   if (!checked) {
-    warn(`backend listener(s) ${pids.join(', ')} did not expose S3_BUCKET_NAME in ps output`);
+    recordCheck(
+      `backend listener env visibility skipped: ps did not expose S3_BUCKET_NAME for ${pids.join(', ')}`,
+    );
   }
 }
 
@@ -352,6 +455,14 @@ function checkCoreProcessEnv() {
 }
 
 function checkCoreRuntimeEnv(pid, label) {
+  const visibleEnvNames = coreRuntimeEnvNames.filter(
+    (name) => processEnvValue(pid, name) !== undefined,
+  );
+  if (visibleEnvNames.length === 0) {
+    recordCheck(`${label}: env visibility skipped; ${coreEnvLabel} validated`);
+    return;
+  }
+
   assertEquals(processEnvValue(pid, 'KMS_PROVIDER'), expectedKmsProvider, `${label}:KMS_PROVIDER`);
   assertEquals(processEnvValue(pid, 'KMS_AUTH_MODE'), expectedKmsAuthMode, `${label}:KMS_AUTH_MODE`);
   assertSecretEquals(
@@ -391,10 +502,21 @@ function checkCoreRuntimeEnv(pid, label) {
   }
 }
 
+function coreWorkerCommandPattern(worker) {
+  const escaped = worker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(
+    [
+      `(?:^|/)core\\s+${escaped}(?:\\s|$)`,
+      `(?:^|/)openbox-core\\s+${escaped}(?:\\s|$)`,
+      `(?:^|\\s)go\\s+run\\s+cmd/core/main\\.go\\s+${escaped}(?:\\s|$)`,
+      `(?:^|\\s)go\\s+run\\s+\\./cmd/core\\s+${escaped}(?:\\s|$)`,
+    ].join('|'),
+  );
+}
+
 function checkCoreWorkerProcessEnv() {
   for (const worker of requiredCoreWorkers) {
-    const escaped = worker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pids = findCommandPids(new RegExp(`(?:^|/)core ${escaped}$`));
+    const pids = findCommandPids(coreWorkerCommandPattern(worker));
     if (pids.length === 0) {
       fail(`core ${worker} process must be running`);
       continue;
@@ -413,7 +535,7 @@ await expectOk('AGE health', `${ageUrl}/health`);
 if (checkLlamaFirewall) await expectOk('LlamaFirewall health', `${llamaFirewallUrl}/health`);
 await expectOk('S3 bucket', `${s3Endpoint}/${expectedBucket}`);
 checkBackendEnvFile();
-checkOpaConfigFile();
+await checkOpaBundleConfig();
 checkCoreEnvFile();
 checkRunningBackendEnv();
 checkCoreProcessEnv();

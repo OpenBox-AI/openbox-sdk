@@ -91,7 +91,7 @@ export function resolveInstallPaths(
     return {
       scope,
       hooksFile: path.join(cwd, '.claude', 'settings.json'),
-      configDir: path.join(cwd, '.claude-hooks'),
+      configDir: path.join(cwd, '.openbox', 'claude-code'),
       mcpFile: path.join(cwd, '.mcp.json'),
       mcpKey: 'mcpServers',
     };
@@ -101,7 +101,7 @@ export function resolveInstallPaths(
     return {
       scope,
       hooksFile: path.join(cwd, '.codex', 'hooks.json'),
-      configDir: path.join(cwd, '.codex-hooks'),
+      configDir: path.join(cwd, '.openbox', 'codex'),
       mcpFile: path.join(cwd, '.codex', 'config.toml'),
       mcpKey: 'mcpServers',
     };
@@ -110,7 +110,7 @@ export function resolveInstallPaths(
   return {
     scope,
     hooksFile: path.join(cwd, '.cursor', 'hooks.json'),
-    configDir: path.join(cwd, '.cursor-hooks'),
+    configDir: path.join(cwd, '.openbox', 'cursor'),
     mcpFile: path.join(cwd, '.cursor', 'mcp.json'),
     mcpKey: 'mcpServers',
   };
@@ -176,14 +176,14 @@ function dropExampleConfig(configDir: string): void {
     hitlMaxWait: 300,
     verbose: false,
   };
-  // Mode 0o600: this template is where the user pastes their API
-  // key, so treat it as sensitive from creation rather than relying
-  // on a later `chmod`. Windows ignores mode bits.
+  // Mode 0o600: runtime settings can contain local paths and policy
+  // knobs, so keep the file private from creation. Runtime secrets
+  // belong in each host's official local env surface.
   fs.writeFileSync(file, JSON.stringify(example, null, 2) + '\n', { mode: 0o600, encoding: 'utf-8' });
   // eslint-disable-next-line no-console
   console.log(`Created example config at ${file}`);
   // eslint-disable-next-line no-console
-  console.log('  -> Set OPENBOX_API_KEY and OPENBOX_CORE_URL to enable governance');
+  console.log('  -> Set host-local OPENBOX_API_KEY and OPENBOX_CORE_URL env to enable governance');
 }
 
 export function installAdapter(spec: HookSpec, options: InstallOptions = {}): void {

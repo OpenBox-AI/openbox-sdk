@@ -20,7 +20,7 @@ import type { OpenBoxClient } from '../client/index.js';
 export interface ApprovalIdentityHint {
   /** Governance event id from the socket message, hook envelope,
    *  or caller's pre-known value. Acts as both the lookup needle
-   *  and the fallback path parameter when no fresher row is
+   *  and the path parameter when no fresher row is
    *  available. */
   governanceEventId: string;
   /** Optional caller-supplied agent id (often pre-cached in a

@@ -1,4 +1,7 @@
 import React from 'react';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -109,6 +112,41 @@ describe('CopilotKit pure utility coverage', () => {
         expect(() => createCoreClientResolver({})()).toThrow(
           'Core URL is not configured',
         );
+      },
+    );
+  });
+
+  it('reads optional project-local CopilotKit runtime config without mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-copilotkit-config-'));
+    const configDir = join(cwd, '.openbox', 'copilotkit');
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, '.env'),
+      [
+        'OPENBOX_API_KEY="obx_test_project"',
+        'OPENBOX_CORE_URL="http://127.0.0.1:8086"',
+        'OPENBOX_BACKEND_API_KEY="obx_key_project"',
+        'OPENBOX_AGENT_DID="did:aip:550e8400-e29b-41d4-a716-446655440000"',
+        `OPENBOX_AGENT_PRIVATE_KEY="${FAKE_AGENT_PRIVATE_KEY}"`,
+      ].join('\n') + '\n',
+    );
+
+    withEnv(
+      {
+        OPENBOX_API_KEY: undefined,
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_BACKEND_API_KEY: undefined,
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => {
+        expect(getRuntimeApiKey({ cwd })).toBe('obx_test_project');
+        expect(getApprovalBackendApiKey({ cwd })).toBe('obx_key_project');
+        expect(getAgentIdentity({ cwd })).toEqual({
+          did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+          privateKey: FAKE_AGENT_PRIVATE_KEY,
+        });
+        expect(() => createCoreClientResolver({ cwd })()).not.toThrow();
       },
     );
   });

@@ -121,14 +121,14 @@ export function getMapsTo(program: Program, target: Operation): MapsToBinding | 
 }
 
 // ─── Adapter decorators (Stage 1.3) ───────────────────────────────────────
-// Adapters describe stdin/stdout JSON hook protocols (claude-hooks,
-// cursor-hooks) that the emitter generates as `runtime/<name>` modules.
+// Adapters describe stdin/stdout JSON hook protocols (Claude Code hooks,
+// Cursor hooks) that the emitter generates as `runtime/<name>` modules.
 // An adapter binds to a @preset interface and routes incoming hook events
 // (discriminated by a stdin field) to preset methods, then translates the
 // verdict back to the platform-specific output shape.
 
 export interface AdapterBinding {
-  /** Emitted module suffix; `claude-hooks` → `runtime/claude-hooks`. */
+  /** Emitted module suffix; `claude-code` -> `runtime/claude-code`. */
   readonly name: string;
   /** @preset name this adapter binds to, such as `claude-code` or `cursor`. */
   readonly preset: string;
@@ -221,9 +221,9 @@ export type VerdictShape =
   | 'continue-block' // Task/teammate lifecycle: { continue: false, stopReason? }
   | 'additional-context' // Failure/observe hooks that can feed context back
   | 'worktree-path' // WorktreeCreate: { hookSpecificOutput: { worktreePath } }
-  | 'cursor-permission' // cursor-hooks beforeXxx: { permission: 'allow'|'deny'|'ask', user_message? }
-  | 'cursor-observe' // cursor-hooks afterXxx: telemetry-only, no verdict gate
-  | 'cursor-continue' // cursor-hooks beforeSubmitPrompt: { continue: bool, user_message? }
+  | 'cursor-permission' // Cursor beforeXxx: { permission: 'allow'|'deny'|'ask', user_message? }
+  | 'cursor-observe' // Cursor afterXxx: telemetry-only, no verdict gate
+  | 'cursor-continue' // Cursor beforeSubmitPrompt: { continue: bool, user_message? }
   | 'none'; // adapter writes nothing (fire-and-forget signal)
 
 const VERDICT_SHAPES: ReadonlySet<VerdictShape> = new Set([
@@ -355,7 +355,7 @@ export function getActivityType(
 /** A single output-field source. Discriminated by the keys present. */
 export type FieldSource =
   | { kind: 'literal'; value: string }
-  | { kind: 'from'; path: string; fallbacks: string[]; defaultLiteral?: string }
+  | { kind: 'from'; path: string; alternates: string[]; defaultLiteral?: string }
   | { kind: 'sideEffect'; effect: string; path: string };
 
 export interface PayloadShapeBinding {
@@ -392,10 +392,10 @@ function parseFieldSource(raw: unknown): FieldSource | null {
   if (typeof r.from === 'string' || Array.isArray(r.from)) {
     const paths = Array.isArray(r.from) ? r.from.filter((p): p is string => typeof p === 'string') : [r.from as string];
     if (paths.length === 0) return null;
-    const [path, ...fallbacks] = paths;
-    if (typeof r.fallback === 'string') fallbacks.push(r.fallback);
+    const [path, ...alternates] = paths;
+    if (typeof r.alternate === 'string') alternates.push(r.alternate);
     const defaultLiteral = typeof r.default === 'string' ? r.default : undefined;
-    return { kind: 'from', path, fallbacks, defaultLiteral };
+    return { kind: 'from', path, alternates, defaultLiteral };
   }
   return null;
 }

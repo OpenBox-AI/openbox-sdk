@@ -477,8 +477,8 @@ model WorkflowVerdict {
   /** Free-form Core metadata attached to the verdict. */
   metadata?: Record<unknown>;
 
-  /** True when Core used a fallback evaluation path. */
-  fallbackUsed?: boolean;
+  /** True when one or more required governance checks did not complete. */
+  governanceChecksIncomplete?: boolean;
 
   /**
    * Guardrails outcome; populated when a guardrail fired (PII/safety/
@@ -1307,8 +1307,8 @@ interface ModernTreasuryPreset {
 /**
  * Generic typed preset; for agents that don't fit a specific framework
  * but want first-class methods. The activity_type strings here are the
- * canonical first-party SDK convention (drawn from claude-hooks +
- * cursor-hooks + the openbox skill's canonical-union list).
+ * canonical first-party SDK convention (drawn from Claude Code hooks,
+ * Cursor hooks, and the openbox skill's canonical-union list).
  */
 @preset("default")
 interface DefaultPreset {

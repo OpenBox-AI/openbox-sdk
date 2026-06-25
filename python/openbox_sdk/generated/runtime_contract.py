@@ -135,9 +135,9 @@ WORKFLOW_VERDICT_FIELD_ALIASES = {
     "behavioral_violations",
     "behavioralViolations"
   ],
-  "fallbackUsed": [
-    "fallback_used",
-    "fallbackUsed"
+  "governanceChecksIncomplete": [
+    "governance_checks_incomplete",
+    "governanceChecksIncomplete"
   ],
   "guardrailsResult": [
     "guardrails_result",

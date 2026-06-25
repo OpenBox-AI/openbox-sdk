@@ -326,7 +326,7 @@ describe('guardrail redaction helpers', () => {
     expect(summary).toBe('OpenBox redacted input.0.args.request.');
   });
 
-  it('returns the fallback when there are no redacted field names', () => {
+  it('returns the default message when there are no redacted field names', () => {
     expect(
       summarizeGuardrailRedaction(
         {

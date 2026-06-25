@@ -26,6 +26,7 @@ import {
   httpMethodFor,
   httpTargetFor,
   isDatabaseMcpTool,
+  isHttpMcpTool,
 } from './tool-input.js';
 
 /** Activity-type lookup. Spec-driven for the standard tools; mcp__* tools
@@ -34,6 +35,7 @@ function activityTypeFor(toolName: string, toolInput: Record<string, unknown>): 
   const direct = PRE_TOOL_USE_ROUTING[toolName];
   if (direct) return direct;
   if (isDatabaseMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.DB_QUERY;
+  if (isHttpMcpTool(toolName, toolInput)) return ACTIVITY_TYPES.HTTP_REQUEST;
   if (toolName.startsWith('mcp__')) return ACTIVITY_TYPES.MCP_CALL;
   return ACTIVITY_TYPES.AGENT_ACTION;
 }
@@ -48,6 +50,7 @@ function spanTypeFor(toolName: string, toolInput: Record<string, unknown>): Span
   if (toolName === 'Bash' || toolName === 'PowerShell') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
   if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
+  if (isHttpMcpTool(toolName, toolInput)) return 'http';
   if (toolName.startsWith('mcp__')) return 'mcp';
   return null;
 }

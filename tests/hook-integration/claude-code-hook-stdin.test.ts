@@ -7,11 +7,10 @@
 // cannot easily drive: permissionRequest, subagent events, stale
 // config knobs, and exact stdout shape.
 //
-// The hook honors a config-dir override through the walk-up
-// resolver: we plant a `.claude-hooks/config.json` in a temp
-// directory and spawn the subprocess with cwd inside that dir,
-// so each case has its own isolated project config without touching
-// user-level hook config.
+// The hook honors a project-local install through the walk-up
+// resolver: runtime env lives in `.claude/settings.local.json` and
+// OpenBox hook settings/state live in `.openbox/claude-code`, so each
+// case has isolated project config without touching user-level config.
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -28,6 +27,13 @@ import {
 const OPENBOX = requireOpenBoxCli();
 const TEST_KEY = 'obx_test_0000000000000000000000000000000000000000000000';
 const DEAD_CORE = 'http://127.0.0.1:1';
+const RUNTIME_ENV_KEYS = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+  'OPENBOX_HOME',
+] as const;
 
 interface ConfigOverrides {
   /** Stale SKIP_TOOLS list retained by old project configs. */
@@ -56,21 +62,26 @@ interface HookResult {
 
 function planConfigDir(opts: ConfigOverrides): string {
   const root = mkdtempSync(path.join(tmpdir(), 'obx-cc-stdin-'));
-  const configDir = path.join(root, '.claude-hooks');
+  const configDir = path.join(root, '.openbox', 'claude-code');
   mkdirSync(configDir, { recursive: true });
   const cfg: Record<string, unknown> = {
-    OPENBOX_CORE_URL: opts.coreUrl ?? DEAD_CORE,
     governancePolicy: opts.governancePolicy ?? 'fail_closed',
     governanceTimeout: 1,
     hitlEnabled: false,
     verbose: opts.verbose ?? false,
   };
+  const runtimeEnv: Record<string, string> = {
+    OPENBOX_CORE_URL: opts.coreUrl ?? DEAD_CORE,
+  };
   if (!opts.omitApiKey) {
-    cfg.OPENBOX_API_KEY = opts.apiKey ?? TEST_KEY;
+    runtimeEnv.OPENBOX_API_KEY = opts.apiKey ?? TEST_KEY;
   }
   if (opts.skipTools) cfg.SKIP_TOOLS = opts.skipTools.join(',');
   if (opts.skipActivityTypes) cfg.SKIP_ACTIVITY_TYPES = opts.skipActivityTypes.join(',');
   writeFileSync(path.join(configDir, 'config.json'), JSON.stringify(cfg, null, 2));
+  const settingsLocal = path.join(root, '.claude', 'settings.local.json');
+  mkdirSync(path.dirname(settingsLocal), { recursive: true });
+  writeFileSync(settingsLocal, JSON.stringify({ env: runtimeEnv }, null, 2));
   return root;
 }
 
@@ -80,6 +91,9 @@ function callHook(
   envOverrides: Record<string, string | undefined> = {},
 ): HookResult {
   const env = { ...process.env };
+  for (const key of RUNTIME_ENV_KEYS) {
+    delete env[key];
+  }
   for (const [key, value] of Object.entries(envOverrides)) {
     if (value === undefined) delete env[key];
     else env[key] = value;
@@ -193,7 +207,7 @@ describe('claude-code hook stdin/stdout', () => {
     // Note: the per-event verbose log (`<configDir>/hook.log`) is
     // not currently wired; the adapter calls `createLogger().initLogger`
     // but never calls `log()`. The only on-disk log today is the
-    // JSONL hook log at `<project>/.claude-hooks/log/claude-code-hook.jsonl`,
+    // JSONL hook log at `<project>/.openbox/claude-code/log/claude-code-hook.jsonl`,
     // which is covered separately. If a future PR wires the
     // human-readable log, this test should grow assertions on
     // <configDir>/hook.log; for now we only assert that verbose
@@ -379,7 +393,7 @@ describe('claude-code hook stdin/stdout', () => {
 
   it('JSONL hook log captures one record per event', () => {
     const root = planConfigDir({ coreUrl: DEAD_CORE });
-    const logPath = path.join(root, '.claude-hooks', 'log', 'claude-code-hook.jsonl');
+    const logPath = path.join(root, '.openbox', 'claude-code', 'log', 'claude-code-hook.jsonl');
     const before = existsSync(logPath) ? readFileSync(logPath, 'utf-8').length : 0;
 
     const events = ['PreToolUse', 'PostToolUse', 'SessionStart', 'SessionEnd', 'Stop'];

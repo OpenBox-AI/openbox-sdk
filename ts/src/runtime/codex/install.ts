@@ -7,7 +7,7 @@ import {
   uninstallAdapter,
   type InstallOptions,
 } from '../../install/from-spec.js';
-import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
+import { loadDotenv, loadJsonConfig, writeDotenvConfig } from '../../config/host-config.js';
 import { configStorePath } from '../../config/index.js';
 import { normalizeServiceUrl } from '../../env/connection.js';
 import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
@@ -91,13 +91,14 @@ function hookEntryContainsOpenBox(value: unknown): boolean {
 }
 
 function buildRuntimeEnv(cwd = process.cwd()) {
-  const configDir = path.join(cwd, '.codex-hooks');
-  const configFile = path.join(configDir, 'config.json');
-  const envFile = path.join(configDir, '.env');
+  const configFile = codexRuntimeConfigFile(cwd);
+  const envFile = codexRuntimeEnvFile(cwd);
   const fileConfig = loadJsonConfig(configFile);
   const envConfig = loadDotenv(envFile);
   const get = (key: string): string | undefined =>
-    process.env[key] ?? fileConfig[key] ?? envConfig[key];
+    process.env[key] ??
+    envConfig[key] ??
+    fileConfig[key];
 
   const rawCoreUrl = get('OPENBOX_CORE_URL');
   let coreUrl = '';
@@ -134,7 +135,15 @@ function defaultRuntimeConfig(): Record<string, unknown> {
 }
 
 export function codexRuntimeConfigFile(cwd = process.cwd()): string {
-  return path.join(cwd, '.codex-hooks', 'config.json');
+  return path.join(codexRuntimeConfigDir(cwd), 'config.json');
+}
+
+export function codexRuntimeConfigDir(cwd = process.cwd()): string {
+  return path.join(cwd, '.openbox', 'codex');
+}
+
+export function codexRuntimeEnvFile(cwd = process.cwd()): string {
+  return path.join(codexRuntimeConfigDir(cwd), '.env');
 }
 
 function requirePositiveInteger(value: number | undefined, label: string): number | undefined {
@@ -152,7 +161,11 @@ function normalizeApprovalMode(value: CodexApprovalMode | undefined): CodexAppro
 }
 
 function resolveRuntimeKey(options: ConfigureCodexRuntimeOptions): string | undefined {
-  if (options.apiKey) return options.apiKey;
+  if (options.apiKey !== undefined) {
+    const apiKey = options.apiKey.trim();
+    if (!apiKey) throw new Error('OPENBOX_API_KEY must not be empty');
+    return apiKey;
+  }
   if (!options.agentId) return undefined;
   const record = recallAgentKey(options.agentId);
   if (!record?.runtimeKey) {
@@ -169,22 +182,28 @@ export function configureCodexRuntime(options: ConfigureCodexRuntimeOptions = {}
     ...defaultRuntimeConfig(),
     ...existing,
   };
+  delete next.OPENBOX_API_KEY;
+  delete next.OPENBOX_CORE_URL;
+  delete next.OPENBOX_AGENT_DID;
+  delete next.OPENBOX_AGENT_PRIVATE_KEY;
+  const runtimeEnv: Record<string, string | undefined> = {};
 
   const apiKey = resolveRuntimeKey(options);
   if (apiKey !== undefined) {
     const format = validateApiKeyFormat(apiKey);
     if (format !== true) throw new Error(format);
-    next.OPENBOX_API_KEY = apiKey;
+    runtimeEnv.OPENBOX_API_KEY = apiKey;
   }
 
   if (options.coreUrl !== undefined) {
-    next.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
+    runtimeEnv.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
   }
 
-  if (options.agentIdentity !== undefined) {
-    const agentIdentity = validateAgentIdentityConfig(options.agentIdentity);
-    next.OPENBOX_AGENT_DID = agentIdentity.did;
-    next.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
+  const discoveredIdentity = options.agentIdentity ?? resolveAgentIdentity();
+  if (discoveredIdentity !== undefined) {
+    const agentIdentity = validateAgentIdentityConfig(discoveredIdentity);
+    runtimeEnv.OPENBOX_AGENT_DID = agentIdentity.did;
+    runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
   }
 
   const approvalMode = normalizeApprovalMode(options.approvalMode);
@@ -207,6 +226,10 @@ export function configureCodexRuntime(options: ConfigureCodexRuntimeOptions = {}
     mode: 0o600,
     encoding: 'utf-8',
   });
+  fs.chmodSync(configFile, 0o600);
+  if (Object.values(runtimeEnv).some((value) => value !== undefined)) {
+    writeDotenvConfig(codexRuntimeEnvFile(cwd), runtimeEnv);
+  }
   return configFile;
 }
 
@@ -217,6 +240,7 @@ async function checkRuntimeReadiness(
   const runtime = buildRuntimeEnv(cwd);
   const details = [
     `config=${runtime.configFile}`,
+    `env=${runtime.envFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
     `core=${runtime.coreUrl}`,
   ];
@@ -270,7 +294,7 @@ export function verifyCodexInstall(
 ): CodexInstallCheck[] | Promise<CodexInstallCheck[]> {
   const paths = resolveInstallPaths(HOOK_SPEC, { cwd: opts.cwd });
   const hooksFileExists = fs.existsSync(paths.hooksFile);
-  const configFile = path.join(paths.configDir, 'config.json');
+  const configFile = codexRuntimeConfigFile(opts.cwd);
   const entries = hooksFileExists ? loadHookEntries(paths.hooksFile) : [];
   const checks: CodexInstallCheck[] = [
     {
@@ -289,7 +313,7 @@ export function verifyCodexInstall(
       name: 'runtime-config',
       status: fs.existsSync(configFile) ? 'pass' : 'fail',
       path: configFile,
-      detail: fs.existsSync(configFile) ? 'project .codex-hooks/config.json exists' : 'missing project runtime config',
+      detail: fs.existsSync(configFile) ? 'project .openbox/codex/config.json exists' : 'missing project runtime config',
     },
     {
       name: 'hook-trust',

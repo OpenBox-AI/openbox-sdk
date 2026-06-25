@@ -26,15 +26,24 @@ const OPENBOX = requireOpenBoxCli();
 
 function planConfigDir(): string {
   const root = mkdtempSync(path.join(tmpdir(), 'obx-cc-subagent-'));
-  const dir = path.join(root, '.claude-hooks');
+  const dir = path.join(root, '.openbox', 'claude-code');
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({
-      OPENBOX_API_KEY: 'obx_test_0000000000000000000000000000000000000000000000',
-      OPENBOX_CORE_URL: 'http://127.0.0.1:1',
       governanceTimeout: 1,
       hitlEnabled: false,
+    }),
+  );
+  const settingsLocal = path.join(root, '.claude', 'settings.local.json');
+  mkdirSync(path.dirname(settingsLocal), { recursive: true });
+  writeFileSync(
+    settingsLocal,
+    JSON.stringify({
+      env: {
+        OPENBOX_API_KEY: 'obx_test_0000000000000000000000000000000000000000000000',
+        OPENBOX_CORE_URL: 'http://127.0.0.1:1',
+      },
     }),
   );
   return root;
@@ -56,7 +65,7 @@ function callHook(envelope: Record<string, unknown>, cwd: string): {
 describe('claude-code subagent events', () => {
   it('SubagentStart and SubagentStop dispatch and log a record each', () => {
     const root = planConfigDir();
-    const logPath = path.join(root, '.claude-hooks', 'log', 'claude-code-hook.jsonl');
+    const logPath = path.join(root, '.openbox', 'claude-code', 'log', 'claude-code-hook.jsonl');
     const before = existsSync(logPath) ? readFileSync(logPath, 'utf-8').length : 0;
 
     const baseEnv = {

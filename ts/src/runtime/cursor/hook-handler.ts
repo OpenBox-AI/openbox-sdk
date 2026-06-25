@@ -133,18 +133,15 @@ function reasonFromError(prefix: string, err?: unknown): string {
   return detail ? `${prefix}: ${detail}` : prefix;
 }
 
-function verdictUsesFallback(value: unknown): boolean {
+function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
-    ? record.metadata as Record<string, unknown>
-    : {};
   const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
     ? record.ageResult as Record<string, unknown>
     : {};
-  return record.fallbackUsed === true
-    || metadata.age_fallback_used === true
-    || ageResult.fallback_used === true;
+  return record.governanceChecksIncomplete === true
+    || ageResult.governanceChecksIncomplete === true
+    || ageResult.governance_checks_incomplete === true;
 }
 
 async function ensureWorkflowStartedForDecision(
@@ -172,11 +169,11 @@ function guarded(
       if (
         verdict &&
         isDecisionCapable(env.hook_event_name) &&
-        verdictUsesFallback(verdict) &&
+        verdictHasIncompleteGovernanceChecks(verdict) &&
         verdict.arm !== 'block' &&
         verdict.arm !== 'halt'
       ) {
-        return failClosedVerdict('OpenBox governance fallback used while processing Cursor hook');
+        return failClosedVerdict('OpenBox required governance checks did not complete while processing Cursor hook');
       }
       return verdict;
     } catch (err) {
@@ -274,10 +271,10 @@ export async function runCursorHook(): Promise<void> {
     timeoutMs: cfg.governanceTimeout * 1000,
   });
 
-  // Legacy adapter option for SDK compatibility. Core polling is
-  // bounded by the server-supplied approval expiration. Cursor still
-  // uses this value below to bound the local extension socket wait so
-  // a hook subprocess is not held open solely by the editor-side IPC.
+  // Generated adapter option retained for SDK compatibility. Core polling is
+  // bounded by the server-supplied approval expiration. Cursor still uses this
+  // value below to bound the local extension socket wait so a hook subprocess
+  // is not held open solely by the editor-side IPC.
   const approvalMaxWaitMs = Math.min(
     Math.max(1, cfg.hitlMaxWait) * 1000,
     3600_000,

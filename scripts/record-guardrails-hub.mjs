@@ -218,7 +218,7 @@ function summarizeHubProvenance(provenance) {
   const status = missingGuardrailTypes.length > 0
     ? 'missing-types'
     : forbiddenValidators.length > 0
-      ? 'local-fallback'
+      ? 'local-fixture'
       : nonHubValidators.length > 0
         ? 'not-hub-backed'
         : 'hub-backed';

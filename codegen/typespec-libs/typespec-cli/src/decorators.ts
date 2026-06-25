@@ -371,7 +371,7 @@ export function $cli_required(
  *  per-flag overrides. Modes:
  *    "fill"    ; --json is the body base, flag values fill missing keys
  *    "replace" ; --json fully replaces the flag-derived body when present
- *    "only"    ; like "replace", but --json is required (no flag fallback)
+ *    "only"    ; like "replace", but --json is required (no implicit flag value)
  *
  *  @cli_required flags become "must be present in the merged body"; checked
  *  at runtime instead of via Commander's requiredOption. */

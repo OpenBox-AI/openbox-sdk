@@ -9,11 +9,11 @@
 //      first means consumers automatically pick up the new field
 //      once it lands.
 //
-//   2. `input[0]._openbox_source`. SDK-side fallback the runtime
+//   2. `input[0]._openbox_source`. SDK-side mirror the runtime
 //      adapter stamps onto every dispatched activity payload (see
 //      `stampSource()`). This field survives the backend's
 //      pending-list endpoint because the `input` array is preserved
-//      verbatim; spans are not. Without this fallback, every row
+//      verbatim; spans are not. Without this mirror, every row
 //      attributed via spans alone resolves to undefined on the live
 //      Cursor / mobile feeds, which makes source-filtering useless
 //      in practice. Adapters that want their rows filterable should

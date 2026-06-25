@@ -1,5 +1,6 @@
 import {
   cpSync,
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -17,8 +18,9 @@ import {
   validateAgentIdentityConfig,
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
+import { writeDotenvConfig } from '../../config/host-config.js';
 import { normalizeServiceUrl } from '../../env/connection.js';
-import { validateApiKeyFormat } from '../../env/index.js';
+import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import { recallAgentKey } from '../../file-tokens/agent-keys.js';
 import type { RulesProjection } from '../../governance/rules-projection.js';
 import {
@@ -137,11 +139,15 @@ export function cursorPluginTargetDir(cwd = process.cwd()): string {
 }
 
 export function cursorRuntimeConfigDir(cwd = process.cwd()): string {
-  return path.join(cwd, '.cursor-hooks');
+  return path.join(cwd, '.openbox', 'cursor');
 }
 
 export function cursorRuntimeConfigFile(cwd = process.cwd()): string {
   return path.join(cursorRuntimeConfigDir(cwd), 'config.json');
+}
+
+export function cursorRuntimeEnvFile(cwd = process.cwd()): string {
+  return path.join(cursorRuntimeConfigDir(cwd), '.env');
 }
 
 export function cursorRepoSkillTargetDir(cwd = process.cwd()): string {
@@ -261,7 +267,11 @@ function normalizeApprovalMode(value: CursorApprovalMode | undefined): CursorApp
 }
 
 function resolveRuntimeKey(options: ConfigureCursorRuntimeOptions): string | undefined {
-  if (options.apiKey) return options.apiKey;
+  if (options.apiKey !== undefined) {
+    const apiKey = options.apiKey.trim();
+    if (!apiKey) throw new Error('OPENBOX_API_KEY must not be empty');
+    return apiKey;
+  }
   if (!options.agentId) return undefined;
   const record = recallAgentKey(options.agentId);
   if (!record?.runtimeKey) {
@@ -278,22 +288,28 @@ export function configureCursorRuntime(options: ConfigureCursorRuntimeOptions = 
     ...defaultRuntimeConfig(),
     ...existing,
   };
+  delete next.OPENBOX_API_KEY;
+  delete next.OPENBOX_CORE_URL;
+  delete next.OPENBOX_AGENT_DID;
+  delete next.OPENBOX_AGENT_PRIVATE_KEY;
+  const runtimeEnv: Record<string, string | undefined> = {};
 
   const apiKey = resolveRuntimeKey(options);
   if (apiKey !== undefined) {
     const format = validateApiKeyFormat(apiKey);
     if (format !== true) throw new Error(format);
-    next.OPENBOX_API_KEY = apiKey;
+    runtimeEnv.OPENBOX_API_KEY = apiKey;
   }
 
   if (options.coreUrl !== undefined) {
-    next.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
+    runtimeEnv.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
   }
 
-  if (options.agentIdentity !== undefined) {
-    const agentIdentity = validateAgentIdentityConfig(options.agentIdentity);
-    next.OPENBOX_AGENT_DID = agentIdentity.did;
-    next.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
+  const discoveredIdentity = options.agentIdentity ?? resolveAgentIdentity();
+  if (discoveredIdentity !== undefined) {
+    const agentIdentity = validateAgentIdentityConfig(discoveredIdentity);
+    runtimeEnv.OPENBOX_AGENT_DID = agentIdentity.did;
+    runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
   }
 
   const approvalMode = normalizeApprovalMode(options.approvalMode);
@@ -316,6 +332,10 @@ export function configureCursorRuntime(options: ConfigureCursorRuntimeOptions = 
     mode: 0o600,
     encoding: 'utf-8',
   });
+  chmodSync(configFile, 0o600);
+  if (Object.values(runtimeEnv).some((value) => value !== undefined)) {
+    writeDotenvConfig(cursorRuntimeEnvFile(cwd), runtimeEnv);
+  }
   return configFile;
 }
 

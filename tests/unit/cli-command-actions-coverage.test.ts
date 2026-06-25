@@ -35,19 +35,54 @@ function readJson(file: string): Record<string, unknown> {
   return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
 }
 
+function readDotenv(file: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of readFileSync(file, 'utf-8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    out[trimmed.slice(0, eq)] = JSON.parse(trimmed.slice(eq + 1)) as string;
+  }
+  return out;
+}
+
 function expectRuntimeConfig(
-  file: string,
+  project: string,
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
 ): void {
-  const config = readJson(file);
-  expect(config.OPENBOX_API_KEY).toBe(runtimeKey);
-  expect(config.OPENBOX_CORE_URL).toBe(coreUrl);
+  const env = readDotenv(join(project, '.openbox', 'cursor', '.env'));
+  expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+
+  const config = readJson(join(project, '.openbox', 'cursor', 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
   expect(config.governanceTimeout).toBe('18');
   expect(config.hitlMaxWait).toBe(90);
   expect(config.hitlPollInterval).toBe(4);
+  expect(config.OPENBOX_API_KEY).toBeUndefined();
+  expect(config.OPENBOX_CORE_URL).toBeUndefined();
+}
+
+function expectClaudeRuntimeConfig(
+  project: string,
+  runtimeKey: string,
+  coreUrl: string,
+  approvalMode: string,
+): void {
+  const settings = readJson(join(project, '.claude', 'settings.local.json'));
+  const env = settings.env as Record<string, unknown>;
+  expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+
+  const config = readJson(join(project, '.openbox', 'claude-code', 'config.json'));
+  expect(config.approvalMode).toBe(approvalMode);
+  expect(config.governanceTimeout).toBe('18');
+  expect(config.hitlMaxWait).toBe(90);
+  expect(config.hitlPollInterval).toBe(4);
+  expect(config.OPENBOX_API_KEY).toBeUndefined();
 }
 
 async function run(program: Command, args: string[]): Promise<void> {
@@ -226,7 +261,7 @@ describe('CLI command action coverage', () => {
       '--hitl-poll-interval',
       '4',
     ]);
-    expectRuntimeConfig(join(project, '.cursor-hooks', 'config.json'), runtimeKey, coreUrl, 'remote');
+    expectRuntimeConfig(project, runtimeKey, coreUrl, 'remote');
     await run(cursor, [
       'cursor',
       'plugin',
@@ -316,7 +351,7 @@ describe('CLI command action coverage', () => {
       '--hitl-poll-interval',
       '4',
     ]);
-    expectRuntimeConfig(join(project, '.claude-hooks', 'config.json'), runtimeKey, coreUrl, 'defer');
+    expectClaudeRuntimeConfig(project, runtimeKey, coreUrl, 'defer');
     await run(claude, [
       'claude-code',
       'doctor',

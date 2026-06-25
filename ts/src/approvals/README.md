@@ -35,7 +35,7 @@ These stay per-consumer because they require a platform runtime:
 
 `formatLabel` looks up `CANONICAL_ACTIVITY_LABELS` (from
 `@openbox-ai/openbox-sdk/core-client`) first; the spec table is the single source
-of truth. The fallback handles free-form custom-preset activity types
+of truth. The custom formatter handles free-form custom-preset activity types
 with two regex passes so acronyms like `MCPToolCall` render as
 `MCP Tool Call`, not `Mcptool Call`.
 
@@ -47,6 +47,6 @@ with two regex passes so acronyms like `MCPToolCall` render as
 3. `decided_at` unset + `approval_expired_at` past → expired.
 4. Otherwise pending.
 
-The timestamp-fallback branch (3) is load-bearing for fixtures and
+The timestamp-derived branch (3) is load-bearing for fixtures and
 backends that emit `verdict=2 + decided_at=null + approval_expired_at`
 without a synthesized `status` field.

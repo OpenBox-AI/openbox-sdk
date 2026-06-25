@@ -753,6 +753,7 @@ function spanTypeForTool(
   if (['bash', 'shell', 'powershell', 'monitor'].includes(lower) || firstString(toolInput.command))
     return 'shell';
   if (isDatabaseMcpTool(normalized, toolInput)) return 'db';
+  if (isHttpMcpTool(normalized, toolInput)) return 'http';
   if (lower.startsWith('mcp__') || lower.includes('mcp')) return 'mcp';
   if (['webfetch', 'websearch'].includes(lower) || httpTargetFor(toolInput))
     return 'http';
@@ -865,6 +866,22 @@ function isDatabaseMcpTool(
     lowerName.includes('query') ||
     lowerName.includes('execute') ||
     lowerName.includes('select');
+}
+
+function isHttpMcpTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): boolean {
+  const lowerName = toolName.toLowerCase();
+  if (!lowerName.startsWith('mcp__')) return false;
+  const nameLooksHttp =
+    lowerName.includes('http') ||
+    lowerName.includes('fetch') ||
+    lowerName.includes('request') ||
+    lowerName.includes('web');
+  if (!nameLooksHttp) return false;
+  return Boolean(httpTargetFor(toolInput)) ||
+    Boolean(firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod));
 }
 
 function assistantContentFromPayload(payload: unknown): string | undefined {

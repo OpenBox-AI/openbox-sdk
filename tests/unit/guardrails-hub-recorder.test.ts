@@ -244,7 +244,7 @@ describe('Guardrails Hub recorder', () => {
     );
   });
 
-  it('reports local fallback provenance without requiring a Hub token', () => {
+  it('reports local fixture provenance without requiring a Hub token', () => {
     const report = runProvenance(
       hubValidators().map((validator) => ({
         ...validator,
@@ -252,7 +252,7 @@ describe('Guardrails Hub recorder', () => {
       })),
     );
 
-    expect(report.status).toBe('local-fallback');
+    expect(report.status).toBe('local-fixture');
     expect(report.missingGuardrailTypes).toEqual([]);
     expect(report.nonHubValidators).toHaveLength(5);
     expect(report.forbiddenValidators).toHaveLength(5);
@@ -268,7 +268,7 @@ describe('Guardrails Hub recorder', () => {
     expect(report.forbiddenValidators).toEqual([]);
   });
 
-  it('reports non-Hub provenance when validators are neither Hub-backed nor local fallback', () => {
+  it('reports non-Hub provenance when validators are neither Hub-backed nor local fixtures', () => {
     const report = runProvenance(
       hubValidators().map((validator) => ({
         ...validator,
@@ -292,12 +292,12 @@ describe('Guardrails Hub recorder', () => {
     );
 
     expect(result.exitCode).not.toBe(0);
-    expect(JSON.parse(result.stdout).status).toBe('local-fallback');
-    expect(result.stderr).toContain('Guardrails Hub provenance is local-fallback; expected hub-backed');
+    expect(JSON.parse(result.stdout).status).toBe('local-fixture');
+    expect(result.stderr).toContain('Guardrails Hub provenance is local-fixture; expected hub-backed');
   });
 
-  it('refuses to record local fallback provenance before calling the backend', async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'openbox-guardrails-hub-local-fallback-'));
+  it('refuses to record local fixture provenance before calling the backend', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'openbox-guardrails-hub-local-fixture-'));
     try {
       writeTempCapabilitiesFixture(tmp);
       const result = await runRecorderRaw(['--record'], {
@@ -318,7 +318,7 @@ describe('Guardrails Hub recorder', () => {
       });
 
       expect(result.exitCode).not.toBe(0);
-      expect(result.stderr).toContain('Guardrails Hub provenance is local-fallback; expected hub-backed');
+      expect(result.stderr).toContain('Guardrails Hub provenance is local-fixture; expected hub-backed');
     } finally {
       rmSync(tmp, { force: true, recursive: true });
     }

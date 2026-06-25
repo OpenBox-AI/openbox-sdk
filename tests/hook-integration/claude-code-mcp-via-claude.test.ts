@@ -51,17 +51,20 @@ const RUNTIME_ENV_KEYS = [
 ] as const;
 type LocalGovernanceRuntime = Awaited<ReturnType<typeof ensureLocalGovernanceMatrix>>;
 
-function readClaudeHookConfig(): Record<string, string> {
-  const configPath = path.join(PROJECT_DIR, '.claude-hooks', 'config.json');
+function readClaudeRuntimeEnv(): Record<string, string> {
+  const configPath = path.join(PROJECT_DIR, '.claude', 'settings.local.json');
   if (!existsSync(configPath)) return {};
   try {
-    return JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, string>;
+    const settings = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+      env?: Record<string, string>;
+    };
+    return settings.env ?? {};
   } catch {
     return {};
   }
 }
 
-const hookConfig = readClaudeHookConfig();
+const claudeRuntimeEnv = readClaudeRuntimeEnv();
 
 function resolveOrgApiKey(): string | undefined {
   if (process.env.OPENBOX_BACKEND_API_KEY) return process.env.OPENBOX_BACKEND_API_KEY;
@@ -77,7 +80,7 @@ function runtimeUrl(kind: 'api' | 'core'): string {
         ? process.env.OPENBOX_API_URL
         : DEFAULT_API_URL);
   }
-  return hookConfig.OPENBOX_CORE_URL
+  return claudeRuntimeEnv.OPENBOX_CORE_URL
     ?? (process.env.OPENBOX_CORE_URL && process.env.OPENBOX_CORE_URL !== UNIT_CORE_URL
       ? process.env.OPENBOX_CORE_URL
       : DEFAULT_CORE_URL);
@@ -172,7 +175,7 @@ function assertRemoteGovernanceResult(parsed: ClaudeResult, c: VerdictMatrixCase
     c.expectedVerdict,
   );
   expect(ageResult?.total_spans, `missing AGE span count: ${parsed.result.slice(0, 1000)}`).toBe(1);
-  expect(body.fallback_used ?? ageResult?.fallback_used ?? false).toBe(false);
+  expect(body.governance_checks_incomplete ?? ageResult?.governance_checks_incomplete ?? false).toBe(false);
 }
 
 async function readPlatformSessionsSince(fromTime: string): Promise<PlatformSession[]> {
@@ -219,8 +222,8 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
                 OPENBOX_CORE_URL: runtimeUrl('core'),
                 ...(localRuntime?.runtimeKey ? { OPENBOX_API_KEY: localRuntime.runtimeKey } : {}),
                 ...(localRuntime?.agentId ? { OPENBOX_AGENT_ID: localRuntime.agentId } : {}),
-                ...(hookConfig.OPENBOX_AGENT_DID ? { OPENBOX_AGENT_DID: hookConfig.OPENBOX_AGENT_DID } : {}),
-                ...(hookConfig.OPENBOX_AGENT_PRIVATE_KEY ? { OPENBOX_AGENT_PRIVATE_KEY: hookConfig.OPENBOX_AGENT_PRIVATE_KEY } : {}),
+                ...(claudeRuntimeEnv.OPENBOX_AGENT_DID ? { OPENBOX_AGENT_DID: claudeRuntimeEnv.OPENBOX_AGENT_DID } : {}),
+                ...(claudeRuntimeEnv.OPENBOX_AGENT_PRIVATE_KEY ? { OPENBOX_AGENT_PRIVATE_KEY: claudeRuntimeEnv.OPENBOX_AGENT_PRIVATE_KEY } : {}),
                 OPENBOX_BACKEND_API_KEY: orgKey!,
               },
             },
@@ -234,7 +237,7 @@ describe.runIf(SHOULD_RUN)('claude actually uses the openbox MCP', () => {
 
   function runClaudeMcp(prompt: string, allowedTool: string): ClaudeResult {
     // Spawn from a fresh directory with no `.claude/` and no
-    // `.claude-hooks/`. The openbox hooks live in PROJECT_DIR; from
+    // `.openbox/claude-code/`. The openbox hooks live in PROJECT_DIR; from
     // a clean cwd the walk-up resolver finds nothing and claude
     // runs without the governance gate firing on the MCP call.
     // The governance gate on `mcp_tool_call` is exercised in the

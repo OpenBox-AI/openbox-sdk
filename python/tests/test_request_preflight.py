@@ -130,6 +130,39 @@ def test_python_core_request_preflight_exhausts_every_generated_constraint() -> 
     assert result["type"] > 0
 
 
+def test_python_behavior_rule_state_union_preflight_allows_objects() -> None:
+    body = {
+        "rule_name": "behavior-state-object-preflight",
+        "priority": 1,
+        "trigger": "http_post",
+        "trigger_match": [{"field": "http_url", "op": "contains", "value": "/admin"}],
+        "states": [
+            {
+                "semantic_type": "file_read",
+                "match": [{"field": "file_path", "op": "contains", "value": "/private"}],
+            }
+        ],
+        "time_window": 1,
+        "verdict": 3,
+        "reject_message": "blocked by preflight test",
+    }
+
+    validate_backend_request(
+        "POST",
+        "/agent/00000000-0000-4000-8000-000000000000/behavior-rule",
+        None,
+        body,
+    )
+
+    with pytest.raises(RequestPreflightError):
+        validate_backend_request(
+            "POST",
+            "/agent/00000000-0000-4000-8000-000000000000/behavior-rule",
+            None,
+            {**body, "states": [{"semantic_type": "__openbox_invalid_enum__"}]},
+        )
+
+
 def test_python_governance_request_constraints_are_generated() -> None:
     backend = _normalize_rules(BACKEND_REQUEST_PREFLIGHT_RULES)
     core = _normalize_rules(CORE_REQUEST_PREFLIGHT_RULES)
@@ -1009,17 +1042,47 @@ def _collect_body_rules(
     if path and constraints:
         out.append({"path": path, **constraints})
 
-    for branch in [
+    branches = [
         *(resolved.get("allOf") or []),
         *(resolved.get("oneOf") or []),
         *(resolved.get("anyOf") or []),
-    ]:
-        out.extend(_collect_body_rules(branch, openapi, path, set(seen)))
+    ]
+    union_allows_object = any(
+        _schema_allows_object(branch, openapi, set(seen)) for branch in branches
+    )
+    for branch in branches:
+        branch_rules = _collect_body_rules(branch, openapi, path, set(seen))
+        for rule in branch_rules:
+            if (
+                union_allows_object
+                and len(rule["path"]) == len(path)
+                and all(segment == path[index] for index, segment in enumerate(rule["path"]))
+                and rule.get("type") == "string"
+            ):
+                out.append({**rule, "allow_object": True})
+            else:
+                out.append(rule)
     for key, property_schema in (resolved.get("properties") or {}).items():
         out.extend(_collect_body_rules(property_schema, openapi, [*path, key], set(seen)))
     if resolved.get("items") and path:
         out.extend(_collect_body_rules(resolved["items"], openapi, [*path, "*"], set(seen)))
     return out
+
+
+def _schema_allows_object(schema: Rule | None, openapi: Rule, seen: set[str] | None = None) -> bool:
+    if not schema:
+        return False
+    resolved = _resolve_schema(schema, openapi, seen)
+    if resolved.get("type") == "object" or bool(resolved.get("properties")):
+        return True
+    return any(
+        _schema_allows_object(branch, openapi, set(seen or set()))
+        for branch in [
+            *(resolved.get("allOf") or []),
+            *(resolved.get("oneOf") or []),
+            *(resolved.get("anyOf") or []),
+        ]
+    )
 
 
 def _constraints_from_schema(schema: Rule) -> Rule | None:

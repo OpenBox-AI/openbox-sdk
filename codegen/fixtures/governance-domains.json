@@ -30,6 +30,8 @@
       "llm_completion",
       "llm_embedding",
       "llm_tool_call",
+      "llm_gen_ai",
+      "mcp_tool_call",
       "database_select",
       "database_insert",
       "database_update",
@@ -42,7 +44,8 @@
       "internal"
     ],
     "behaviorRuleStateInputVariants": [
-      "BehaviorRuleTrigger"
+      "BehaviorRuleTrigger",
+      "BehaviorRuleStateCondition"
     ],
     "behaviorRuleStateMembers": [
       "http_get",
@@ -54,6 +57,8 @@
       "llm_completion",
       "llm_embedding",
       "llm_tool_call",
+      "llm_gen_ai",
+      "mcp_tool_call",
       "database_select",
       "database_insert",
       "database_update",
@@ -671,7 +676,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -696,7 +703,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -707,6 +716,33 @@
         "low",
         "medium",
         "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model BehaviorRuleStateCondition.semantic_type",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -783,7 +819,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -808,7 +846,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -1060,7 +1100,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -1085,7 +1127,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {
@@ -1268,7 +1312,9 @@
         "internal",
         "llm_completion",
         "llm_embedding",
-        "llm_tool_call"
+        "llm_gen_ai",
+        "llm_tool_call",
+        "mcp_tool_call"
       ]
     },
     {

@@ -213,6 +213,17 @@ const STATUS_COLORS: Record<RowStatus, (s: string) => string> = {
 
 const TARGET_COL = 14;
 const STATUS_COL = 14;
+const OVERFLOW_GAP = 2;
+
+function padColumn(value: string, width: number): string {
+  return value.length >= width
+    ? value + ' '.repeat(OVERFLOW_GAP)
+    : value.padEnd(width);
+}
+
+function colorizedStatus(status: string, colorize: (s: string) => string): string {
+  return colorize(status) + ' '.repeat(Math.max(OVERFLOW_GAP, STATUS_COL - status.length));
+}
 
 /** Per-target line in a plan / progress table. Silent in machine
  *  mode; callers (runPlan etc.) emit a structured envelope instead. */
@@ -221,13 +232,17 @@ export function row(target: string, status: string, detail?: string): void {
   const colorize =
     (STATUS_COLORS as Record<string, (s: string) => string>)[status] ??
     ((s) => s);
-  const left = target.padEnd(TARGET_COL);
+  const left = padColumn(target, TARGET_COL);
   // When detail is present, pad status to STATUS_COL so the detail
   // column aligns. Without detail, drop the padding so the line has
   // no trailing whitespace (the prior `.trimEnd()` couldn't strip
   // padding that lived inside ANSI color escapes).
   if (detail) {
-    console.log(`${left}${colorize(status.padEnd(STATUS_COL))}${detail}`);
+    const statusCol = colorizedStatus(status, colorize);
+    const [first, ...rest] = detail.split('\n');
+    console.log(`${left}${statusCol}${first}`);
+    const indent = ' '.repeat(left.length + STATUS_COL);
+    for (const line of rest) console.log(`${indent}${line}`);
   } else {
     console.log(`${left}${colorize(status)}`);
   }

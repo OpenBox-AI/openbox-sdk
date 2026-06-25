@@ -28,7 +28,7 @@ export function OpenBoxHeader({
         key: 'mark',
         className: showLogo
           ? 'obx-renderer-mark obx-renderer-mark--image'
-          : 'obx-renderer-mark obx-renderer-mark--fallback',
+          : 'obx-renderer-mark obx-renderer-mark--text',
       },
       showLogo
         ? h('img', {

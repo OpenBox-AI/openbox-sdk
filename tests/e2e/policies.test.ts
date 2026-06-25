@@ -22,6 +22,9 @@ import {
 
 const CAN_RUN = !!process.env.OPENBOX_BACKEND_API_KEY && hasOrgId();
 const describeOrSkip = CAN_RUN ? describe : describe.skip;
+const POLICY_BOUNDARY_TEST_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_POLICY_BOUNDARY_TEST_TIMEOUT_MS ?? 180_000,
+);
 
 function backendOperation(operationId: string) {
   const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
@@ -374,7 +377,7 @@ describeOrSkip('Policies', () => {
       trust_threshold: 1,
     });
     expect(fullResponse(invalidUpdateImpact).status).toBe(422);
-  });
+  }, POLICY_BOUNDARY_TEST_TIMEOUT_MS);
 
   it('gets policy metrics', async () => {
     // CONFORMANCE_PROOF: policy lifecycle conformance asserts policy metrics

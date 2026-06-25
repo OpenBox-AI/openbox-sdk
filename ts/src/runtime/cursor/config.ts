@@ -3,15 +3,21 @@ import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 import type { AgentIdentityConfig } from '../../core-client/index.js';
 import { resolveAgentIdentity } from '../../env/agent-identity.js';
+import { cursorRuntimeConfigDir } from './plugin.js';
+
+function hasRuntimeConfig(dir: string): boolean {
+  return fs.existsSync(path.join(dir, 'config.json')) ||
+    fs.existsSync(path.join(dir, '.env'));
+}
 
 /**
- * Resolve which `.cursor-hooks/` directory the hook subprocess
+ * Resolve which `.openbox/cursor/` directory the hook subprocess
  * should read from. The lookup walks the current working directory
  * upward and prefers the closest one, which lets advanced users keep
  * project-local runtime config. If no project config is found, the
- * hook reads `<startDir>/.cursor-hooks/` and therefore fails from
+ * hook reads `<startDir>/.openbox/cursor/` and therefore fails from
  * missing project config instead of consulting user-level state.
- * Cursor installation itself is plugin-only.
+ * Cursor installation itself is plugin/repo-mode only.
  *
  * Exported for tests; production callsite below passes
  * `process.cwd()`.
@@ -19,15 +25,15 @@ import { resolveAgentIdentity } from '../../env/agent-identity.js';
 export function resolveConfigDir(startDir: string = process.cwd()): string {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
-    const candidate = path.join(cur, '.cursor-hooks');
-    if (fs.existsSync(path.join(candidate, 'config.json'))) {
+    const candidate = cursorRuntimeConfigDir(cur);
+    if (hasRuntimeConfig(candidate)) {
       return candidate;
     }
     const parent = path.dirname(cur);
     if (parent === cur) break;
     cur = parent;
   }
-  return path.join(startDir, '.cursor-hooks');
+  return cursorRuntimeConfigDir(startDir);
 }
 
 const CONFIG_DIR = resolveConfigDir();
@@ -68,24 +74,24 @@ export interface CursorConfig {
 export function loadConfig(): CursorConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
-  const getRuntime = (key: string, fileFallback?: string) => {
+  const getRuntime = (key: string, defaultValue?: string) => {
     if (process.env[key] !== undefined) return process.env[key]!;
-    if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    return fileFallback ?? '';
+    if (fileConfig[key] !== undefined) return fileConfig[key];
+    return defaultValue ?? '';
   };
-  const getSetting = (key: string, fileFallback?: string) => {
+  const getSetting = (key: string, defaultValue?: string) => {
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    return fileFallback ?? '';
+    return defaultValue ?? '';
   };
 
-  // OPENBOX_CORE_URL is the canonical runtime target. No environment
-  // fallback is baked in; installs must provide explicit service URLs.
+  // OPENBOX_CORE_URL is the canonical runtime target. Installs must
+  // provide explicit service URLs.
   const coreUrl =
     process.env.OPENBOX_CORE_URL ??
-    fileConfig.OPENBOX_CORE_URL ??
     envConfig.OPENBOX_CORE_URL ??
+    fileConfig.OPENBOX_CORE_URL ??
     '';
   return {
     openboxApiKey: getRuntime('OPENBOX_API_KEY'),
@@ -105,7 +111,7 @@ export function loadConfig(): CursorConfig {
     hitlMaxWait: parseInt(getSetting('hitlMaxWait', '300'), 10) || 300,
     approvalMode: (getSetting('approvalMode', 'remote').toLowerCase() === 'inline' ? 'inline' : 'remote'),
     approvalSocketPath: getSetting('approvalSocketPath') || null,
-    taskQueue: getSetting('taskQueue', 'cursor-hooks'),
+    taskQueue: getSetting('taskQueue', 'cursor'),
     sendStartEvent: getSetting('sendStartEvent', 'true') !== 'false',
     sendActivityStartEvent: getSetting('sendActivityStartEvent', 'true') !== 'false',
     maxBodySize: getSetting('maxBodySize')

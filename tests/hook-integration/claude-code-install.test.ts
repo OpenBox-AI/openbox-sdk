@@ -2,8 +2,8 @@
 // The stable CLI no longer writes Claude settings directly. It
 // installs a skills-dir plugin containing .claude-plugin metadata,
 // hooks, MCP config, slash commands, an agent template, and the
-// OpenBox skill. The hook runtime still reads .claude-hooks/config.json,
-// so plugin install also seeds that config template.
+// OpenBox skill. Runtime env belongs to Claude's local settings env;
+// OpenBox-only hook state/settings are kept under .openbox/claude-code.
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -39,11 +39,11 @@ function expectClaudePlugin(project: string): void {
   expect(existsSync(path.join(root, 'agents', 'openbox-reviewer.md'))).toBe(true);
   expect(existsSync(path.join(root, 'bin', 'openbox-cli.mjs'))).toBe(true);
   expect(existsSync(path.join(root, 'bin', 'openbox-plugin-doctor'))).toBe(true);
-  expect(existsSync(path.join(project, '.claude-hooks', 'config.json'))).toBe(true);
+  expect(existsSync(path.join(project, '.openbox', 'claude-code', 'config.json'))).toBe(true);
   expect(existsSync(path.join(project, '.claude', 'settings.json'))).toBe(false);
 
   const runtimeConfig = JSON.parse(
-    readFileSync(path.join(project, '.claude-hooks', 'config.json'), 'utf-8'),
+    readFileSync(path.join(project, '.openbox', 'claude-code', 'config.json'), 'utf-8'),
   );
   expect(runtimeConfig).toMatchObject({
     hitlEnabled: true,
@@ -117,6 +117,41 @@ describe('claude-code plugin install / uninstall', () => {
       const timeout = hooks[event][0]?.hooks?.[0]?.timeout;
       expect(timeout, `${event} timeout missing or too short`).toBeGreaterThanOrEqual(300);
     }
+  });
+
+  it('runtime install writes active auth to Claude local settings', () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'obx-cc-plugin-runtime-'));
+
+    const runtimeKey = 'obx_test_' + '2'.repeat(48);
+    const r = runCli(
+      [
+        'claude-code',
+        'plugin',
+        'install',
+        '--scope',
+        'project',
+        '--cwd',
+        project,
+        '--runtime-api-key',
+        runtimeKey,
+        '--core-url',
+        'http://127.0.0.1:8086',
+      ],
+      project,
+    );
+    expect(r.status, `install failed: ${r.stderr}`).toBe(0);
+
+    const settings = JSON.parse(
+      readFileSync(path.join(project, '.claude', 'settings.local.json'), 'utf-8'),
+    );
+    expect(settings.env.OPENBOX_API_KEY).toBe(runtimeKey);
+    expect(settings.env.OPENBOX_CORE_URL).toBe('http://127.0.0.1:8086');
+
+    const runtimeConfig = JSON.parse(
+      readFileSync(path.join(project, '.openbox', 'claude-code', 'config.json'), 'utf-8'),
+    );
+    expect(runtimeConfig.OPENBOX_API_KEY).toBeUndefined();
+    expect(runtimeConfig.OPENBOX_CORE_URL).toBeUndefined();
   });
 
   it('top-level install claude-code uses the same plugin path', () => {

@@ -76,7 +76,7 @@ vi.mock('../../ts/src/core-client/generated/runtime/cursor.js', async (importOri
 });
 
 vi.mock('../../ts/src/runtime/cursor/config.js', () => ({
-  getConfigDir: vi.fn(() => '/tmp/openbox-cursor-hook-handler-test/.cursor-hooks'),
+  getConfigDir: vi.fn(() => '/tmp/openbox-cursor-hook-handler-test/.openbox/cursor'),
   loadConfig: vi.fn(() => ({
     openboxApiKey: process.env.OPENBOX_API_KEY ?? '',
     openboxEndpoint: 'http://core.test',
@@ -96,7 +96,7 @@ vi.mock('../../ts/src/runtime/cursor/config.js', () => ({
     hitlPollInterval: 5,
     hitlMaxWait: 2,
     approvalMode: mockApprovalMode,
-    taskQueue: 'cursor-hooks',
+    taskQueue: 'cursor',
     sendStartEvent: true,
     sendActivityStartEvent: true,
     maxBodySize: null,
@@ -256,7 +256,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     });
   });
 
-  it('covers approval socket fallback branches and summary sources', async () => {
+  it('covers approval socket alternate branches and summary sources', async () => {
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();
@@ -409,18 +409,18 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     });
   });
 
-  it('fails closed when Core returns a fallback allow for a decision hook', async () => {
+  it('fails closed when Core returns a governance-checks-incomplete allow for a decision hook', async () => {
     const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
 
     await runCursorHook();
     const session = {
       activity: vi.fn(async () => ({ arm: 'allow' })),
       openActivity: vi.fn(async () => ({
-        activityId: 'cursor-fallback-activity',
+        activityId: 'cursor-governance-checks-incomplete-activity',
         verdict: {
           arm: 'allow',
           riskScore: 0,
-          fallbackUsed: true,
+          governanceChecksIncomplete: true,
         },
       })),
       workflowStarted: vi.fn(async () => undefined),
@@ -430,8 +430,8 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     await expect(
       adapterOptions.handlers.beforeShellExecution(
         {
-          conversation_id: 'cursor-fallback',
-          generation_id: 'cursor-fallback-generation',
+          conversation_id: 'cursor-governance-checks-incomplete',
+          generation_id: 'cursor-governance-checks-incomplete-generation',
           hook_event_name: 'beforeShellExecution',
           command: 'pwd',
           cwd: '/tmp',
@@ -440,7 +440,7 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       ),
     ).resolves.toMatchObject({
       arm: 'block',
-      reason: expect.stringContaining('governance fallback used'),
+      reason: expect.stringContaining('required governance checks did not complete'),
     });
   });
 

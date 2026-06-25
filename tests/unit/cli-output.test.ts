@@ -150,6 +150,14 @@ describe('output: row + summary', () => {
     ]);
   });
 
+  it('row separates long target names from status and hang-indents multiline details', () => {
+    row('plugin-component-inventory', 'pass', '11 component(s)\n/path/to/component-inventory.json');
+    expect(captureLog(logSpy)).toEqual([
+      'plugin-component-inventory  pass          11 component(s)',
+      '                                          /path/to/component-inventory.json',
+    ]);
+  });
+
   it('summary line emits `done.` with key=value parts', () => {
     summary({ installed: 2, skipped: 1, failed: 0 });
     expect(captureLog(logSpy)).toEqual(['done. installed=2 skipped=1 failed=0']);

@@ -76,7 +76,7 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
   behavioralViolations?: WorkflowVerdict['behavioralViolations'];
   constraints?: WorkflowVerdict['constraints'];
   metadata?: WorkflowVerdict['metadata'];
-  fallbackUsed?: WorkflowVerdict['fallbackUsed'];
+  governanceChecksIncomplete?: WorkflowVerdict['governanceChecksIncomplete'];
   guardrailsResult?: WorkflowVerdict['guardrailsResult'];
   ageResult?: AGEResult;
   redactionSummary?: string;
@@ -94,6 +94,8 @@ export interface OpenBoxCopilotActionResult<TArtifact = unknown> {
 
 export interface OpenBoxCopilotKitConfig {
   enabled?: boolean;
+  /** Project root used for optional .openbox/copilotkit config lookup. */
+  cwd?: string;
   strict?: boolean;
   /** @deprecated Compatibility no-op. Runtime governance is always enforced. */
   governanceMode?: 'observe' | 'enforce';

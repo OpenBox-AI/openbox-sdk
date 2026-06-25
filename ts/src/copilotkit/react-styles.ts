@@ -150,7 +150,7 @@ export const openBoxRendererCss = `
   padding:.28rem;
 }
 .obx-renderer-mark--image img{display:block;width:100%;height:100%;object-fit:contain}
-.obx-renderer-mark--fallback{
+.obx-renderer-mark--text{
   color:var(--obx-verdict);
   background:transparent;
   border:1px solid color-mix(in srgb,var(--obx-verdict) 32%,transparent);

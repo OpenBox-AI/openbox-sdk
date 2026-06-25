@@ -68,7 +68,7 @@ function hashKey(raw: string): string {
    * generation would collide (rare); publish grace plus timeout-deny
    * behavior limits the blast radius.
  *
- * conversation_id is the fallback when generation_id is missing
+ * conversation_id is the stable key when generation_id is missing
  * (some envelopes don't carry it consistently).
  */
 export function buildActionKey(parts: {
@@ -246,7 +246,7 @@ export function claimAction(key: string): ActionClaim {
 export interface ClaimDecision {
   arm: 'allow' | 'constrain' | 'require_approval' | 'block' | 'halt';
   reason: string;
-  fallbackUsed?: boolean;
+  governanceChecksIncomplete?: boolean;
 }
 
 /** Grace window after publishing the decision before the winner
@@ -283,7 +283,7 @@ export function publishClaimDecision(claim: ActionClaim, decision: ClaimDecision
         ts: Date.now(),
         arm: decision.arm,
         reason: decision.reason,
-        fallbackUsed: decision.fallbackUsed === true,
+        governanceChecksIncomplete: decision.governanceChecksIncomplete === true,
       }),
       { mode: 0o600 },
     );
@@ -314,7 +314,7 @@ function readDecisionOnce(lockPath: string): ClaimDecision | null {
   } catch {
     return null; // file vanished or unreadable; treat as not-ready
   }
-  let parsed: { arm?: string; reason?: string; fallbackUsed?: unknown };
+  let parsed: { arm?: string; reason?: string; governanceChecksIncomplete?: unknown };
   try {
     parsed = JSON.parse(content);
   } catch {
@@ -324,7 +324,7 @@ function readDecisionOnce(lockPath: string): ClaimDecision | null {
   return {
     arm: parsed.arm as ClaimDecision['arm'],
     reason: typeof parsed.reason === 'string' ? parsed.reason : '',
-    fallbackUsed: parsed.fallbackUsed === true,
+    governanceChecksIncomplete: parsed.governanceChecksIncomplete === true,
   };
 }
 
@@ -339,22 +339,18 @@ function publishedDecisionExpired(lockPath: string): boolean {
   }
 }
 
-export function verdictUsesGovernanceFallback(value: unknown): boolean {
+export function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
-    ? record.metadata as Record<string, unknown>
-    : {};
   const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
     ? record.ageResult as Record<string, unknown>
     : record.age_result && typeof record.age_result === 'object' && !Array.isArray(record.age_result)
       ? record.age_result as Record<string, unknown>
       : {};
-  return record.fallbackUsed === true
-    || record.fallback_used === true
-    || metadata.age_fallback_used === true
-    || metadata.fallback_used === true
-    || ageResult.fallback_used === true;
+  return record.governanceChecksIncomplete === true
+    || record.governance_checks_incomplete === true
+    || ageResult.governanceChecksIncomplete === true
+    || ageResult.governance_checks_incomplete === true;
 }
 
 /**

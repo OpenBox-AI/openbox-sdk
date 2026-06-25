@@ -66,6 +66,7 @@ interface BodyRule extends Omit<QueryRule, 'name'> {
   path: readonly string[];
   minItems?: number;
   maxItems?: number;
+  allowObject?: boolean;
 }
 
 interface RequestRule {
@@ -163,6 +164,45 @@ describe('generated request preflight conformance', () => {
       ledger.summary.knownRawSemanticGaps,
     );
     expect(rawGapConstraints).toEqual([]);
+  });
+
+  it('allows behavior-rule string/object state union inputs and rejects invalid object semantics', () => {
+    const body = {
+      rule_name: 'behavior-state-object-preflight',
+      priority: 1,
+      trigger: 'http_post',
+      trigger_match: [{ field: 'http_url', op: 'contains', value: '/admin' }],
+      states: [
+        {
+          semantic_type: 'file_read',
+          match: [{ field: 'file_path', op: 'contains', value: '/private' }],
+        },
+      ],
+      time_window: 1,
+      verdict: 3,
+      reject_message: 'blocked by preflight test',
+    };
+
+    expect(() =>
+      validateBackendRequest(
+        'POST',
+        '/agent/00000000-0000-4000-8000-000000000000/behavior-rule',
+        undefined,
+        body,
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      validateBackendRequest(
+        'POST',
+        '/agent/00000000-0000-4000-8000-000000000000/behavior-rule',
+        undefined,
+        {
+          ...body,
+          states: [{ semantic_type: '__openbox_invalid_enum__' }],
+        },
+      ),
+    ).toThrow(/RequestPreflightError|must /);
   });
 });
 
@@ -378,12 +418,24 @@ function collectBodyRules(
   const out: BodyRule[] = [];
   const constraints = constraintsFromSchema(resolved);
   if (path.length > 0 && constraints) out.push({ path, ...constraints });
-  for (const branch of [
+  const branches = [
     ...(resolved.allOf ?? []),
     ...(resolved.oneOf ?? []),
     ...(resolved.anyOf ?? []),
-  ]) {
-    out.push(...collectBodyRules(branch, openApi, path, new Set(seen)));
+  ];
+  const unionAllowsObject = branches.some((branch) =>
+    schemaAllowsObject(branch, openApi, new Set(seen)),
+  );
+  for (const branch of branches) {
+    const branchRules = collectBodyRules(branch, openApi, path, new Set(seen));
+    out.push(...branchRules.map((rule) =>
+      unionAllowsObject &&
+        rule.path.length === path.length &&
+        rule.path.every((segment, index) => segment === path[index]) &&
+        rule.type === 'string'
+        ? { ...rule, allowObject: true }
+        : rule,
+    ));
   }
   for (const [key, property] of Object.entries(resolved.properties ?? {})) {
     out.push(...collectBodyRules(property, openApi, [...path, key], new Set(seen)));
@@ -392,6 +444,19 @@ function collectBodyRules(
     out.push(...collectBodyRules(resolved.items, openApi, [...path, '*'], new Set(seen)));
   }
   return out;
+}
+
+function schemaAllowsObject(schema: OpenApiSchema | undefined, openApi: OpenApiDocument, seen = new Set<string>()): boolean {
+  if (!schema) return false;
+  const resolved = resolveSchema(schema, openApi, seen);
+  if (resolved.type === 'object' || (resolved.properties && Object.keys(resolved.properties).length > 0)) {
+    return true;
+  }
+  return [
+    ...(resolved.allOf ?? []),
+    ...(resolved.oneOf ?? []),
+    ...(resolved.anyOf ?? []),
+  ].some((branch) => schemaAllowsObject(branch, openApi, new Set(seen)));
 }
 
 function constraintsFromSchema(schema: OpenApiSchema): Omit<BodyRule, 'path'> | null {

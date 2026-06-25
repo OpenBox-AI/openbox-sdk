@@ -6,9 +6,23 @@ import {
   assertString,
   flattenCommandSteps,
   normalizeCommandSteps,
+  repoRoot,
   readSdkTargetsFixture,
+  rootE2eRunId,
   runSteps,
 } from './lib/spec-steps.mjs';
+
+const defaultSharedAgentName = `e2e-agent-${rootE2eRunId}`.slice(0, 120);
+const matrixPrewarmLanes = new Set([
+  'claude-code-stdin-governance',
+  'codex-governance',
+  'cursor-governance',
+  'mcp-protocol-governance',
+  'openai-agents-sdk-governance',
+  'anthropic-agent-sdk-governance',
+  'copilotkit-governance',
+  'n8n-governance',
+]);
 
 function readLaneManifest() {
   const fixture = readSdkTargetsFixture(
@@ -51,8 +65,34 @@ function attachLaneEnv(step, laneId) {
     env: {
       ...step.env,
       OPENBOX_LOCAL_STACK_PROOF_LANE: laneId,
+      OPENBOX_E2E_SHARED_AGENT: step.env?.OPENBOX_E2E_SHARED_AGENT ?? '1',
+      OPENBOX_E2E_SHARED_AGENT_NAME: step.env?.OPENBOX_E2E_SHARED_AGENT_NAME
+        ?? process.env.OPENBOX_E2E_SHARED_AGENT_NAME
+        ?? defaultSharedAgentName,
     },
   };
+}
+
+function shouldPrewarmMatrix(lanes) {
+  return lanes.filter((lane) => matrixPrewarmLanes.has(lane.id)).length > 1;
+}
+
+function prewarmMatrixStep() {
+  return attachLaneEnv({
+    type: 'command',
+    id: 'prewarm-local-governance-matrix',
+    label: 'Prewarm local governance matrix',
+    command: 'npx',
+    args: [
+      'vitest',
+      'run',
+      '--project',
+      'hook-integration',
+      'tests/hook-integration/local-governance-matrix-prewarm.test.ts',
+    ],
+    cwd: repoRoot,
+    env: {},
+  }, 'prewarm-local-governance-matrix');
 }
 
 function usage(lanes) {
@@ -87,5 +127,18 @@ const selected = args.map((id) => {
   }
   return laneStep(lane);
 });
+const selectedLanes = args.map((id) => laneById.get(id));
+const steps = [
+  ...(shouldPrewarmMatrix(selectedLanes) ? [prewarmMatrixStep()] : []),
+  selected.length > 1
+    ? {
+        type: 'group',
+        id: 'selected-local-stack-proof-lanes',
+        label: 'Selected local-stack proof lanes',
+        parallel: true,
+        steps: selected,
+      }
+    : selected[0],
+];
 
-await runSteps(selected);
+await runSteps(steps);

@@ -144,45 +144,6 @@ function errorMessage(error: unknown): string {
   return 'Unknown provider error';
 }
 
-function buildFallbackText(nodeName: string, prompt: string): string {
-  if (nodeName.includes('Governed LLM Draft')) {
-    const field = (label: string): string | undefined => {
-      const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const match = prompt.match(new RegExp(`${escaped}:\\s*(.+)`, 'i'));
-      return match?.[1]?.trim();
-    };
-    const ticketId = field('Ticket ID') ?? 'N8N-DEMO';
-    const customer = field('Customer') ?? 'the customer';
-    const route = field('Suggested route') ?? 'support-queue';
-    const severity = field('Initial severity') ?? 'normal';
-    const review = /human review required:\s*yes/i.test(prompt)
-      ? 'human-review-required'
-      : 'auto-reply-candidate';
-
-    return [
-      '**Summary**',
-      `${customer} reported a support issue. Initial routing is ${route} with ${severity} severity.`,
-      '',
-      '**Customer Reply Draft**',
-      'Hi,',
-      'Thanks for reaching out. We are reviewing the issue and will follow up with the next safe step after checking the account context.',
-      'Best,',
-      'Support Team',
-      '',
-      '**Internal Next Step**',
-      `Route ticket ${ticketId} to ${route}. Review status: ${review}.`,
-      '',
-      '**Risks**',
-      'Do not confirm refunds, security state, account changes, or sensitive details until a human has verified them.',
-    ].join('\n');
-  }
-
-  return [
-    `OpenBox checkpoint passed for ${nodeName}.`,
-    'Provider fallback generated this checkpoint text because the configured LLM provider was unavailable.',
-  ].join('\n');
-}
-
 function deterministicBlockReason(nodeName: string, prompt: string): string | undefined {
   const lower = prompt.toLowerCase();
   const hasPaymentCard = /\b(?:\d[ -]*?){13,19}\b/.test(prompt);
@@ -466,11 +427,11 @@ export class OpenboxLlm implements INodeType {
       pre?: WorkflowVerdict,
       post?: WorkflowVerdict,
     ) => {
-      const fallback =
+      const defaultReason =
         stage === 'input'
           ? 'Request blocked by governance'
           : 'Response blocked by governance';
-      const reason = verdict.reason ?? fallback;
+      const reason = verdict.reason ?? defaultReason;
       const text =
         stage === 'input'
           ? `Request blocked by OpenBox before ${node.name}: ${reason}`
@@ -514,6 +475,28 @@ export class OpenboxLlm implements INodeType {
       };
     };
 
+    const governanceErrorResult = (
+      error: unknown,
+      session: { workflowId: string; runId: string },
+      pre?: WorkflowVerdict,
+    ) => {
+      const reason = errorMessage(error);
+      return {
+        text: `Request stopped by OpenBox at ${node.name}: governance post-check failed closed. ${reason}`,
+        meta: {
+          governed: true,
+          blocked: true,
+          governanceError: true,
+          nodeName: node.name,
+          blockStage: 'post-governance-error',
+          blockReason: reason,
+          workflowId: session.workflowId,
+          runId: session.runId,
+          pre: pre ? { arm: pre.arm, riskScore: pre.riskScore, reason: pre.reason } : undefined,
+        },
+      };
+    };
+
     const result = await govern(
       { core, preset: presets.n8n, workflowType: 'N8nChatWorkflow', taskQueue: 'n8n' },
       async (session) => {
@@ -547,18 +530,14 @@ export class OpenboxLlm implements INodeType {
           };
         }
 
-        let text: string;
-        let llmCall: LlmCallResult | undefined;
-        let providerFallback: { enabled: boolean; reason?: string } = { enabled: false };
+        let llmCall: LlmCallResult;
         try {
           llmCall = await callLlm(promptToUse);
-          text = llmCall.text;
         } catch (error) {
-          providerFallback = { enabled: true, reason: errorMessage(error) };
-          text = buildFallbackText(node.name, promptToUse);
+          return providerErrorResult(error, session, pre);
         }
 
-        let postSkipped: string | undefined;
+        const text = llmCall.text;
         let post: WorkflowVerdict;
         try {
           post = await emitN8nLlmCompletion(session, {
@@ -571,19 +550,14 @@ export class OpenboxLlm implements INodeType {
             responseBody: llmCall?.responseBody,
             providerUrl: llmCall?.providerUrl,
             actualProviderUrl: llmCall?.actualProviderUrl,
-            provider: llmCall ? llmProvider : 'fallback',
+            provider: llmProvider,
             nodeName: node.name,
             startTime: llmCall?.startTime,
             endTime: llmCall?.endTime,
             durationNs: llmCall?.durationNs,
           });
         } catch (error) {
-          postSkipped = errorMessage(error);
-          post = {
-            arm: 'allow',
-            riskScore: pre.riskScore,
-            reason: `Post-check skipped: ${postSkipped}`,
-          } as WorkflowVerdict;
+          return governanceErrorResult(error, session, pre);
         }
         if (!isAllowed(post)) {
           return blockedResult(post, 'output', session, pre, post);
@@ -603,9 +577,6 @@ export class OpenboxLlm implements INodeType {
             nodeName: node.name,
             model: llmCall?.model,
             usage: llmCall?.usage,
-            providerFallback: providerFallback.enabled,
-            providerFallbackReason: providerFallback.reason,
-            postSkipped,
             pre: { arm: pre.arm, riskScore: pre.riskScore, reason: pre.reason },
             post: { arm: post.arm, riskScore: post.riskScore, reason: post.reason },
           },

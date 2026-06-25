@@ -107,7 +107,7 @@ export function applyInputRedaction<T = unknown>(
 /**
  * Apply core's output redaction over the ORIGINAL activity output. Provider
  * bridges may set `redactedOutput`; Core puts output transforms in
- * `redactedInput`, so keep that fallback.
+ * `redactedInput`, so both fields are accepted.
  */
 export function applyOutputRedaction<T = unknown>(
   originalOutput: T,
@@ -167,14 +167,14 @@ function isInputLikeGuardrail(inputType: GuardrailsVerdict['inputType']): boolea
 
 export function summarizeGuardrailRedaction(
   guardrails: GuardrailsVerdict | undefined,
-  fallback = 'OpenBox redacted sensitive fields.',
+  defaultMessage = 'OpenBox redacted sensitive fields.',
 ): string {
   const fields = guardrails?.fieldResults
     ?.filter((field) => isRedactedStatus(field.status))
     .map((field) => field.field)
     .filter(Boolean);
   const uniqueFields = Array.from(new Set(fields));
-  if (!uniqueFields.length) return fallback;
+  if (!uniqueFields.length) return defaultMessage;
 
   return `OpenBox redacted ${uniqueFields.slice(0, 4).join(', ')}${
     uniqueFields.length > 4 ? ` and ${uniqueFields.length - 4} more ${uniqueFields.length - 4 === 1 ? 'field' : 'fields'}` : ''

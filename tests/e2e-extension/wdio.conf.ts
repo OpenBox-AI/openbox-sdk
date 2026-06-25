@@ -75,9 +75,9 @@ process.env.OPENBOX_API_URL = process.env.OPENBOX_API_URL ?? DEFAULT_API_URL;
 process.env.OPENBOX_CORE_URL = process.env.OPENBOX_CORE_URL ?? DEFAULT_CORE_URL;
 
 const usingLocalTarget = isLocalUrl(process.env.OPENBOX_API_URL) && isLocalUrl(process.env.OPENBOX_CORE_URL);
-const allowLocalCredentialFallback = usingLocalTarget || (!explicitApiUrl && !explicitCoreUrl);
+const allowLocalCredentialCache = usingLocalTarget || (!explicitApiUrl && !explicitCoreUrl);
 
-if (allowLocalCredentialFallback && (!process.env.OPENBOX_AGENT_ID || !process.env.OPENBOX_API_KEY)) {
+if (allowLocalCredentialCache && (!process.env.OPENBOX_AGENT_ID || !process.env.OPENBOX_API_KEY)) {
   const keysFile = resolve(ROOT, '.openbox', 'agent-keys');
   if (existsSync(keysFile)) {
     try {
@@ -96,7 +96,7 @@ if (allowLocalCredentialFallback && (!process.env.OPENBOX_AGENT_ID || !process.e
   }
 }
 
-if (allowLocalCredentialFallback && !process.env.OPENBOX_BACKEND_API_KEY) {
+if (allowLocalCredentialCache && !process.env.OPENBOX_BACKEND_API_KEY) {
   for (const tokenFile of [
     resolve(ROOT, '.tokens'),
     resolve(ROOT, '.openbox', 'tokens'),

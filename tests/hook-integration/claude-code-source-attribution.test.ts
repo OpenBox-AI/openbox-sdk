@@ -50,7 +50,7 @@ describe('approvalSource() contract for claude-code spans', () => {
     expect(approvalSource({ spans: [] } as unknown as Approval)).toBeUndefined();
   });
 
-  it('reads input[0]._openbox_source as a fallback when spans are stripped', () => {
+  it('reads input[0]._openbox_source when spans are stripped', () => {
     // The backend's pending-list endpoint strips spans for response
     // size, leaving `input` as the only adapter-controlled field
     // that survives. stampSource() writes the host into

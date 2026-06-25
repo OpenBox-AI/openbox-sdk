@@ -65,7 +65,7 @@ PROVIDER_CAPABILITY_MATRIX = [
     "provider": "codex",
     "capability": "rules-instructions",
     "tier": "wrapped",
-    "rationale": "Governance instructions render to AGENTS.md/skills; command-prefix execution policy renders to .codex/rules only when exact prefixes exist."
+    "rationale": "Governance instructions render to AGENTS.md/skills; command-prefix execution policy renders to .codex/rules for exact prefixes."
   },
   {
     "provider": "codex",
@@ -161,7 +161,7 @@ PROVIDER_CAPABILITY_MATRIX = [
     "provider": "cursor",
     "capability": "approvals-hitl",
     "tier": "native",
-    "rationale": "Cursor hook decisions integrate with the extension/native approval path and Core polling fallback."
+    "rationale": "Cursor hook decisions integrate with the extension/native approval path and Core polling."
   },
   {
     "provider": "cursor",
@@ -329,7 +329,7 @@ PROVIDER_CAPABILITY_MATRIX = [
     "provider": "mcp",
     "capability": "approvals-hitl",
     "tier": "native",
-    "rationale": "Approval list/decision tools and Core polling fallback are exposed."
+    "rationale": "Approval list/decision tools and Core polling are exposed."
   },
   {
     "provider": "mcp",
@@ -8143,9 +8143,9 @@ CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE = {
     },
     {
       "capability": "project-scoped runtime configuration",
-      "sdkSurface": "Claude .claude-hooks config loader and plugin install",
+      "sdkSurface": "Claude .claude/settings.local.json env plus .openbox/claude-code hook state",
       "claudeCodeTreatment": "implement_now",
-      "coverage": "Claude hooks read only project .claude-hooks config/env plus process env; host-level Claude config is not mutated.",
+      "coverage": "Claude hooks read official project-local settings env plus OpenBox-owned project state only; old hook-runtime directories are not consulted.",
       "tests": [
         "tests/hook-integration/claude-code-install.test.ts",
         "tests/unit/logging-and-config-coverage.test.ts"
@@ -8189,7 +8189,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "openBoxToolOutputGuardrail",
       "runWithOpenBox",
       "createOpenBoxAgentsTool",
-      "verifyOpenBoxAgentsSDKConfig"
+      "verifyOpenBoxAgentsSDKConfig",
+      "resolveProjectConfigDir"
     ],
     "notes": "Native helpers plus compatibility wrappers for the OpenAI Agents SDK."
   },
@@ -8201,7 +8202,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "createOpenBoxAnthropicAgentHooks",
       "withOpenBoxAnthropicAgentOptions",
       "createOpenBoxAnthropicAgentSDK",
-      "verifyOpenBoxAnthropicAgentSDKConfig"
+      "verifyOpenBoxAnthropicAgentSDKConfig",
+      "resolveProjectConfigDir"
     ],
     "notes": "Native hook/options/query wrapper coverage; WorktreeCreate remains opt-in at host level."
   },
@@ -8214,7 +8216,8 @@ PUBLIC_INTEGRATION_SUPPORT = [
       "createOpenBoxAGUIAdapter",
       "createOpenBoxHeadlessApprovalClient",
       "createOpenBoxApprovalRoute",
-      "createOpenBoxReadinessCheck"
+      "createOpenBoxReadinessCheck",
+      "resolveProjectConfigDir"
     ],
     "notes": "CopilotKit runtime, AG-UI event stream, React renderers, and headless HITL helpers."
   },
@@ -8560,7 +8563,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "PreToolUse permission gate",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "Codex permission ask/defer hook output",
-    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "continuationSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/codex-runtime.test.ts#maps approval-required PreToolUse verdicts to Codex permission ask",
     "failClosedBehavior": "Permission gates use native ask/defer support and otherwise deny or block unsafe continuation."
   },
@@ -8570,7 +8573,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "beforeShellExecution and beforeSubmitPrompt",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "Cursor notification with deny/continue:false hook output",
-    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "continuationSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/contract/cursor-hook-contract.test.ts#cursor-permission require_approval (poll timed out) -> deny (ask is silently no-op in Cursor; deny is the only working gate)",
     "failClosedBehavior": "Cursor returns deny or continue:false when approval remains pending."
   },
@@ -8580,7 +8583,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "PreToolUse and PermissionRequest",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "Claude Code permissionDecision ask/defer",
-    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "continuationSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/runtime-adapters.test.ts#permission-decision require_approval -> permissionDecision:\"ask\"",
     "failClosedBehavior": "Claude Code asks/defer on permission gates and blocks decision-block surfaces while approval is pending."
   },
@@ -8590,7 +8593,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "check_governance",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "list_pending_approvals and decide_approval MCP tools",
-    "fallbackSurface": "Core approval rows",
+    "continuationSurface": "Core approval rows",
     "guardTest": "tests/unit/mcp-server-coverage.test.ts#stamps Cursor MCP governance approvals with cursor-mcp source",
     "failClosedBehavior": "MCP callers halt on require_approval until decide_approval resolves the Core row."
   },
@@ -8600,7 +8603,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "input, output, tool input, and tool output guardrails",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "OpenBox guardrail outputInfo or throwException behavior",
-    "fallbackSurface": "Caller-managed interruption or Core polling",
+    "continuationSurface": "Caller-managed interruption or Core polling",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#maps OpenBox tool guardrail verdicts to fail-closed tool behavior",
     "failClosedBehavior": "Guardrails surface require_approval in outputInfo and throw for tool execution."
   },
@@ -8610,7 +8613,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "PreToolUse",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "Anthropic hook permissionDecision ask/defer",
-    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "continuationSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#maps approval-required PreToolUse verdicts to ask or defer",
     "failClosedBehavior": "Anthropic Agent SDK asks/defer on permission gates and blocks unsupported continuation."
   },
@@ -8620,7 +8623,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "governed tool resume and pollApproval",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "React renderers, headless approval client, and approval route",
-    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "continuationSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#does not reopen approval after an approved resume completes the tool",
     "failClosedBehavior": "CopilotKit interrupts/polls until approval resolves and does not reopen completed approvals."
   },
@@ -8630,7 +8633,7 @@ HITL_CAPABILITY_GUARDS = [
     "requireApprovalSurface": "emitN8nNodePreExecute",
     "sourceAttribution": "metadata.source | input[0]._openbox_source | spans[0].module",
     "nativeSurface": "OpenBox Approval/HITL node",
-    "fallbackSurface": "Core polling plus MCP/CLI approval tools",
+    "continuationSurface": "Core polling plus MCP/CLI approval tools",
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n pre-execute approvals keep source attribution through Core polling",
     "failClosedBehavior": "n8n pre-execute gates poll Core and preserve n8n source attribution."
   }
@@ -9277,7 +9280,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "Codex hooks/hooks.json in plugin mode and project .codex/hooks.json invoke openbox codex hook.",
     "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CODEX_HOOK_SPEC events for UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, and Stop.",
     "enforcementBoundary": "Codex prompt/tool/output hooks send spans to Core and enforce returned verdicts fail-closed.",
-    "fallbackOrOutOfScope": "Project-local install only; no global Codex hook configuration is mutated.",
+    "scopeBoundary": "Project-local install only; no global Codex hook configuration is mutated.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins generated hook events to the event catalog"
   },
   {
@@ -9286,7 +9289,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "Cursor plugin hooks/hooks.json and repo .cursor/hooks.json invoke openbox cursor hook.",
     "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CURSOR_HOOK_SPEC events including prompt, file, shell, MCP, subagent, compaction, and stop surfaces.",
     "enforcementBoundary": "Cursor pre-action hooks send spans to Core and enforce guardrail/policy verdicts fail-closed; post hooks observe outputs.",
-    "fallbackOrOutOfScope": "Project-local plugin or repo-mode install only; user-level Cursor hook configuration is not mutated.",
+    "scopeBoundary": "Project-local plugin or repo-mode install only; user-level Cursor hook configuration is not mutated.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins generated hook events to the event catalog"
   },
   {
@@ -9295,7 +9298,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "Claude Code plugin hooks/hooks.json invokes the project-local OpenBox CLI runner for default and opt-in hook events.",
     "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match CLAUDE_HOOK_SPEC generated hook metadata, with WorktreeCreate and SessionEnd opt-in by default.",
     "enforcementBoundary": "Claude Code prompt/tool/permission hooks send spans to Core and enforce returned verdicts fail-closed; opt-in worktree hooks are disabled by default.",
-    "fallbackOrOutOfScope": "Project-local plugin install only; monitors are opt-in and direct settings writes are avoided.",
+    "scopeBoundary": "Project-local plugin install only; monitors are opt-in and direct settings writes are avoided.",
     "guardTest": "tests/unit/claude-code-governance-matrix.test.ts#derives hook governance directly from generated HOOK_SPEC metadata"
   },
   {
@@ -9304,7 +9307,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "No host hook surface exists for MCP itself; MCP is a server protocol.",
     "eventCoverage": "MCP exposes tools, prompts, and resources rather than upstream hook events.",
     "enforcementBoundary": "MCP check_governance sends spans to Core when called; there is no host hook lifecycle to pre-gate.",
-    "fallbackOrOutOfScope": "Out-of-scope for hooks because plugin adapters or clients own hook installation.",
+    "scopeBoundary": "Out-of-scope for hooks because plugin adapters or clients own hook installation.",
     "guardTest": "tests/unit/provider-capability-matrix.test.ts#pins hook support claims to explicit hook surface coverage"
   },
   {
@@ -9313,7 +9316,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "createOpenBoxAgentHooks returns native OpenAI AgentHooks lifecycle handlers backed by OpenBox sessions.",
     "eventCoverage": "AgentHooks lifecycle covers agent start/end/error, tool start/end/error, and model/output observation through tracing processor helpers.",
     "enforcementBoundary": "Native hook callbacks open sessions and emit Core spans; tracing observes hosted/built-in/MCP tool use that cannot always be pre-gated.",
-    "fallbackOrOutOfScope": "No host hook files are installed; consumers import SDK helpers and wire them into OpenAI Agents SDK runs.",
+    "scopeBoundary": "No host hook files are installed; consumers import SDK helpers and wire them into OpenAI Agents SDK runs.",
     "guardTest": "tests/unit/openai-agents-sdk.test.ts#creates native AgentHooks lifecycle handlers backed by OpenBox sessions"
   },
   {
@@ -9322,7 +9325,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "createOpenBoxAnthropicAgentHooks and withOpenBoxAnthropicAgentOptions register Anthropic Agent SDK hook handlers.",
     "eventCoverage": "PROVIDER_EVENT_CATALOG generatedAdapterEvents must match official HOOK_EVENTS, with WorktreeCreate opt-in by default.",
     "enforcementBoundary": "Anthropic Agent SDK hooks send prompt/tool/permission/project spans to Core and enforce returned verdicts.",
-    "fallbackOrOutOfScope": "No host plugin files are installed; hook helpers are runtime SDK configuration.",
+    "scopeBoundary": "No host plugin files are installed; hook helpers are runtime SDK configuration.",
     "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#registers every official Agent SDK hook except WorktreeCreate by default"
   },
   {
@@ -9331,7 +9334,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "createOpenBoxCopilotKitAdapter wraps CopilotKit runtime, LangChain middleware, tool, prompt, output, and AG-UI surfaces.",
     "eventCoverage": "Wrapped CopilotKit hooks map run lifecycle, messages, tool calls/results, shared state, errors, interrupts, and middleware callbacks to OpenBox activities.",
     "enforcementBoundary": "Wrapped prompt/tool/output gates send spans to Core and project returned verdicts into CopilotKit continuation, interruption, or terminal results.",
-    "fallbackOrOutOfScope": "No host hook files are installed; application runtime wiring owns adapter registration.",
+    "scopeBoundary": "No host hook files are installed; application runtime wiring owns adapter registration.",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#pauses on approval-required prompt verdict without calling the model"
   },
   {
@@ -9340,7 +9343,7 @@ HOOK_CAPABILITY_GUARDS = [
     "hookSurface": "emitN8nUserPromptSignal, emitN8nNodePreExecute, emitN8nNodePostExecute, and emitN8nLlmCompletion provide hook-equivalent gates.",
     "eventCoverage": "Wrapped n8n helpers map node pre/post execution and LLM completion to OpenBox lifecycle and activity spans.",
     "enforcementBoundary": "n8n helper calls send spans to Core and project returned verdicts into node/template behavior.",
-    "fallbackOrOutOfScope": "No n8n instance mutation; operator-owned workflows consume packaged node/template descriptors.",
+    "scopeBoundary": "No n8n instance mutation; operator-owned workflows consume packaged node/template descriptors.",
     "guardTest": "tests/unit/govern-invariants.test.ts#n8n runtime helpers send node lifecycle events and hook completion spans"
   }
 ]
@@ -9674,27 +9677,27 @@ INSTALL_DOCTOR_CAPABILITY_GUARDS = [
     "tier": "diagnose-only",
     "installSurface": "No host install surface; consumers import SDK helpers",
     "doctorSurface": "verifyOpenBoxAgentsSDKConfig runtime configuration diagnostics",
-    "scopeBoundary": "diagnose-only runtime library checks; no files installed",
+    "scopeBoundary": "diagnose-only runtime library checks; optional .openbox/openai-agents-sdk config is read-only and never installed",
     "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
-    "guardTest": "tests/unit/openai-agents-sdk.test.ts#diagnoses runtime-only OpenAI Agents SDK configuration without host file mutation"
+    "guardTest": "tests/unit/openai-agents-sdk.test.ts#reads optional project-local OpenAI Agents runtime config without mutation"
   },
   {
     "provider": "anthropic-agent-sdk",
     "tier": "diagnose-only",
     "installSurface": "No host install surface; consumers import SDK helpers",
     "doctorSurface": "verifyOpenBoxAnthropicAgentSDKConfig runtime configuration diagnostics",
-    "scopeBoundary": "diagnose-only runtime library checks; no files installed",
+    "scopeBoundary": "diagnose-only runtime library checks; optional .openbox/anthropic-agent-sdk config is read-only and never installed",
     "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
-    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#diagnoses runtime-only Anthropic Agent SDK configuration without host file mutation"
+    "guardTest": "tests/unit/anthropic-agent-sdk.test.ts#reads optional project-local Anthropic Agent SDK runtime config without mutation"
   },
   {
     "provider": "copilotkit",
     "tier": "diagnose-only",
     "installSurface": "No host install surface; consumers wire runtime adapters and approval routes",
     "doctorSurface": "createOpenBoxReadinessCheck runtime readiness diagnostics",
-    "scopeBoundary": "diagnose-only application wiring checks; no host plugin files installed",
+    "scopeBoundary": "diagnose-only application wiring checks; optional .openbox/copilotkit config is read-only and no host plugin files are installed",
     "generatedOrPackagedSurface": "public integration support exports generated from the capability matrix",
-    "guardTest": "tests/unit/copilotkit-adapter.test.ts#readiness treats backend inventory config as optional when Core runtime is configured"
+    "guardTest": "tests/unit/copilotkit-pure-coverage.test.ts#reads optional project-local CopilotKit runtime config without mutation"
   },
   {
     "provider": "n8n",
@@ -11238,10 +11241,10 @@ LOCAL_STACK_SCENARIO_PATHS = [
     "requiredBehavior": "The suite must prove a drifted result through the goal-drift endpoints."
   },
   {
-    "id": "goal-drift-fallback",
+    "id": "goal-drift-unavailable-fail-closed",
     "category": "goal-drift",
     "capability": "goal-signals",
-    "label": "Goal drift fallback is surfaced",
+    "label": "AGE unavailable marks governance checks incomplete",
     "axes": [
       "goal",
       "failure"
@@ -11254,8 +11257,8 @@ LOCAL_STACK_SCENARIO_PATHS = [
     "evidencePatterns": [
       "OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE",
       "AGE unavailable",
-      "toHaveProperty('fallback_used', true)",
-      "fallback_used: true"
+      "toHaveProperty('governance_checks_incomplete', true)",
+      "governance_checks_incomplete: true"
     ],
     "operationEvidencePatterns": [
       {
@@ -11263,12 +11266,12 @@ LOCAL_STACK_SCENARIO_PATHS = [
         "evidencePatterns": [
           "OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE",
           "AGE unavailable",
-          "toHaveProperty('fallback_used', true)",
-          "fallback_used: true"
+          "toHaveProperty('governance_checks_incomplete', true)",
+          "governance_checks_incomplete: true"
         ]
       }
     ],
-    "requiredBehavior": "If goal alignment falls back, the fallback flag must be visible and asserted true under an isolated AGE-unavailable local-stack run."
+    "requiredBehavior": "With AGE unavailable, Core must set governance_checks_incomplete under an isolated AGE-unavailable local-stack run."
   },
   {
     "id": "local-llamafirewall-real-scan",
@@ -11290,7 +11293,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
       "human_in_the_loop_required",
       "Conclusion: True"
     ],
-    "requiredBehavior": "The local stack must run the official LlamaFirewall scanner adapter against a structured-output local model and prove both aligned and drifted traces without schema fallback."
+    "requiredBehavior": "The local stack must run the official LlamaFirewall scanner adapter against a structured-output local model and prove both aligned and drifted traces without schema downgrade."
   },
   {
     "id": "trace-session",
@@ -11429,7 +11432,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
         ]
       }
     ],
-    "requiredBehavior": "Governed events must retain provider/source attribution through the persisted _openbox_source input fallback; provider span stamping is covered by adapter guard tests because the local Core path does not persist submitted openbox.source span attributes on governance_events."
+    "requiredBehavior": "Governed events must retain provider/source attribution through the persisted _openbox_source input field; provider span stamping is covered by adapter guard tests because the local Core path does not persist submitted openbox.source span attributes on governance_events."
   },
   {
     "id": "observability-ledger-dashboard",
@@ -11821,7 +11824,7 @@ LOCAL_STACK_SCENARIO_MATRIX = {
     "trust-aivss-ledger",
     "goal-alignment-checked",
     "goal-drift-detected",
-    "goal-drift-fallback",
+    "goal-drift-unavailable-fail-closed",
     "local-llamafirewall-real-scan",
     "trace-session",
     "trace-logs",
@@ -12497,11 +12500,15 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "backend:AgentController_createBehaviorRule:body.states.*:enum",
         "backend:AgentController_createBehaviorRule:body.states.*:type",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_createBehaviorRule:body.trigger:enum",
         "backend:AgentController_createBehaviorRule:body.trigger:type",
         "backend:AgentController_getBehaviorRuleList:query.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:type",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_updateBehaviorRule:body.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.trigger:type"
       ]
@@ -12511,11 +12518,15 @@ LOCAL_STACK_SCENARIO_MATRIX = {
       "requestConstraintKeys": [
         "backend:AgentController_createBehaviorRule:body.states.*:enum",
         "backend:AgentController_createBehaviorRule:body.states.*:type",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_createBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_createBehaviorRule:body.trigger:enum",
         "backend:AgentController_createBehaviorRule:body.trigger:type",
         "backend:AgentController_getBehaviorRuleList:query.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:enum",
         "backend:AgentController_updateBehaviorRule:body.states.*:type",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:enum",
+        "backend:AgentController_updateBehaviorRule:body.states.*.semantic_type:type",
         "backend:AgentController_updateBehaviorRule:body.trigger:enum",
         "backend:AgentController_updateBehaviorRule:body.trigger:type"
       ]

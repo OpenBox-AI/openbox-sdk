@@ -48,16 +48,16 @@ directly. Regenerate them with `npm run generate:sdks`.
   in `specs/typespec/sdk/main.tsp`. Each exclusion carries a reason so scan
   allowlists stay annotated at the canonical spec layer.
 - Codegen build: the root `build:codegen` runner reads the `codegenBuild.steps`
-  pipeline from this fixture, with only a package-metadata bootstrap fallback
+  pipeline from this fixture, with only package-metadata bootstrap steps
   for cleaned or older generated fixtures.
 - SDK generation: the root `generate:sdks` runner reads the
-  `sdkGeneration.steps` pipeline from this fixture, with a bootstrap fallback
+  `sdkGeneration.steps` pipeline from this fixture, with bootstrap steps
   for cleaned or older generated fixtures.
 - TypeSpec commands: `specs:compile` and `specs:watch` read the `specCommands`
-  table from this fixture, with bootstrap fallbacks for cleaned or older
+  table from this fixture, with bootstrap steps for cleaned or older
   generated fixtures.
 - Root pipelines: `build` and `check:sdks` read the `rootPipelines` table from
-  this fixture, with bootstrap fallbacks for cleaned or older generated
+  this fixture, with bootstrap steps for cleaned or older generated
   fixtures.
 - Bundle build: the root `build:bundle` runner reads the `bundleBuild.steps`
   pipeline from this fixture for bundling and runtime asset sync.

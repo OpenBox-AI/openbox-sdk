@@ -65,7 +65,7 @@ describe('codex HOOK_SPEC', () => {
     installCodex({ cwd });
 
     const hooksFile = path.join(cwd, '.codex', 'hooks.json');
-    const configFile = path.join(cwd, '.codex-hooks', 'config.json');
+    const configFile = path.join(cwd, '.openbox', 'codex', 'config.json');
     const hooks = JSON.parse(readFileSync(hooksFile, 'utf-8')) as any;
     expect(hooks.hooks.PreToolUse[0].hooks[0]).toMatchObject({
       type: 'command',

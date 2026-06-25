@@ -48,6 +48,8 @@ export type OpenBoxAnthropicApprovalMode = 'ask' | 'defer';
 
 export interface OpenBoxAnthropicAgentSDKConfig {
   enabled?: boolean;
+  /** Project root used for optional .openbox/anthropic-agent-sdk config lookup. */
+  cwd?: string;
   core?: OpenBoxCoreClient;
   /** Core runtime URL. Defaults to OPENBOX_CORE_URL. */
   coreUrl?: string;

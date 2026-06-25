@@ -245,6 +245,8 @@ BACKEND_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -273,6 +275,40 @@ BACKEND_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
+          "database_select",
+          "database_insert",
+          "database_update",
+          "database_delete",
+          "database_query",
+          "file_read",
+          "file_write",
+          "file_open",
+          "file_delete",
+          "internal"
+        ],
+        "allow_object": True
+      },
+      {
+        "path": [
+          "states",
+          "*",
+          "semantic_type"
+        ],
+        "type": "string",
+        "enum": [
+          "http_get",
+          "http_post",
+          "http_put",
+          "http_patch",
+          "http_delete",
+          "http",
+          "llm_completion",
+          "llm_embedding",
+          "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -756,6 +792,8 @@ BACKEND_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -1176,6 +1214,8 @@ BACKEND_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -1204,6 +1244,40 @@ BACKEND_REQUEST_PREFLIGHT_RULES: list[RequestPreflightRule] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
+          "database_select",
+          "database_insert",
+          "database_update",
+          "database_delete",
+          "database_query",
+          "file_read",
+          "file_write",
+          "file_open",
+          "file_delete",
+          "internal"
+        ],
+        "allow_object": True
+      },
+      {
+        "path": [
+          "states",
+          "*",
+          "semantic_type"
+        ],
+        "type": "string",
+        "enum": [
+          "http_get",
+          "http_post",
+          "http_put",
+          "http_patch",
+          "http_delete",
+          "http",
+          "llm_completion",
+          "llm_embedding",
+          "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -2263,6 +2337,12 @@ def _validate_scalar(
     rule: RequestPreflightRule,
 ) -> None:
     is_body = location.startswith("body.")
+    if (
+        is_body
+        and rule.get("allow_object") is True
+        and isinstance(value, Mapping)
+    ):
+        return
     if is_body and rule.get("type") == "string" and not isinstance(value, str):
         _fail(operation, location, "must be a string", value)
     if rule.get("enum") is not None and str(value) not in rule["enum"]:

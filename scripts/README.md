@@ -14,18 +14,18 @@ unit suite compares that inventory against the repository tree.
 - `generate:sdks` is the generic SDK artifact generation command. It builds
   the TypeSpec-emitted `sdkGeneration.steps` pipeline. TypeScript, Python,
   OpenAPI, JSON Schema, and future language targets must all hang off this
-  command. If generated fixtures were cleaned, it falls back to the bootstrap
+  command. If generated fixtures were cleaned, it runs the explicit bootstrap
   generation sequence long enough to regenerate the canonical manifest.
   Package script synchronization also runs from this pipeline so
   `package.json` command entries are materialized from TypeSpec, not edited as
   a parallel source of truth.
 - `specs:compile` and `specs:watch` read the TypeSpec-emitted `specCommands`
-  table. These low-level TypeSpec commands keep a bootstrap fallback because
-  SDK generation may need them before the emitted fixture exists.
+  table. These low-level TypeSpec commands keep an explicit bootstrap path
+  because SDK generation may need them before the emitted fixture exists.
 - `build:codegen` reads the TypeSpec-emitted `codegenBuild.steps` pipeline from
   `codegen/fixtures/sdk-targets.json` and builds the TypeSpec decorator
-  libraries plus shared emitter. If generated fixtures were cleaned, it falls
-  back to codegen package metadata only long enough to regenerate the
+  libraries plus shared emitter. If generated fixtures were cleaned, it reads
+  codegen package metadata only long enough to regenerate the
   canonical manifest.
 - `build:bundle` reads the TypeSpec-emitted `bundleBuild.steps` pipeline for
   bundling and runtime asset sync. Add build-stage changes in
@@ -106,6 +106,19 @@ unit suite compares that inventory against the repository tree.
 - `ci:local-stack` composes `ci:local` with the live `test:e2e` project for
   backend/core runtime verification against a running local stack.
 
+For the shared local stack, run Core with the Core repo's documented commands in
+ordinary visible terminals or Herdr panes:
+
+```bash
+go run ./cmd/core server --addr 127.0.0.1:8086
+go run ./cmd/core governance-worker
+go run ./cmd/core attestation-worker
+go run ./cmd/core observability-worker
+```
+
+Do not use `launchctl` or another OS service wrapper for SDK local-stack proof.
+Those wrappers hide the startup path and make the stack harder to reproduce.
+
 ## Operational Scripts
 
 - `sync-runtime-assets.ts` copies runtime templates and exports built plugin
@@ -114,6 +127,10 @@ unit suite compares that inventory against the repository tree.
 - `lib/spec-steps.mjs` is the shared runner framework for TypeSpec-emitted
   command pipelines.
 - `openbox-cli-dev.mjs` is a local developer launcher for the TypeScript CLI.
+- `start-local-fe.mjs` starts a local frontend checkout for demo/local-stack
+  inspection with localhost API, WebSocket, public reCAPTCHA test-key, and
+  strict-port defaults. It accepts `OPENBOX_FE_DIR` when the frontend checkout
+  cannot be auto-detected.
 - `security-audit.mjs` orchestrates TypeSpec-declared package audits and secret
   scanning.
 - `spec-drift.ts` compares emitted OpenAPI against deployed/upstream services.
@@ -121,9 +138,9 @@ unit suite compares that inventory against the repository tree.
 - `sync-package-scripts.mjs` rewrites root `package.json` scripts from the
   TypeSpec-emitted `packageScripts.scripts` table.
 - `check-local-stack-alignment.mjs` verifies that the live backend process,
-  backend `.env`, Core process, OPA config, Guardrails, AGE, LlamaFirewall, and
-  local AWS-compatible S3 endpoint agree before live governance suites run. It
-  also checks local KMS mode and requires Core's
+  backend `.env`, Core process, live OPA runtime config, Guardrails, AGE,
+  LlamaFirewall, and local AWS-compatible S3 endpoint agree before live
+  governance suites run. It also checks local KMS mode and requires Core's
   `AGE_CB_SLOW_CALL_THRESHOLD_SEC`, `GOVERNANCE_WORKFLOW_TIMEOUT_SEC`, and
   `GOVERNANCE_ACTIVITY_TIMEOUT_SEC` to be high enough for live Claude Code hook
   teardown, so a slow successful `Stop` hook neither opens the AGE circuit nor
