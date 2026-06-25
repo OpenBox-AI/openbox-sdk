@@ -10,12 +10,14 @@ interface QueryPreflightRule {
   readonly maximum?: number;
   readonly maxLength?: number;
   readonly integer?: boolean;
+  readonly allowObject?: boolean;
 }
 
 interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
   readonly path: readonly string[];
   readonly minItems?: number;
   readonly maxItems?: number;
+  readonly allowObject?: boolean;
 }
 
 interface RequestPreflightRule {
@@ -272,6 +274,8 @@ export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -300,6 +304,40 @@ export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
+          "database_select",
+          "database_insert",
+          "database_update",
+          "database_delete",
+          "database_query",
+          "file_read",
+          "file_write",
+          "file_open",
+          "file_delete",
+          "internal"
+        ],
+        "allowObject": true
+      },
+      {
+        "path": [
+          "states",
+          "*",
+          "semantic_type"
+        ],
+        "type": "string",
+        "enum": [
+          "http_get",
+          "http_post",
+          "http_put",
+          "http_patch",
+          "http_delete",
+          "http",
+          "llm_completion",
+          "llm_embedding",
+          "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -783,6 +821,8 @@ export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -1203,6 +1243,8 @@ export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -1231,6 +1273,40 @@ export const REQUEST_PREFLIGHT_RULES: readonly RequestPreflightRule[] = [
           "llm_completion",
           "llm_embedding",
           "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
+          "database_select",
+          "database_insert",
+          "database_update",
+          "database_delete",
+          "database_query",
+          "file_read",
+          "file_write",
+          "file_open",
+          "file_delete",
+          "internal"
+        ],
+        "allowObject": true
+      },
+      {
+        "path": [
+          "states",
+          "*",
+          "semantic_type"
+        ],
+        "type": "string",
+        "enum": [
+          "http_get",
+          "http_post",
+          "http_put",
+          "http_patch",
+          "http_delete",
+          "http",
+          "llm_completion",
+          "llm_embedding",
+          "llm_tool_call",
+          "llm_gen_ai",
+          "mcp_tool_call",
           "database_select",
           "database_insert",
           "database_update",
@@ -2070,6 +2146,9 @@ function validateScalar(
   rule: Omit<QueryPreflightRule, 'name'>,
 ): void {
   const isBody = location.startsWith('body.');
+  if (isBody && rule.allowObject && value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return;
+  }
   if (isBody && rule.type === 'string' && typeof value !== 'string') {
     fail(operation, location, 'must be a string', value);
   }

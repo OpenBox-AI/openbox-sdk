@@ -418,7 +418,8 @@ export const API_KEY_GRANTABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
 /** Mirrors the live `BehaviorRuleTrigger` enum the backend persists. */
 export const BEHAVIOR_TRIGGER_ENUM = [
   'http_get', 'http_post', 'http_put', 'http_patch', 'http_delete', 'http',
-  'llm_completion', 'llm_embedding', 'llm_tool_call',
+  'llm_completion', 'llm_embedding', 'llm_tool_call', 'llm_gen_ai',
+  'mcp_tool_call',
   'database_select', 'database_insert', 'database_update', 'database_delete', 'database_query',
   'file_read', 'file_write', 'file_open', 'file_delete',
   'internal',

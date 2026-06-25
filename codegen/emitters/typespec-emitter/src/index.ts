@@ -262,12 +262,14 @@ interface QueryPreflightRule {
   maximum?: number;
   maxLength?: number;
   integer?: boolean;
+  allowObject?: boolean;
 }
 
 interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
   path: string[];
   minItems?: number;
   maxItems?: number;
+  allowObject?: boolean;
 }
 
 function emitOpenApiRequestPreflight(
@@ -342,12 +344,24 @@ function collectBodyPreflightRules(
   const current = bodyRuleFromSchema(path, resolved);
   if (current) out.push(current);
 
-  for (const branch of [
+  const branches = [
     ...(resolved.allOf ?? []),
     ...(resolved.oneOf ?? []),
     ...(resolved.anyOf ?? []),
-  ]) {
-    out.push(...collectBodyPreflightRules(branch, openApi, path, new Set(seenRefs)));
+  ];
+  const unionAllowsObject = branches.some((branch) =>
+    schemaAllowsObject(branch, openApi, new Set(seenRefs)),
+  );
+  for (const branch of branches) {
+    const branchRules = collectBodyPreflightRules(branch, openApi, path, new Set(seenRefs));
+    out.push(...branchRules.map((rule) =>
+      unionAllowsObject &&
+        rule.path.length === path.length &&
+        rule.path.every((segment, index) => segment === path[index]) &&
+        rule.type === 'string'
+        ? { ...rule, allowObject: true }
+        : rule,
+    ));
   }
 
   for (const [key, property] of Object.entries(resolved.properties ?? {})) {
@@ -359,6 +373,23 @@ function collectBodyPreflightRules(
   }
 
   return out;
+}
+
+function schemaAllowsObject(
+  schema: OpenApiSchema | undefined,
+  openApi: OpenApiDocument,
+  seenRefs = new Set<string>(),
+): boolean {
+  if (!schema) return false;
+  const resolved = resolveOpenApiSchema(schema, openApi, seenRefs);
+  if (resolved.type === 'object' || (resolved.properties && Object.keys(resolved.properties).length > 0)) {
+    return true;
+  }
+  return [
+    ...(resolved.allOf ?? []),
+    ...(resolved.oneOf ?? []),
+    ...(resolved.anyOf ?? []),
+  ].some((branch) => schemaAllowsObject(branch, openApi, new Set(seenRefs)));
 }
 
 function queryRuleFromSchema(name: string, schema: OpenApiSchema): QueryPreflightRule | null {
@@ -440,12 +471,14 @@ function emitRequestPreflightRuntime(functionName: string, rules: RequestPreflig
   readonly maximum?: number;
   readonly maxLength?: number;
   readonly integer?: boolean;
+  readonly allowObject?: boolean;
 }
 
 interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
   readonly path: readonly string[];
   readonly minItems?: number;
   readonly maxItems?: number;
+  readonly allowObject?: boolean;
 }
 
 interface RequestPreflightRule {
@@ -524,6 +557,9 @@ function validateScalar(
   rule: Omit<QueryPreflightRule, 'name'>,
 ): void {
   const isBody = location.startsWith('body.');
+  if (isBody && rule.allowObject && value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return;
+  }
   if (isBody && rule.type === 'string' && typeof value !== 'string') {
     fail(operation, location, 'must be a string', value);
   }
@@ -2707,7 +2743,7 @@ function emitGovernanceDomainFixture(program: Program, repoRoot: string): void {
     guardrailTypes: modelPropertyLiteralValues(backend, 'CreateGuardrailDto', 'guardrail_type'),
     guardrailProcessingStages: modelPropertyLiteralValues(backend, 'CreateGuardrailDto', 'processing_stage'),
     behaviorRuleTriggers: modelPropertyLiteralValues(backend, 'BehaviorRule', 'trigger'),
-    behaviorRuleStateInputVariants: ['BehaviorRuleTrigger'],
+    behaviorRuleStateInputVariants: ['BehaviorRuleTrigger', 'BehaviorRuleStateCondition'],
     behaviorRuleStateMembers: arrayElementLiteralValues(
       modelPropertyType(backend, 'BehaviorRule', 'states'),
     ),

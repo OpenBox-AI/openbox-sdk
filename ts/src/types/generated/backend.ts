@@ -2110,8 +2110,9 @@ export interface components {
             /** Format: int32 */
             priority: number;
             /** @enum {string} */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
+            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][] | null;
             /** Format: int32 */
             time_window: number;
             /** Format: int32 */
@@ -2131,6 +2132,16 @@ export interface components {
             trust_threshold?: number | null;
         } & {
             [key: string]: unknown;
+        };
+        BehaviorRuleMatchCondition: {
+            field: string;
+            op: string;
+            value?: unknown;
+        };
+        BehaviorRuleStateCondition: {
+            /** @enum {string} */
+            semantic_type: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            match?: components["schemas"]["BehaviorRuleMatchCondition"][];
         };
         ChangeBehaviorRuleStatusDto: {
             /** @description New status */
@@ -2224,9 +2235,11 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            /** @description Trigger predicate (v2). Field/op/value conditions on the trigger span. */
+            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][];
             /** @description States (multiple select) */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -3029,9 +3042,11 @@ export interface components {
              * @description Trigger event
              * @enum {string}
              */
-            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            trigger: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+            /** @description Trigger predicate (v2). Field/op/value conditions on the trigger span. */
+            trigger_match?: components["schemas"]["BehaviorRuleMatchCondition"][];
             /** @description States (multiple select) */
-            states: ("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal")[];
+            states: (("http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal") | components["schemas"]["BehaviorRuleStateCondition"])[];
             /**
              * Format: uuid
              * @description The base_rule_id of the rule that this rule depends on (must be within the same agent)
@@ -3697,7 +3712,7 @@ export interface operations {
                 /** @description Filter by status */
                 is_active?: boolean;
                 /** @description Filter by trigger */
-                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
+                trigger?: "http_get" | "http_post" | "http_put" | "http_patch" | "http_delete" | "http" | "llm_completion" | "llm_embedding" | "llm_tool_call" | "llm_gen_ai" | "mcp_tool_call" | "database_select" | "database_insert" | "database_update" | "database_delete" | "database_query" | "file_read" | "file_write" | "file_open" | "file_delete" | "internal";
             };
             header?: never;
             path: {
