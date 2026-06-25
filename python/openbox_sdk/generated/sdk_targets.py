@@ -492,9 +492,9 @@ SDK_TARGET_MANIFEST = {
         "kind": "governance-domain",
         "suiteId": "e2e-governance-behavior-rules",
         "command": "npm run local-stack:lane -- behavior-rules-governance",
-        "parallelSafe": True,
+        "parallelSafe": False,
         "localStackRequired": True,
-        "isolation": "session-agent-scoped",
+        "isolation": "serialized-backend-governance-bundle",
         "requiredEnv": [
           "OPENBOX_API_URL",
           "OPENBOX_CORE_URL",
@@ -693,9 +693,9 @@ SDK_TARGET_MANIFEST = {
         "kind": "governance-domain",
         "suiteId": "e2e-governance-policies",
         "command": "npm run local-stack:lane -- opa-rego-governance",
-        "parallelSafe": True,
+        "parallelSafe": False,
         "localStackRequired": True,
-        "isolation": "session-agent-scoped",
+        "isolation": "serialized-backend-governance-bundle",
         "requiredEnv": [
           "OPENBOX_API_URL",
           "OPENBOX_CORE_URL",
