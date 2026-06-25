@@ -318,121 +318,62 @@
             "workingDirectory": "."
           },
           {
-            "id": "live-governance-lanes",
-            "label": "Live governance local-stack lanes",
-            "parallel": true,
-            "steps": [
-              {
-                "id": "hook-claude-host",
-                "label": "Live Claude host governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:hook-claude-host"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "hook-claude-stdin-local-stack",
-                "label": "Live Claude hook stdin governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:hook-claude-stdin-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "hook-codex-local-stack",
-                "label": "Live Codex hook governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:hook-codex-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "hook-cursor-local-stack",
-                "label": "Live Cursor hook governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:hook-cursor-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "openai-agents-sdk-local-stack",
-                "label": "Live OpenAI Agents SDK governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:openai-agents-sdk-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "anthropic-agent-sdk-local-stack",
-                "label": "Live Anthropic Agent SDK governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:anthropic-agent-sdk-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "copilotkit-local-stack",
-                "label": "Live CopilotKit governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:copilotkit-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "n8n-local-stack",
-                "label": "Live n8n governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:n8n-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "kms-signing-local-stack",
-                "label": "Live local KMS signing governance tests",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:kms-signing-local-stack"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "live-governance-e2e",
-                "label": "Live governance local-stack e2e",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:e2e:governance"
-                ],
-                "workingDirectory": "."
-              },
-              {
-                "id": "local-llamafirewall",
-                "label": "Local LlamaFirewall e2e",
-                "command": "npm",
-                "args": [
-                  "run",
-                  "test:e2e:llamafirewall"
-                ],
-                "workingDirectory": "."
-              }
-            ]
+            "id": "live-provider-governance-lanes",
+            "label": "Live provider governance local-stack lanes",
+            "command": "npm",
+            "args": [
+              "run",
+              "local-stack:lane",
+              "--",
+              "claude-code-host-governance",
+              "claude-code-stdin-governance",
+              "codex-governance",
+              "cursor-governance",
+              "openai-agents-sdk-governance",
+              "anthropic-agent-sdk-governance",
+              "copilotkit-governance",
+              "n8n-governance",
+              "kms-signing-governance",
+              "llamafirewall-governance"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "live-domain-governance-lanes",
+            "label": "Live governance domain local-stack lanes",
+            "command": "npm",
+            "args": [
+              "run",
+              "local-stack:lane",
+              "--",
+              "sdk-direct-governance",
+              "approvals-governance",
+              "audit-logs-governance",
+              "behavior-rules-governance",
+              "goal-alignment-governance",
+              "guardrails-pii-governance",
+              "observability-governance",
+              "sessions-governance",
+              "trust-age-governance",
+              "violations-governance",
+              "opa-rego-governance",
+              "request-query-boundaries-governance"
+            ],
+            "workingDirectory": "."
+          },
+          {
+            "id": "isolated-unavailable-lanes",
+            "label": "Isolated unavailable dependency lanes",
+            "command": "npm",
+            "args": [
+              "run",
+              "local-stack:lane",
+              "--",
+              "isolated-opa-unavailable",
+              "isolated-guardrail-unavailable",
+              "isolated-age-unavailable"
+            ],
+            "workingDirectory": "."
           },
           {
             "id": "live-platform-e2e",
@@ -440,7 +381,9 @@
             "command": "npm",
             "args": [
               "run",
-              "test:e2e:platform"
+              "local-stack:lane",
+              "--",
+              "platform-local-stack-e2e"
             ],
             "workingDirectory": "."
           }

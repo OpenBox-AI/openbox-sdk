@@ -1424,12 +1424,10 @@ describe('Core Governance API', () => {
     }
   }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
-  it('CONFORMANCE: OPA CONSTRAIN is an unsupported local-stack policy boundary', async () => {
+  it('CONFORMANCE: OPA CONSTRAIN propagates through backend/Core', async () => {
     // CONFORMANCE_PROOF: the generated OPA CONSTRAIN scenario proves the
-    // real backend/Core boundary. Backend accepts a CONSTRAIN policy, Core
-    // currently falls through to allow, and SDK source validation rejects
-    // CONSTRAIN so validated authoring surfaces do not present it as a
-    // supported OPA decision.
+    // real backend/Core boundary. Backend accepts a CONSTRAIN policy and
+    // Core propagates constrain to SDK callers.
     expect(['SCENARIO_PROOF: opa-constrain']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: opa-constrain']),
     );

@@ -464,108 +464,82 @@ describe('SDK target validation manifest', () => {
     ]);
     expect(pipelines['local-stack']?.steps.map((step) => step.id)).toEqual([
       'ci-local',
-      'live-governance-lanes',
+      'live-provider-governance-lanes',
+      'live-domain-governance-lanes',
+      'isolated-unavailable-lanes',
       'live-platform-e2e',
     ]);
-    const governanceLanes = pipelines['local-stack']?.steps.at(1);
-    if (!governanceLanes || !isParallelGroup(governanceLanes)) {
-      throw new Error('live-governance-lanes must be a parallel group');
+    const providerLanes = pipelines['local-stack']?.steps.at(1);
+    if (!isCommandStep(providerLanes)) {
+      throw new Error('live-provider-governance-lanes must be a command step');
     }
-    expect(governanceLanes.steps.map((step) => step.id)).toEqual([
-      'hook-claude-host',
-      'hook-claude-stdin-local-stack',
-      'hook-codex-local-stack',
-      'hook-cursor-local-stack',
-      'openai-agents-sdk-local-stack',
-      'anthropic-agent-sdk-local-stack',
-      'copilotkit-local-stack',
-      'n8n-local-stack',
-      'kms-signing-local-stack',
-      'live-governance-e2e',
-      'local-llamafirewall',
-    ]);
-    expect(governanceLanes.steps.at(0)).toEqual({
-      id: 'hook-claude-host',
-      label: 'Live Claude host governance tests',
+    expect(providerLanes).toEqual({
+      id: 'live-provider-governance-lanes',
+      label: 'Live provider governance local-stack lanes',
       command: 'npm',
-      args: ['run', 'test:hook-claude-host'],
+      args: [
+        'run',
+        'local-stack:lane',
+        '--',
+        'claude-code-host-governance',
+        'claude-code-stdin-governance',
+        'codex-governance',
+        'cursor-governance',
+        'openai-agents-sdk-governance',
+        'anthropic-agent-sdk-governance',
+        'copilotkit-governance',
+        'n8n-governance',
+        'kms-signing-governance',
+        'llamafirewall-governance',
+      ],
       workingDirectory: '.',
     });
-    expect(governanceLanes.steps.at(1)).toEqual({
-      id: 'hook-claude-stdin-local-stack',
-      label: 'Live Claude hook stdin governance tests',
+    const domainLanes = pipelines['local-stack']?.steps.at(2);
+    if (!isCommandStep(domainLanes)) {
+      throw new Error('live-domain-governance-lanes must be a command step');
+    }
+    expect(domainLanes).toEqual({
+      id: 'live-domain-governance-lanes',
+      label: 'Live governance domain local-stack lanes',
       command: 'npm',
-      args: ['run', 'test:hook-claude-stdin-local-stack'],
+      args: [
+        'run',
+        'local-stack:lane',
+        '--',
+        'sdk-direct-governance',
+        'approvals-governance',
+        'audit-logs-governance',
+        'behavior-rules-governance',
+        'goal-alignment-governance',
+        'guardrails-pii-governance',
+        'observability-governance',
+        'sessions-governance',
+        'trust-age-governance',
+        'violations-governance',
+        'opa-rego-governance',
+        'request-query-boundaries-governance',
+      ],
       workingDirectory: '.',
     });
-    expect(governanceLanes.steps.at(2)).toEqual({
-      id: 'hook-codex-local-stack',
-      label: 'Live Codex hook governance tests',
+    expect(pipelines['local-stack']?.steps.at(3)).toEqual({
+      id: 'isolated-unavailable-lanes',
+      label: 'Isolated unavailable dependency lanes',
       command: 'npm',
-      args: ['run', 'test:hook-codex-local-stack'],
+      args: [
+        'run',
+        'local-stack:lane',
+        '--',
+        'isolated-opa-unavailable',
+        'isolated-guardrail-unavailable',
+        'isolated-age-unavailable',
+      ],
       workingDirectory: '.',
     });
-    expect(governanceLanes.steps.at(3)).toEqual({
-      id: 'hook-cursor-local-stack',
-      label: 'Live Cursor hook governance tests',
-      command: 'npm',
-      args: ['run', 'test:hook-cursor-local-stack'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(4)).toEqual({
-      id: 'openai-agents-sdk-local-stack',
-      label: 'Live OpenAI Agents SDK governance tests',
-      command: 'npm',
-      args: ['run', 'test:openai-agents-sdk-local-stack'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(5)).toEqual({
-      id: 'anthropic-agent-sdk-local-stack',
-      label: 'Live Anthropic Agent SDK governance tests',
-      command: 'npm',
-      args: ['run', 'test:anthropic-agent-sdk-local-stack'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(6)).toEqual({
-      id: 'copilotkit-local-stack',
-      label: 'Live CopilotKit governance tests',
-      command: 'npm',
-      args: ['run', 'test:copilotkit-local-stack'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(7)).toEqual({
-      id: 'n8n-local-stack',
-      label: 'Live n8n governance tests',
-      command: 'npm',
-      args: ['run', 'test:n8n-local-stack'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(8)).toEqual({
-      id: 'kms-signing-local-stack',
-      label: 'Live local KMS signing governance tests',
-      command: 'npm',
-      args: ['run', 'test:kms-signing-local-stack'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(9)).toEqual({
-      id: 'live-governance-e2e',
-      label: 'Live governance local-stack e2e',
-      command: 'npm',
-      args: ['run', 'test:e2e:governance'],
-      workingDirectory: '.',
-    });
-    expect(governanceLanes.steps.at(10)).toEqual({
-      id: 'local-llamafirewall',
-      label: 'Local LlamaFirewall e2e',
-      command: 'npm',
-      args: ['run', 'test:e2e:llamafirewall'],
-      workingDirectory: '.',
-    });
-    expect(pipelines['local-stack']?.steps.at(2)).toEqual({
+    expect(pipelines['local-stack']?.steps.at(4)).toEqual({
       id: 'live-platform-e2e',
       label: 'Live platform local-stack e2e',
       command: 'npm',
-      args: ['run', 'test:e2e:platform'],
+      args: ['run', 'local-stack:lane', '--', 'platform-local-stack-e2e'],
       workingDirectory: '.',
     });
     expect(pipelines['check-sdks']?.steps.at(-1)).toEqual({
