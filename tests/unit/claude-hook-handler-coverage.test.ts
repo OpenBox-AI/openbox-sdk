@@ -10,6 +10,7 @@ let mockWorktreeRoot = '/tmp/openbox-claude-hook-handler-test/worktrees';
 let mockRequireGoalContext = false;
 let mockDefaultGoal: string | undefined;
 let mockPeekGoal: unknown = { goal: 'existing goal' };
+let mockIsStarted = false;
 // Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
@@ -84,6 +85,7 @@ vi.mock('../../ts/src/runtime/claude-code/session-resolver.js', () => ({
     workflowCompleted: vi.fn(async () => undefined),
   })),
   lastResolveCreatedFreshSession: vi.fn(() => true),
+  isStarted: vi.fn(() => mockIsStarted),
   peekGoal: vi.fn(() => mockPeekGoal),
   recordGoal: vi.fn(),
   markStarted: vi.fn(),
@@ -101,6 +103,7 @@ beforeEach(() => {
   mockRequireGoalContext = false;
   mockDefaultGoal = undefined;
   mockPeekGoal = { goal: 'existing goal' };
+  mockIsStarted = false;
   rmSync(mockWorktreeRoot, { recursive: true, force: true });
   process.env.OPENBOX_API_KEY = 'obx_test_claude_handler';
   delete process.env.OPENBOX_AGENT_DID;
@@ -292,6 +295,27 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
     expect(session.workflowStarted.mock.invocationCallOrder[0]).toBeLessThan(
       session.openActivity.mock.invocationCallOrder[0],
     );
+  });
+
+  it('does not replay WorkflowStarted after the session store says the workflow is started', async () => {
+    mockIsStarted = true;
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const session = {
+      workflowStarted: vi.fn(async () => undefined),
+      openActivity: vi.fn(async () => ({
+        activityId: 'activity-test',
+        verdict: { arm: 'allow' },
+      })),
+    };
+
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
+      arm: 'allow',
+    });
+    expect(session.workflowStarted).not.toHaveBeenCalled();
+    expect(session.openActivity).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed when a decision-capable hook gets a governance-checks-incomplete allow', async () => {

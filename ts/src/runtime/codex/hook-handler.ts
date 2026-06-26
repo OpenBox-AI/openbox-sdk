@@ -12,6 +12,7 @@ import { createLogger } from '../../logging/logger.js';
 import { makeHookLog } from '../../logging/hook-log.js';
 import { getConfigDir, loadConfig, type CodexConfig } from './config.js';
 import {
+  isStarted,
   markStarted,
   peekGoal,
   recordGoal,
@@ -169,10 +170,11 @@ async function ensureWorkflowStartedForDecision(
   cfg: CodexConfig,
 ): Promise<void> {
   if (!isDecisionCapable(env.hook_event_name)) return;
+  if (isStarted(env, cfg)) return;
 
-  // Hook subprocesses can start at the first tool gate. Re-emitting
-  // WorkflowStarted is idempotent server-side and keeps Core-owned hook span
-  // evaluation attached to the same session lifecycle as SDK and Claude Code.
+  // Hook subprocesses can start at the first tool gate. Emit the workflow
+  // open event only when the project-local session store has not already
+  // recorded one for this workflow/run pair.
   await session.workflowStarted();
   markStarted(env, cfg);
 }

@@ -13,6 +13,7 @@ import {
 import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
 import {
+  isStarted,
   markStarted,
   peekGoal,
   recordGoal,
@@ -150,6 +151,7 @@ async function ensureWorkflowStartedForDecision(
   cfg: ReturnType<typeof loadConfig>,
 ): Promise<void> {
   if (!isDecisionCapable(env.hook_event_name)) return;
+  if (isStarted(env.conversation_id, cfg)) return;
 
   await session.workflowStarted();
   markStarted(env.conversation_id, cfg);
