@@ -960,34 +960,6 @@ function spansForGate(
   }
 }
 
-function toolCallSpansFromAssistantPayload(
-  payload: unknown,
-  model: string | undefined,
-  timing?: GateOverrides,
-): SpanData[] {
-  return toolCallsFromPayload(payload).flatMap((toolCall) => {
-    const started = buildSpan('copilotkit', 'llm_tool_call', {
-      stage: 'started',
-      model,
-      tool_name: toolCall.name,
-      tool_input: toolCall.args,
-      data: toolCall.raw,
-    }) as unknown as SpanData;
-    const completed = buildSpan('copilotkit', 'llm_tool_call', {
-      stage: 'completed',
-      model,
-      tool_name: toolCall.name,
-      tool_input: toolCall.args,
-      tool_output: toolCall.raw,
-      data: toolCall.raw,
-    }) as unknown as SpanData;
-    return [
-      withGateSpanTiming(started, timing, 'started'),
-      withGateSpanTiming(completed, timing, 'completed'),
-    ];
-  });
-}
-
 function parentSpanIdForActivity(activityId: string): string {
   return createHash('sha256').update(activityId).digest('hex').slice(0, 16);
 }
@@ -1315,56 +1287,6 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
 
 function hasToolCallsFromPayload(payload: unknown): boolean {
   return hasToolCallBlocks(recordFrom(payload));
-}
-
-function toolCallsFromPayload(payload: unknown): Array<{
-  name: string;
-  args: Record<string, unknown>;
-  raw: unknown;
-}> {
-  return toolCallRecords(recordFrom(payload)).map((record) => {
-    const functionRecord = recordFrom(record.function);
-    const rawArgs = record.args ?? record.arguments ?? functionRecord.arguments;
-    const args =
-      typeof rawArgs === 'string' ? recordFromJson(rawArgs) : recordFrom(rawArgs);
-    return {
-      name:
-        firstString(record.name, functionRecord.name, record.toolName, record.tool_name) ??
-        'tool_call',
-      args,
-      raw: record,
-    };
-  });
-}
-
-function toolCallRecords(record: Record<string, unknown>): Record<string, unknown>[] {
-  const direct = [
-    ...arrayRecords(record.tool_calls),
-    ...arrayRecords(record.toolCalls),
-  ];
-  const additional = recordFrom(record.additional_kwargs ?? record.additionalKwargs);
-  const nested = [
-    ...arrayRecords(additional.tool_calls),
-    ...arrayRecords(additional.toolCalls),
-  ];
-  const message = recordFrom(record.message);
-  const messageCalls = Object.keys(message).length > 0 ? toolCallRecords(message) : [];
-  const messageListCalls = Array.isArray(record.messages)
-    ? record.messages.flatMap((entry) => toolCallRecords(recordFrom(entry)))
-    : [];
-  return [...direct, ...nested, ...messageCalls, ...messageListCalls];
-}
-
-function arrayRecords(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value) ? value.map(recordFrom).filter((record) => Object.keys(record).length > 0) : [];
-}
-
-function recordFromJson(value: string): Record<string, unknown> {
-  try {
-    return recordFrom(JSON.parse(value));
-  } catch {
-    return {};
-  }
 }
 
 function hasToolCallBlocks(record: Record<string, unknown>): boolean {
