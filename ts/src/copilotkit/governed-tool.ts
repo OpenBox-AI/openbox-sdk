@@ -185,6 +185,11 @@ export function createGovernedCopilotTool<
                 ids.activityId,
                 toolStartedNs,
               ),
+              ...(definition.operationSpans?.(
+                normalizedInput,
+                'started',
+                ids.activityId,
+              ) ?? []),
             ],
           }),
       );
@@ -268,6 +273,11 @@ export function createGovernedCopilotTool<
                       ids.activityId,
                       toolStartedNs,
                     ),
+                    ...(definition.operationSpans?.(
+                      startedRedaction.input,
+                      'completed',
+                      ids.activityId,
+                    ) ?? []),
                     ...capturedLlmCompletionSpans(llmCaptures),
                   ],
                   hookSpanParentEventType: EVENT.START,
@@ -307,6 +317,11 @@ export function createGovernedCopilotTool<
                   ids.activityId,
                   toolStartedNs,
                 ),
+                ...(definition.operationSpans?.(
+                  startedRedaction.input,
+                  'completed',
+                  ids.activityId,
+                ) ?? []),
                 ...capturedLlmCompletionSpans(llmCaptures),
               ],
               hookSpanParentEventType: EVENT.START,
@@ -506,6 +521,11 @@ export function createGovernedCopilotTool<
             output: toolOutputForGovernance(result),
             spans: [
               approvalResumeSpan(definition, normalizedInput, ids.activityId),
+              ...(definition.operationSpans?.(
+                normalizedInput,
+                'completed',
+                ids.activityId,
+              ) ?? []),
             ],
             hookSpanParentEventType: EVENT.START,
           }),
@@ -632,6 +652,11 @@ export function createGovernedCopilotTool<
             input: toolActivityInput(definition, input),
             spans: [
               toolSpan(definition, input, 'started', undefined, ids.activityId),
+              ...(definition.operationSpans?.(
+                input,
+                'started',
+                ids.activityId,
+              ) ?? []),
             ],
           }),
       );

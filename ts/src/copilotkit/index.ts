@@ -15,6 +15,10 @@ import type {
 export { createOpenBoxCopilotKitAdapter } from './adapter.js';
 export { createOpenBoxAGUIAdapter } from './agui-adapter.js';
 export { createGovernedCopilotTool } from './governed-tool.js';
+export {
+  fileReadSpan,
+  databaseSelectSpan,
+} from './workflow-session.js';
 export { createOpenBoxApprovalRoute } from './approval-route.js';
 export { createOpenBoxHeadlessApprovalClient } from './headless-approval.js';
 export { createOpenBoxReadinessCheck } from './readiness.js';

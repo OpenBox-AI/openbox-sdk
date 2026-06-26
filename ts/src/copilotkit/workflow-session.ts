@@ -12,6 +12,7 @@ import {
 } from '../core-client/index.js';
 import { EVENT } from '../governance/events.js';
 import {
+  buildSpan,
   stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
 } from '../governance/spans.js';
@@ -394,6 +395,51 @@ export function withSpanIdentityFromActivity<T extends object>(
 ): T {
   if (!activityId) return span;
   return { ...span, ...spanIdentityFromActivity(activityId) };
+}
+
+// Real operation spans (file_read / database_select) emitted alongside the
+// tool-call span so platform behavioral rules that trigger on those semantic
+// types fire. semantic_type is left for the backend to compute from the span
+// shape (buildSpan strips the server-computed field). Started and completed
+// share a deterministic span_id/trace_id derived from the activity id so the
+// platform pairs them into a single span instead of an orphaned started event.
+export function fileReadSpan(
+  filePath: string,
+  stage: 'started' | 'completed',
+  activityId: string,
+): SpanData {
+  const span = buildSpan('copilotkit', 'file_read', {
+    file_path: filePath,
+    stage,
+  }) as unknown as SpanData;
+  const seed = createHash('sha256')
+    .update(`openbox.op.file_read:${activityId}`)
+    .digest('hex');
+  return {
+    ...span,
+    span_id: seed.slice(0, 16),
+    trace_id: seed.slice(0, 32),
+  };
+}
+
+export function databaseSelectSpan(
+  statement: string,
+  stage: 'started' | 'completed',
+  activityId: string,
+): SpanData {
+  const span = buildSpan('copilotkit', 'db', {
+    db_operation: 'select',
+    db_statement: statement,
+    stage,
+  }) as unknown as SpanData;
+  const seed = createHash('sha256')
+    .update(`openbox.op.db_select:${activityId}`)
+    .digest('hex');
+  return {
+    ...span,
+    span_id: seed.slice(0, 16),
+    trace_id: seed.slice(0, 32),
+  };
 }
 
 export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(

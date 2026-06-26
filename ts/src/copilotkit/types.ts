@@ -344,6 +344,11 @@ export interface GovernedCopilotToolDefinition<
     input: TInput,
     stage: 'started' | 'completed',
   ) => Partial<SpanData> | undefined;
+  operationSpans?: (
+    input: TInput,
+    stage: 'started' | 'completed',
+    activityId: string,
+  ) => SpanData[];
   isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
   markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
   sessionKey?: (config?: unknown) => string;
