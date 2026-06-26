@@ -5213,6 +5213,42 @@ describe('CopilotKit OpenBox adapter', () => {
     }
   });
 
+  it('assembles a streamed (SSE) response into a chat.completion response_body', async () => {
+    const { createCapturingFetch, runWithLLMCapture, capturedLLMExchanges } =
+      await import('../../ts/src/copilotkit/otel-capture');
+    const sse = [
+      'data: {"id":"chatcmpl-X","object":"chat.completion.chunk","created":1,"model":"gpt-5-nano","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_J","type":"function","function":{"name":"openbox_governed_action","arguments":""}}]},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-X","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"action"}}]},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-X","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\":\\"open\\"}"}}]},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-X","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+      'data: {"id":"chatcmpl-X","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    const baseFetch = async () =>
+      new Response(sse, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    const capturing = createCapturingFetch(baseFetch as unknown as typeof fetch);
+    const exchange = await runWithLLMCapture(async () => {
+      await capturing('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        body: '{}',
+      });
+      return capturedLLMExchanges()[0];
+    });
+    const body = exchange?.responseBody as Record<string, any>;
+    expect(typeof body).toBe('object');
+    expect(body.object).toBe('chat.completion');
+    expect(body.choices[0].message.tool_calls[0].function).toEqual({
+      name: 'openbox_governed_action',
+      arguments: '{"action":"open"}',
+    });
+    expect(body.choices[0].finish_reason).toBe('tool_calls');
+    expect(body.usage.total_tokens).toBe(3);
+  });
+
   it('captures the real LLM request/response via the instrumented fetch', async () => {
     const { createCapturingFetch, runWithLLMCapture, latestCapturedLLMExchange } =
       await import('../../ts/src/copilotkit/otel-capture');

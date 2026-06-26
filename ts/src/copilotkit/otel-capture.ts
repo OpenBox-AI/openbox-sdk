@@ -74,6 +74,129 @@ function safeJsonParse(text: string | undefined): unknown {
   }
 }
 
+/**
+ * Assemble a streamed chat.completion (SSE `data: {chunk}` … `data: [DONE]`)
+ * into the single chat.completion object the non-streaming API returns, so the
+ * captured response_body matches the reference shape ({id, choices:[{message}],
+ * usage}) instead of raw event-stream chunks. Returns undefined if the text is
+ * not a recognizable OpenAI stream.
+ */
+function assembleStreamedCompletion(text: string): unknown {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('data:'));
+  if (lines.length === 0) return undefined;
+  let base: Record<string, unknown> | undefined;
+  let usage: unknown;
+  const choices = new Map<
+    number,
+    {
+      index: number;
+      message: {
+        role: string;
+        content: string | null;
+        tool_calls?: Array<{
+          id?: string;
+          type?: string;
+          function: { name: string; arguments: string };
+        }>;
+      };
+      finish_reason: string | null;
+    }
+  >();
+  let sawChunk = false;
+  for (const line of lines) {
+    const payload = line.slice(5).trim();
+    if (payload === '[DONE]') continue;
+    let chunk: Record<string, unknown>;
+    try {
+      chunk = JSON.parse(payload) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (chunk.object !== 'chat.completion.chunk') return undefined;
+    sawChunk = true;
+    if (!base) {
+      base = {
+        id: chunk.id,
+        object: 'chat.completion',
+        created: chunk.created,
+        model: chunk.model,
+        ...(chunk.service_tier !== undefined
+          ? { service_tier: chunk.service_tier }
+          : {}),
+        system_fingerprint: chunk.system_fingerprint ?? null,
+      };
+    }
+    if (chunk.usage) usage = chunk.usage;
+    for (const choice of (chunk.choices as Array<Record<string, any>>) ?? []) {
+      const index = Number(choice.index ?? 0);
+      const acc =
+        choices.get(index) ??
+        ({
+          index,
+          message: { role: 'assistant', content: null },
+          finish_reason: null,
+        } as ReturnType<typeof choices.get> & object);
+      const delta = (choice.delta ?? {}) as Record<string, any>;
+      if (delta.role) acc.message.role = delta.role;
+      if (delta.content != null) {
+        acc.message.content = (acc.message.content ?? '') + delta.content;
+      }
+      if (Array.isArray(delta.tool_calls)) {
+        acc.message.tool_calls = acc.message.tool_calls ?? [];
+        for (const tc of delta.tool_calls) {
+          const ti = Number(tc.index ?? 0);
+          const existing = acc.message.tool_calls[ti] ?? {
+            type: 'function',
+            function: { name: '', arguments: '' },
+          };
+          if (tc.id) existing.id = tc.id;
+          if (tc.type) existing.type = tc.type;
+          if (tc.function?.name) existing.function.name += tc.function.name;
+          if (tc.function?.arguments) {
+            existing.function.arguments += tc.function.arguments;
+          }
+          acc.message.tool_calls[ti] = existing;
+        }
+      }
+      if (choice.finish_reason) acc.finish_reason = choice.finish_reason;
+      choices.set(index, acc);
+    }
+  }
+  if (!base || !sawChunk) return undefined;
+  base.choices = [...choices.values()]
+    .sort((a, b) => a.index - b.index)
+    .map((c) => ({
+      index: c.index,
+      message: c.message,
+      logprobs: null,
+      finish_reason: c.finish_reason,
+    }));
+  base.usage = usage ?? null;
+  return base;
+}
+
+/**
+ * Parse a captured LLM response body: JSON when the response is a single
+ * object, or an assembled chat.completion when the response is an SSE stream.
+ */
+function parseLLMResponseBody(
+  text: string,
+  headers: Headers | undefined,
+): unknown {
+  const contentType = headers?.get('content-type') ?? '';
+  const looksStreamed =
+    contentType.includes('text/event-stream') ||
+    /^\s*data:/.test(text);
+  if (looksStreamed) {
+    const assembled = assembleStreamedCompletion(text);
+    if (assembled !== undefined) return assembled;
+  }
+  return safeJsonParse(text);
+}
+
 function bodyText(body: unknown): string | undefined {
   if (body === undefined || body === null) return undefined;
   if (typeof body === 'string') return body;
@@ -157,7 +280,7 @@ export function createCapturingFetch(
       try {
         const clone = response.clone();
         responseHeaders = headersToRecord(clone.headers);
-        responseBody = safeJsonParse(await clone.text());
+        responseBody = parseLLMResponseBody(await clone.text(), clone.headers);
       } catch {
         // Streaming / non-clonable bodies: keep headers + status; the caller
         // fills the body from the model response (AIMessage) instead.
