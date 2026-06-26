@@ -600,10 +600,10 @@ describe('typespec-workflow', () => {
     expect(securityAudit?.secretScanExcludes.every((entry) => entry.reason.length > 20)).toBe(true);
     expect(localCi?.steps.map((entry) => entry.id)).toEqual([
       'generated-drift',
+      'build',
       'check-sdks',
       'host-integration-lanes',
       'coverage',
-      'build',
       'post-build-quality',
     ]);
     expect(

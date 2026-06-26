@@ -2657,6 +2657,19 @@ SDK_TARGET_MANIFEST = {
         "workingDirectory": "."
       },
       {
+        "id": "build",
+        "label": "Bundle build",
+        "command": "npm",
+        "args": [
+          "run",
+          "build"
+        ],
+        "workingDirectory": ".",
+        "env": {
+          "NODE_OPTIONS": "--max-old-space-size=4096"
+        }
+      },
+      {
         "id": "check-sdks",
         "label": "SDK target validation",
         "command": "npm",
@@ -2722,19 +2735,6 @@ SDK_TARGET_MANIFEST = {
         "workingDirectory": ".",
         "env": {
           "OPENBOX_CLI": "./scripts/openbox-cli-dev.mjs"
-        }
-      },
-      {
-        "id": "build",
-        "label": "Bundle build",
-        "command": "npm",
-        "args": [
-          "run",
-          "build"
-        ],
-        "workingDirectory": ".",
-        "env": {
-          "NODE_OPTIONS": "--max-old-space-size=4096"
         }
       },
       {
