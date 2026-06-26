@@ -848,6 +848,14 @@ function spansForGate(
       const usage = metadata.usage ?? normalizeOpenBoxUsage(overrides?.llmUsage)?.raw;
       const capture = overrides?.llmCapture;
       if (!content && !usage && !capture) return [];
+      // When the client-side capture path owns llm_completion spans
+      // (OPENBOX_LLM_SPANS_FROM_CAPTURE=true), the runtime gate that has no
+      // captured exchange suppresses its reconstructed span so the real
+      // captured span (emitted by the middleware) is the only one. Default
+      // off: the runtime keeps emitting its span for capture-less consumers.
+      const emitLlmSpan =
+        capture !== undefined ||
+        process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE !== 'true';
       const span = pipelineSpan(kind, 'llm.chat.completion', payload);
       const model = metadata.model ?? overrides?.llmModel;
       const provider = metadata.provider ?? overrides?.llmProvider;
@@ -889,7 +897,7 @@ function spansForGate(
         hasToolCalls: hasToolCallsFromPayload(payload),
       }) ?? [];
       return [
-        ...completionSpans,
+        ...(emitLlmSpan ? completionSpans : []),
         ...toolCallSpansFromAssistantPayload(payload, model, overrides),
       ];
     }
