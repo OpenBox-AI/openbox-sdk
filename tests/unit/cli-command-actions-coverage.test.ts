@@ -52,10 +52,15 @@ function expectRuntimeConfig(
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
+  identity?: { did: string; privateKey: string },
 ): void {
   const env = readDotenv(join(project, '.openbox', 'cursor', '.env'));
   expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
   expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+  if (identity) {
+    expect(env.OPENBOX_AGENT_DID).toBe(identity.did);
+    expect(env.OPENBOX_AGENT_PRIVATE_KEY).toBe(identity.privateKey);
+  }
 
   const config = readJson(join(project, '.openbox', 'cursor', 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
@@ -71,11 +76,16 @@ function expectClaudeRuntimeConfig(
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
+  identity?: { did: string; privateKey: string },
 ): void {
   const settings = readJson(join(project, '.claude', 'settings.local.json'));
   const env = settings.env as Record<string, unknown>;
   expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
   expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+  if (identity) {
+    expect(env.OPENBOX_AGENT_DID).toBe(identity.did);
+    expect(env.OPENBOX_AGENT_PRIVATE_KEY).toBe(identity.privateKey);
+  }
 
   const config = readJson(join(project, '.openbox', 'claude-code', 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
@@ -213,6 +223,10 @@ describe('CLI command action coverage', () => {
     const cursor = programWith(registerCursorCommands);
     const runtimeKey = `obx_test_${'e'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';
+    const identity = {
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: Buffer.alloc(32, 1).toString('base64'),
+    };
     const exported = join(project, 'exported-plugin');
     const exportedWithMatcher = join(project, 'exported-plugin-matcher');
     const installed = join(project, 'installed-plugin');
@@ -252,6 +266,10 @@ describe('CLI command action coverage', () => {
       runtimeKey,
       '--core-url',
       coreUrl,
+      '--agent-did',
+      identity.did,
+      '--agent-private-key',
+      identity.privateKey,
       '--approval-mode',
       'remote',
       '--governance-timeout',
@@ -261,7 +279,7 @@ describe('CLI command action coverage', () => {
       '--hitl-poll-interval',
       '4',
     ]);
-    expectRuntimeConfig(project, runtimeKey, coreUrl, 'remote');
+    expectRuntimeConfig(project, runtimeKey, coreUrl, 'remote', identity);
     await run(cursor, [
       'cursor',
       'plugin',
@@ -307,6 +325,10 @@ describe('CLI command action coverage', () => {
     const claude = programWith(registerClaudeCodeCommands);
     const runtimeKey = `obx_test_${'f'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';
+    const identity = {
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440001',
+      privateKey: Buffer.alloc(32, 2).toString('base64'),
+    };
     const exported = join(project, 'exported-claude-plugin');
     const exportedWithMatcher = join(project, 'exported-claude-plugin-matcher');
     const target = join(project, 'claude-plugin-target');
@@ -342,6 +364,10 @@ describe('CLI command action coverage', () => {
       runtimeKey,
       '--core-url',
       coreUrl,
+      '--agent-did',
+      identity.did,
+      '--agent-private-key',
+      identity.privateKey,
       '--approval-mode',
       'defer',
       '--governance-timeout',
@@ -351,7 +377,7 @@ describe('CLI command action coverage', () => {
       '--hitl-poll-interval',
       '4',
     ]);
-    expectClaudeRuntimeConfig(project, runtimeKey, coreUrl, 'defer');
+    expectClaudeRuntimeConfig(project, runtimeKey, coreUrl, 'defer', identity);
     await run(claude, [
       'claude-code',
       'doctor',

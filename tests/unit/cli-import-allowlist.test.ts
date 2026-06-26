@@ -42,6 +42,8 @@ const ALLOWED_PREFIXES: Record<string, string> = {
   '../../validators/index.js': 'public @openbox-ai/openbox-sdk/validators surface; reportAndExit + named validators + parseJsonInput.',
   '../../test-utils/index.js': 'public @openbox-ai/openbox-sdk/test-utils surface; buildTestPayload, SPAN_TYPES.',
   '../exit-codes.js': 'EXIT taxonomy + bailWith; exit-code contract.',
+  '../agent-identity-options.js':
+    'shared CLI parser for runtime API key and signed agent identity flags; no network access.',
   '../../file-tokens/agent-keys.js':
     'recordAgentKey / recallAgentKey; local 0o600 cache for runtime API keys shared between cli and runtime/mcp.',
   '../../file-tokens/index.js':

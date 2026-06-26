@@ -21,6 +21,7 @@ import {
   peekGoal,
   recordGoal,
   resolveSession,
+  isStarted,
 } from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
 import { handlePreToolUse } from './mappers/pre-tool-use.js';
@@ -203,10 +204,12 @@ async function ensureWorkflowStartedForDecision(
   cfg: ClaudeCodeConfig,
 ): Promise<void> {
   if (!isDecisionCapable(env.hook_event_name) || isActiveStopRetry(env)) return;
+  if (isStarted(env.session_id, cfg)) return;
 
-  // Hook subprocesses are short-lived and may outlive local session-store state
-  // after Core restarts. Re-emitting WorkflowStarted is idempotent server-side;
-  // missing it can make the first tool gate fall through as a cached allow.
+  // Hook subprocesses are short-lived. Emit the workflow open event when a
+  // prompt/tool gate is the first event for the Claude Code session, but do
+  // not replay it after SessionStart has persisted the started marker: Core
+  // stores workflow/run as a unique session key.
   await session.workflowStarted();
   markStarted(env.session_id, cfg);
 }

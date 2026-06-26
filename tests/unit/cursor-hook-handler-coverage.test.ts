@@ -10,6 +10,7 @@ let mockApprovalMode: 'remote' | 'inline' = 'remote';
 let mockRequireGoalContext = false;
 let mockDefaultGoal: string | undefined;
 let mockPeekGoal: unknown = { goal: 'existing goal' };
+let mockIsStarted = false;
 let socketUnavailable = false;
 let socketTimesOut = false;
 let socketCloseThrows = false;
@@ -115,6 +116,7 @@ vi.mock('../../ts/src/runtime/cursor/session-resolver.js', () => ({
     workflowStarted: vi.fn(async () => undefined),
     workflowCompleted: vi.fn(async () => undefined),
   })),
+  isStarted: vi.fn(() => mockIsStarted),
   peekGoal: vi.fn(() => mockPeekGoal),
   recordGoal: vi.fn(),
   markStarted: vi.fn(),
@@ -134,6 +136,7 @@ beforeEach(() => {
   mockRequireGoalContext = false;
   mockDefaultGoal = undefined;
   mockPeekGoal = { goal: 'existing goal' };
+  mockIsStarted = false;
   socketUnavailable = false;
   socketTimesOut = false;
   socketCloseThrows = false;
@@ -442,6 +445,39 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       arm: 'block',
       reason: expect.stringContaining('required governance checks did not complete'),
     });
+  });
+
+  it('does not replay WorkflowStarted after the session store says the workflow is started', async () => {
+    mockIsStarted = true;
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+
+    await runCursorHook();
+    const session = {
+      activity: vi.fn(async () => ({ arm: 'allow' })),
+      openActivity: vi.fn(async () => ({
+        activityId: 'cursor-started-session',
+        verdict: { arm: 'allow' },
+      })),
+      workflowStarted: vi.fn(async () => undefined),
+      workflowCompleted: vi.fn(async () => undefined),
+    };
+
+    await expect(
+      adapterOptions.handlers.beforeShellExecution(
+        {
+          conversation_id: 'cursor-started',
+          generation_id: 'cursor-started-generation',
+          hook_event_name: 'beforeShellExecution',
+          command: 'pwd',
+          cwd: '/tmp',
+        },
+        session,
+      ),
+    ).resolves.toMatchObject({
+      arm: 'allow',
+    });
+    expect(session.workflowStarted).not.toHaveBeenCalled();
+    expect(session.openActivity).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed in strict goal mode when a permission gate has no session goal', async () => {

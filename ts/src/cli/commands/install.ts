@@ -8,6 +8,11 @@ import { error, info, row, success } from '../output.js';
 import type { ConfigureClaudeCodeRuntimeOptions } from '../../runtime/claude-code/index.js';
 import type { ConfigureCodexRuntimeOptions } from '../../runtime/codex/index.js';
 import type { ConfigureCursorRuntimeOptions } from '../../runtime/cursor/index.js';
+import {
+  hasAgentIdentityOptions,
+  parseAgentIdentityOptions,
+  type AgentIdentityOptions,
+} from '../agent-identity-options.js';
 
 type HostScope = 'project';
 type HostRuntimeOptions = {
@@ -19,7 +24,7 @@ type HostRuntimeOptions = {
   governanceTimeout?: string;
   hitlMaxWait?: string;
   hitlPollInterval?: string;
-};
+} & AgentIdentityOptions;
 
 /**
  * Validates and normalizes install scopes for plugin-based host installs.
@@ -73,7 +78,8 @@ function hasRuntimeOptions(opts: HostRuntimeOptions): boolean {
     opts.approvalMode !== undefined ||
     opts.governanceTimeout !== undefined ||
     opts.hitlMaxWait !== undefined ||
-    opts.hitlPollInterval !== undefined
+    opts.hitlPollInterval !== undefined ||
+    hasAgentIdentityOptions(opts)
   );
 }
 
@@ -100,6 +106,7 @@ function cursorRuntimeOptions(opts: HostRuntimeOptions): ConfigureCursorRuntimeO
     apiKey: opts.runtimeApiKey,
     agentId: opts.agentId,
     coreUrl: opts.coreUrl,
+    agentIdentity: parseAgentIdentityOptions(opts),
     approvalMode: parseCursorApprovalMode(opts.approvalMode),
     governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
     hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
@@ -114,6 +121,7 @@ function claudeRuntimeOptions(opts: HostRuntimeOptions): ConfigureClaudeCodeRunt
     apiKey: opts.runtimeApiKey,
     agentId: opts.agentId,
     coreUrl: opts.coreUrl,
+    agentIdentity: parseAgentIdentityOptions(opts),
     approvalMode: parseHostApprovalMode(opts.approvalMode),
     governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
     hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
@@ -128,6 +136,7 @@ function codexRuntimeOptions(opts: HostRuntimeOptions): ConfigureCodexRuntimeOpt
     apiKey: opts.runtimeApiKey,
     agentId: opts.agentId,
     coreUrl: opts.coreUrl,
+    agentIdentity: parseAgentIdentityOptions(opts),
     approvalMode: parseHostApprovalMode(opts.approvalMode),
     governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
     hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
@@ -164,6 +173,8 @@ export function registerInstallCommands(program: Command): void {
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Cursor')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .openbox/cursor/.env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .openbox/cursor/.env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .openbox/cursor/.env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .openbox/cursor/.env')
     .option('--approval-mode <mode>', 'Approval mode: remote or inline')
     .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
@@ -183,6 +194,8 @@ export function registerInstallCommands(program: Command): void {
         symlink?: string;
         runtimeApiKey?: string;
         agentId?: string;
+        agentDid?: string;
+        agentPrivateKey?: string;
         coreUrl?: string;
         approvalMode?: string;
         governanceTimeout?: string;
@@ -223,6 +236,8 @@ export function registerInstallCommands(program: Command): void {
     .option('--cwd <dir>', 'Project root for project-local install')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .openbox/codex/.env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .openbox/codex/.env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .openbox/codex/.env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .openbox/codex/.env')
     .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
     .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
@@ -258,6 +273,8 @@ export function registerInstallCommands(program: Command): void {
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Claude Code')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .claude/settings.local.json env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .claude/settings.local.json env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .claude/settings.local.json env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .claude/settings.local.json env')
     .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
     .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
@@ -277,6 +294,8 @@ export function registerInstallCommands(program: Command): void {
       symlink?: string;
       runtimeApiKey?: string;
       agentId?: string;
+      agentDid?: string;
+      agentPrivateKey?: string;
       coreUrl?: string;
       approvalMode?: string;
       governanceTimeout?: string;

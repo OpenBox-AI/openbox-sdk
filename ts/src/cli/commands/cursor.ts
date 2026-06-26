@@ -3,6 +3,11 @@ import { EXIT, bailWith } from '../exit-codes.js';
 import { error, row, success, summary, output } from '../output.js';
 import { isMachineMode } from '../non-interactive.js';
 import type { ConfigureCursorRuntimeOptions } from '../../runtime/cursor/index.js';
+import {
+  hasAgentIdentityOptions,
+  parseAgentIdentityOptions,
+  type AgentIdentityOptions,
+} from '../agent-identity-options.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -35,15 +40,18 @@ function parseRuntimeOptions(opts: {
   cwd?: string;
   runtimeApiKey?: string;
   agentId?: string;
+  agentDid?: string;
+  agentPrivateKey?: string;
   coreUrl?: string;
   approvalMode?: string;
   governanceTimeout?: string;
   hitlMaxWait?: string;
   hitlPollInterval?: string;
-}): ConfigureCursorRuntimeOptions | undefined {
+} & AgentIdentityOptions): ConfigureCursorRuntimeOptions | undefined {
   if (
     opts.runtimeApiKey === undefined &&
     opts.agentId === undefined &&
+    !hasAgentIdentityOptions(opts) &&
     opts.coreUrl === undefined &&
     opts.approvalMode === undefined &&
     opts.governanceTimeout === undefined &&
@@ -66,6 +74,7 @@ function parseRuntimeOptions(opts: {
     apiKey: opts.runtimeApiKey,
     agentId: opts.agentId,
     coreUrl: opts.coreUrl,
+    agentIdentity: parseAgentIdentityOptions(opts),
     approvalMode: approvalMode as ConfigureCursorRuntimeOptions['approvalMode'],
     governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
     hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
@@ -134,6 +143,8 @@ export function registerCursorCommands(program: Command) {
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Cursor')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .openbox/cursor/.env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .openbox/cursor/.env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .openbox/cursor/.env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .openbox/cursor/.env')
     .option('--approval-mode <mode>', 'Approval mode: remote or inline')
     .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
@@ -152,6 +163,8 @@ export function registerCursorCommands(program: Command) {
         symlink?: string;
         runtimeApiKey?: string;
         agentId?: string;
+        agentDid?: string;
+        agentPrivateKey?: string;
         coreUrl?: string;
         approvalMode?: string;
         governanceTimeout?: string;
@@ -192,6 +205,8 @@ export function registerCursorCommands(program: Command) {
     .option('--cwd <dir>', 'Project root for project-local install')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .openbox/cursor/.env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .openbox/cursor/.env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .openbox/cursor/.env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .openbox/cursor/.env')
     .option('--approval-mode <mode>', 'Approval mode: remote or inline')
     .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
@@ -207,6 +222,8 @@ export function registerCursorCommands(program: Command) {
       cwd?: string;
       runtimeApiKey?: string;
       agentId?: string;
+      agentDid?: string;
+      agentPrivateKey?: string;
       coreUrl?: string;
       approvalMode?: string;
       governanceTimeout?: string;

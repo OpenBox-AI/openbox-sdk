@@ -18,6 +18,7 @@ import {
   installCursorPlugin,
   verifyCursorInstall,
 } from '../../ts/src/runtime/cursor/index.js';
+import { DEFAULT_OPENBOX_CORE_URL } from '../../ts/src/runtime/install-runtime-defaults.js';
 import { verifyOpenBoxAgentsSDKConfig } from '@openbox-ai/openbox-sdk/openai-agents-sdk';
 import { verifyOpenBoxAnthropicAgentSDKConfig } from '@openbox-ai/openbox-sdk/anthropic-agent-sdk';
 import { createOpenBoxCopilotKitAdapter } from '@openbox-ai/openbox-sdk/copilotkit';
@@ -131,6 +132,85 @@ afterEach(() => {
 });
 
 describe('shared OpenBox agent runtime configuration', () => {
+  it('fills the production Core URL for lean coding-agent credential installs', () => {
+    const runtimeKey = `obx_test_${'0'.repeat(48)}`;
+    const claudeProject = tempDir('openbox-lean-core-claude-');
+    const codexProject = tempDir('openbox-lean-core-codex-');
+    const cursorProject = tempDir('openbox-lean-core-cursor-');
+
+    configureClaudeCodeRuntime({
+      cwd: claudeProject,
+      apiKey: runtimeKey,
+      agentIdentity: signedIdentity,
+    });
+    configureCodexRuntime({
+      cwd: codexProject,
+      apiKey: runtimeKey,
+      agentIdentity: signedIdentity,
+    });
+    configureCursorRuntime({
+      cwd: cursorProject,
+      apiKey: runtimeKey,
+      agentIdentity: signedIdentity,
+    });
+
+    const claudeEnv = readJson(path.join(claudeProject, '.claude', 'settings.local.json')).env as Record<string, unknown>;
+    expect(claudeEnv).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: signedIdentity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: signedIdentity.privateKey,
+    });
+    expect(readDotenv(path.join(codexProject, '.openbox', 'codex', '.env'))).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: signedIdentity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: signedIdentity.privateKey,
+    });
+    expect(readDotenv(path.join(cursorProject, '.openbox', 'cursor', '.env'))).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: signedIdentity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: signedIdentity.privateKey,
+    });
+  });
+
+  it('preserves existing local Core URLs when credential installs omit --core-url', () => {
+    const runtimeKey = `obx_test_${'1'.repeat(48)}`;
+    const localCoreUrl = 'http://127.0.0.1:8086';
+    const claudeProject = tempDir('openbox-preserve-core-claude-');
+    const codexProject = tempDir('openbox-preserve-core-codex-');
+    const cursorProject = tempDir('openbox-preserve-core-cursor-');
+
+    configureClaudeCodeRuntime({
+      cwd: claudeProject,
+      apiKey: runtimeKey,
+      coreUrl: localCoreUrl,
+      agentIdentity: signedIdentity,
+    });
+    configureCodexRuntime({
+      cwd: codexProject,
+      apiKey: runtimeKey,
+      coreUrl: localCoreUrl,
+      agentIdentity: signedIdentity,
+    });
+    configureCursorRuntime({
+      cwd: cursorProject,
+      apiKey: runtimeKey,
+      coreUrl: localCoreUrl,
+      agentIdentity: signedIdentity,
+    });
+
+    configureClaudeCodeRuntime({ cwd: claudeProject, apiKey: runtimeKey });
+    configureCodexRuntime({ cwd: codexProject, apiKey: runtimeKey });
+    configureCursorRuntime({ cwd: cursorProject, apiKey: runtimeKey });
+
+    const claudeEnv = readJson(path.join(claudeProject, '.claude', 'settings.local.json')).env as Record<string, unknown>;
+    expect(claudeEnv.OPENBOX_CORE_URL).toBe(localCoreUrl);
+    expect(readDotenv(path.join(codexProject, '.openbox', 'codex', '.env')).OPENBOX_CORE_URL).toBe(localCoreUrl);
+    expect(readDotenv(path.join(cursorProject, '.openbox', 'cursor', '.env')).OPENBOX_CORE_URL).toBe(localCoreUrl);
+  });
+
   it('wires the same agent runtime key through each provider official surface', async () => {
     const runtimeKey = `obx_test_${'a'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';

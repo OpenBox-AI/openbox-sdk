@@ -8,6 +8,7 @@ import {
   parseHostScope,
   registerInstallCommands,
 } from '../../ts/src/cli/commands/install.ts';
+import { DEFAULT_OPENBOX_CORE_URL } from '../../ts/src/runtime/install-runtime-defaults.js';
 
 const temps: string[] = [];
 const originalEnv = { ...process.env };
@@ -41,10 +42,15 @@ function expectRuntimeConfig(
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
+  identity?: { did: string; privateKey: string },
 ): void {
   const env = readDotenv(join(project, '.openbox', provider, '.env'));
   expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
   expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+  if (identity) {
+    expect(env.OPENBOX_AGENT_DID).toBe(identity.did);
+    expect(env.OPENBOX_AGENT_PRIVATE_KEY).toBe(identity.privateKey);
+  }
 
   const config = readJson(join(project, '.openbox', provider, 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
@@ -60,11 +66,16 @@ function expectClaudeRuntimeConfig(
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
+  identity?: { did: string; privateKey: string },
 ): void {
   const settings = readJson(join(project, '.claude', 'settings.local.json'));
   const env = settings.env as Record<string, unknown>;
   expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
   expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+  if (identity) {
+    expect(env.OPENBOX_AGENT_DID).toBe(identity.did);
+    expect(env.OPENBOX_AGENT_PRIVATE_KEY).toBe(identity.privateKey);
+  }
 
   const config = readJson(join(project, '.openbox', 'claude-code', 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
@@ -205,6 +216,10 @@ describe('minimal install command', () => {
   it('writes shared agent runtime settings from top-level install flags for each host', async () => {
     const runtimeKey = `obx_test_${'d'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';
+    const identity = {
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: Buffer.alloc(32, 1).toString('base64'),
+    };
     const cursorProject = tempDir('openbox-install-runtime-cursor-');
     const claudeProject = tempDir('openbox-install-runtime-claude-');
     const codexProject = tempDir('openbox-install-runtime-codex-');
@@ -215,6 +230,10 @@ describe('minimal install command', () => {
       runtimeKey,
       '--core-url',
       coreUrl,
+      '--agent-did',
+      identity.did,
+      '--agent-private-key',
+      identity.privateKey,
       '--governance-timeout',
       '21',
       '--hitl-max-wait',
@@ -255,9 +274,100 @@ describe('minimal install command', () => {
       ...runtimeFlags,
     ]);
 
-    expectRuntimeConfig(cursorProject, 'cursor', runtimeKey, coreUrl, 'inline');
-    expectClaudeRuntimeConfig(claudeProject, runtimeKey, coreUrl, 'remote');
-    expectRuntimeConfig(codexProject, 'codex', runtimeKey, coreUrl, 'defer');
+    expectRuntimeConfig(cursorProject, 'cursor', runtimeKey, coreUrl, 'inline', identity);
+    expectClaudeRuntimeConfig(claudeProject, runtimeKey, coreUrl, 'remote', identity);
+    expectRuntimeConfig(codexProject, 'codex', runtimeKey, coreUrl, 'defer', identity);
+  });
+
+  it('writes production Core defaults for lean top-level coding agent install flags', async () => {
+    const runtimeKey = `obx_test_${'4'.repeat(48)}`;
+    const identity = {
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: Buffer.alloc(32, 1).toString('base64'),
+    };
+    const cursorProject = tempDir('openbox-install-lean-cursor-');
+    const claudeProject = tempDir('openbox-install-lean-claude-');
+    const codexProject = tempDir('openbox-install-lean-codex-');
+    const cursorPlugin = join(cursorProject, '.cursor', 'plugins', 'local', 'openbox');
+
+    const leanRuntimeFlags = [
+      '--runtime-api-key',
+      runtimeKey,
+      '--agent-did',
+      identity.did,
+      '--agent-private-key',
+      identity.privateKey,
+    ];
+
+    await runInstallCli([
+      'install',
+      'cursor',
+      '--cwd',
+      cursorProject,
+      '--plugin-target',
+      cursorPlugin,
+      ...leanRuntimeFlags,
+    ]);
+    await runInstallCli([
+      'install',
+      'claude-code',
+      '--cwd',
+      claudeProject,
+      ...leanRuntimeFlags,
+    ]);
+    await runInstallCli([
+      'install',
+      'codex',
+      '--cwd',
+      codexProject,
+      ...leanRuntimeFlags,
+    ]);
+
+    expect(readDotenv(join(cursorProject, '.openbox', 'cursor', '.env'))).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: identity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: identity.privateKey,
+    });
+    const claudeEnv = readJson(join(claudeProject, '.claude', 'settings.local.json')).env as Record<string, unknown>;
+    expect(claudeEnv).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: identity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: identity.privateKey,
+    });
+    expect(readDotenv(join(codexProject, '.openbox', 'codex', '.env'))).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: identity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: identity.privateKey,
+    });
+  });
+
+  it('rejects incomplete direct signing identity flags', async () => {
+    const project = tempDir('openbox-install-runtime-incomplete-');
+    const runtimeKey = `obx_test_${'e'.repeat(48)}`;
+
+    const originalExit = process.exit;
+    (process as unknown as { exit: (code?: number) => never }).exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never;
+    try {
+      await expect(
+        runInstallCli([
+          'install',
+          'claude-code',
+          '--cwd',
+          project,
+          '--runtime-api-key',
+          runtimeKey,
+          '--agent-did',
+          'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        ]),
+      ).rejects.toThrow('exit:2');
+    } finally {
+      (process as unknown as { exit: typeof originalExit }).exit = originalExit;
+    }
   });
 
   it('rejects old direct Cursor install flags', async () => {

@@ -18,6 +18,7 @@ import {
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
 import { checkProjectOpenBoxRuntime } from '../project-openbox-runtime.js';
+import { resolveInstallRuntimeCoreUrl } from '../install-runtime-defaults.js';
 
 export type CodexInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -191,6 +192,7 @@ export function configureCodexRuntime(options: ConfigureCodexRuntimeOptions = {}
   delete next.OPENBOX_AGENT_DID;
   delete next.OPENBOX_AGENT_PRIVATE_KEY;
   const runtimeEnv: Record<string, string | undefined> = {};
+  const existingRuntimeEnv = loadDotenv(codexRuntimeEnvFile(cwd));
 
   const apiKey = resolveRuntimeKey(options);
   if (apiKey !== undefined) {
@@ -199,16 +201,18 @@ export function configureCodexRuntime(options: ConfigureCodexRuntimeOptions = {}
     runtimeEnv.OPENBOX_API_KEY = apiKey;
   }
 
-  if (options.coreUrl !== undefined) {
-    runtimeEnv.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
-  }
-
   const discoveredIdentity = options.agentIdentity ?? resolveAgentIdentity();
   if (discoveredIdentity !== undefined) {
     const agentIdentity = validateAgentIdentityConfig(discoveredIdentity);
     runtimeEnv.OPENBOX_AGENT_DID = agentIdentity.did;
     runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
   }
+
+  runtimeEnv.OPENBOX_CORE_URL = resolveInstallRuntimeCoreUrl({
+    coreUrl: options.coreUrl,
+    existingCoreUrl: existingRuntimeEnv.OPENBOX_CORE_URL,
+    runtimeEnv,
+  });
 
   const approvalMode = normalizeApprovalMode(options.approvalMode);
   if (approvalMode !== undefined) next.approvalMode = approvalMode;

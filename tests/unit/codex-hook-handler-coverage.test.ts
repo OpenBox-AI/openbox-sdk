@@ -7,6 +7,7 @@ let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
 let mockRequireGoalContext = false;
 let mockDefaultGoal: string | undefined;
 let mockPeekGoal: unknown = { goal: 'existing goal' };
+let mockIsStarted = false;
 
 vi.mock('../../ts/src/logging/logger.js', () => ({
   createLogger: vi.fn(() => ({ initLogger: vi.fn() })),
@@ -68,7 +69,7 @@ vi.mock('../../ts/src/runtime/codex/session-resolver.js', () => ({
     workflowId: 'codex-workflow',
     runId: 'codex-run',
   })),
-  isStarted: vi.fn(() => true),
+  isStarted: vi.fn(() => mockIsStarted),
   peekGoal: vi.fn(() => mockPeekGoal),
   recordGoal: vi.fn(),
   markStarted: vi.fn(),
@@ -84,6 +85,7 @@ beforeEach(() => {
   mockRequireGoalContext = false;
   mockDefaultGoal = undefined;
   mockPeekGoal = { goal: 'existing goal' };
+  mockIsStarted = false;
   process.env.OPENBOX_API_KEY = 'obx_test_codex_handler';
   delete process.env.OPENBOX_HOME;
 });
@@ -175,6 +177,30 @@ describe('runtime/codex/hook-handler; governance orchestration', () => {
     expect(session.workflowStarted.mock.invocationCallOrder[0]).toBeLessThan(
       session.openActivity.mock.invocationCallOrder[0],
     );
+  });
+
+  it('does not replay WorkflowStarted after the session store says the workflow is started', async () => {
+    mockIsStarted = true;
+    mockHookStdin();
+    const { runCodexHook } = await import('../../ts/src/runtime/codex/hook-handler.ts');
+
+    await runCodexHook();
+    const session = {
+      workflowStarted: vi.fn(async () => undefined),
+      openActivity: vi.fn(async () => ({
+        activityId: 'activity-test',
+        verdict: {
+          arm: 'allow',
+          riskScore: 0,
+        },
+      })),
+    };
+
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
+      arm: 'allow',
+    });
+    expect(session.workflowStarted).not.toHaveBeenCalled();
+    expect(session.openActivity).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed when Core returns a governance-checks-incomplete allow for a decision hook', async () => {
