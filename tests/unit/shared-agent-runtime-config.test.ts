@@ -8,11 +8,13 @@ import {
   verifyClaudeCodeInstall,
 } from '../../ts/src/runtime/claude-code/index.js';
 import {
+  configureCodexRuntime,
   installCodex,
   installCodexPlugin,
   verifyCodexInstall,
 } from '../../ts/src/runtime/codex/index.js';
 import {
+  configureCursorRuntime,
   installCursorPlugin,
   verifyCursorInstall,
 } from '../../ts/src/runtime/cursor/index.js';
@@ -42,24 +44,69 @@ function readJson(file: string): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, unknown>;
 }
 
+function readDotenv(file: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of fs.readFileSync(file, 'utf-8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq);
+    out[key] = JSON.parse(trimmed.slice(eq + 1)) as string;
+  }
+  return out;
+}
+
 function expectRuntimeConfig(
-  file: string,
+  project: string,
+  provider: 'codex' | 'cursor',
   runtimeKey: string,
   coreUrl: string,
   approvalMode: string,
   agentIdentity?: typeof signedIdentity,
 ): void {
-  const config = readJson(file);
-  expect(config.OPENBOX_API_KEY).toBe(runtimeKey);
-  expect(config.OPENBOX_CORE_URL).toBe(coreUrl);
+  const env = readDotenv(path.join(project, '.openbox', provider, '.env'));
+  expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
+  if (agentIdentity) {
+    expect(env.OPENBOX_AGENT_DID).toBe(agentIdentity.did);
+    expect(env.OPENBOX_AGENT_PRIVATE_KEY).toBe(agentIdentity.privateKey);
+  }
+
+  const config = readJson(path.join(project, '.openbox', provider, 'config.json'));
   expect(config.approvalMode).toBe(approvalMode);
   expect(config.governanceTimeout).toBe('34');
   expect(config.hitlMaxWait).toBe(600);
   expect(config.hitlPollInterval).toBe(2);
+  expect(config.OPENBOX_API_KEY).toBeUndefined();
+  expect(config.OPENBOX_CORE_URL).toBeUndefined();
+  expect(config.OPENBOX_AGENT_DID).toBeUndefined();
+  expect(config.OPENBOX_AGENT_PRIVATE_KEY).toBeUndefined();
+}
+
+function expectClaudeRuntimeConfig(
+  project: string,
+  runtimeKey: string,
+  coreUrl: string,
+  approvalMode: string,
+  agentIdentity?: typeof signedIdentity,
+): void {
+  const settings = readJson(path.join(project, '.claude', 'settings.local.json'));
+  const env = settings.env as Record<string, unknown>;
+  expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(env.OPENBOX_CORE_URL).toBe(coreUrl);
   if (agentIdentity) {
-    expect(config.OPENBOX_AGENT_DID).toBe(agentIdentity.did);
-    expect(config.OPENBOX_AGENT_PRIVATE_KEY).toBe(agentIdentity.privateKey);
+    expect(env.OPENBOX_AGENT_DID).toBe(agentIdentity.did);
+    expect(env.OPENBOX_AGENT_PRIVATE_KEY).toBe(agentIdentity.privateKey);
   }
+
+  const config = readJson(path.join(project, '.openbox', 'claude-code', 'config.json'));
+  expect(config.approvalMode).toBe(approvalMode);
+  expect(config.governanceTimeout).toBe('34');
+  expect(config.hitlMaxWait).toBe(600);
+  expect(config.hitlPollInterval).toBe(2);
+  expect(config.OPENBOX_API_KEY).toBeUndefined();
+  expect(config.OPENBOX_AGENT_PRIVATE_KEY).toBeUndefined();
 }
 
 async function withRuntimeEnvCleared<T>(fn: () => Promise<T> | T): Promise<T> {
@@ -101,13 +148,7 @@ describe('shared OpenBox agent runtime configuration', () => {
         agentIdentity: signedIdentity,
       },
     });
-    expectRuntimeConfig(
-      path.join(claudeProject, '.claude-hooks', 'config.json'),
-      runtimeKey,
-      coreUrl,
-      'remote',
-      signedIdentity,
-    );
+    expectClaudeRuntimeConfig(claudeProject, runtimeKey, coreUrl, 'remote', signedIdentity);
     expect(
       (await verifyClaudeCodeInstall({
         cwd: claudeProject,
@@ -131,7 +172,8 @@ describe('shared OpenBox agent runtime configuration', () => {
       },
     });
     expectRuntimeConfig(
-      path.join(codexProject, '.codex-hooks', 'config.json'),
+      codexProject,
+      'codex',
       runtimeKey,
       coreUrl,
       'defer',
@@ -159,7 +201,8 @@ describe('shared OpenBox agent runtime configuration', () => {
       },
     });
     expectRuntimeConfig(
-      path.join(cursorProject, '.cursor-hooks', 'config.json'),
+      cursorProject,
+      'cursor',
       runtimeKey,
       coreUrl,
       'inline',
@@ -199,9 +242,10 @@ describe('shared OpenBox agent runtime configuration', () => {
 
       const claudeProject = tempDir('openbox-invalid-core-claude-');
       installClaudeCodePlugin({ cwd: claudeProject });
+      fs.mkdirSync(path.join(claudeProject, '.claude'), { recursive: true });
       fs.writeFileSync(
-        path.join(claudeProject, '.claude-hooks', 'config.json'),
-        JSON.stringify({ OPENBOX_API_KEY: runtimeKey, OPENBOX_CORE_URL: invalidCoreUrl }) + '\n',
+        path.join(claudeProject, '.claude', 'settings.local.json'),
+        JSON.stringify({ env: { OPENBOX_API_KEY: runtimeKey, OPENBOX_CORE_URL: invalidCoreUrl } }) + '\n',
       );
       expect(
         (await verifyClaudeCodeInstall({
@@ -214,9 +258,10 @@ describe('shared OpenBox agent runtime configuration', () => {
       const codexProject = tempDir('openbox-invalid-core-codex-');
       installCodex({ cwd: codexProject });
       installCodexPlugin({ cwd: codexProject });
+      fs.mkdirSync(path.join(codexProject, '.openbox', 'codex'), { recursive: true });
       fs.writeFileSync(
-        path.join(codexProject, '.codex-hooks', 'config.json'),
-        JSON.stringify({ OPENBOX_API_KEY: runtimeKey, OPENBOX_CORE_URL: invalidCoreUrl }) + '\n',
+        path.join(codexProject, '.openbox', 'codex', '.env'),
+        `OPENBOX_API_KEY=${JSON.stringify(runtimeKey)}\nOPENBOX_CORE_URL=${JSON.stringify(invalidCoreUrl)}\n`,
       );
       expect(
         (await verifyCodexInstall({
@@ -228,9 +273,10 @@ describe('shared OpenBox agent runtime configuration', () => {
 
       const cursorProject = tempDir('openbox-invalid-core-cursor-');
       installCursorPlugin({ cwd: cursorProject });
+      fs.mkdirSync(path.join(cursorProject, '.openbox', 'cursor'), { recursive: true });
       fs.writeFileSync(
-        path.join(cursorProject, '.cursor-hooks', 'config.json'),
-        JSON.stringify({ OPENBOX_API_KEY: runtimeKey, OPENBOX_CORE_URL: invalidCoreUrl }) + '\n',
+        path.join(cursorProject, '.openbox', 'cursor', '.env'),
+        `OPENBOX_API_KEY=${JSON.stringify(runtimeKey)}\nOPENBOX_CORE_URL=${JSON.stringify(invalidCoreUrl)}\n`,
       );
       expect(
         (await verifyCursorInstall({
@@ -240,6 +286,27 @@ describe('shared OpenBox agent runtime configuration', () => {
         })).find((check) => check.name === 'runtime'),
       ).toMatchObject({ status: 'fail', detail: expect.stringContaining('invalid OPENBOX_CORE_URL') });
     });
+  });
+
+  it('rejects empty runtime keys before writing host runtime config', () => {
+    const runtimeKey = `obx_test_${'d'.repeat(48)}`;
+    const claudeProject = tempDir('openbox-empty-key-claude-');
+    const codexProject = tempDir('openbox-empty-key-codex-');
+    const cursorProject = tempDir('openbox-empty-key-cursor-');
+
+    expect(() => configureClaudeCodeRuntime({ cwd: claudeProject, apiKey: '   ' })).toThrow(
+      'OPENBOX_API_KEY must not be empty',
+    );
+    expect(() => configureCodexRuntime({ cwd: codexProject, apiKey: '' })).toThrow(
+      'OPENBOX_API_KEY must not be empty',
+    );
+    expect(() => configureCursorRuntime({ cwd: cursorProject, apiKey: '  ' })).toThrow(
+      'OPENBOX_API_KEY must not be empty',
+    );
+
+    configureClaudeCodeRuntime({ cwd: claudeProject, apiKey: ` ${runtimeKey} ` });
+    const env = readJson(path.join(claudeProject, '.claude', 'settings.local.json')).env as Record<string, unknown>;
+    expect(env.OPENBOX_API_KEY).toBe(runtimeKey);
   });
 
 });

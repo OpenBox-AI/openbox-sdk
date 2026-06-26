@@ -347,6 +347,9 @@ model CreateBehaviorRuleDto {
   /** Trigger event */
   trigger: BehaviorRuleTrigger;
 
+  /** Trigger predicate (v2). Field/op/value conditions on the trigger span. */
+  trigger_match?: BehaviorRuleMatchCondition[];
+
   /** States (multiple select) */
   states: BehaviorRuleStateInput[];
 
@@ -394,6 +397,9 @@ model UpdateBehavioralRuleDto {
 
   /** Trigger event */
   trigger: BehaviorRuleTrigger;
+
+  /** Trigger predicate (v2). Field/op/value conditions on the trigger span. */
+  trigger_match?: BehaviorRuleMatchCondition[];
 
   /** States (multiple select) */
   states: BehaviorRuleStateInput[];

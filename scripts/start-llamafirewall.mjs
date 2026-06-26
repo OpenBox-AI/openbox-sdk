@@ -95,8 +95,8 @@ async function main() {
   });
 }
 
-function requiredEnv(name, fallback) {
-  const value = process.env[name] ?? fallback;
+function requiredEnv(name, defaultValue) {
+  const value = process.env[name] ?? defaultValue;
   if (!value) {
     throw new Error(`Set ${name} before starting LlamaFirewall`);
   }

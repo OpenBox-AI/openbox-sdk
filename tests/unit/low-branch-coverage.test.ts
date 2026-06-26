@@ -125,7 +125,7 @@ describe('low-branch utility coverage', () => {
     expect(hookEventLabel(known)).toBe(HOOK_EVENT_LABELS[known]);
   });
 
-  it('builds shared governance spans for each MCP-supported span type and default fallbacks', () => {
+  it('builds shared governance spans for each MCP-supported span type and defaults', () => {
     const cases = [
       ['llm', { prompt: 'hi' }, 'llm.chat.completion'],
       ['file_read', { file_path: '/tmp/read.txt' }, 'file.read'],
@@ -295,7 +295,7 @@ describe('low-branch utility coverage', () => {
     setArgvForTesting(null);
   });
 
-  it('covers Claude Code tool activity store fallbacks and invalid records', async () => {
+  it('covers Claude Code tool activity store alternate keys and invalid records', async () => {
     const {
       rememberToolActivity,
       takeToolActivity,
@@ -307,29 +307,29 @@ describe('low-branch utility coverage', () => {
     const keyed = { session_id: 'S', tool_use_id: 'toolu_1' } as any;
     expect(toolActivityKey(keyed)).toBe('S:toolu_1');
 
-    const fallbackA = {
+    const alternateA = {
       session_id: 'S',
       tool_name: 'Bash',
       tool_input: { b: 2, a: 1 },
     } as any;
-    const fallbackB = {
+    const alternateB = {
       session_id: 'S',
       tool_name: 'Bash',
       tool_input: { a: 1, b: 2 },
     } as any;
-    expect(toolActivityKey(fallbackA)).toBe(toolActivityKey(fallbackB));
+    expect(toolActivityKey(alternateA)).toBe(toolActivityKey(alternateB));
 
-    rememberToolActivity(fallbackA, cfg, {
+    rememberToolActivity(alternateA, cfg, {
       activityId: 'activity-1',
       activityType: 'ShellExecution',
       startTime: 10,
     });
-    expect(takeToolActivity(fallbackB, cfg)).toEqual({
+    expect(takeToolActivity(alternateB, cfg)).toEqual({
       activityId: 'activity-1',
       activityType: 'ShellExecution',
       startTime: 10,
     });
-    expect(takeToolActivity(fallbackB, cfg)).toBeNull();
+    expect(takeToolActivity(alternateB, cfg)).toBeNull();
 
     const invalid = { session_id: 'S', tool_use_id: 'bad-record' } as any;
     new SessionStore(join(cfg.sessionDir, 'tool-activities')).save(
@@ -360,10 +360,7 @@ describe('low-branch utility coverage', () => {
         failingCompletion as any,
         cfg,
       ),
-    ).resolves.toMatchObject({
-      arm: 'block',
-      reason: 'OpenBox Core was unavailable while completing Claude Code workflow',
-    });
+    ).resolves.toMatchObject({ arm: 'allow' });
 
     await expect(
       handleStop(

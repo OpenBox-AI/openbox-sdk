@@ -2351,6 +2351,11 @@ SDK_TARGET_MANIFEST = {
         "kind": "spec-runner"
       },
       {
+        "name": "local:fe",
+        "command": "node scripts/start-local-fe.mjs",
+        "kind": "spec-runner"
+      },
+      {
         "name": "local:llamafirewall",
         "command": "node scripts/start-llamafirewall.mjs",
         "kind": "spec-runner"
@@ -2430,7 +2435,7 @@ SDK_TARGET_MANIFEST = {
         "path": "scripts/build-codegen.mjs",
         "category": "spec-runner",
         "canonicalSurface": "codegenBuild.steps",
-        "role": "Runs the TypeSpec-emitted codegen package build pipeline with a bootstrap fallback only for regenerating the manifest."
+        "role": "Runs the TypeSpec-emitted codegen package build pipeline with an explicit bootstrap path only for regenerating the manifest."
       },
       {
         "path": "scripts/run-sdk-generation.mjs",
@@ -2472,7 +2477,7 @@ SDK_TARGET_MANIFEST = {
         "path": "scripts/run-isolated-age-unavailable.mjs",
         "category": "spec-runner",
         "canonicalSurface": "testSuites.suites",
-        "role": "Starts temporary Core server and governance worker processes with AGE unavailable and runs the generated fallback local-stack scenario."
+        "role": "Starts temporary Core server and governance worker processes with AGE unavailable and runs the generated AGE-unavailable local-stack scenario."
       },
       {
         "path": "scripts/run-isolated-opa-unavailable.mjs",
@@ -2514,7 +2519,7 @@ SDK_TARGET_MANIFEST = {
         "path": "scripts/check-local-stack-alignment.mjs",
         "category": "spec-runner",
         "canonicalSurface": "testSuites.suites",
-        "role": "Fails local-stack governance e2e before execution when backend, Core, OPA, Guardrails, AGE, LlamaFirewall, and AWS-compatible S3 are not aligned on the expected local endpoints and policy bundle bucket."
+        "role": "Fails local-stack governance e2e before execution when backend, Core, live OPA runtime config, Guardrails, AGE, LlamaFirewall, and AWS-compatible S3 are not aligned on the expected local endpoints and policy bundle bucket."
       },
       {
         "path": "scripts/run-quality.mjs",
@@ -2589,6 +2594,12 @@ SDK_TARGET_MANIFEST = {
         "role": "Hosts a local HTTP adapter around the official LlamaFirewall scanner used by local-stack governance drift checks."
       },
       {
+        "path": "scripts/start-local-fe.mjs",
+        "category": "local-stack-launcher",
+        "canonicalSurface": "packageScripts.scripts",
+        "role": "Starts the local frontend checkout with local-stack-safe localhost API, WebSocket, reCAPTCHA, host, and strict-port defaults."
+      },
+      {
         "path": "scripts/start-llamafirewall.mjs",
         "category": "local-stack-launcher",
         "canonicalSurface": "packageScripts.scripts",
@@ -2612,7 +2623,10 @@ SDK_TARGET_MANIFEST = {
     "paths": [
       "dist",
       "dist-pack",
-      "apps/extension/dist"
+      "apps/extension/dist",
+      ".coverage",
+      ".openbox/cache",
+      ".openbox/locks"
     ],
     "nestedNames": [
       {

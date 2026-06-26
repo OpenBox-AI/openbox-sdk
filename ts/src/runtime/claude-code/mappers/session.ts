@@ -142,11 +142,11 @@ export async function handleStop(
       startTime: pending?.startTime,
       input: [stampSource(buildStopPayload(env), 'claude-code')],
       ...claudeAssistantTelemetryFields(env, {
-        fallbackText: env.last_assistant_message,
+        defaultText: env.last_assistant_message,
       }),
       spans: buildClaudeAssistantOutputSpan(env, {
         event: 'Stop',
-        fallbackText: env.last_assistant_message,
+        defaultText: env.last_assistant_message,
       }),
       hookSpanParentEventType: EVENT.START,
       ensureHookSpanParent: !pending,
@@ -167,12 +167,9 @@ export async function handleStop(
     try {
       await session.workflowCompleted();
     } catch {
-      const failClosed = failClosedStopVerdict(
-        env,
-        cfg,
-        'OpenBox Core was unavailable while completing Claude Code workflow',
-      );
-      if (failClosed) return failClosed;
+      // The final assistant-output activity above is the governing Stop check.
+      // WorkflowCompleted is terminal lifecycle telemetry; do not keep Claude
+      // in a retry loop after the governed Stop verdict has already allowed.
     }
     clearSession(env.session_id, cfg);
   }

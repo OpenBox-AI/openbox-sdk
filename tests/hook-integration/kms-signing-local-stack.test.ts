@@ -21,8 +21,8 @@ import {
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
 import {
-  ensureLocalGovernanceMatrix,
   ensureSignedLocalGovernanceMatrix,
+  ensureUnsignedLocalGovernanceRuntime,
   normalizeMatrixVerdict,
 } from './helpers/local-governance-matrix.js';
 
@@ -459,7 +459,7 @@ async function proveN8nSignedHostPath(
 
 describe('local KMS signing local-stack governance', () => {
   it('proves unsigned dev mode and signing_required compliance mode', async () => {
-    const unsigned = await ensureLocalGovernanceMatrix();
+    const unsigned = await ensureUnsignedLocalGovernanceRuntime();
     expect(unsigned.signingRequired).not.toBe(true);
     expect(unsigned.agentIdentity).toBeUndefined();
     expect(unsigned.runtimeKey).toMatch(RUNTIME_KEY_PREFIX);

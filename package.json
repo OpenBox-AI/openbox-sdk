@@ -195,6 +195,7 @@
     "guardrails:hub:record": "node scripts/record-guardrails-hub.mjs --record",
     "guardrails:hub:replay": "node scripts/record-guardrails-hub.mjs --replay",
     "governance:checklist": "node scripts/write-governance-checklist.mjs",
+    "local:fe": "node scripts/start-local-fe.mjs",
     "local:llamafirewall": "node scripts/start-llamafirewall.mjs",
     "local-stack:check": "node scripts/check-local-stack-alignment.mjs",
     "local-stack:lane": "node scripts/run-local-stack-lane.mjs",

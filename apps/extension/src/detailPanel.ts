@@ -219,8 +219,8 @@ function escapeHtml(s: string): string {
 function nonce(): string {
   // Per VS Code webview docs: must be unguessable and unique per
   // response. crypto.getRandomValues isn't on Node's globalThis until
-  // 19+; fall back to Math.random when missing (extension host always
-  // has it on supported VS Code versions, but the fallback is harmless).
+  // 19+; use Math.random when missing (extension host always
+  // has crypto on supported VS Code versions).
   const bytes = new Uint8Array(16);
   const c: any = (globalThis as any).crypto;
   if (c?.getRandomValues) c.getRandomValues(bytes);

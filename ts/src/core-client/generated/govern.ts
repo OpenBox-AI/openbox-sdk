@@ -37,7 +37,7 @@ export interface WorkflowVerdict {
   behavioralViolations?: string[];
   constraints?: string[];
   metadata?: Record<string, unknown>;
-  fallbackUsed?: boolean;
+  governanceChecksIncomplete?: boolean;
   guardrailsResult?: GuardrailsVerdict;
   ageResult?: GovernanceVerdictResponse['age_result'];
   activityId?: string;
@@ -1556,7 +1556,7 @@ function randomUUID(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
-  // Fallback for ancient runtimes without Web Crypto. Math.random
+  // Compatibility path for ancient runtimes without Web Crypto. Math.random
   // is fine here; workflow/run/activity IDs need uniqueness, not
   // cryptographic strength (the runtime API key is the auth surface).
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -1688,7 +1688,7 @@ export interface GovernedSessionConfig {
   /**
    * Fired the moment the backend returns a `require_approval` verdict
    * with an `approval_id`; BEFORE pollApproval starts the long wait.
-   * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
+   * Lets host adapters (Cursor hooks, Claude Code hooks) surface inline approval
    * UI in their host IDE without first waiting through the poll loop.
    * Errors thrown here are swallowed; this hook is observability, not
    * a gate.
@@ -1808,8 +1808,8 @@ export class BaseGovernedSession {
 
   /**
    * Fire WorkflowStarted. Idempotent; safe to call multiple times,
-   * only the first emits. Public so harness-owned consumers (claude-hooks,
-   * cursor-hooks) can drive lifecycle when the workflow spans processes.
+   * only the first emits. Public so host-owned consumers (Claude Code hooks,
+   * Cursor hooks) can drive lifecycle when the workflow spans processes.
    * `govern()` calls this automatically before the body runs;
    * `govern.attach()` does NOT; caller decides when (if ever).
    *
@@ -1875,7 +1875,7 @@ export class BaseGovernedSession {
   /**
    * Public escape for firing arbitrary (eventType, activityType, payload)
    * tuples beyond what the bound preset's typed methods cover. Used by
-   * runtime adapters (claude-hooks / cursor-hooks) when one hook event
+   * runtime adapters (Claude Code hooks / Cursor hooks) when one hook event
    * needs to dispatch to multiple activity_types based on internal
    * routing; e.g. Claude's PreToolUse hook fires FileRead, FileEdit,
    * ShellExecution etc. depending on `tool_name`.
@@ -3508,7 +3508,7 @@ export type PresetCtor = Presets[keyof Presets];
  * runtime dies mid-session.
  *
  * For single-process consumers (mobile, extension, MCP, custom Node).
- * For cross-process / harness-owned workflows (claude-hooks, cursor-hooks)
+ * For cross-process / host-owned workflows (Claude Code hooks, Cursor hooks)
  * use `govern.attach()` instead.
  *
  * ```ts
@@ -3593,7 +3593,7 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
     alignmentScore?: number;
     policyId?: string;
     behavioralViolations?: string[];
-    fallbackUsed?: boolean;
+    governanceChecksIncomplete?: boolean;
     guardrailsResult?: GovernanceVerdictResponse['guardrails_result'];
     ageResult?: GovernanceVerdictResponse['age_result'];
   };
@@ -3625,7 +3625,7 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
     behavioralViolations: response.behavioral_violations ?? raw.behavioralViolations,
     constraints: response.constraints,
     metadata: response.metadata,
-    fallbackUsed: response.fallback_used ?? raw.fallbackUsed,
+    governanceChecksIncomplete: response.governance_checks_incomplete ?? raw.governanceChecksIncomplete,
     guardrailsResult,
     ageResult: response.age_result ?? raw.ageResult,
   };
@@ -3841,7 +3841,7 @@ function mergePeerVerdicts(
     metadata: hook.metadata || base.metadata
       ? { ...(hook.metadata ?? {}), ...(base.metadata ?? {}) }
       : undefined,
-    fallbackUsed: base.fallbackUsed ?? hook.fallbackUsed,
+    governanceChecksIncomplete: base.governanceChecksIncomplete ?? hook.governanceChecksIncomplete,
     guardrailsResult: base.guardrailsResult ?? hook.guardrailsResult,
     ageResult: base.ageResult ?? hook.ageResult,
   };

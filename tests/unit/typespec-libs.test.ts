@@ -404,7 +404,14 @@ describe('typespec-workflow', () => {
     expect(generatedArtifacts?.generatedFiles).toContain('codegen/fixtures/sdk-targets.json');
     expect(generatedArtifacts?.driftCheckFiles).toEqual(['package.json']);
     expect(generatedArtifacts?.nestedGeneratedFiles).toEqual([{ root: 'ts/src', suffixes: ['.ts', '.d.ts'] }]);
-    expect(cleanArtifacts?.paths).toEqual(['dist', 'dist-pack', 'apps/extension/dist']);
+    expect(cleanArtifacts?.paths).toEqual([
+      'dist',
+      'dist-pack',
+      'apps/extension/dist',
+      '.coverage',
+      '.openbox/cache',
+      '.openbox/locks',
+    ]);
     expect(cleanArtifacts?.nestedNames).toEqual([
       { root: 'codegen', names: ['dist', 'tsconfig.tsbuildinfo'] },
     ]);

@@ -9,7 +9,7 @@ import * as cc from '../../ts/src/core-client/generated/runtime/claude-code.js';
 import * as cur from '../../ts/src/core-client/generated/runtime/cursor.js';
 
 describe('claude-code payload builders', () => {
-  test('PreToolUse / Read uses sideEffects.readFile and falls back paths', () => {
+  test('PreToolUse / Read uses sideEffects.readFile and alternate paths', () => {
     const env = {
       hook_event_name: 'PreToolUse',
       session_id: 's',
@@ -25,7 +25,7 @@ describe('claude-code payload builders', () => {
     expect(payload.event_category).toBe('file_read');
   });
 
-  test('PreToolUse / Bash pulls cwd fallback from envelope.cwd', () => {
+  test('PreToolUse / Bash pulls cwd default from envelope.cwd', () => {
     const env = {
       hook_event_name: 'PreToolUse',
       session_id: 's',

@@ -5,6 +5,7 @@
 // two readers cannot drift apart.
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /** Read a JSON config file. Returns the parsed object as
  *  string-keyed values, with each camelCase key also exposed under
@@ -48,4 +49,28 @@ export function loadDotenv(file: string): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+/** Merge a small runtime env patch into a private dotenv file. Undefined
+ *  values are ignored so callers can update only the secrets they know. */
+export function writeDotenvConfig(
+  file: string,
+  patch: Record<string, string | undefined>,
+): void {
+  const next = {
+    ...loadDotenv(file),
+  };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    next[key] = value;
+  }
+  const lines = Object.entries(next)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${lines.join('\n')}\n`, {
+    mode: 0o600,
+    encoding: 'utf-8',
+  });
+  fs.chmodSync(file, 0o600);
 }

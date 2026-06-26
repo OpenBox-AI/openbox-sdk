@@ -162,7 +162,7 @@ describe('Cursor plugin asset', () => {
     expect(
       verifyCursorPlugin({ target }).every((check) => check.status === 'pass'),
     ).toBe(true);
-    expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(
+    expect(fs.existsSync(path.join(cwd, '.openbox', 'cursor', 'config.json'))).toBe(
       true,
     );
 

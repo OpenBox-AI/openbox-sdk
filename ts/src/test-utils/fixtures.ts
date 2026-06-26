@@ -778,7 +778,7 @@ export interface GoalSignalOrderConformanceCase {
   scenarioIds: {
     order: string;
     alignmentChecked: string;
-    fallback: string;
+    ageUnavailable: string;
   };
   evaluateOperationId: 'evaluateGovernance';
   goalSignalEvent: GovernanceEventPayload;
@@ -786,7 +786,7 @@ export interface GoalSignalOrderConformanceCase {
   expected: {
     firstEventType: string;
     firstGovernedSurface: string;
-    fallbackUsed: boolean;
+    governanceChecksIncomplete: boolean;
     goalAlignmentChecked: boolean;
     goalDrifted: boolean;
   };
@@ -799,7 +799,7 @@ export function makeGoalSignalOrderConformanceCase(): GoalSignalOrderConformance
     scenarioIds: {
       order: requireLocalStackScenarioId('behavior-order-goal-before-action'),
       alignmentChecked: requireLocalStackScenarioId('goal-alignment-checked'),
-      fallback: requireLocalStackScenarioId('goal-drift-fallback'),
+      ageUnavailable: requireLocalStackScenarioId('goal-drift-unavailable-fail-closed'),
     },
     evaluateOperationId: 'evaluateGovernance',
     goalSignalEvent: makeGovernanceEvent({
@@ -842,7 +842,7 @@ export function makeGoalSignalOrderConformanceCase(): GoalSignalOrderConformance
     expected: {
       firstEventType: CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED,
       firstGovernedSurface: 'LLMCompletion',
-      fallbackUsed: false,
+      governanceChecksIncomplete: false,
       goalAlignmentChecked: false,
       goalDrifted: false,
     },

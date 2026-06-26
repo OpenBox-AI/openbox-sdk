@@ -25,6 +25,7 @@ import path from 'node:path';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 import { MCP_VERDICT_MATRIX, shouldSeedRule } from './fixtures/verdict-matrix.js';
 import {
+  LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS,
   ensureLocalGovernanceMatrix,
   localGovernanceMatrixConfigured,
   normalizeMatrixVerdict,
@@ -144,7 +145,7 @@ describe.runIf(SHOULD_RUN)('openbox MCP server protocol', () => {
     });
     expect(init.error, init.error?.message).toBeUndefined();
     client.notify('notifications/initialized');
-  }, 90_000);
+  }, LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS);
 
   afterAll(() => {
     client?.close();

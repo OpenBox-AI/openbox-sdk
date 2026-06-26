@@ -19,7 +19,7 @@ import {
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
 import { normalizeServiceUrl } from '../../env/connection.js';
-import { validateApiKeyFormat } from '../../env/index.js';
+import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import { recallAgentKey } from '../../file-tokens/agent-keys.js';
 import {
   renderClaudeInstructionsMarkdown,
@@ -234,11 +234,20 @@ function writeJson(file: string, value: unknown): void {
   writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf-8');
 }
 
+function writeSecretJson(file: string, value: unknown): void {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(value, null, 2) + '\n', {
+    mode: 0o600,
+    encoding: 'utf-8',
+  });
+  chmodSync(file, 0o600);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isLegacyClaudeCodeHook(value: unknown): boolean {
+function isDirectClaudeCodeHook(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.command === 'string' &&
@@ -246,7 +255,7 @@ function isLegacyClaudeCodeHook(value: unknown): boolean {
   );
 }
 
-function scrubLegacyClaudeCodeSettingsHooks(cwd: string): void {
+function scrubDirectClaudeCodeSettingsHooks(cwd: string): void {
   const settingsFile = path.join(cwd, '.claude', 'settings.json');
   const settings = readJson(settingsFile);
   if (!settings || !isRecord(settings.hooks)) return;
@@ -261,12 +270,12 @@ function scrubLegacyClaudeCodeSettingsHooks(cwd: string): void {
     const nextEntries = entries
       .map((entry) => {
         if (!isRecord(entry)) return entry;
-        if (isLegacyClaudeCodeHook(entry)) {
+        if (isDirectClaudeCodeHook(entry)) {
           changed = true;
           return undefined;
         }
         if (!Array.isArray(entry.hooks)) return entry;
-        const nextInnerHooks = entry.hooks.filter((hook) => !isLegacyClaudeCodeHook(hook));
+        const nextInnerHooks = entry.hooks.filter((hook) => !isDirectClaudeCodeHook(hook));
         if (nextInnerHooks.length !== entry.hooks.length) changed = true;
         if (nextInnerHooks.length === 0) return undefined;
         return { ...entry, hooks: nextInnerHooks };
@@ -293,22 +302,22 @@ function scrubLegacyClaudeCodeSettingsHooks(cwd: string): void {
   writeJson(settingsFile, nextSettings);
 }
 
-function hasLegacyClaudeCodeSettingsHooks(cwd = process.cwd()): boolean {
+function hasDirectClaudeCodeSettingsHooks(cwd = process.cwd()): boolean {
   const settings = readJson(path.join(cwd, '.claude', 'settings.json'));
   return JSON.stringify(settings ?? {}).includes('openbox claude-code hook');
 }
 
-function isLegacyOpenBoxMcpServer(value: unknown): boolean {
+function isDirectOpenBoxMcpServer(value: unknown): boolean {
   if (!isRecord(value) || value.command !== 'openbox') return false;
   const args = Array.isArray(value.args) ? value.args : [];
   return args[0] === 'mcp' && args[1] === 'serve';
 }
 
-function scrubLegacyOpenBoxProjectMcp(cwd: string): void {
+function scrubDirectOpenBoxProjectMcp(cwd: string): void {
   const mcpFile = path.join(cwd, '.mcp.json');
   const mcp = readJson(mcpFile);
   if (!mcp || !isRecord(mcp.mcpServers)) return;
-  if (!isLegacyOpenBoxMcpServer(mcp.mcpServers.openbox)) return;
+  if (!isDirectOpenBoxMcpServer(mcp.mcpServers.openbox)) return;
 
   const nextServers = { ...mcp.mcpServers };
   delete nextServers.openbox;
@@ -325,9 +334,9 @@ function scrubLegacyOpenBoxProjectMcp(cwd: string): void {
   writeJson(mcpFile, nextMcp);
 }
 
-function hasLegacyOpenBoxProjectMcp(cwd = process.cwd()): boolean {
+function hasDirectOpenBoxProjectMcp(cwd = process.cwd()): boolean {
   const mcp = readJson(path.join(cwd, '.mcp.json'));
-  return isLegacyOpenBoxMcpServer(
+  return isDirectOpenBoxMcpServer(
     isRecord(mcp?.mcpServers) ? mcp.mcpServers.openbox : undefined,
   );
 }
@@ -345,11 +354,39 @@ function writeRuntimeConfigTemplate(configDir: string): void {
 export function claudeCodeRuntimeConfigDir(
   cwd = process.cwd(),
 ): string {
-  return path.join(cwd, '.claude-hooks');
+  return path.join(cwd, '.openbox', 'claude-code');
 }
 
 export function claudeCodeRuntimeConfigFile(cwd = process.cwd()): string {
   return path.join(claudeCodeRuntimeConfigDir(cwd), 'config.json');
+}
+
+export function claudeCodeSettingsLocalFile(cwd = process.cwd()): string {
+  return path.join(cwd, '.claude', 'settings.local.json');
+}
+
+export function readClaudeCodeSettingsLocalEnv(cwd = process.cwd()): Record<string, string> {
+  const settings = readJson(claudeCodeSettingsLocalFile(cwd));
+  const env = isRecord(settings?.env) ? settings.env : {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value !== undefined && value !== null) out[key] = String(value);
+  }
+  return out;
+}
+
+function writeClaudeCodeSettingsLocalEnv(cwd: string, envPatch: Record<string, string | undefined>): string {
+  const file = claudeCodeSettingsLocalFile(cwd);
+  const existing = readJson(file);
+  const settings: Record<string, unknown> = isRecord(existing) ? { ...existing } : {};
+  const env: Record<string, unknown> = isRecord(settings.env) ? { ...settings.env } : {};
+  for (const [key, value] of Object.entries(envPatch)) {
+    if (value === undefined) continue;
+    env[key] = value;
+  }
+  settings.env = env;
+  writeSecretJson(file, settings);
+  return file;
 }
 
 function defaultRuntimeConfig(): Record<string, unknown> {
@@ -376,7 +413,11 @@ function normalizeApprovalMode(value: ClaudeCodeApprovalMode | undefined): Claud
 }
 
 function resolveRuntimeKey(options: ConfigureClaudeCodeRuntimeOptions): string | undefined {
-  if (options.apiKey) return options.apiKey;
+  if (options.apiKey !== undefined) {
+    const apiKey = options.apiKey.trim();
+    if (!apiKey) throw new Error('OPENBOX_API_KEY must not be empty');
+    return apiKey;
+  }
   if (!options.agentId) return undefined;
   const record = recallAgentKey(options.agentId);
   if (!record?.runtimeKey) {
@@ -395,20 +436,22 @@ export function configureClaudeCodeRuntime(options: ConfigureClaudeCodeRuntimeOp
   };
 
   const apiKey = resolveRuntimeKey(options);
+  const runtimeEnv: Record<string, string | undefined> = {};
   if (apiKey !== undefined) {
     const format = validateApiKeyFormat(apiKey);
     if (format !== true) throw new Error(format);
-    next.OPENBOX_API_KEY = apiKey;
+    runtimeEnv.OPENBOX_API_KEY = apiKey;
   }
 
   if (options.coreUrl !== undefined) {
-    next.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
+    runtimeEnv.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
   }
 
-  if (options.agentIdentity !== undefined) {
-    const agentIdentity = validateAgentIdentityConfig(options.agentIdentity);
-    next.OPENBOX_AGENT_DID = agentIdentity.did;
-    next.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
+  const discoveredIdentity = options.agentIdentity ?? resolveAgentIdentity();
+  if (discoveredIdentity !== undefined) {
+    const agentIdentity = validateAgentIdentityConfig(discoveredIdentity);
+    runtimeEnv.OPENBOX_AGENT_DID = agentIdentity.did;
+    runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
   }
 
   const approvalMode = normalizeApprovalMode(options.approvalMode);
@@ -431,6 +474,10 @@ export function configureClaudeCodeRuntime(options: ConfigureClaudeCodeRuntimeOp
     mode: 0o600,
     encoding: 'utf-8',
   });
+  chmodSync(configFile, 0o600);
+  if (Object.values(runtimeEnv).some((value) => value !== undefined)) {
+    writeClaudeCodeSettingsLocalEnv(cwd, runtimeEnv);
+  }
   return configFile;
 }
 
@@ -772,8 +819,8 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
     if (options.runtime) {
       configureClaudeCodeRuntime({ ...options.runtime, cwd });
     }
-    scrubLegacyClaudeCodeSettingsHooks(cwd);
-    scrubLegacyOpenBoxProjectMcp(cwd);
+    scrubDirectClaudeCodeSettingsHooks(cwd);
+    scrubDirectOpenBoxProjectMcp(cwd);
     return target;
   }
   const out = exportClaudeCodePlugin({
@@ -788,8 +835,8 @@ export function installClaudeCodePlugin(options: InstallClaudeCodePluginOptions 
   if (options.runtime) {
     configureClaudeCodeRuntime({ ...options.runtime, cwd });
   }
-  scrubLegacyClaudeCodeSettingsHooks(cwd);
-  scrubLegacyOpenBoxProjectMcp(cwd);
+  scrubDirectClaudeCodeSettingsHooks(cwd);
+  scrubDirectOpenBoxProjectMcp(cwd);
   return out;
 }
 
@@ -797,8 +844,8 @@ export function uninstallClaudeCodePlugin(options: UninstallClaudeCodePluginOpti
   const cwd = options.cwd ?? process.cwd();
   const target = assertProjectTarget(options.target ?? claudeCodePluginTargetDir(cwd), cwd);
   rmSync(target, { recursive: true, force: true });
-  scrubLegacyClaudeCodeSettingsHooks(cwd);
-  scrubLegacyOpenBoxProjectMcp(cwd);
+  scrubDirectClaudeCodeSettingsHooks(cwd);
+  scrubDirectOpenBoxProjectMcp(cwd);
 }
 
 function checkFile(name: string, file: string): ClaudeCodePluginCheck {
@@ -904,29 +951,29 @@ function checkComponentInventory(file: string): ClaudeCodePluginCheck {
   };
 }
 
-function checkNoLegacySettingsHooks(cwd = process.cwd()): ClaudeCodePluginCheck {
+function checkNoDirectSettingsHooks(cwd = process.cwd()): ClaudeCodePluginCheck {
   const file = path.join(cwd, '.claude', 'settings.json');
-  const stale = hasLegacyClaudeCodeSettingsHooks(cwd);
+  const stale = hasDirectClaudeCodeSettingsHooks(cwd);
   return {
-    name: 'project-settings-legacy-hooks',
+    name: 'project-settings-direct-hooks',
     status: stale ? 'fail' : 'pass',
     path: file,
     detail: stale
       ? 'remove stale `openbox claude-code hook` project settings entries'
-      : 'no legacy project settings hooks',
+      : 'no direct project settings hooks',
   };
 }
 
-function checkNoLegacyProjectMcp(cwd = process.cwd()): ClaudeCodePluginCheck {
+function checkNoDirectProjectMcp(cwd = process.cwd()): ClaudeCodePluginCheck {
   const file = path.join(cwd, '.mcp.json');
-  const stale = hasLegacyOpenBoxProjectMcp(cwd);
+  const stale = hasDirectOpenBoxProjectMcp(cwd);
   return {
-    name: 'project-mcp-legacy-openbox',
+    name: 'project-mcp-direct-openbox',
     status: stale ? 'fail' : 'pass',
     path: file,
     detail: stale
       ? 'remove stale project `.mcp.json` openbox command entry'
-      : 'no legacy project MCP openbox entry',
+      : 'no direct project MCP openbox entry',
   };
 }
 
@@ -959,7 +1006,7 @@ export function verifyClaudeCodePlugin(
   checks.push(checkDirFiles('plugin-diagnostics', path.join(target, 'diagnostics'), EXPECTED_DIAGNOSTIC_FILES));
   checks.push(checkComponentInventory(path.join(target, 'diagnostics', 'component-inventory.json')));
   checks.push(checkDirFiles('plugin-bin', path.join(target, 'bin'), EXPECTED_BIN_FILES));
-  checks.push(checkNoLegacySettingsHooks(options.cwd));
-  checks.push(checkNoLegacyProjectMcp(options.cwd));
+  checks.push(checkNoDirectSettingsHooks(options.cwd));
+  checks.push(checkNoDirectProjectMcp(options.cwd));
   return checks;
 }

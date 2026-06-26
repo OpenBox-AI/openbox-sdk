@@ -121,7 +121,7 @@ describe('openbox install cursor; project-local plugin bundle', () => {
 
     // 6. Skill mirror
     expect(existsSync(join(plugin, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
-    expect(existsSync(join(PROJECT, '.cursor-hooks', 'config.json'))).toBe(true);
+    expect(existsSync(join(PROJECT, '.openbox', 'cursor', 'config.json'))).toBe(true);
 
     expect(existsSync(join(HOME, '.cursor', 'plugins', 'local', 'openbox'))).toBe(false);
     expect(existsSync(join(HOME, '.cursor', 'hooks.json'))).toBe(false);

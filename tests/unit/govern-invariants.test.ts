@@ -2017,7 +2017,7 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
       reason: 'Passed governance checks',
       goal_alignment_checked: true,
       goal_drifted: false,
-      fallback_used: false,
+      governance_checks_incomplete: false,
       span_results: [],
       total_spans: 1,
       violations_count: 0,
@@ -2143,7 +2143,7 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
           behavioralViolations: ['rule-camel'],
           constraints: ['constraint-camel'],
           metadata: { source: 'camel' },
-          fallbackUsed: true,
+          governanceChecksIncomplete: true,
           ageResult,
           guardrailsResult: {
             input_type: 'activity_input',
@@ -2174,7 +2174,7 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
           behavioralViolations: ['rule-camel'],
           constraints: ['constraint-camel'],
           metadata: { source: 'camel' },
-          fallbackUsed: true,
+          governanceChecksIncomplete: true,
           ageResult,
         });
         expect(verdict.guardrailsResult?.fieldResults).toEqual([
@@ -2193,7 +2193,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       alignment_score: 0.85,
       constraints: ['redact command before display'],
       metadata: { evaluator: 'opa', rule: 'shell' },
-      fallback_used: true,
+      governance_checks_incomplete: true,
       trust_tier: 0,
       reason: 'Constrained by behavior rule',
     });
@@ -2214,7 +2214,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
       alignmentScore: 0.85,
       constraints: ['redact command before display'],
       metadata: { evaluator: 'opa', rule: 'shell' },
-      fallbackUsed: true,
+      governanceChecksIncomplete: true,
       trustTier: 0,
       reason: 'Constrained by behavior rule',
     });

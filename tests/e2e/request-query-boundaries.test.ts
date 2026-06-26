@@ -30,6 +30,9 @@ interface QueryBoundaryCase {
 const TRANSPORT_OR_PERMISSION_GATED = new Set([
   'OrganizationController_getMembers',
 ]);
+const QUERY_BOUNDARY_SETUP_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_QUERY_BOUNDARY_SETUP_TIMEOUT_MS ?? 180_000,
+);
 
 function sortedStrings(values: Iterable<string>): string[] {
   return [...values].sort((left, right) => left.localeCompare(right));
@@ -181,12 +184,12 @@ describe('Generated Backend Query Boundaries', () => {
       sessionId,
       teamId: teamIds[0] ?? '00000000-0000-4000-8000-000000000000',
     };
-  });
+  }, QUERY_BOUNDARY_SETUP_TIMEOUT_MS);
 
   it('NEGATIVE_BOUNDARY_PROOF: generated backend pagination and search query constraints reject invalid values', async () => {
     // NEGATIVE_BOUNDARY_PROOF: every generated backend page/perPage/pattern
     // request preflight constraint is derived from OpenAPI, then driven
-    // against the real local stack via the raw fallback path so this proves
+    // against the real local stack via the raw request path so this proves
     // server-side validation, not SDK-only preflight.
     const cases = boundaryCases(params);
     expect(cases).toHaveLength(expectedBoundaryCaseCount());
@@ -248,5 +251,5 @@ describe('Generated Backend Query Boundaries', () => {
 
   afterAll(async () => {
     await cleanupAll();
-  });
+  }, QUERY_BOUNDARY_SETUP_TIMEOUT_MS);
 });

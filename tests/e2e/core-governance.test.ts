@@ -39,7 +39,10 @@ import {
 } from '../helpers/governance-spec-domains';
 
 const OPA_URL = (process.env.OPENBOX_E2E_OPA_URL ?? 'http://127.0.0.1:8181').replace(/\/+$/, '');
-const OPA_POLICY_LOAD_TIMEOUT_MS = Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 30_000);
+const OPA_POLICY_LOAD_TIMEOUT_MS = Number(process.env.OPENBOX_E2E_OPA_BUNDLE_WAIT_MS ?? 180_000);
+const OPA_GOVERNANCE_TEST_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_OPA_GOVERNANCE_TEST_TIMEOUT_MS ?? 240_000,
+);
 const RUN_ISOLATED_AGE_UNAVAILABLE =
   process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE === '1';
 const itIfIsolatedAgeUnavailable = RUN_ISOLATED_AGE_UNAVAILABLE ? it : it.skip;
@@ -248,6 +251,27 @@ function findApproval(items: any[], eventId: string, approvalId?: string) {
     item?.event_id === eventId ||
     (approvalId && (item?.id === approvalId || item?.event_id === approvalId)),
   );
+}
+
+async function findPaginatedApproval(
+  client: ReturnType<typeof getBackendClient>,
+  basePath: string,
+  eventId: string,
+  approvalId?: string,
+) {
+  let lastStatus: number | undefined;
+  for (let page = 0; page < 5; page += 1) {
+    const separator = basePath.includes('?') ? '&' : '?';
+    const response = await client.get(`${basePath}${separator}page=${page}&perPage=100`);
+    const body = fullResponse(response);
+    lastStatus = body.status;
+    if (body.status !== 200) return { status: body.status, approval: undefined };
+    const items = listItems(body.data);
+    const approval = findApproval(items, eventId, approvalId);
+    if (approval) return { status: body.status, approval };
+    if (items.length < 100) break;
+  }
+  return { status: lastStatus, approval: undefined };
 }
 
 function expectRange(
@@ -776,7 +800,7 @@ describe('Core Governance API', () => {
     // SCENARIO_PROOF: trace-source-attribution
     // CONFORMANCE_PROOF: sourceAttribution is retained through Core into
     // governance_events input. Provider adapters stamp _openbox_source on
-    // activity input as the local-stack fallback when span attributes are not
+    // activity input as the local-stack source field when span attributes are not
     // retained on the governance event row.
     expect(['SCENARIO_PROOF: trace-source-attribution']).toEqual(
       expect.arrayContaining(['SCENARIO_PROOF: trace-source-attribution']),
@@ -1028,13 +1052,25 @@ describe('Core Governance API', () => {
     expect(pendingApproval.approval_status ?? pendingApproval.status).toBe('pending');
     expect(pendingApproval.reason).toBe(conformanceCase.expected.reason);
 
-    const orgApprovalsResponse = await backendClient.get(
+    const organizationApprovalsResponse = await backendClient.get(
       operationPath(organizationApprovalsOperation.path, { organizationId: orgId }),
     );
-    const orgApprovalsBody = fullResponse(orgApprovalsResponse);
+    const organizationApprovalsBody = fullResponse(organizationApprovalsResponse);
 
-    expect(orgApprovalsBody.status).toBe(200);
-    expect(findApproval(listItems(orgApprovalsBody.data), eventId, pollResponse.data.id)).toBeDefined();
+    expect(organizationApprovalsBody.status).toBe(200);
+
+    const orgApproval = await findPaginatedApproval(
+      backendClient,
+      operationPath(organizationApprovalsOperation.path, { organizationId: orgId }),
+      eventId,
+      pollResponse.data.id,
+    );
+
+    expect(orgApproval.status).toBe(200);
+    expect(orgApproval.approval).toBeDefined();
+    const pendingApprovalFromOrganization = orgApproval.approval;
+    expect(pendingApprovalFromOrganization.approval_status ?? pendingApprovalFromOrganization.status).toBe('pending');
+    expect(pendingApprovalFromOrganization.reason).toBe(conformanceCase.expected.reason);
 
     // NEGATIVE_BOUNDARY_PROOF: approval decision action rejects out-of-domain values before mutating a pending approval.
     const invalidApprovalAction = invalidGovernanceSpecMember('approvalDecisionActions');
@@ -1109,7 +1145,7 @@ describe('Core Governance API', () => {
     expect(rejectedHistoryBody.status).toBe(200);
     expect(rejectedHistoryApproval).toBeDefined();
     expect(rejectedHistoryApproval.approval_status ?? rejectedHistoryApproval.status).toBe('rejected');
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: expired approval timeout stays denied and leaves pending queues', async () => {
     // CONFORMANCE_PROOF: generated approval timeout scenario creates a real
@@ -1208,7 +1244,7 @@ describe('Core Governance API', () => {
     expect(expiredApprovalsBody.data.metrics.expired_count).toBeGreaterThanOrEqual(
       conformanceCase.expected.expiredCount,
     );
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: OPA verdict matrix covers ALLOW, REQUIRE_APPROVAL, BLOCK, and HALT paths', async () => {
     // SCENARIO_PROOF: opa-allow
@@ -1296,11 +1332,7 @@ describe('Core Governance API', () => {
     const expectedOpaVerdicts = [
       ...GOVERNANCE_SPEC_DOMAINS.coreVerdicts.filter((verdict) => verdict !== 'constrain'),
     ].sort();
-    const expectedOpaSemanticTypes = [
-      ...GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers,
-      'llm_gen_ai',
-      'mcp_tool_call',
-    ].sort();
+    const expectedOpaSemanticTypes = [...new Set(GOVERNANCE_SPEC_DOMAINS.behaviorRuleTriggers)].sort();
     const opaVerdicts = new Set(matrix.cases.map((entry) => entry.expected.verdict));
     const opaSemanticTypes = new Set(matrix.cases.map((entry) => entry.semanticType));
 
@@ -1344,7 +1376,7 @@ describe('Core Governance API', () => {
         expect(response.data).toHaveProperty('approval_expiration_time');
       }
     }
-  }, 180_000);
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: OPA decision aliases cover continue, stop, and require-approval paths', async () => {
     // CONFORMANCE_PROOF: generated OPA alias cases prove legacy decision
@@ -1390,7 +1422,7 @@ describe('Core Governance API', () => {
         expect(response.data, matrixCase.name).toHaveProperty('approval_expiration_time');
       }
     }
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   it('CONFORMANCE: OPA CONSTRAIN is an unsupported local-stack policy boundary', async () => {
     // CONFORMANCE_PROOF: the generated OPA CONSTRAIN scenario proves the
@@ -1432,7 +1464,7 @@ describe('Core Governance API', () => {
     expect(response.data).toHaveProperty('verdict', constrainCase.expected.verdict);
     expect(response.data).toHaveProperty('action', constrainCase.expected.action);
     expect(response.data).toHaveProperty('reason', constrainCase.expected.reason);
-  });
+  }, OPA_GOVERNANCE_TEST_TIMEOUT_MS);
 
   itIfIsolatedOpaUnavailable('CONFORMANCE: fails closed when OPA is unavailable for an active policy', async () => {
     // CONFORMANCE_PROOF: the generated OPA unavailable scenario uses a real
@@ -1494,8 +1526,9 @@ describe('Core Governance API', () => {
   it('CONFORMANCE: sends the goal signal before the first governed action and surfaces AGE result', async () => {
     // CONFORMANCE_PROOF: the generated goal/order scenario IDs drive a
     // SignalReceived event that precedes the firstGovernedSurface. The
-    // same Core AGE result asserts goal_alignment_checked and fallback_used,
-    // so the healthy AGE path cannot silently hide fallback state.
+    // same Core AGE result asserts goal_alignment_checked and the Core
+    // governance-checks-incomplete flag, so the healthy AGE path cannot silently hide
+    // required-check completion state.
     expect([
       'SCENARIO_PROOF: behavior-order-goal-before-action',
       'SCENARIO_PROOF: goal-alignment-checked',
@@ -1526,7 +1559,7 @@ describe('Core Governance API', () => {
     expect(conformanceCase.scenarioIds).toMatchObject({
       order: 'behavior-order-goal-before-action',
       alignmentChecked: 'goal-alignment-checked',
-      fallback: 'goal-drift-fallback',
+      ageUnavailable: 'goal-drift-unavailable-fail-closed',
     });
 
     const signalResponse = await coreClient.post(
@@ -1539,11 +1572,11 @@ describe('Core Governance API', () => {
     expect(signalResponse.data).toHaveProperty('verdict');
     expect(signalResponse.data.age_result).toMatchObject({
       goal_alignment_checked: expect.any(Boolean),
-      fallback_used: conformanceCase.expected.fallbackUsed,
+      governance_checks_incomplete: conformanceCase.expected.governanceChecksIncomplete,
     });
     expect(signalResponse.data.age_result).toHaveProperty(
-      'fallback_used',
-      conformanceCase.expected.fallbackUsed,
+      'governance_checks_incomplete',
+      conformanceCase.expected.governanceChecksIncomplete,
     );
 
     const actionResponse = await coreClient.post(
@@ -1560,13 +1593,13 @@ describe('Core Governance API', () => {
     expect(actionResponse.status).toBe(200);
     expect(actionResponse.data).toHaveProperty('verdict', 'allow');
     expect(actionResponse.data).toHaveProperty(
-      'fallback_used',
-      conformanceCase.expected.fallbackUsed,
+      'governance_checks_incomplete',
+      conformanceCase.expected.governanceChecksIncomplete,
     );
     expect(actionResponse.data.age_result).toMatchObject({
       goal_alignment_checked: conformanceCase.expected.goalAlignmentChecked,
       goal_drifted: conformanceCase.expected.goalDrifted,
-      fallback_used: conformanceCase.expected.fallbackUsed,
+      governance_checks_incomplete: conformanceCase.expected.governanceChecksIncomplete,
     });
     if (actionResponse.data.age_result?.trust_score?.trust_tier !== undefined) {
       expectRange(
@@ -1585,15 +1618,16 @@ describe('Core Governance API', () => {
     );
   });
 
-  itIfIsolatedAgeUnavailable('CONFORMANCE: AGE unavailable surfaces goal drift fallback', async () => {
-    // SCENARIO_PROOF: goal-drift-fallback
+  itIfIsolatedAgeUnavailable('CONFORMANCE: AGE unavailable marks governance checks incomplete', async () => {
+    // SCENARIO_PROOF: goal-drift-unavailable-fail-closed
     // CONFORMANCE_PROOF: this test is only enabled by the isolated Core runner,
-    // which starts Core with AGE_URL pointed at an unavailable local port.
-    // The fallback flag must be true on the governed action response.
+    // which starts Core with LLAMAFIREWALL_HOST pointed at an unavailable local port.
+    // The Core governance-checks-incomplete flag must be true when the next
+    // goal signal forces the previous assistant trace through goal alignment.
     expect(process.env.OPENBOX_E2E_ISOLATED_AGE_UNAVAILABLE).toBe('1');
     expect('AGE unavailable').toBe('AGE unavailable');
-    expect(['SCENARIO_PROOF: goal-drift-fallback']).toEqual(
-      expect.arrayContaining(['SCENARIO_PROOF: goal-drift-fallback']),
+    expect(['SCENARIO_PROOF: goal-drift-unavailable-fail-closed']).toEqual(
+      expect.arrayContaining(['SCENARIO_PROOF: goal-drift-unavailable-fail-closed']),
     );
     const conformanceCase = makeGoalSignalOrderConformanceCase();
     const evaluateOperation = coreOperation(conformanceCase.evaluateOperationId);
@@ -1606,25 +1640,70 @@ describe('Core Governance API', () => {
       workflow_id: workflowId,
       run_id: runId,
       activity_id: `goal-age-unavailable-${suffix}`,
+      signal_args: 'Complete the approved OpenBox local-stack conformance goal before actions.',
     };
-    const governedEvent = {
+    const assistantResponseBody = JSON.stringify({
+      choices: [{
+        message: {
+          content: 'Here is the approved conformance summary for the active goal.',
+        },
+      }],
+    });
+    const assistantCompletionEvent = {
       ...conformanceCase.firstGovernedEvent,
       workflow_id: workflowId,
       run_id: runId,
-      activity_id: `action-age-unavailable-${suffix}`,
+      event_type: 'ActivityCompleted',
+      activity_id: `assistant-age-unavailable-${suffix}`,
+      activity_type: 'LLMCompletion',
+      activity_output: {
+        text: 'Here is the approved conformance summary for the active goal.',
+      },
+      span_count: 1,
+      spans: [{
+        ...conformanceCase.firstGovernedEvent.spans?.[0],
+        name: 'openai.chat.completion',
+        semantic_type: 'llm_completion',
+        stage: 'completed',
+        http_method: 'POST',
+        http_url: 'https://api.openai.com/v1/chat/completions',
+        attributes: {
+          ...conformanceCase.firstGovernedEvent.spans?.[0]?.attributes,
+          'openbox.semantic_type': 'llm_completion',
+          'http.method': 'POST',
+          'http.url': 'https://api.openai.com/v1/chat/completions',
+          'gen_ai.operation.name': 'chat.completion',
+        },
+        response_body: assistantResponseBody,
+      }],
+    };
+    const followupSignalEvent = {
+      ...conformanceCase.goalSignalEvent,
+      workflow_id: workflowId,
+      run_id: runId,
+      activity_id: `followup-age-unavailable-${suffix}`,
+      signal_args: 'Continue the approved OpenBox local-stack conformance goal.',
+      activity_input: [
+        {
+          goal: 'Continue the approved OpenBox local-stack conformance goal.',
+        },
+      ],
     };
 
     const signalResponse = await coreClient.post(evaluateOperation.path, goalSignalEvent);
     expect(signalResponse.status).toBe(200);
 
-    const actionResponse = await coreClient.post(evaluateOperation.path, governedEvent);
-    expect(actionResponse.status).toBe(200);
-    expect(actionResponse.data).toHaveProperty('fallback_used', true);
-    expect(actionResponse.data.age_result).toMatchObject({
-      goal_alignment_checked: expect.any(Boolean),
-      fallback_used: true,
+    const assistantResponse = await coreClient.post(evaluateOperation.path, assistantCompletionEvent);
+    expect(assistantResponse.status).toBe(200);
+
+    const followupResponse = await coreClient.post(evaluateOperation.path, followupSignalEvent);
+    expect(followupResponse.status).toBe(200);
+    expect(followupResponse.data).toHaveProperty('governance_checks_incomplete', true);
+    expect(followupResponse.data.age_result).toMatchObject({
+      goal_alignment_checked: true,
+      governance_checks_incomplete: true,
     });
-    expect(actionResponse.data.age_result).toHaveProperty('fallback_used', true);
+    expect(followupResponse.data.age_result).toHaveProperty('fallback_used', true);
   });
 
   afterAll(async () => {

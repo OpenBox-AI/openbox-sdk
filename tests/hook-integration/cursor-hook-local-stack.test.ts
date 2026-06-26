@@ -22,7 +22,13 @@ import {
   type ProviderDriver,
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
-import { ensureLocalGovernanceMatrix } from './helpers/local-governance-matrix.js';
+import {
+  LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS,
+  LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS,
+  LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES,
+  LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS,
+  ensureLocalGovernanceMatrix,
+} from './helpers/local-governance-matrix.js';
 
 const OPENBOX = requireOpenBoxCli();
 const LOCAL_GOVERNANCE_TIMEOUT_SEC = Number(
@@ -216,7 +222,7 @@ describe('cursor hook local-stack governance', () => {
 
     const checks = verifyCursorPlugin({ cwd: projectRoot });
     expect(checks.filter((check) => check.status === 'fail')).toEqual([]);
-  }, 180_000);
+  }, LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS);
 
   afterAll(() => {
     if (projectRoot) rmSync(projectRoot, { recursive: true, force: true });
@@ -290,7 +296,7 @@ describe('cursor hook local-stack governance', () => {
 function workflowIdForConversation(conversationId: string): string {
   if (!projectRoot) throw new Error('project root was not initialized');
   const safe = conversationId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const sessionFile = path.join(projectRoot, '.cursor-hooks', 'sessions', `${safe}.json`);
+  const sessionFile = path.join(projectRoot, '.openbox', 'cursor', 'sessions', `${safe}.json`);
   expect(existsSync(sessionFile), `missing Cursor session store file for ${conversationId}`).toBe(true);
   const session = JSON.parse(readFileSync(sessionFile, 'utf-8')) as {
     workflowId?: unknown;
@@ -315,7 +321,7 @@ async function expectCursorSessionLog(
   ).toBeDefined();
 
   let matched: unknown;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
     const response = await client.getSessionLogs(localRuntime.agentId, backendSessionId!, {
       page: 0,
       perPage: 100,
@@ -325,15 +331,15 @@ async function expectCursorSessionLog(
       return serialized.includes(entry.expectedRule) && serialized.includes('cursor');
     });
     if (matched) break;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
 
   expect(matched, `missing persisted Cursor governance log for ${entry.id}`).toBeDefined();
   const serialized = JSON.stringify(matched);
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('cursor');
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(
@@ -341,15 +347,19 @@ async function resolveBackendSessionId(
   agentId: string,
   workflowId: string,
 ): Promise<string | undefined> {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await client.listSessions(agentId, { page: 0, perPage: 100 });
-    const session = listItems(response).find((item) => {
-      const record = objectRecord(item);
-      return record.workflow_id === workflowId || record.run_id === workflowId;
-    });
-    const sessionId = stringField(session, 'id');
-    if (sessionId) return sessionId;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
+    for (let page = 0; page < LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES; page += 1) {
+      const response = await client.listSessions(agentId, { page, perPage: 100 });
+      const items = listItems(response);
+      const session = items.find((item) => {
+        const record = objectRecord(item);
+        return record.workflow_id === workflowId || record.run_id === workflowId;
+      });
+      const sessionId = stringField(session, 'id');
+      if (sessionId) return sessionId;
+      if (items.length < 100) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
   return undefined;
 }

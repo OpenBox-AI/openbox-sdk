@@ -103,7 +103,7 @@ function readNotifyOnNew(): boolean {
 
 function resolveApprovalSocketPath(): string | undefined {
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    const configPath = path.join(folder.uri.fsPath, ".cursor-hooks", "config.json");
+    const configPath = path.join(folder.uri.fsPath, ".openbox", "cursor", "config.json");
     try {
       const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
       const socketPath = typeof parsed.approvalSocketPath === "string"

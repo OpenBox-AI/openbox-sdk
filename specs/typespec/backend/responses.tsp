@@ -169,6 +169,8 @@ alias BehaviorRuleTrigger =
   | "llm_completion"
   | "llm_embedding"
   | "llm_tool_call"
+  | "llm_gen_ai"
+  | "mcp_tool_call"
   | "database_select"
   | "database_insert"
   | "database_update"
@@ -180,7 +182,18 @@ alias BehaviorRuleTrigger =
   | "file_delete"
   | "internal";
 
-alias BehaviorRuleStateInput = BehaviorRuleTrigger;
+model BehaviorRuleMatchCondition {
+  field: string;
+  `op`: string;
+  value?: unknown;
+}
+
+model BehaviorRuleStateCondition {
+  semantic_type: BehaviorRuleTrigger;
+  match?: BehaviorRuleMatchCondition[];
+}
+
+alias BehaviorRuleStateInput = BehaviorRuleTrigger | BehaviorRuleStateCondition;
 
 model BehaviorRule {
   id: string;
@@ -189,6 +202,7 @@ model BehaviorRule {
   priority: int32;
   trigger: BehaviorRuleTrigger;
   states: BehaviorRuleStateInput[];
+  trigger_match?: BehaviorRuleMatchCondition[] | null;
   time_window: int32;
   verdict: int32;
   reject_message: string;

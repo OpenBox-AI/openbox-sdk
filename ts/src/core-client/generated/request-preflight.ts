@@ -10,12 +10,14 @@ interface QueryPreflightRule {
   readonly maximum?: number;
   readonly maxLength?: number;
   readonly integer?: boolean;
+  readonly allowObject?: boolean;
 }
 
 interface BodyPreflightRule extends Omit<QueryPreflightRule, 'name'> {
   readonly path: readonly string[];
   readonly minItems?: number;
   readonly maxItems?: number;
+  readonly allowObject?: boolean;
 }
 
 interface RequestPreflightRule {
@@ -275,6 +277,9 @@ function validateScalar(
   rule: Omit<QueryPreflightRule, 'name'>,
 ): void {
   const isBody = location.startsWith('body.');
+  if (isBody && rule.allowObject && value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return;
+  }
   if (isBody && rule.type === 'string' && typeof value !== 'string') {
     fail(operation, location, 'must be a string', value);
   }

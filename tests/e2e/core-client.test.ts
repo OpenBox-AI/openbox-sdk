@@ -37,7 +37,7 @@ function expectGovernanceVerdictResponse(result: Record<string, unknown>) {
     verdict: expect.any(String),
     action: expect.any(String),
     risk_score: expect.any(Number),
-    fallback_used: expect.any(Boolean),
+    governance_checks_incomplete: expect.any(Boolean),
   });
   expect(GOVERNANCE_SPEC_DOMAINS.coreVerdicts).toContain(result.verdict);
   expect(GOVERNANCE_SPEC_DOMAINS.coreLegacyActions).toContain(result.action);

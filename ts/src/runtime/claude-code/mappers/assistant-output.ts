@@ -19,14 +19,14 @@ export function buildClaudeAssistantOutputSpan(
   env: ClaudeCodeEnvelope,
   options: {
     event: string;
-    fallbackText?: string;
+    defaultText?: string;
     preferTranscriptContent?: boolean;
   },
 ): SpanData[] | undefined {
   const transcript = readLatestAssistantTurn(env);
   const content = options.preferTranscriptContent
-    ? firstText(transcript?.content, options.fallbackText)
-    : firstText(options.fallbackText, transcript?.content);
+    ? firstText(transcript?.content, options.defaultText)
+    : firstText(options.defaultText, transcript?.content);
   if (!content && !transcript?.usage) return undefined;
   return buildAssistantOutputSpan({
     source: 'claude-code',
@@ -52,7 +52,7 @@ export function buildClaudeAssistantOutputSpan(
 export function claudeAssistantTelemetryFields(
   env: ClaudeCodeEnvelope,
   options: {
-    fallbackText?: string;
+    defaultText?: string;
     preferTranscriptContent?: boolean;
   } = {},
 ): Pick<
@@ -67,8 +67,8 @@ export function claudeAssistantTelemetryFields(
 > {
   const transcript = readLatestAssistantTurn(env);
   const content = options.preferTranscriptContent
-    ? firstText(transcript?.content, options.fallbackText)
-    : firstText(options.fallbackText, transcript?.content);
+    ? firstText(transcript?.content, options.defaultText)
+    : firstText(options.defaultText, transcript?.content);
   const usage = transcript?.usage;
   return {
     ...assistantOutputTelemetryFields({

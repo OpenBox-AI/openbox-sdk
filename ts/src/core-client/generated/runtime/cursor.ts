@@ -75,7 +75,7 @@ export const HOOK_SPEC: HookSpec = {
   "key": "hooks",
   "style": "cursor-keyed",
   "command": "openbox cursor hook",
-  "configDir": ".cursor-hooks",
+  "configDir": ".openbox/cursor",
   "events": [
     {
       "name": "beforeSubmitPrompt",
@@ -554,7 +554,7 @@ export function createCursorAdapter(config: CursorAdapterConfig) {
   const write = config.writeStdout ?? ((data: string) => process.stdout.write(data));
   const exit = config.exit ?? ((code: number) => process.exit(code));
 
-  function writeFallback(shape: string, _v: WorkflowVerdict | undefined | void, env: CursorEnvelope): void {
+  function writeDefaultOutput(shape: string, _v: WorkflowVerdict | undefined | void, env: CursorEnvelope): void {
     const json = renderVerdictOutput(shape as Shape, undefined, env, config.deferApproval === true);
     if (json !== undefined) write(JSON.stringify(json));
   }
@@ -598,7 +598,7 @@ export function createCursorAdapter(config: CursorAdapterConfig) {
 
       const handlers = config.handlers;
       try {
-        await dispatch(eventName, env, session, handlers, writeFallback, writeVerdict);
+        await dispatch(eventName, env, session, handlers, writeDefaultOutput, writeVerdict);
       } finally {
         return exit(0);
       }
@@ -611,13 +611,13 @@ async function dispatch(
   env: CursorEnvelope,
   session: CursorSession,
   handlers: CursorAdapterHandlers,
-  writeFallback: (shape: string, v: WorkflowVerdict | undefined | void, env: CursorEnvelope) => void,
+  writeDefaultOutput: (shape: string, v: WorkflowVerdict | undefined | void, env: CursorEnvelope) => void,
   writeVerdict: (shape: string, v: WorkflowVerdict | undefined | void, env: CursorEnvelope) => void,
 ): Promise<void> {
   switch (eventName) {
     case "beforeSubmitPrompt": {
       if (!handlers.beforeSubmitPrompt) {
-        writeFallback("cursor-continue", undefined, env);
+        writeDefaultOutput("cursor-continue", undefined, env);
         return;
       }
       const verdict = await handlers.beforeSubmitPrompt(env, session);
@@ -626,7 +626,7 @@ async function dispatch(
     }
     case "beforeReadFile": {
       if (!handlers.beforeReadFile) {
-        writeFallback("cursor-permission", undefined, env);
+        writeDefaultOutput("cursor-permission", undefined, env);
         return;
       }
       const verdict = await handlers.beforeReadFile(env, session);
@@ -635,7 +635,7 @@ async function dispatch(
     }
     case "beforeShellExecution": {
       if (!handlers.beforeShellExecution) {
-        writeFallback("cursor-permission", undefined, env);
+        writeDefaultOutput("cursor-permission", undefined, env);
         return;
       }
       const verdict = await handlers.beforeShellExecution(env, session);
@@ -644,7 +644,7 @@ async function dispatch(
     }
     case "beforeMCPExecution": {
       if (!handlers.beforeMCPExecution) {
-        writeFallback("cursor-permission", undefined, env);
+        writeDefaultOutput("cursor-permission", undefined, env);
         return;
       }
       const verdict = await handlers.beforeMCPExecution(env, session);
@@ -653,7 +653,7 @@ async function dispatch(
     }
     case "preToolUse": {
       if (!handlers.preToolUse) {
-        writeFallback("cursor-permission", undefined, env);
+        writeDefaultOutput("cursor-permission", undefined, env);
         return;
       }
       const verdict = await handlers.preToolUse(env, session);
@@ -662,7 +662,7 @@ async function dispatch(
     }
     case "afterAgentResponse": {
       if (!handlers.afterAgentResponse) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.afterAgentResponse(env, session);
@@ -671,7 +671,7 @@ async function dispatch(
     }
     case "afterAgentThought": {
       if (!handlers.afterAgentThought) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.afterAgentThought(env, session);
@@ -680,7 +680,7 @@ async function dispatch(
     }
     case "afterShellExecution": {
       if (!handlers.afterShellExecution) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.afterShellExecution(env, session);
@@ -689,7 +689,7 @@ async function dispatch(
     }
     case "afterFileEdit": {
       if (!handlers.afterFileEdit) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.afterFileEdit(env, session);
@@ -698,7 +698,7 @@ async function dispatch(
     }
     case "afterMCPExecution": {
       if (!handlers.afterMCPExecution) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.afterMCPExecution(env, session);
@@ -707,7 +707,7 @@ async function dispatch(
     }
     case "postToolUse": {
       if (!handlers.postToolUse) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.postToolUse(env, session);
@@ -716,7 +716,7 @@ async function dispatch(
     }
     case "postToolUseFailure": {
       if (!handlers.postToolUseFailure) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.postToolUseFailure(env, session);
@@ -725,7 +725,7 @@ async function dispatch(
     }
     case "sessionStart": {
       if (!handlers.sessionStart) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.sessionStart(env, session);
@@ -734,7 +734,7 @@ async function dispatch(
     }
     case "stop": {
       if (!handlers.stop) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.stop(env, session);
@@ -743,7 +743,7 @@ async function dispatch(
     }
     case "beforeTabFileRead": {
       if (!handlers.beforeTabFileRead) {
-        writeFallback("cursor-permission", undefined, env);
+        writeDefaultOutput("cursor-permission", undefined, env);
         return;
       }
       const verdict = await handlers.beforeTabFileRead(env, session);
@@ -752,7 +752,7 @@ async function dispatch(
     }
     case "afterTabFileEdit": {
       if (!handlers.afterTabFileEdit) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.afterTabFileEdit(env, session);
@@ -761,7 +761,7 @@ async function dispatch(
     }
     case "sessionEnd": {
       if (!handlers.sessionEnd) {
-        writeFallback("none", undefined, env);
+        writeDefaultOutput("none", undefined, env);
         return;
       }
       const verdict = await handlers.sessionEnd(env, session);
@@ -770,7 +770,7 @@ async function dispatch(
     }
     case "preCompact": {
       if (!handlers.preCompact) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.preCompact(env, session);
@@ -779,7 +779,7 @@ async function dispatch(
     }
     case "subagentStart": {
       if (!handlers.subagentStart) {
-        writeFallback("cursor-permission", undefined, env);
+        writeDefaultOutput("cursor-permission", undefined, env);
         return;
       }
       const verdict = await handlers.subagentStart(env, session);
@@ -788,7 +788,7 @@ async function dispatch(
     }
     case "subagentStop": {
       if (!handlers.subagentStop) {
-        writeFallback("cursor-observe", undefined, env);
+        writeDefaultOutput("cursor-observe", undefined, env);
         return;
       }
       const verdict = await handlers.subagentStop(env, session);

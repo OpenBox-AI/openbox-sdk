@@ -6,7 +6,7 @@
 // because shutdown hooks can be cancelled before network telemetry
 // reliably completes. Each default event is dispatched through `logged()` in
 // `runtime/claude-code/hook-handler.ts`, which appends a JSONL
-// entry to `<project>/.claude-hooks/log/claude-code-hook.jsonl`.
+// entry to `<project>/.openbox/claude-code/log/claude-code-hook.jsonl`.
 //
 // This test snapshots the log size before the session, runs one
 // allowed action (so no event short-circuits on a deny), then

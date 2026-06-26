@@ -3,37 +3,43 @@ import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 import type { AgentIdentityConfig } from '../../core-client/index.js';
 import { resolveAgentIdentity } from '../../env/agent-identity.js';
+import {
+  claudeCodeRuntimeConfigDir,
+  claudeCodeSettingsLocalFile,
+  readClaudeCodeSettingsLocalEnv,
+} from './plugin.js';
 
 /**
- * Resolve which `.claude-hooks/` directory the hook subprocess
- * should read from. The lookup walks the current working directory
- * upward and prefers the closest one to the project root; this is
- * how a project-scoped plugin install (written by
- * `openbox install claude-code --scope project --cwd <dir>`) gets
- * picked up automatically when Claude Code spawns the hook with
- * its working directory inside `<dir>`. If no project config is
- * found, the hook reads `<startDir>/.claude-hooks/` and therefore
- * fails from missing project config instead of consulting user-level
- * state.
+ * Resolve the project root for a project-scoped Claude Code plugin install.
+ * Official Claude runtime env is read from `.claude/settings.local.json`;
+ * OpenBox-only hook state/settings live under `.openbox/claude-code`.
  *
  * Exported so tests can drive the walk-up logic against synthetic
  * directory layouts without spawning the hook subprocess. The
  * production callsite below passes `process.cwd()`.
  */
-export function resolveConfigDir(startDir: string = process.cwd()): string {
+export function resolveProjectRoot(startDir: string = process.cwd()): string {
   let cur = startDir;
   for (let i = 0; i < 8; i++) {
-    const candidate = path.join(cur, '.claude-hooks');
-    if (fs.existsSync(path.join(candidate, 'config.json'))) {
-      return candidate;
+    if (
+      fs.existsSync(claudeCodeSettingsLocalFile(cur)) ||
+      fs.existsSync(path.join(claudeCodeRuntimeConfigDir(cur), 'config.json'))
+    ) {
+      return cur;
     }
     const parent = path.dirname(cur);
     if (parent === cur) break;
     cur = parent;
   }
-  return path.join(startDir, '.claude-hooks');
+  return startDir;
 }
 
+export function resolveConfigDir(startDir: string = process.cwd()): string {
+  const projectRoot = resolveProjectRoot(startDir);
+  return claudeCodeRuntimeConfigDir(projectRoot);
+}
+
+const PROJECT_ROOT = resolveProjectRoot();
 const CONFIG_DIR = resolveConfigDir();
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
@@ -77,24 +83,27 @@ export interface ClaudeCodeConfig {
 export function loadConfig(): ClaudeCodeConfig {
   const fileConfig = loadConfigFile();
   const envConfig = loadEnvFile();
-  const getRuntime = (key: string, fileFallback?: string) => {
+  const claudeLocalEnv = readClaudeCodeSettingsLocalEnv(PROJECT_ROOT);
+  const getRuntime = (key: string, defaultValue?: string) => {
     if (process.env[key] !== undefined) return process.env[key]!;
-    if (fileConfig[key] !== undefined) return fileConfig[key];
+    if (claudeLocalEnv[key] !== undefined) return claudeLocalEnv[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    return fileFallback ?? '';
+    if (fileConfig[key] !== undefined) return fileConfig[key];
+    return defaultValue ?? '';
   };
-  const getSetting = (key: string, fileFallback?: string) => {
+  const getSetting = (key: string, defaultValue?: string) => {
     if (fileConfig[key] !== undefined) return fileConfig[key];
     if (envConfig[key] !== undefined) return envConfig[key];
-    return fileFallback ?? '';
+    return defaultValue ?? '';
   };
 
-  // OPENBOX_CORE_URL is the canonical runtime target. No environment
-  // fallback is baked in; installs must provide explicit service URLs.
+  // OPENBOX_CORE_URL is the canonical runtime target. Installs must
+  // provide explicit service URLs.
   const coreUrl =
     process.env.OPENBOX_CORE_URL ??
-    fileConfig.OPENBOX_CORE_URL ??
+    claudeLocalEnv.OPENBOX_CORE_URL ??
     envConfig.OPENBOX_CORE_URL ??
+    fileConfig.OPENBOX_CORE_URL ??
     '';
   return {
     openboxApiKey: getRuntime('OPENBOX_API_KEY'),

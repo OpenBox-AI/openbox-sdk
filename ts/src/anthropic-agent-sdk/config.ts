@@ -1,5 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { OpenBoxCoreClient } from '../core-client/index.js';
 import type { AgentIdentityConfig } from '../core-client/index.js';
+import { loadDotenv, loadJsonConfig } from '../config/host-config.js';
 import { resolveAgentIdentity } from '../env/agent-identity.js';
 import type {
   OpenBoxAnthropicAgentSDKConfig,
@@ -42,16 +45,34 @@ export interface OpenBoxAnthropicAgentSDKDiagnosticCheck {
   remediation?: string;
 }
 
+export function resolveProjectConfigDir(startDir: string = process.cwd()): string {
+  let cur = startDir;
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(cur, '.openbox', 'anthropic-agent-sdk');
+    if (
+      fs.existsSync(path.join(candidate, 'config.json')) ||
+      fs.existsSync(path.join(candidate, '.env'))
+    ) {
+      return candidate;
+    }
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return path.join(startDir, '.openbox', 'anthropic-agent-sdk');
+}
+
 export function createOpenBoxAnthropicRuntimeContext(
   config: OpenBoxAnthropicAgentSDKConfig = {},
 ): OpenBoxAnthropicRuntimeContext {
+  const values = openBoxAnthropicConfigValues(config);
   let coreClient = config.core;
   let cacheKey: string | undefined;
 
   const getCoreClient = () => {
     if (config.core) return config.core;
-    const apiKey = config.apiKey ?? process.env.OPENBOX_API_KEY;
-    const coreUrl = config.coreUrl ?? process.env.OPENBOX_CORE_URL;
+    const apiKey = config.apiKey ?? values.get('OPENBOX_API_KEY');
+    const coreUrl = config.coreUrl ?? values.get('OPENBOX_CORE_URL');
     if (!apiKey) {
       throw new OpenBoxAnthropicAgentSDKError(
         'OpenBox Anthropic Agent SDK integration is enabled but OPENBOX_API_KEY is not configured.',
@@ -93,10 +114,10 @@ export function createOpenBoxAnthropicRuntimeContext(
     taskQueue: config.taskQueue ?? DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
     approvalMode: config.approvalMode ?? 'ask',
     requireGoalContext: config.requireGoalContext ??
-      ['1', 'true', 'yes'].includes(String(process.env.OPENBOX_REQUIRE_GOAL_CONTEXT ?? process.env.OPENBOX_GOAL_ALIGNMENT_REQUIRED ?? process.env.ENABLE_ALIGNMENT_CHECK ?? 'false').trim().toLowerCase()),
+      ['1', 'true', 'yes'].includes(String(values.get('OPENBOX_REQUIRE_GOAL_CONTEXT') ?? values.get('OPENBOX_GOAL_ALIGNMENT_REQUIRED') ?? values.get('ENABLE_ALIGNMENT_CHECK') ?? 'false').trim().toLowerCase()),
     defaultGoal: config.defaultGoal ??
-      process.env.OPENBOX_SESSION_GOAL ??
-      process.env.OPENBOX_WORKFLOW_GOAL ??
+      values.get('OPENBOX_SESSION_GOAL') ??
+      values.get('OPENBOX_WORKFLOW_GOAL') ??
       undefined,
     hookTimeoutSeconds: config.hookTimeoutSeconds,
     includeOptInHooks: config.includeOptInHooks === true,
@@ -108,6 +129,7 @@ export function createOpenBoxAnthropicRuntimeContext(
 export function verifyOpenBoxAnthropicAgentSDKConfig(
   config: OpenBoxAnthropicAgentSDKConfig = {},
 ): OpenBoxAnthropicAgentSDKDiagnosticCheck[] {
+  const values = openBoxAnthropicConfigValues(config);
   const enabled = config.enabled ?? true;
   const checks: OpenBoxAnthropicAgentSDKDiagnosticCheck[] = [
     {
@@ -136,11 +158,11 @@ export function verifyOpenBoxAnthropicAgentSDKConfig(
       detail: 'OPENBOX_CORE_URL is not required when a Core client is provided.',
     });
   } else {
-    checks.push(apiKeyCheck(config.apiKey ?? process.env.OPENBOX_API_KEY));
-    checks.push(coreUrlCheck(config.coreUrl ?? process.env.OPENBOX_CORE_URL));
+    checks.push(apiKeyCheck(config.apiKey ?? values.get('OPENBOX_API_KEY')));
+    checks.push(coreUrlCheck(config.coreUrl ?? values.get('OPENBOX_CORE_URL')));
   }
 
-  checks.push(agentIdentityCheck(config.agentIdentity));
+  checks.push(agentIdentityCheck(config.agentIdentity, values));
   checks.push({
     name: 'runtime-defaults',
     status: 'pass',
@@ -154,12 +176,31 @@ function getAgentIdentity(
 ): AgentIdentityConfig | undefined {
   if (config.agentIdentity) return config.agentIdentity;
   try {
-    return resolveAgentIdentity();
+    const values = openBoxAnthropicConfigValues(config);
+    return resolveAgentIdentity({
+      OPENBOX_AGENT_DID: values.get('OPENBOX_AGENT_DID'),
+      OPENBOX_AGENT_PRIVATE_KEY: values.get('OPENBOX_AGENT_PRIVATE_KEY'),
+    });
   } catch {
     throw new OpenBoxAnthropicAgentSDKError(
       'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
     );
   }
+}
+
+function openBoxAnthropicConfigValues(config: OpenBoxAnthropicAgentSDKConfig): {
+  get(key: string, defaultValue?: string): string | undefined;
+} {
+  const configDir = resolveProjectConfigDir(config.cwd);
+  const fileConfig = loadJsonConfig(path.join(configDir, 'config.json'));
+  const envConfig = loadDotenv(path.join(configDir, '.env'));
+  return {
+    get: (key: string, defaultValue?: string) =>
+      process.env[key] ??
+      (envConfig[key] as string | undefined) ??
+      (fileConfig[key] as string | undefined) ??
+      defaultValue,
+  };
 }
 
 function apiKeyCheck(apiKey: string | undefined): OpenBoxAnthropicAgentSDKDiagnosticCheck {
@@ -211,6 +252,7 @@ function coreUrlCheck(coreUrl: string | undefined): OpenBoxAnthropicAgentSDKDiag
 
 function agentIdentityCheck(
   agentIdentity: AgentIdentityConfig | undefined,
+  values: { get(key: string, defaultValue?: string): string | undefined },
 ): OpenBoxAnthropicAgentSDKDiagnosticCheck {
   if (agentIdentity) {
     return {
@@ -219,7 +261,9 @@ function agentIdentityCheck(
       detail: 'Signed agent identity is provided in config.',
     };
   }
-  if (!process.env.OPENBOX_AGENT_DID && !process.env.OPENBOX_AGENT_PRIVATE_KEY) {
+  const did = values.get('OPENBOX_AGENT_DID');
+  const privateKey = values.get('OPENBOX_AGENT_PRIVATE_KEY');
+  if (!did && !privateKey) {
     return {
       name: 'signed-agent-identity',
       status: 'skip',
@@ -227,7 +271,10 @@ function agentIdentityCheck(
     };
   }
   try {
-    resolveAgentIdentity();
+    resolveAgentIdentity({
+      OPENBOX_AGENT_DID: did,
+      OPENBOX_AGENT_PRIVATE_KEY: privateKey,
+    });
     return {
       name: 'signed-agent-identity',
       status: 'pass',

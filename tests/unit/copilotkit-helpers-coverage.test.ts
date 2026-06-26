@@ -279,7 +279,7 @@ describe('copilotkit helper coverage', () => {
       behavioralViolations: ['rule-a'],
       constraints: ['mask field'],
       metadata: { evaluator: 'opa' },
-      fallbackUsed: false,
+      governanceChecksIncomplete: false,
     });
     const constrainedBySummary = resultForAllowedVerdict(
       input,
@@ -299,7 +299,7 @@ describe('copilotkit helper coverage', () => {
       behavioralViolations: ['rule-a'],
       constraints: ['mask field'],
       metadata: { evaluator: 'opa' },
-      fallbackUsed: false,
+      governanceChecksIncomplete: false,
       redactionSummary: 'redacted field',
     });
     expect(
@@ -374,7 +374,7 @@ describe('copilotkit helper coverage', () => {
       behavioralViolations: undefined,
       constraints: undefined,
       metadata: undefined,
-      fallbackUsed: undefined,
+      governanceChecksIncomplete: undefined,
       guardrailsResult: undefined,
       ageResult: undefined,
       redactionSummary: undefined,
@@ -389,7 +389,7 @@ describe('copilotkit helper coverage', () => {
           behavioralViolations: ['existing-rule'],
           constraints: ['existing-constraint'],
           metadata: { existing: true },
-          fallbackUsed: true,
+          governanceChecksIncomplete: true,
           guardrailsResult: { inputType: 'activity_input' },
           redactionSummary: 'existing',
         } as any,
@@ -403,7 +403,7 @@ describe('copilotkit helper coverage', () => {
       behavioralViolations: ['existing-rule'],
       constraints: ['existing-constraint'],
       metadata: { existing: true },
-      fallbackUsed: true,
+      governanceChecksIncomplete: true,
       guardrailsResult: { inputType: 'activity_input' },
       redactionSummary: 'existing',
     });

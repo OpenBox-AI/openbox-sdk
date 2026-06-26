@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -140,6 +140,39 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       ]),
     );
     expect(existsSync(join(cwd, '.openbox'))).toBe(false);
+  });
+
+  it('reads optional project-local OpenAI Agents runtime config without mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-openai-agents-sdk-config-'));
+    const configDir = join(cwd, '.openbox', 'openai-agents-sdk');
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, '.env'),
+      [
+        'OPENBOX_API_KEY="obx_test_project"',
+        'OPENBOX_CORE_URL="https://core.project.test"',
+        'OPENBOX_AGENT_DID="did:aip:550e8400-e29b-41d4-a716-446655440000"',
+        `OPENBOX_AGENT_PRIVATE_KEY="${Buffer.alloc(32, 1).toString('base64')}"`,
+      ].join('\n') + '\n',
+    );
+
+    const checks = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: undefined,
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAgentsSDKConfig({ cwd }),
+    );
+
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'api-key', status: 'pass' }),
+        expect.objectContaining({ name: 'core-url', status: 'pass' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'pass' }),
+      ]),
+    );
   });
 
   it('wraps tool execution and emits source-stamped tool events', async () => {

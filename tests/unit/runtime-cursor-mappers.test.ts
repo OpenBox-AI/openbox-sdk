@@ -84,7 +84,7 @@ describe('core-client/redaction', () => {
     const fn = (mod as any).redact ?? (mod as any).redactSecrets ?? (mod as any).default;
     if (typeof fn === 'function') {
       const samples = [
-        'export OPENBOX_API_KEY=obx_live_abcd1234567890123456789012345678901234567890123456',
+        `export OPENBOX_API_KEY=${['obx_live_abcd', '1234567890123456789012345678901234567890123456'].join('')}`,
         'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIx',
         'X-Api-Key: obx_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       ];
@@ -108,8 +108,8 @@ describe('validators/index; extra surface', () => {
     expect(v.validateInt('42', 'n')).toBe(42);
     expect(v.validateEnum('a', ['a', 'b'] as const, 'mode')).toBe('a');
     expect(v.validateBehaviorTrigger('http_post')).toBe('http_post');
-    expect(() => v.validateBehaviorTrigger('llm_gen_ai')).toThrow(ValidationError);
-    expect(() => v.validateBehaviorTrigger('mcp_tool_call')).toThrow(ValidationError);
+    expect(v.validateBehaviorTrigger('llm_gen_ai')).toBe('llm_gen_ai');
+    expect(v.validateBehaviorTrigger('mcp_tool_call')).toBe('mcp_tool_call');
     // validateRegoSource requires both a package decl AND a `result := {...}`
     // assignment (core reads only result.decision / result.reason).
     expect(() =>
@@ -335,15 +335,86 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       semantic_type: 'mcp_tool_call',
     });
   });
+
+  it('mcp completion preserves DB and HTTP classifications from tool input', async () => {
+    const mcp: any = await import('../../ts/src/runtime/cursor/mappers/mcp');
+    const mcpResp: any = await import('../../ts/src/runtime/cursor/mappers/mcp-response');
+    const cfg = { sessionDir: dir } as any;
+
+    const dbSession = recordingSession();
+    const dbEnv = {
+      conversation_id: 'C-db',
+      generation_id: `${dir}:mcp-db-marker`,
+      tool_name: 'mcp__postgres__query',
+      tool_input: { sql: 'SELECT 1', db_system: 'postgresql' },
+      result_json: { content: [{ type: 'text', text: 'rows' }] },
+      duration: 12,
+    } as any;
+    await mcp.handleBeforeMCPExecution(dbEnv, dbSession, cfg);
+    await mcpResp.handleAfterMCPExecution(dbEnv, dbSession, cfg);
+    const dbCompleted = dbSession.calls.find(
+      (call: any) =>
+        call.method === 'activity' &&
+        call.args[0] === 'ActivityCompleted' &&
+        call.args[1] === 'DatabaseQuery',
+    );
+    expect(dbCompleted?.args[2]).toMatchObject({
+      toolType: 'db',
+    });
+    expect(dbCompleted?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'db' },
+    });
+    expect(dbCompleted?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'database_select',
+      attributes: expect.objectContaining({
+        'db.system': 'postgresql',
+        'db.operation': 'SELECT',
+        'db.statement': 'SELECT 1',
+      }),
+    });
+
+    const httpSession = recordingSession();
+    const httpEnv = {
+      conversation_id: 'C-http',
+      generation_id: `${dir}:mcp-http-marker`,
+      tool_name: 'mcp__web__request',
+      tool_input: { url: 'https://example.test/ping', method: 'post' },
+      result_json: { content: [{ type: 'text', text: 'ok' }] },
+      duration: 7,
+    } as any;
+    await mcp.handleBeforeMCPExecution(httpEnv, httpSession, cfg);
+    await mcpResp.handleAfterMCPExecution(httpEnv, httpSession, cfg);
+    const httpCompleted = httpSession.calls.find(
+      (call: any) =>
+        call.method === 'activity' &&
+        call.args[0] === 'ActivityCompleted' &&
+        call.args[1] === 'HTTPRequest',
+    );
+    expect(httpCompleted?.args[2]).toMatchObject({
+      toolType: 'http',
+    });
+    expect(httpCompleted?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'http' },
+    });
+    expect(httpCompleted?.args[2].spans?.[0]).toMatchObject({
+      stage: 'completed',
+      semantic_type: 'http_post',
+      attributes: expect.objectContaining({
+        'http.method': 'POST',
+        'http.url': 'https://example.test/ping',
+      }),
+    });
+  });
 });
 
 describe('runtime configs; env precedence + defaults', () => {
   it('claude-code config reads connection env and leaves tuning in project config', async () => {
     const before = { ...process.env };
     const beforeCwd = process.cwd();
-    mkdirSync(join(dir, '.claude-hooks'), { recursive: true });
+    mkdirSync(join(dir, '.openbox', 'claude-code'), { recursive: true });
     writeFileSync(
-      join(dir, '.claude-hooks', 'config.json'),
+      join(dir, '.openbox', 'claude-code', 'config.json'),
       JSON.stringify({ verbose: true, hitlEnabled: false, hitlMaxWait: 12 }),
     );
     process.chdir(dir);
@@ -371,9 +442,9 @@ describe('runtime configs; env precedence + defaults', () => {
   it('cursor config reads connection and identity env only', async () => {
     const before = { ...process.env };
     const beforeCwd = process.cwd();
-    mkdirSync(join(dir, '.cursor-hooks'), { recursive: true });
+    mkdirSync(join(dir, '.openbox', 'cursor'), { recursive: true });
     writeFileSync(
-      join(dir, '.cursor-hooks', 'config.json'),
+      join(dir, '.openbox', 'cursor', 'config.json'),
       JSON.stringify({
         verbose: true,
         hitlEnabled: false,

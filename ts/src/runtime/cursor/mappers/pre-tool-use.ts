@@ -27,7 +27,7 @@ import {
   awaitClaimDecision,
   publishClaimDecision,
   rememberCompletionActivity,
-  verdictUsesGovernanceFallback,
+  verdictHasIncompleteGovernanceChecks,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
 import { ACTIVITY_TYPES } from '../activity-types.js';
@@ -94,13 +94,13 @@ export async function handlePreToolUse(
       };
     }
     if (
-      decision.fallbackUsed &&
+      decision.governanceChecksIncomplete &&
       decision.arm !== 'block' &&
       decision.arm !== 'halt'
     ) {
       return {
         arm: 'block',
-        reason: '[OpenBox] OpenBox governance fallback used while processing Cursor tool hook',
+        reason: '[OpenBox] OpenBox required governance checks did not complete while processing Cursor tool hook',
         riskScore: 1,
       };
     }
@@ -169,7 +169,7 @@ export async function handlePreToolUse(
       publishClaimDecision(claim, {
         arm: verdict.arm,
         reason: verdict.reason ?? '',
-        fallbackUsed: verdictUsesGovernanceFallback(verdict),
+        governanceChecksIncomplete: verdictHasIncompleteGovernanceChecks(verdict),
       });
     }
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);

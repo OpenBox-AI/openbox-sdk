@@ -211,7 +211,7 @@ describe('install/from-spec', () => {
     const json = JSON.parse(readFileSync(target, 'utf-8'));
     expect(json.hooks).toBeDefined();
     expect(JSON.stringify(json.hooks)).toContain('openbox claude-code hook');
-    expect(JSON.parse(readFileSync(join(dir, '.claude-hooks', 'config.json'), 'utf-8'))).toEqual({
+    expect(JSON.parse(readFileSync(join(dir, '.openbox', 'claude-code', 'config.json'), 'utf-8'))).toEqual({
       hitlEnabled: true,
       hitlMaxWait: 300,
       verbose: false,

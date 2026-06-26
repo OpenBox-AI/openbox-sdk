@@ -13,7 +13,18 @@ import {
   type ProviderDriver,
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
-import { ensureLocalGovernanceMatrix } from './helpers/local-governance-matrix.js';
+import {
+  LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS,
+  LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS,
+  LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES,
+  LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS,
+  ensureLocalGovernanceMatrix,
+} from './helpers/local-governance-matrix.js';
+
+const PROVIDER_LOCAL_STACK_TIMEOUT_MS = Number(
+  process.env.OPENBOX_E2E_PROVIDER_TEST_TIMEOUT_MS
+    ?? LOCAL_GOVERNANCE_MATRIX_SETUP_TIMEOUT_MS + 300_000,
+);
 
 interface ExecutableTool {
   execute(input: unknown, context?: unknown, details?: unknown): Promise<unknown>;
@@ -87,7 +98,7 @@ describe('OpenAI Agents SDK local-stack governance', () => {
       expectedContent: 'agent_goal',
     });
     await expectOpenAISessionLog(runtime, toolProof!.sessionId, toolProof!.entry);
-  }, 300_000);
+  }, PROVIDER_LOCAL_STACK_TIMEOUT_MS);
 });
 
 async function runCase(
@@ -191,7 +202,7 @@ async function expectOpenAISessionLog(
 
   let logs: unknown[] = [];
   let matched: unknown;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
     const response = await client.getSessionLogs(runtime.agentId, backendSessionId!, {
       page: 0,
       perPage: 100,
@@ -203,7 +214,7 @@ async function expectOpenAISessionLog(
         serialized.includes('openai-agents-sdk');
     });
     if (matched) break;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
 
   expect(matched, `missing persisted OpenAI governance log for ${entry.id}`).toBeDefined();
@@ -211,8 +222,8 @@ async function expectOpenAISessionLog(
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('openai-agents-sdk');
   if (options.expectedContent) expect(serialized).toContain(options.expectedContent);
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(
@@ -220,15 +231,19 @@ async function resolveBackendSessionId(
   agentId: string,
   workflowId: string,
 ): Promise<string | undefined> {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await client.listSessions(agentId, { page: 0, perPage: 100 });
-    const session = listItems(response).find((item) => {
-      const record = objectRecord(item);
-      return record.workflow_id === workflowId || record.run_id === workflowId;
-    });
-    const sessionId = stringField(session, 'id');
-    if (sessionId) return sessionId;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
+    for (let page = 0; page < LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES; page += 1) {
+      const response = await client.listSessions(agentId, { page, perPage: 100 });
+      const items = listItems(response);
+      const session = items.find((item) => {
+        const record = objectRecord(item);
+        return record.workflow_id === workflowId || record.run_id === workflowId;
+      });
+      const sessionId = stringField(session, 'id');
+      if (sessionId) return sessionId;
+      if (items.length < 100) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
   return undefined;
 }

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -149,6 +149,40 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         expect.objectContaining({ name: 'api-key', status: 'fail' }),
         expect.objectContaining({ name: 'core-url', status: 'fail' }),
         expect.objectContaining({ name: 'signed-agent-identity', status: 'fail' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, 'worktrees'))).toBe(false);
+  });
+
+  it('reads optional project-local Anthropic Agent SDK runtime config without mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-anthropic-agent-sdk-config-'));
+    const configDir = join(cwd, '.openbox', 'anthropic-agent-sdk');
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, '.env'),
+      [
+        'OPENBOX_API_KEY="obx_live_project"',
+        'OPENBOX_CORE_URL="https://core.project.test"',
+        'OPENBOX_AGENT_DID="did:aip:550e8400-e29b-41d4-a716-446655440000"',
+        `OPENBOX_AGENT_PRIVATE_KEY="${Buffer.alloc(32, 1).toString('base64')}"`,
+      ].join('\n') + '\n',
+    );
+
+    const checks = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: undefined,
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAnthropicAgentSDKConfig({ cwd, worktreeRoot: join(cwd, 'worktrees') }),
+    );
+
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'api-key', status: 'pass' }),
+        expect.objectContaining({ name: 'core-url', status: 'pass' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'pass' }),
       ]),
     );
     expect(existsSync(join(cwd, 'worktrees'))).toBe(false);
@@ -660,6 +694,68 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
   });
 
+  it('classifies HTTP-shaped MCP tools as HTTPRequest across PreToolUse and PostToolUse', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+    const env = {
+      ...baseInput,
+      tool_name: 'mcp__web__request',
+      tool_input: { url: 'https://example.test/ping', method: 'post' },
+      tool_use_id: 'tool_mcp_http',
+    };
+
+    await runHook(hooks, 'PreToolUse', env);
+    await runHook(hooks, 'PostToolUse', {
+      ...env,
+      hook_event_name: 'PostToolUse',
+      tool_response: { status: 200 },
+      duration_ms: 18,
+    });
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'HTTPRequest' &&
+        event.hook_trigger !== true,
+    );
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'HTTPRequest' &&
+        event.hook_trigger !== true,
+    );
+    expect(started).toMatchObject({
+      tool_name: 'mcp__web__request',
+      tool_type: 'http',
+    });
+    expect(started?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'http' },
+    });
+    expect(completed?.activity_id).toBe(started?.activity_id);
+    expect(completed).toMatchObject({
+      tool_name: 'mcp__web__request',
+      tool_type: 'http',
+      duration_ms: 18,
+    });
+    expect(completed?.activity_input).toContainEqual({
+      __openbox: { tool_type: 'http' },
+    });
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'HTTPRequest' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'http.method': 'POST',
+        'http.url': 'https://example.test/ping',
+      }),
+    });
+  });
+
   it('treats failClosed false as a compatibility no-op for decision-capable hooks', async () => {
     const core = {
       evaluate: vi.fn(async () => {
@@ -904,9 +1000,9 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       'openbox.semantic_type',
     );
 
-    const fallbackMock = createMockCore(() => verdict('allow'));
-    const fallbackHooks = createOpenBoxAnthropicAgentHooks({ core: fallbackMock.core });
-    await runHook(fallbackHooks, 'PostToolUse', {
+    const alternateMock = createMockCore(() => verdict('allow'));
+    const alternateHooks = createOpenBoxAnthropicAgentHooks({ core: alternateMock.core });
+    await runHook(alternateHooks, 'PostToolUse', {
       ...baseInput,
       hook_event_name: 'PostToolUse',
       tool_name: 'Bash',
@@ -915,30 +1011,30 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       tool_use_id: 'missing_pre_tool',
       duration_ms: 42,
     });
-    const fallbackCompleted = fallbackMock.events.find(
+    const alternateCompleted = alternateMock.events.find(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
         event.activity_type === 'ShellExecution',
     );
-    const fallbackEvents = fallbackMock.events.filter(
-      (event) => event.activity_id === fallbackCompleted?.activity_id,
+    const alternateEvents = alternateMock.events.filter(
+      (event) => event.activity_id === alternateCompleted?.activity_id,
     );
-    expect(fallbackEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+    expect(alternateEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
       ['ActivityStarted', false],
       ['ActivityCompleted', false],
       ['ActivityStarted', true],
     ]);
-    expect(fallbackEvents[0].spans).toBeUndefined();
-    expect(fallbackEvents[2].spans?.[0]).toMatchObject({
-      activity_id: fallbackCompleted?.activity_id,
+    expect(alternateEvents[0].spans).toBeUndefined();
+    expect(alternateEvents[2].spans?.[0]).toMatchObject({
+      activity_id: alternateCompleted?.activity_id,
       stage: 'completed',
       attributes: expect.objectContaining({
         'openbox.tool.name': 'Bash',
         'tool.name': 'Bash',
       }),
     });
-    expect(fallbackEvents[2].spans?.[0]).not.toHaveProperty('semantic_type');
-    expect(fallbackEvents[2].spans?.[0]?.attributes).not.toHaveProperty(
+    expect(alternateEvents[2].spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(alternateEvents[2].spans?.[0]?.attributes).not.toHaveProperty(
       'openbox.semantic_type',
     );
 

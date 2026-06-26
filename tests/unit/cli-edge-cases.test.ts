@@ -292,9 +292,9 @@ describe('cli/config; getCoreClient + edge cases', () => {
 });
 
 describe('runtime configs; file-based config.json paths', () => {
-  it('claude-code config reads project .claude-hooks/config.json when present', async () => {
+  it('claude-code config reads the project .openbox runtime config', async () => {
     const fs = await import('node:fs');
-    const cfgDir = join(dir, '.claude-hooks');
+    const cfgDir = join(dir, '.openbox', 'claude-code');
     fs.mkdirSync(cfgDir, { recursive: true });
     fs.writeFileSync(
       join(cfgDir, 'config.json'),
@@ -315,10 +315,7 @@ describe('runtime configs; file-based config.json paths', () => {
       vi.resetModules();
       const mod = await import('../../ts/src/runtime/claude-code/config');
       const cfg = mod.loadConfig();
-      // Either env override won (default API key may have been set
-      // elsewhere) or the file-based config wins. Both branches pulled
-      // through loadConfig.
-      expect(typeof cfg.openboxApiKey === 'string').toBe(true);
+      expect(cfg.openboxApiKey).toBe('obx_test_filebased' + 'x'.repeat(40));
     } finally {
       process.chdir(ovCwd);
       process.env = ovEnv;

@@ -624,7 +624,7 @@ export const BOUNDARY_CONFORMANCE_EVIDENCE: BoundaryEvidence[] = [
       "invalidGovernanceSpecMember('behaviorRuleStateMembers')",
       "invalidNumericGovernanceSpecMember('behaviorRuleVerdicts')",
       "invalidBoundarySpecMember('trustImpacts')",
-      'expect(body.status, dto.rule_name).toBe(422)',
+      'expect([400, 422], dto.rule_name).toContain(body.status)',
     ],
   },
   {

@@ -278,6 +278,7 @@ interface PythonBodyPreflightRule extends Omit<PythonQueryPreflightRule, 'name'>
   path: string[];
   min_items?: number;
   max_items?: number;
+  allow_object?: boolean;
 }
 
 function emitPythonRequestPreflight(repoRoot: string): string {
@@ -358,12 +359,24 @@ function collectPythonBodyPreflightRules(
   const current = pythonBodyRuleFromSchema(path, resolved);
   if (current) out.push(current);
 
-  for (const branch of [
+  const branches = [
     ...(resolved.allOf ?? []),
     ...(resolved.oneOf ?? []),
     ...(resolved.anyOf ?? []),
-  ]) {
-    out.push(...collectPythonBodyPreflightRules(branch, openApi, path, new Set(seenRefs)));
+  ];
+  const unionAllowsObject = branches.some((branch) =>
+    pythonSchemaAllowsObject(branch, openApi, new Set(seenRefs)),
+  );
+  for (const branch of branches) {
+    const branchRules = collectPythonBodyPreflightRules(branch, openApi, path, new Set(seenRefs));
+    out.push(...branchRules.map((rule) =>
+      unionAllowsObject &&
+        rule.path.length === path.length &&
+        rule.path.every((segment, index) => segment === path[index]) &&
+        rule.type === 'string'
+        ? { ...rule, allow_object: true }
+        : rule,
+    ));
   }
 
   for (const [key, property] of Object.entries(resolved.properties ?? {})) {
@@ -379,6 +392,23 @@ function collectPythonBodyPreflightRules(
   }
 
   return out;
+}
+
+function pythonSchemaAllowsObject(
+  schema: PythonOpenApiSchema | undefined,
+  openApi: PythonOpenApiDocument,
+  seenRefs = new Set<string>(),
+): boolean {
+  if (!schema) return false;
+  const resolved = resolvePythonOpenApiSchema(schema, openApi, seenRefs);
+  if (resolved.type === 'object' || (resolved.properties && Object.keys(resolved.properties).length > 0)) {
+    return true;
+  }
+  return [
+    ...(resolved.allOf ?? []),
+    ...(resolved.oneOf ?? []),
+    ...(resolved.anyOf ?? []),
+  ].some((branch) => pythonSchemaAllowsObject(branch, openApi, new Set(seenRefs)));
 }
 
 function pythonQueryRuleFromSchema(
@@ -565,6 +595,12 @@ def _validate_scalar(
     rule: RequestPreflightRule,
 ) -> None:
     is_body = location.startswith("body.")
+    if (
+        is_body
+        and rule.get("allow_object") is True
+        and isinstance(value, Mapping)
+    ):
+        return
     if is_body and rule.get("type") == "string" and not isinstance(value, str):
         _fail(operation, location, "must be a string", value)
     if rule.get("enum") is not None and str(value) not in rule["enum"]:
@@ -1087,7 +1123,7 @@ function emitRuntimeContract(program: Program): string {
         core: 'behavioral_violations',
         govern: 'behavioralViolations',
       },
-      { target: 'fallbackUsed', core: 'fallback_used', govern: 'fallbackUsed' },
+      { target: 'governanceChecksIncomplete', core: 'governance_checks_incomplete', govern: 'governanceChecksIncomplete' },
       { target: 'guardrailsResult', core: 'guardrails_result', govern: 'guardrailsResult' },
       { target: 'ageResult', core: 'age_result', govern: 'ageResult' },
     ],
@@ -1147,7 +1183,7 @@ function emitRuntimeContract(program: Program): string {
   assertSubset(
     ['verdict'],
     modelPropertyNames(governanceVerdictResponse),
-    'APPROVAL_STATUS_FIELD_ALIASES arm fallback',
+    'APPROVAL_STATUS_FIELD_ALIASES arm compatibility',
   );
   const spanAliasSnakeFields = [
     'span_id',

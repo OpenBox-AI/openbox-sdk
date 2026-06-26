@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 export const repoRoot = process.cwd();
 export const sdkTargetsFixturePath = resolve(repoRoot, 'codegen/fixtures/sdk-targets.json');
-const rootE2eRunId = normalizeRunIdPart(process.env.OPENBOX_E2E_RUN_ID)
+export const rootE2eRunId = normalizeRunIdPart(process.env.OPENBOX_E2E_RUN_ID)
   ?? `run-${Date.now().toString(36)}-${process.pid}-${randomUUID().slice(0, 8)}`;
 
 function normalizeRunIdPart(value) {

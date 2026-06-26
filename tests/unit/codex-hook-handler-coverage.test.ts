@@ -38,7 +38,7 @@ vi.mock('../../ts/src/core-client/generated/runtime/codex.js', async (importOrig
 });
 
 vi.mock('../../ts/src/runtime/codex/config.js', () => ({
-  getConfigDir: vi.fn(() => '/tmp/openbox-codex-hook-handler-test/.codex-hooks'),
+  getConfigDir: vi.fn(() => '/tmp/openbox-codex-hook-handler-test/.openbox/codex'),
   loadConfig: vi.fn(() => ({
     openboxApiKey: process.env.OPENBOX_API_KEY ?? '',
     openboxEndpoint: 'http://core.test',
@@ -52,7 +52,7 @@ vi.mock('../../ts/src/runtime/codex/config.js', () => ({
     hitlPollInterval: 5,
     hitlMaxWait: 2,
     approvalMode: mockApprovalMode,
-    taskQueue: 'codex-hooks',
+    taskQueue: 'codex',
     sendStartEvent: true,
     sendActivityStartEvent: true,
     maxBodySize: null,
@@ -177,7 +177,7 @@ describe('runtime/codex/hook-handler; governance orchestration', () => {
     );
   });
 
-  it('fails closed when Core returns a fallback allow for a decision hook', async () => {
+  it('fails closed when Core returns a governance-checks-incomplete allow for a decision hook', async () => {
     mockHookStdin();
     const { runCodexHook } = await import('../../ts/src/runtime/codex/hook-handler.ts');
 
@@ -189,14 +189,14 @@ describe('runtime/codex/hook-handler; governance orchestration', () => {
         verdict: {
           arm: 'allow',
           riskScore: 0,
-          fallbackUsed: true,
+          governanceChecksIncomplete: true,
         },
       })),
     };
 
     await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
       arm: 'block',
-      reason: expect.stringContaining('governance fallback used'),
+      reason: expect.stringContaining('required governance checks did not complete'),
     });
   });
 

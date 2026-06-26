@@ -47,7 +47,7 @@ vi.mock('../../ts/src/core-client/generated/runtime/claude-code.js', async (impo
 });
 
 vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
-  getConfigDir: vi.fn(() => '/tmp/openbox-claude-hook-handler-test/.claude-hooks'),
+  getConfigDir: vi.fn(() => '/tmp/openbox-claude-hook-handler-test/.openbox/claude-code'),
   loadConfig: vi.fn(() => ({
     openboxApiKey: process.env.OPENBOX_API_KEY ?? '',
     openboxEndpoint: 'http://core.test',
@@ -294,7 +294,7 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
     );
   });
 
-  it('fails closed when a decision-capable hook gets a fallback allow', async () => {
+  it('fails closed when a decision-capable hook gets a governance-checks-incomplete allow', async () => {
     mockHookStdin();
     const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
 
@@ -306,14 +306,14 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
         verdict: {
           arm: 'allow',
           riskScore: 0,
-          fallbackUsed: true,
+          governanceChecksIncomplete: true,
         },
       })),
     };
 
     await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
       arm: 'block',
-      reason: expect.stringContaining('governance fallback used'),
+      reason: expect.stringContaining('required governance checks did not complete'),
     });
   });
 

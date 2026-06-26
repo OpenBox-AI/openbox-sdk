@@ -16,12 +16,14 @@ export const PLUGIN_DIR =
 
 export const SHOULD_RUN =
   existsSync(path.join(PLUGIN_DIR, '.claude-plugin', 'plugin.json')) &&
-  existsSync(path.join(PROJECT_DIR, '.claude-hooks', 'config.json')) &&
+  existsSync(path.join(PROJECT_DIR, '.claude', 'settings.local.json')) &&
+  existsSync(path.join(PROJECT_DIR, '.openbox', 'claude-code', 'config.json')) &&
   projectCoreIsLoopback();
 
 export const HOOK_LOG = path.join(
   PROJECT_DIR,
-  '.claude-hooks',
+  '.openbox',
+  'claude-code',
   'log',
   'claude-code-hook.jsonl',
 );
@@ -64,7 +66,7 @@ function claudeEnv(overrides: Record<string, string> = {}): Record<string, strin
   const env: Record<string, string> = { ...(process.env as Record<string, string>) };
   // tests/setup.ts installs loopback defaults for unit clients. Claude Code
   // live tests must not leak those into the hook subprocess because the
-  // project-local .claude-hooks/config.json is the runtime authority.
+  // project-local `.claude/settings.local.json` env is the runtime authority.
   for (const key of RUNTIME_ENV_KEYS) {
     delete env[key];
   }
@@ -122,14 +124,15 @@ export function runClaude(prompt: string, opts: RunOptions = {}): ClaudeResult {
 }
 
 function projectCoreIsLoopback(): boolean {
-  const configPath = path.join(PROJECT_DIR, '.claude-hooks', 'config.json');
+  const configPath = path.join(PROJECT_DIR, '.claude', 'settings.local.json');
   if (!existsSync(configPath)) return false;
   try {
-    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
-      OPENBOX_CORE_URL?: string;
-    };
-    if (!config.OPENBOX_CORE_URL) return false;
-    const host = new URL(config.OPENBOX_CORE_URL).hostname;
+    const settings = JSON.parse(
+      readFileSync(configPath, 'utf-8'),
+    ) as { env?: { OPENBOX_CORE_URL?: string } };
+    const coreUrl = settings.env?.OPENBOX_CORE_URL;
+    if (!coreUrl) return false;
+    const host = new URL(coreUrl).hostname;
     return host === 'localhost' || host === '127.0.0.1' || host === '::1';
   } catch {
     return false;
@@ -139,13 +142,13 @@ function projectCoreIsLoopback(): boolean {
 export interface HookLogLine {
   ts: string;
   event: string;
-  verdict_kind?: 'permission' | 'observe' | 'none' | 'fallback';
+  verdict_kind?: 'permission' | 'observe' | 'none';
   session_id?: string;
   tool_name?: string;
   decision?: string;
   reason?: string;
   governance_event_id?: string;
-  fallback_used?: boolean;
+  governance_checks_incomplete?: boolean;
   took_ms?: number;
   error?: string | null;
 }

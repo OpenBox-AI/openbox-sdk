@@ -108,11 +108,11 @@ export async function handleSubagentStop(
         env,
       ),
       ...claudeAssistantTelemetryFields(env, {
-        fallbackText: env.last_assistant_message,
+        defaultText: env.last_assistant_message,
       }),
       spans: buildClaudeAssistantOutputSpan(env, {
         event: 'SubagentStop',
-        fallbackText: env.last_assistant_message,
+        defaultText: env.last_assistant_message,
       }),
       hookSpanParentEventType: EVENT.START,
       ensureHookSpanParent: !pending,

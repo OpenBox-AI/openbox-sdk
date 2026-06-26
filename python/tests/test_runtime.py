@@ -249,7 +249,7 @@ async def test_backend_client_auth_retry_unwrap_and_permission_preflight() -> No
 
 
 @pytest.mark.asyncio
-async def test_backend_client_bearer_fallback() -> None:
+async def test_backend_client_bearer_token() -> None:
     seen: list[httpx.Request] = []
 
     async def transport(request: httpx.Request) -> httpx.Response:
@@ -381,14 +381,14 @@ def test_signing_redaction_and_utility_helpers() -> None:
         }
     }
     assert apply_input_redaction([original], snake_verdict)[0]["nested"]["secret"] == "[snake]"
-    output_fallback_verdict = {
+    output_alias_verdict = {
         "guardrails_result": {
             "input_type": "activity_output",
             "redacted_input": {"output": {"nested": {"secret": "[output]"}}},
         }
     }
     assert (
-        apply_output_redaction(original, output_fallback_verdict)["nested"]["secret"]
+        apply_output_redaction(original, output_alias_verdict)["nested"]["secret"]
         == "[output]"
     )
     assert normalize_api_url("https://api.example/") == "https://api.example"
@@ -848,7 +848,7 @@ async def test_govern_runtime_edge_paths() -> None:
             "trust_tier": 0,
             "alignment_score": 0,
             "behavioral_violations": [],
-            "fallback_used": False,
+            "governance_checks_incomplete": False,
             "age_result": {},
             "guardrails_result": {
                 "input_type": "activity_input",
@@ -872,7 +872,7 @@ async def test_govern_runtime_edge_paths() -> None:
     assert alias_verdict["trustTier"] == 0
     assert alias_verdict["alignmentScore"] == 0
     assert alias_verdict["behavioralViolations"] == []
-    assert alias_verdict["fallbackUsed"] is False
+    assert alias_verdict["governanceChecksIncomplete"] is False
     assert alias_verdict["ageResult"] == {}
     assert alias_verdict["guardrailsResult"]["redactedOutput"] == {}
     assert alias_verdict["guardrailsResult"]["rawLogs"] == {}

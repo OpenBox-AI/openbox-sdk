@@ -11,7 +11,12 @@ import {
   requireProviderDriver,
   type VerdictMatrixCase,
 } from './fixtures/verdict-matrix.js';
-import { ensureLocalGovernanceMatrix } from './helpers/local-governance-matrix.js';
+import {
+  LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS,
+  LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS,
+  LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES,
+  ensureLocalGovernanceMatrix,
+} from './helpers/local-governance-matrix.js';
 
 const OPENBOX = requireOpenBoxCli();
 const LOCAL_GOVERNANCE_TIMEOUT_SEC = Number(
@@ -66,19 +71,28 @@ function runtimeEnv(): Record<string, string> {
 
 function configureProject(runtime: Awaited<ReturnType<typeof ensureLocalGovernanceMatrix>>): string {
   const root = mkdtempSync(path.join(tmpdir(), 'openbox-claude-stdin-local-stack-'));
-  const configDir = path.join(root, '.claude-hooks');
+  const configDir = path.join(root, '.openbox', 'claude-code');
   mkdirSync(configDir, { recursive: true });
   writeFileSync(
     path.join(configDir, 'config.json'),
     JSON.stringify({
-      OPENBOX_API_KEY: runtime.runtimeKey,
-      OPENBOX_CORE_URL: runtime.coreUrl,
       governanceTimeout: LOCAL_GOVERNANCE_TIMEOUT_SEC,
       approvalMode: 'defer',
       hitlEnabled: true,
       hitlMaxWait: 5,
       hitlPollInterval: 1,
       taskQueue: 'claude-code',
+    }, null, 2),
+  );
+  const settingsLocal = path.join(root, '.claude', 'settings.local.json');
+  mkdirSync(path.dirname(settingsLocal), { recursive: true });
+  writeFileSync(
+    settingsLocal,
+    JSON.stringify({
+      env: {
+        OPENBOX_API_KEY: runtime.runtimeKey,
+        OPENBOX_CORE_URL: runtime.coreUrl,
+      },
     }, null, 2),
   );
   return root;
@@ -113,9 +127,6 @@ describe('claude-code hook stdin local-stack governance', () => {
   });
 
   it('drives generated Claude hook-stdin cases through local Core and persisted logs', async () => {
-    const runtime = await ensureLocalGovernanceMatrix();
-    projectRoot = configureProject(runtime);
-
     expect(CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX.map((entry) => entry.id)).toEqual([
       'file-read-approval',
       'db-insert-block',
@@ -124,6 +135,9 @@ describe('claude-code hook stdin local-stack governance', () => {
       'db-generic-block',
       'file-delete-halt',
     ]);
+
+    const runtime = await ensureLocalGovernanceMatrix(CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX);
+    projectRoot = configureProject(runtime);
 
     for (const entry of CLAUDE_CODE_HOOK_STDIN_VERDICT_MATRIX) {
       const driver = requireProviderDriver(entry, 'claude-code', 'hook-stdin');
@@ -174,7 +188,7 @@ async function expectClaudeSessionLog(
   ).toBeDefined();
 
   let matched: unknown;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
     const response = await client.getSessionLogs(runtime.agentId, backendSessionId!, {
       page: 0,
       perPage: 100,
@@ -185,15 +199,15 @@ async function expectClaudeSessionLog(
         serialized.includes('claude-code');
     });
     if (matched) break;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
 
   expect(matched, `missing persisted Claude governance log for ${entry.id}`).toBeDefined();
   const serialized = JSON.stringify(matched);
   expect(serialized).toContain(entry.expectedRule);
   expect(serialized).toContain('claude-code');
-  expect(serialized).not.toContain('"fallback_used":true');
-  expect(serialized).not.toContain('"age_fallback_used":true');
+  expect(serialized).not.toContain('"governance_checks_incomplete":true');
+  expect(serialized).not.toContain('"age_governance_checks_incomplete":true');
 }
 
 async function resolveBackendSessionId(
@@ -201,15 +215,19 @@ async function resolveBackendSessionId(
   agentId: string,
   workflowId: string,
 ): Promise<string | undefined> {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await client.listSessions(agentId, { page: 0, perPage: 100 });
-    const session = listItems(response).find((item) => {
-      const record = objectRecord(item);
-      return record.workflow_id === workflowId || record.run_id === workflowId;
-    });
-    const sessionId = stringField(session, 'id');
-    if (sessionId) return sessionId;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  for (let attempt = 0; attempt < LOCAL_GOVERNANCE_EVIDENCE_MAX_ATTEMPTS; attempt += 1) {
+    for (let page = 0; page < LOCAL_GOVERNANCE_EVIDENCE_SESSION_PAGES; page += 1) {
+      const response = await client.listSessions(agentId, { page, perPage: 100 });
+      const items = listItems(response);
+      const session = items.find((item) => {
+        const record = objectRecord(item);
+        return record.workflow_id === workflowId || record.run_id === workflowId;
+      });
+      const sessionId = stringField(session, 'id');
+      if (sessionId) return sessionId;
+      if (items.length < 100) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOCAL_GOVERNANCE_EVIDENCE_RETRY_MS));
   }
   return undefined;
 }
@@ -217,7 +235,7 @@ async function resolveBackendSessionId(
 function readRuntimeSessionMapping(hostSessionId: string): { workflowId?: string; runId?: string } | undefined {
   if (!projectRoot) throw new Error('project root was not initialized');
   const safeSessionId = hostSessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const sessionFile = path.join(projectRoot, '.claude-hooks', 'sessions', `${safeSessionId}.json`);
+  const sessionFile = path.join(projectRoot, '.openbox', 'claude-code', 'sessions', `${safeSessionId}.json`);
   if (!existsSync(sessionFile)) return undefined;
   const record = objectRecord(JSON.parse(readFileSync(sessionFile, 'utf-8')));
   return {
