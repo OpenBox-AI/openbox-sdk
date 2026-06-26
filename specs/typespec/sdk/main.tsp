@@ -441,6 +441,7 @@ using OpenBox.Workflow;
   localCi: #{
     steps: #[
       #{ id: "generated-drift", label: "Generated drift", command: "npm", args: #["run", "check:generated-drift"], workingDirectory: "." },
+      #{ id: "build", label: "Bundle build", command: "npm", args: #["run", "build"], workingDirectory: ".", env: #{ NODE_OPTIONS: "--max-old-space-size=4096" } },
       #{ id: "check-sdks", label: "SDK target validation", command: "npm", args: #["run", "check:sdks"], workingDirectory: "." },
       #{
         id: "host-integration-lanes",
@@ -460,7 +461,6 @@ using OpenBox.Workflow;
         workingDirectory: ".",
         env: #{ OPENBOX_CLI: "./scripts/openbox-cli-dev.mjs" },
       },
-      #{ id: "build", label: "Bundle build", command: "npm", args: #["run", "build"], workingDirectory: ".", env: #{ NODE_OPTIONS: "--max-old-space-size=4096" } },
       #{
         id: "post-build-quality",
         label: "Post-build quality checks",

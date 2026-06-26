@@ -1114,10 +1114,10 @@ describe('SDK target validation manifest', () => {
 
     expect(fixture.localCi.steps.map((step) => step.id)).toEqual([
       'generated-drift',
+      'build',
       'check-sdks',
       'host-integration-lanes',
       'coverage',
-      'build',
       'post-build-quality',
     ]);
     const hostIntegration = fixture.localCi.steps.find((step) => step.id === 'host-integration-lanes');
