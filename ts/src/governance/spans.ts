@@ -135,6 +135,14 @@ export interface SpanInput {
   query?: string;
   error?: unknown;
   data?: unknown;
+  // Raw provider request/response captured at the HTTP client (OTel-style).
+  // When present they are used verbatim instead of the synthesized bodies, so
+  // the span carries the real wire payload (full messages, raw provider JSON).
+  rawRequestBody?: unknown;
+  rawResponseBody?: unknown;
+  // When false, request/response headers are stored verbatim (no redaction of
+  // authorization/cookie/api-key). Defaults to redacted.
+  redactSensitiveHeaders?: boolean;
 }
 
 export interface LLMCompletionSpanInput {
@@ -157,6 +165,12 @@ export interface LLMCompletionSpanInput {
   durationNs?: number;
   attributes?: Record<string, unknown>;
   data?: unknown;
+  // Raw provider request/response captured at the HTTP client (OTel-style),
+  // used verbatim so the completed span mirrors the real wire payload.
+  rawRequestBody?: unknown;
+  rawResponseBody?: unknown;
+  // When false, headers are stored verbatim with no redaction.
+  redactSensitiveHeaders?: boolean;
 }
 
 export interface LLMTokenUsage {
@@ -820,11 +834,14 @@ function coerceHttpStatusCode(value: unknown): number | undefined {
   return Math.trunc(numeric);
 }
 
-function sanitizeHeaderMap(value: unknown): Record<string, string> | undefined {
+function sanitizeHeaderMap(
+  value: unknown,
+  redact = true,
+): Record<string, string> | undefined {
   const record = objectRecord(value);
   const entries = Object.entries(record).flatMap(([key, entry]) => {
     if (typeof entry !== 'string') return [];
-    return [[key, sanitizeHeaderValue(key, entry)] as const];
+    return [[key, redact ? sanitizeHeaderValue(key, entry) : entry] as const];
   });
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
@@ -855,6 +872,7 @@ export function buildLLMCompletionSpan(
   input: LLMCompletionSpanInput,
 ): SpanData {
   const now = Date.now() * 1_000_000;
+  const redact = input.redactSensitiveHeaders !== false;
   const source = input.span ?? {};
   const sourceRecord = source as SpanData & {
     durationNs?: unknown;
@@ -921,7 +939,7 @@ export function buildLLMCompletionSpan(
     input.httpStatusCode ?? source.http_status_code,
   );
   const responseHeaders =
-    sanitizeHeaderMap(input.responseHeaders ?? source.response_headers) ??
+    sanitizeHeaderMap(input.responseHeaders ?? source.response_headers, redact) ??
     (httpStatusCode !== undefined
       ? defaultLLMResponseHeaders(modelTelemetry.provider)
       : undefined);
@@ -1003,26 +1021,33 @@ export function buildLLMCompletionSpan(
     ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
     http_method: source.http_method ?? 'POST',
     http_url: httpUrl,
-    request_body: buildLLMCompletionRequestBody({
-      model: input.model,
-      modelId: modelTelemetry.modelId,
-      provider: modelTelemetry.provider,
-      requestBody: input.requestBody ?? source.request_body,
-    }),
+    request_body:
+      input.rawRequestBody !== undefined
+        ? stringifyBody(input.rawRequestBody)
+        : buildLLMCompletionRequestBody({
+            model: input.model,
+            modelId: modelTelemetry.modelId,
+            provider: modelTelemetry.provider,
+            requestBody: input.requestBody ?? source.request_body,
+          }),
     request_headers:
       sanitizeHeaderMap(
         input.requestHeaders ??
           source.request_headers ??
           defaultLLMRequestHeaders(modelTelemetry.provider),
+        redact,
       ) ?? defaultLLMRequestHeaders(modelTelemetry.provider),
     data: input.data ?? source.data,
-    response_body: buildLLMCompletionResponseBody(input.content, {
-      model: input.model,
-      modelId: modelTelemetry.modelId,
-      provider: modelTelemetry.provider,
-      usage: input.usage,
-      responseBody: input.responseBody ?? source.response_body,
-    }),
+    response_body:
+      input.rawResponseBody !== undefined
+        ? stringifyBody(input.rawResponseBody)
+        : buildLLMCompletionResponseBody(input.content, {
+            model: input.model,
+            modelId: modelTelemetry.modelId,
+            provider: modelTelemetry.provider,
+            usage: input.usage,
+            responseBody: input.responseBody ?? source.response_body,
+          }),
     ...(responseHeaders ? { response_headers: responseHeaders } : {}),
     ...(httpStatusCode !== undefined ? { http_status_code: httpStatusCode } : {}),
   } as ObservableSpan) as unknown as SpanData;
@@ -1088,12 +1113,16 @@ function buildSpanWithClassifierFields(
           ? { messages: [{ role: 'user', content: input.prompt }] }
           : {}),
       };
-      const llmRequestBodyString = buildLLMCompletionRequestBody({
-        model: input.model,
-        modelId: modelTelemetry.modelId,
-        provider: modelTelemetry.provider,
-        requestBody: input.request_body ?? input.requestBody ?? llmRequestBody,
-      });
+      const llmRedact = input.redactSensitiveHeaders !== false;
+      const llmRequestBodyString =
+        input.rawRequestBody !== undefined
+          ? stringifyBody(input.rawRequestBody)
+          : buildLLMCompletionRequestBody({
+              model: input.model,
+              modelId: modelTelemetry.modelId,
+              provider: modelTelemetry.provider,
+              requestBody: input.request_body ?? input.requestBody ?? llmRequestBody,
+            });
       const llmResponseContent =
         typeof input.response === 'string' ? input.response : '';
       const llmRequestHeaders =
@@ -1106,7 +1135,10 @@ function buildSpanWithClassifierFields(
           (llmStage === 'completed' ? 200 : undefined),
       );
       const llmResponseHeaders =
-        sanitizeHeaderMap(input.response_headers ?? input.responseHeaders) ??
+        sanitizeHeaderMap(
+          input.response_headers ?? input.responseHeaders,
+          llmRedact,
+        ) ??
         (llmHttpStatusCode !== undefined
           ? defaultLLMResponseHeaders(modelTelemetry.provider)
           : undefined);
@@ -1192,7 +1224,7 @@ function buildSpanWithClassifierFields(
         http_url: llmHttpUrl,
         ...(llmRequestBodyString ? { request_body: llmRequestBodyString } : {}),
         request_headers:
-          sanitizeHeaderMap(llmRequestHeaders) ??
+          sanitizeHeaderMap(llmRequestHeaders, llmRedact) ??
           defaultLLMRequestHeaders(modelTelemetry.provider),
         ...(llmResponseHeaders ? { response_headers: llmResponseHeaders } : {}),
         ...(llmHttpStatusCode !== undefined
@@ -1200,13 +1232,16 @@ function buildSpanWithClassifierFields(
           : {}),
         ...(llmStage === 'completed'
           ? {
-              response_body: buildLLMCompletionResponseBody(llmResponseContent, {
-                model: input.model,
-                modelId: modelTelemetry.modelId,
-                provider: modelTelemetry.provider,
-                usage: input.usage,
-                responseBody: input.response_body ?? input.responseBody,
-              }),
+              response_body:
+                input.rawResponseBody !== undefined
+                  ? stringifyBody(input.rawResponseBody)
+                  : buildLLMCompletionResponseBody(llmResponseContent, {
+                      model: input.model,
+                      modelId: modelTelemetry.modelId,
+                      provider: modelTelemetry.provider,
+                      usage: input.usage,
+                      responseBody: input.response_body ?? input.responseBody,
+                    }),
             }
           : {}),
       };

@@ -29,6 +29,10 @@ import type {
   OpenBoxCopilotLangChainMiddlewareDeps,
 } from './types.js';
 import {
+  latestCapturedLLMExchange,
+  runWithLLMCapture,
+} from './otel-capture.js';
+import {
   activeWorkflowFor,
   clearAllActiveWorkflows,
   clearActiveWorkflow,
@@ -246,7 +250,12 @@ export function createOpenBoxLangChainMiddleware({
         });
       }
       try {
-        const response = await handler(request);
+        // Run the real model call inside an OTel capture scope so the
+        // instrumented client fetch records the actual provider request/
+        // response (headers, raw body, status). The captured exchange feeds
+        // the completed llm_completion span so it mirrors the wire payload.
+        const response = await runWithLLMCapture(() => handler(request));
+        const captured = latestCapturedLLMExchange();
         const responseGate = await adapter.governAssistantOutput({
           payload: toPlain(response),
           sessionKey: key,
@@ -257,6 +266,19 @@ export function createOpenBoxLangChainMiddleware({
           llmModel,
           llmProvider,
           parentActivityStarted: promptActivityId !== undefined,
+          ...(captured
+            ? {
+                llmCapture: {
+                  requestBody: captured.requestBody,
+                  responseBody: captured.responseBody,
+                  requestHeaders: captured.requestHeaders,
+                  responseHeaders: captured.responseHeaders,
+                  httpStatusCode: captured.httpStatusCode,
+                },
+                redactSensitiveHeaders:
+                  process.env.OPENBOX_CAPTURE_RAW_HEADERS !== 'true',
+              }
+            : {}),
         });
         if (shouldStopForGate(responseGate)) {
           return new deps.AIMessage({

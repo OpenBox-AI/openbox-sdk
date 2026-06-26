@@ -294,6 +294,21 @@ export interface OpenBoxCopilotTimings {
   steps: OpenBoxCopilotTimingStep[];
 }
 
+/**
+ * Real provider HTTP exchange captured at the LLM client (OTel-style). When
+ * present on an assistant-output gate, the `llm_completion` span is built from
+ * this verbatim instead of the reconstructed AG-UI payload, so it mirrors the
+ * Temporal/OTel reference (raw bodies, real headers, status code).
+ */
+export interface OpenBoxLLMCapture {
+  requestBody?: unknown;
+  responseBody?: unknown;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+  httpStatusCode?: number;
+  providerUrl?: string;
+}
+
 export interface OpenBoxCopilotGateInput<T = unknown> {
   payload: T;
   sessionKey?: string;
@@ -310,6 +325,10 @@ export interface OpenBoxCopilotGateInput<T = unknown> {
   reason?: string;
   ensureWorkflowStarted?: boolean;
   parentActivityStarted?: boolean;
+  // Real captured LLM HTTP exchange (see OpenBoxLLMCapture) and whether to
+  // redact authorization/cookie/api-key headers when storing it.
+  llmCapture?: OpenBoxLLMCapture;
+  redactSensitiveHeaders?: boolean;
 }
 
 export interface GovernedCopilotToolDefinition<

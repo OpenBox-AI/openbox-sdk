@@ -54,7 +54,14 @@ type GateTiming = {
 
 type GateOverrides = Pick<
   OpenBoxCopilotGateInput,
-  'llmModel' | 'llmProvider' | 'llmUsage' | 'startTime' | 'endTime' | 'durationMs'
+  | 'llmModel'
+  | 'llmProvider'
+  | 'llmUsage'
+  | 'startTime'
+  | 'endTime'
+  | 'durationMs'
+  | 'llmCapture'
+  | 'redactSensitiveHeaders'
 > &
   GateTiming & {
     pairedToolInput?: unknown;
@@ -839,10 +846,15 @@ function spansForGate(
       const content = assistantContentFromPayload(payload);
       const metadata = llmCompletionMetadataFromPayload(payload);
       const usage = metadata.usage ?? normalizeOpenBoxUsage(overrides?.llmUsage)?.raw;
-      if (!content && !usage) return [];
+      const capture = overrides?.llmCapture;
+      if (!content && !usage && !capture) return [];
       const span = pipelineSpan(kind, 'llm.chat.completion', payload);
       const model = metadata.model ?? overrides?.llmModel;
       const provider = metadata.provider ?? overrides?.llmProvider;
+      // When a real provider HTTP exchange was captured at the client
+      // (OTel-style), use it verbatim so the span mirrors the wire payload:
+      // raw bodies, real headers, real status. Otherwise fall back to the
+      // metadata reconstructed from the AG-UI payload.
       const completionSpans = buildAssistantOutputSpan({
         source: 'copilotkit',
         content,
@@ -860,10 +872,14 @@ function spansForGate(
           metadata.requestBody ??
           llmRequestBodyFromPrompt(overrides?.pairedPromptInput, model, provider),
         responseBody: metadata.responseBody,
-        requestHeaders: metadata.requestHeaders,
-        responseHeaders: metadata.responseHeaders,
-        httpStatusCode: metadata.httpStatusCode ?? 200,
+        rawRequestBody: capture?.requestBody,
+        rawResponseBody: capture?.responseBody,
+        requestHeaders: capture?.requestHeaders ?? metadata.requestHeaders,
+        responseHeaders: capture?.responseHeaders ?? metadata.responseHeaders,
+        httpStatusCode: capture?.httpStatusCode ?? metadata.httpStatusCode ?? 200,
+        redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
         providerUrl:
+          capture?.providerUrl ??
           metadata.providerUrl ??
           providerUrlFor(provider, model),
         startTime: overrides?.startTime,

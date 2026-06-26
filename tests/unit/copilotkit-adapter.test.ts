@@ -5128,6 +5128,110 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(resumeHook?.span_id).toBe(expected.span_id);
     expect(resumeHook?.trace_id).toBe(expected.trace_id);
   });
+
+  it('captures the real LLM request/response via the instrumented fetch', async () => {
+    const { createCapturingFetch, runWithLLMCapture, latestCapturedLLMExchange } =
+      await import('../../ts/src/copilotkit/otel-capture');
+    const fakeFetch = async () =>
+      new Response(
+        JSON.stringify({
+          id: 'chatcmpl-1',
+          model: 'gpt-4o-2024-08-06',
+          system_fingerprint: 'fp_x',
+          usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'x-request-id': 'req_abc',
+            'openai-version': '2020-10-01',
+          },
+        },
+      );
+    const capturing = createCapturingFetch(fakeFetch as unknown as typeof fetch);
+    const captured = await runWithLLMCapture(async () => {
+      await capturing('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer sk-live',
+          'content-type': 'application/json',
+          'x-stainless-lang': 'js',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'hi' }],
+        }),
+      });
+      return latestCapturedLLMExchange();
+    });
+
+    expect(captured?.httpStatusCode).toBe(200);
+    expect(captured?.requestHeaders.authorization).toBe('Bearer sk-live');
+    expect(captured?.requestHeaders['x-stainless-lang']).toBe('js');
+    expect(captured?.responseHeaders['x-request-id']).toBe('req_abc');
+    expect((captured?.requestBody as any).messages[0].content).toBe('hi');
+    expect((captured?.responseBody as any).system_fingerprint).toBe('fp_x');
+  });
+
+  it('builds a raw llm_completion span from a captured exchange without redaction', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+
+    await adapter.governAssistantOutput({
+      payload: { content: '', usage: { input_tokens: 5, output_tokens: 2 }, model: 'gpt-4o' },
+      sessionKey: 'thread-cap',
+      workflowId: 'wf-cap',
+      runId: 'run-cap',
+      activityId: 'act-cap',
+      activityType: 'llm_call',
+      redactSensitiveHeaders: false,
+      llmCapture: {
+        requestBody: {
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'sys' },
+            { role: 'user', content: 'hi' },
+          ],
+        },
+        responseBody: {
+          id: 'chatcmpl-1',
+          model: 'gpt-4o-2024-08-06',
+          system_fingerprint: 'fp_x',
+          service_tier: 'default',
+          usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+        },
+        requestHeaders: { authorization: 'Bearer sk-live', 'x-stainless-lang': 'js' },
+        responseHeaders: { 'cf-ray': 'abc-HKG', 'x-request-id': 'req_abc' },
+        httpStatusCode: 200,
+      },
+    } as any);
+
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    const span = completedHook?.spans?.[0] as Record<string, any> | undefined;
+    expect(span?.name).toBe('POST');
+    expect(span?.hook_type).toBe('http_request');
+    expect(span?.http_status_code).toBe(200);
+    // Headers stored verbatim (no redaction).
+    expect(span?.request_headers.authorization).toBe('Bearer sk-live');
+    expect(span?.request_headers['x-stainless-lang']).toBe('js');
+    expect(span?.response_headers['cf-ray']).toBe('abc-HKG');
+    expect(span?.response_headers['x-request-id']).toBe('req_abc');
+    // Raw provider bodies preserved verbatim.
+    expect(JSON.parse(String(span?.request_body))).toMatchObject({
+      messages: [{ role: 'system' }, { role: 'user' }],
+    });
+    expect(JSON.parse(String(span?.response_body))).toMatchObject({
+      id: 'chatcmpl-1',
+      system_fingerprint: 'fp_x',
+      service_tier: 'default',
+    });
+  });
 });
 
 function createMiddlewareDeps() {
