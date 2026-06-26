@@ -1891,8 +1891,7 @@ SDK_TARGET_MANIFEST = {
         "label": "Runtime asset sync",
         "command": "node",
         "args": [
-          "--experimental-strip-types",
-          "scripts/sync-runtime-assets.ts"
+          "scripts/sync-runtime-assets.mjs"
         ],
         "workingDirectory": "."
       }
@@ -2514,7 +2513,7 @@ SDK_TARGET_MANIFEST = {
         "role": "Enforces provenance banners on emitted generated files."
       },
       {
-        "path": "scripts/sync-runtime-assets.ts",
+        "path": "scripts/sync-runtime-assets.mjs",
         "category": "asset-sync",
         "canonicalSurface": "PROVIDER_PLUGIN_COMPONENTS",
         "role": "Copies runtime templates and built provider plugin bundles based on generated provider component metadata."
