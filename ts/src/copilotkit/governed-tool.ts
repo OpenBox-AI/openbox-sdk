@@ -798,7 +798,8 @@ function approvalResumeSpan<
       trace_id: randomUUID().replaceAll('-', ''),
       name: `${definition.toolName}.approval_resume`,
       kind: 'internal',
-      span_type: 'function',
+      // Reference shape: function-call operations are span_type 'internal'.
+      span_type: 'internal',
       hook_type: 'function_call',
       start_time: now,
       end_time: now,
@@ -807,7 +808,7 @@ function approvalResumeSpan<
       status: { code: 'UNSET' },
       events: [],
       attributes: {
-        'openbox.span_type': 'function',
+        'openbox.span_type': 'internal',
         'openbox.tool.name': definition.toolName,
         'openbox.approval.resume': true,
         'tool.name': definition.toolName,

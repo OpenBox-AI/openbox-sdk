@@ -1003,9 +1003,9 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completionHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completionHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      span_type: 'function',
+      span_type: 'internal',
       attributes: expect.objectContaining({
-        'openbox.span_type': 'function',
+        'openbox.span_type': 'internal',
         'openbox.tool.name': 'openbox_governed_action',
         'tool.name': 'openbox_governed_action',
         tool_name: 'openbox_governed_action',

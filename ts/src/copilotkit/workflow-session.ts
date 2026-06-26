@@ -422,7 +422,9 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     trace_id: randomBytes(16).toString('hex'),
     name: definition.toolName,
     kind: 'tool',
-    span_type: 'function',
+    // Matches the langgraph-py/Temporal reference: function-call operations are
+    // span_type 'internal' (+ hook_type 'function_call'), never 'function'.
+    span_type: 'internal',
     hook_type: 'function_call',
     start_time: startTime,
     end_time: stage === 'completed' ? now : null,
@@ -432,7 +434,7 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     status: { code: 'UNSET' },
     events: [],
     attributes: {
-      'openbox.span_type': 'function',
+      'openbox.span_type': 'internal',
       'openbox.tool.name': definition.toolName,
       'openbox.action': input.action,
       'tool.name': definition.toolName,
