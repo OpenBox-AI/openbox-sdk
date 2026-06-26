@@ -1804,8 +1804,6 @@ describe('CopilotKit OpenBox adapter', () => {
       ['ActivityStarted', 'llm_call', true],
       ['ActivityCompleted', 'llm_call', false],
       ['ActivityStarted', 'llm_call', true],
-      ['ActivityStarted', 'llm_call', true],
-      ['ActivityStarted', 'llm_call', true],
     ]);
     const startedParent = mock.events.find(
       (event) =>
@@ -1898,24 +1896,17 @@ describe('CopilotKit OpenBox adapter', () => {
       },
     });
     const hookSpans = mock.events.flatMap((event) => event.spans ?? []);
-    const toolCallSpans = hookSpans.filter(
-      (span) => span.name === 'openai.TOOL.call',
-    );
-    expect(toolCallSpans.map((span) => span.stage)).toEqual([
-      'started',
-      'completed',
-    ]);
-    expect(toolCallSpans).toHaveLength(2);
+    // The assistant's tool-call decision is part of the llm_completion span
+    // (the assistant message's tool_calls live in its response_body), not a
+    // separate llm_tool_call span on the llm_call — matching the reference,
+    // where the tool execution is a separate governed activity.
+    expect(
+      hookSpans.filter((span) => span.name === 'openai.TOOL.call'),
+    ).toHaveLength(0);
     for (const span of hookSpans) {
       expect(span.parent_span_id).toMatch(/^[0-9a-f]{16}$/);
     }
-    expect(toolCallSpans[0]).toMatchObject({
-      hook_type: 'function_call',
-      attributes: expect.objectContaining({
-        'openbox.tool.name': 'lookup_queue',
-        'tool.name': 'lookup_queue',
-      }),
-    });
+    expect(hookSpans.some((span) => span.name === 'POST')).toBe(true);
   });
 
   it('uses LangChain request model metadata when AIMessage output omits model fields', async () => {

@@ -914,10 +914,17 @@ function spansForGate(
               }) as unknown as SpanData,
             ]
           : [];
+      // The assistant's tool-call decision is part of the llm_completion (the
+      // assistant message's tool_calls live in this span's response_body), and
+      // the actual execution is a separate governed-tool activity with its own
+      // paired span. So we do NOT emit a separate llm_tool_call span on the
+      // llm_call: it points at the /chat/completions endpoint (misleading — a
+      // tool-call decision is not its own HTTP call), duplicates the call, and
+      // produced orphaned started/completed spans. The reference llm_call is the
+      // llm_completion pair only.
       return [
         ...startedFromCapture,
         ...(emitLlmSpan ? completionSpans : []),
-        ...toolCallSpansFromAssistantPayload(payload, model, overrides),
       ];
     }
     case 'tool_input':
