@@ -3924,18 +3924,17 @@ function withSpanHookContext<T>(
         ? Math.max(0, endTime - startTime)
         : undefined);
     if (startTime !== undefined) next.start_time = startTime;
-    const spanStage =
-      typeof next.stage === 'string' ? next.stage : undefined;
+    const spanStage = typeof next.stage === 'string' ? next.stage : undefined;
     if (
       spanStage === 'started' ||
       event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED
     ) {
-      // A started span has no completion yet, so it never carries an end/
-      // duration — even when it rides on an ActivityCompleted event (e.g. a
-      // started+completed pair emitted together from a captured exchange).
-      // Keep its own end_time (the reference uses 0) and drop any duration.
+      // A started span has no completion yet, so it never carries a duration —
+      // even when it rides on an ActivityCompleted event (e.g. a started+
+      // completed pair emitted together from a captured exchange). Keep its own
+      // end_time (the reference uses 0) and omit duration entirely.
       next.end_time = next.end_time ?? null;
-      next.duration_ns = null;
+      delete next.duration_ns;
     } else if (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED) {
       if (endTime !== undefined) next.end_time = endTime;
       if (durationNs !== undefined) next.duration_ns = durationNs;

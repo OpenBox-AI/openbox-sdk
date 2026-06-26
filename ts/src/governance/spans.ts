@@ -622,6 +622,11 @@ export function leanCopilotLlmSpan<T extends object>(span: T): T {
   for (const key of LLM_COMPLETION_ENVELOPE_FIELDS) {
     delete next[key];
   }
+  // The reference started span omits duration_ns entirely (only completed spans
+  // carry it); drop the null key instead of emitting duration_ns: null.
+  if (next.duration_ns === null || next.duration_ns === undefined) {
+    delete next.duration_ns;
+  }
   // The reference inner span sets semantic_type explicitly (Core preserves it).
   next.semantic_type = 'llm_completion';
   return next as unknown as T;
