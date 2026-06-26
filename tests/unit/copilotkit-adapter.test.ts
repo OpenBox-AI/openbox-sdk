@@ -788,10 +788,10 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedParent?.activity_type).toBe('openbox_governed_action');
     expect(startedHook?.span_count).toBe(1);
     expect(completedHook?.span_count).toBe(1);
-    expect(startedHook?.spans?.[0]).toHaveProperty('semantic_type', 'llm_tool_call');
-    expect(startedHook?.spans?.[0]?.attributes).toHaveProperty('openbox.semantic_type', 'llm_tool_call');
-    expect(completedHook?.spans?.[0]).toHaveProperty('semantic_type', 'llm_tool_call');
-    expect(completedHook?.spans?.[0]?.attributes).toHaveProperty('openbox.semantic_type', 'llm_tool_call');
+    expect(startedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(startedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(startedHook?.spans?.[0]).toMatchObject({
       stage: 'started',
       hook_type: 'function_call',
@@ -894,8 +894,8 @@ describe('CopilotKit OpenBox adapter', () => {
       error: { errorName: 'Error', message: 'business tool failed' },
     });
     expect(completedHook?.span_count).toBe(1);
-    expect(completedHook?.spans?.[0]).toHaveProperty('semantic_type', 'llm_tool_call');
-    expect(completedHook?.spans?.[0]?.attributes).toHaveProperty('openbox.semantic_type', 'llm_tool_call');
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
       attributes: expect.objectContaining({
