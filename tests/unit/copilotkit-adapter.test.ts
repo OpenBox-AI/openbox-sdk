@@ -5129,6 +5129,90 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(resumeHook?.trace_id).toBe(expected.trace_id);
   });
 
+  it('wrapModelCall reads the capture inside the OTel scope and emits a full llm_completion pair', async () => {
+    const { createCapturingFetch } = await import(
+      '../../ts/src/copilotkit/otel-capture'
+    );
+    const prev = {
+      raw: process.env.OPENBOX_CAPTURE_RAW_HEADERS,
+      fromCapture: process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE,
+    };
+    process.env.OPENBOX_CAPTURE_RAW_HEADERS = 'true';
+    process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE = 'true';
+    try {
+      const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+      const middleware = createOpenBoxCopilotKitAdapter({
+        core: mock.core as any,
+      }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+      const mockFetch = async () =>
+        new Response(
+          JSON.stringify({
+            id: 'chatcmpl-x',
+            model: 'gpt-4o-mini',
+            choices: [{ message: { content: 'hi' } }],
+            usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+            service_tier: 'default',
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'x-request-id': 'req_1',
+              'cf-ray': 'abc-BKK',
+            },
+          },
+        );
+      const capturing = createCapturingFetch(mockFetch as unknown as typeof fetch);
+
+      await middleware.wrapModelCall(
+        {
+          messages: [{ type: 'human', content: 'hello' }],
+          state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
+          model: { model: 'gpt-4o-mini' },
+        },
+        async () => {
+          // The model call happens inside runWithLLMCapture (the middleware
+          // wraps the handler); the instrumented fetch records into that scope.
+          await capturing('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { authorization: 'Bearer sk-x', 'x-stainless-lang': 'js' },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [{ role: 'user', content: 'hello' }],
+            }),
+          });
+          return { content: 'hi', usage_metadata: { input_tokens: 5, output_tokens: 2 } };
+        },
+      );
+
+      const llm = mock.events
+        .filter((e) => e.hook_trigger)
+        .flatMap((e) => (e.spans ?? []) as Record<string, any>[])
+        .filter((s) => s.name === 'POST');
+      const completed = llm.find((s) => s.stage === 'completed');
+      const started = llm.find((s) => s.stage === 'started');
+      expect(completed).toBeDefined();
+      expect(started).toBeDefined();
+      // started+completed share one span_id (rendered as a single paired span).
+      expect(started?.span_id).toBe(completed?.span_id);
+      // Completed carries the REAL captured exchange.
+      expect(completed?.http_status_code).toBe(200);
+      expect(completed?.response_headers['x-request-id']).toBe('req_1');
+      expect(completed?.response_headers['cf-ray']).toBe('abc-BKK');
+      expect(completed?.request_headers.authorization).toBe('Bearer sk-x');
+      expect(JSON.parse(String(completed?.response_body)).id).toBe('chatcmpl-x');
+      // Started carries the real request (messages + raw headers).
+      expect(started?.request_headers.authorization).toBe('Bearer sk-x');
+      expect(JSON.parse(String(started?.request_body)).messages).toBeDefined();
+    } finally {
+      if (prev.raw === undefined) delete process.env.OPENBOX_CAPTURE_RAW_HEADERS;
+      else process.env.OPENBOX_CAPTURE_RAW_HEADERS = prev.raw;
+      if (prev.fromCapture === undefined)
+        delete process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE;
+      else process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE = prev.fromCapture;
+    }
+  });
+
   it('captures the real LLM request/response via the instrumented fetch', async () => {
     const { createCapturingFetch, runWithLLMCapture, latestCapturedLLMExchange } =
       await import('../../ts/src/copilotkit/otel-capture');

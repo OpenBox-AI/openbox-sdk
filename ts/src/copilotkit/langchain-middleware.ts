@@ -257,10 +257,14 @@ export function createOpenBoxLangChainMiddleware({
       try {
         // Run the real model call inside an OTel capture scope so the
         // instrumented client fetch records the actual provider request/
-        // response (headers, raw body, status). The captured exchange feeds
-        // the completed llm_completion span so it mirrors the wire payload.
-        const response = await runWithLLMCapture(() => handler(request));
-        const captured = latestCapturedLLMExchange();
+        // response (headers, raw body, status). Read the captured exchange
+        // INSIDE the scope — the AsyncLocalStorage store is gone once
+        // runWithLLMCapture returns. The capture feeds the llm_completion
+        // span so it mirrors the wire payload.
+        const { response, captured } = await runWithLLMCapture(async () => {
+          const result = await handler(request);
+          return { response: result, captured: latestCapturedLLMExchange() };
+        });
         const responseGate = await adapter.governAssistantOutput({
           payload: toPlain(response),
           sessionKey: key,
