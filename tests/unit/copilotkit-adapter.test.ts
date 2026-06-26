@@ -5207,13 +5207,21 @@ describe('CopilotKit OpenBox adapter', () => {
       },
     } as any);
 
-    const completedHook = mock.events.find(
-      (event) =>
-        event.event_type === 'ActivityStarted' &&
-        event.hook_trigger === true &&
-        event.spans?.[0]?.stage === 'completed',
-    );
-    const span = completedHook?.spans?.[0] as Record<string, any> | undefined;
+    const llmSpans = mock.events
+      .filter(
+        (event) =>
+          event.event_type === 'ActivityStarted' && event.hook_trigger === true,
+      )
+      .flatMap((event) => (event.spans ?? []) as Record<string, any>[])
+      .filter((s) => s.name === 'POST');
+    const span = llmSpans.find((s) => s.stage === 'completed');
+    const startedSpan = llmSpans.find((s) => s.stage === 'started');
+    // The capture emits a full started+completed pair sharing one span_id.
+    expect(startedSpan?.span_id).toBe(span?.span_id);
+    expect(JSON.parse(String(startedSpan?.request_body))).toMatchObject({
+      messages: [{ role: 'system' }, { role: 'user' }],
+    });
+    expect(startedSpan?.request_headers.authorization).toBe('Bearer sk-live');
     expect(span?.name).toBe('POST');
     expect(span?.hook_type).toBe('http_request');
     expect(span?.http_status_code).toBe(200);

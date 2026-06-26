@@ -135,7 +135,7 @@ async function evaluateGate<T>(
     // the assistant-completed gate then produce a matching span_id/trace_id.
     // Any additional spans (e.g. tool calls embedded in an assistant message)
     // keep their own identity.
-    return index === 0
+    return index === 0 || (span as { name?: string }).name === 'POST'
       ? withSpanIdentityFromActivity(withParent, ids.activityId)
       : withParent;
   });
@@ -896,7 +896,24 @@ function spansForGate(
         attributes: { 'gen_ai.system': 'copilotkit' },
         hasToolCalls: hasToolCallsFromPayload(payload),
       }) ?? [];
+      // With a real captured exchange, also emit the matching STARTED span
+      // (request only) from the same capture so BOTH stages carry full real
+      // data and share one span_id — like the LangGraph/Temporal reference.
+      const startedFromCapture =
+        emitLlmSpan && capture
+          ? [
+              buildSpan('copilotkit', 'llm', {
+                stage: 'started',
+                model,
+                rawRequestBody: capture.requestBody,
+                request_headers: capture.requestHeaders,
+                redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
+                data: payload,
+              }) as unknown as SpanData,
+            ]
+          : [];
       return [
+        ...startedFromCapture,
         ...(emitLlmSpan ? completionSpans : []),
         ...toolCallSpansFromAssistantPayload(payload, model, overrides),
       ];
@@ -905,6 +922,11 @@ function spansForGate(
     case 'tool_output':
       return [toolCallSpan(kind, activityType, payload, overrides)];
     case 'prompt': {
+      // In capture mode the assistant gate emits the full started+completed
+      // pair from the real captured exchange, so suppress this pre-call started
+      // span (which can only carry a reconstructed request) to avoid a partial
+      // duplicate. Default off: capture-less hosts keep the prompt started span.
+      if (process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE === 'true') return [];
       const prompt = promptTextFromPayload(payload);
       const metadata = llmCompletionMetadataFromPayload(payload);
       const model = metadata.model ?? overrides?.llmModel;
