@@ -131,30 +131,30 @@ describe('output: row + summary', () => {
     logSpy.mockRestore();
   });
 
-  it('row pads target<14> and status<14> with detail trailing', () => {
+  it('row pads target<32> and status<14> with detail trailing', () => {
     row('extension', 'installed', 'host: cursor');
     expect(captureLog(logSpy)).toEqual([
-      'extension     installed     host: cursor',
+      'extension                       installed     host: cursor',
     ]);
   });
 
   it('row trims trailing whitespace when no detail given', () => {
     row('mcp', 'skipped');
-    expect(captureLog(logSpy)[0]).toBe('mcp           skipped');
+    expect(captureLog(logSpy)[0]).toBe('mcp                             skipped');
   });
 
   it('row accepts unknown status (rendered plain, no color)', () => {
     row('agent', 'queued', 'id: x');
     expect(captureLog(logSpy)).toEqual([
-      'agent         queued        id: x',
+      'agent                           queued        id: x',
     ]);
   });
 
   it('row separates long target names from status and hang-indents multiline details', () => {
     row('plugin-component-inventory', 'pass', '11 component(s)\n/path/to/component-inventory.json');
     expect(captureLog(logSpy)).toEqual([
-      'plugin-component-inventory  pass          11 component(s)',
-      '                                          /path/to/component-inventory.json',
+      'plugin-component-inventory      pass          11 component(s)',
+      '                                              /path/to/component-inventory.json',
     ]);
   });
 
