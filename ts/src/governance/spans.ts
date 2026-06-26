@@ -593,6 +593,38 @@ function providerUrlForLLM(provider: string | undefined): string {
   }
 }
 
+// The SDK emits the inner span; Core wraps it in the outer envelope that
+// carries duration_ms, error, span_type, verdict, metadata, merkle_*, etc.
+// The reference inner llm_completion (POST) span does not repeat those envelope
+// fields, nor the generic function/module/args/result debug fields, on the
+// span. Drop them from CopilotKit POST spans so the inner span matches the
+// reference structure. The real model/usage telemetry (top-level fields +
+// gen_ai/openbox attributes) is intentionally kept — it is real (not
+// fabricated) and the platform surfaces it; the leaner Python reference simply
+// does not emit it. Only POST spans are affected; tool/internal spans keep
+// their fields (the reference keeps them too).
+const LLM_COMPLETION_ENVELOPE_FIELDS = [
+  'data',
+  'events',
+  'error',
+  'span_type',
+  'duration_ms',
+  'function',
+  'module',
+  'args',
+  'result',
+] as const;
+
+export function leanCopilotLlmSpan<T extends object>(span: T): T {
+  const record = span as Record<string, unknown>;
+  if (record.name !== 'POST') return span;
+  const next: Record<string, unknown> = { ...record };
+  for (const key of LLM_COMPLETION_ENVELOPE_FIELDS) {
+    delete next[key];
+  }
+  return next as unknown as T;
+}
+
 export function stripServerComputedSemantic<T extends object>(span: T): T {
   const next: Record<string, unknown> = {
     ...(span as Record<string, unknown>),
@@ -1098,8 +1130,15 @@ function buildSpanWithClassifierFields(
       );
       const webSearchRequests = toUsageInteger(usage?.web_search_requests);
       const costUsd = toUsageNumber(usage?.cost_usd);
-      const modelTelemetry = modelTelemetryFields(input.model, undefined, undefined);
-      const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
+      const modelTelemetry = modelTelemetryFields(
+        input.model,
+        undefined,
+        firstTrimmed(input.url),
+      );
+      // Prefer the real captured request URL over a provider URL derived from
+      // the model, so the span carries the actual endpoint that was called.
+      const llmHttpUrl =
+        firstTrimmed(input.url) ?? providerUrlForLLM(modelTelemetry.provider);
       const llmRequestBody = {
         ...(input.model ? { model: input.model } : {}),
         ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),

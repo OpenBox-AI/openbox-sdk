@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { SpanData } from '../core-client/index.js';
 import { DEFAULT_TASK_QUEUE, DEFAULT_WORKFLOW_TYPE } from './constants.js';
 import {
   errorOutput,
@@ -45,7 +46,16 @@ import {
   withSpanIdentityFromActivity,
 } from './workflow-session.js';
 import { EVENT } from '../governance/events.js';
-import { stripServerComputedSemantic } from '../governance/spans.js';
+import {
+  buildSpan,
+  leanCopilotLlmSpan,
+  stripServerComputedSemantic,
+} from '../governance/spans.js';
+import {
+  capturedLLMExchanges,
+  runWithLLMCapture,
+  type CapturedLLMExchange,
+} from './otel-capture.js';
 
 type HaltedCopilotSession = Extract<
   OpenBoxCopilotSessionState,
@@ -157,6 +167,7 @@ export function createGovernedCopilotTool<
       }
       // Split-stage gate from the spec-generated runtime: input verdict now,
       // paired completion (same activity id) after the business logic runs.
+      const toolStartedNs = nowUnixNano();
       const openedActivity = await timings.measure(
         'tool_input_gate',
         'Input policy check',
@@ -172,6 +183,7 @@ export function createGovernedCopilotTool<
                 'started',
                 undefined,
                 ids.activityId,
+                toolStartedNs,
               ),
             ],
           }),
@@ -218,12 +230,23 @@ export function createGovernedCopilotTool<
         started,
       );
       let artifact: TArtifact;
+      // The SDK's global OTel fetch instrumentation records the LLM call(s) the
+      // business action makes; collect them inside the capture scope so they can
+      // be surfaced as real llm_completion spans on the completed activity.
+      let llmCaptures: CapturedLLMExchange[] = [];
       try {
         artifact = await timings.measure(
           'tool_execution',
           'Business action',
           'tool',
-          () => definition.execute(startedRedaction.input),
+          () =>
+            runWithLLMCapture(async () => {
+              try {
+                return await definition.execute(startedRedaction.input);
+              } finally {
+                llmCaptures = capturedLLMExchanges();
+              }
+            }),
         );
       } catch (error) {
         await timings.measure(
@@ -243,7 +266,9 @@ export function createGovernedCopilotTool<
                       'completed',
                       failedToolOutputForGovernance(error),
                       ids.activityId,
+                      toolStartedNs,
                     ),
+                    ...capturedLlmCompletionSpans(llmCaptures),
                   ],
                   hookSpanParentEventType: EVENT.START,
                 },
@@ -280,7 +305,9 @@ export function createGovernedCopilotTool<
                   'completed',
                   toolOutputForGovernance(provisional),
                   ids.activityId,
+                  toolStartedNs,
                 ),
+                ...capturedLlmCompletionSpans(llmCaptures),
               ],
               hookSpanParentEventType: EVENT.START,
             },
@@ -652,6 +679,73 @@ export function createGovernedCopilotTool<
   }
 
   return { execute, resume };
+}
+
+// Surface the LLM call(s) the business action made (captured by the SDK's OTel
+// fetch instrumentation) as full-data llm_completion span pairs, so a governed
+// action carries the same real request/response/headers/body/usage/duration as
+// the middleware path. Each captured exchange becomes a started+completed pair
+// sharing one span_id.
+function capturedLlmCompletionSpans(
+  captures: CapturedLLMExchange[],
+): SpanData[] {
+  const redact = process.env.OPENBOX_CAPTURE_RAW_HEADERS !== 'true';
+  const fieldString = (value: unknown, key: string): string | undefined => {
+    const record =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    return typeof record[key] === 'string' ? (record[key] as string) : undefined;
+  };
+  return captures.flatMap((exchange) => {
+    const spanId = randomBytes(8).toString('hex');
+    const traceId = randomBytes(16).toString('hex');
+    const identify = (span: Record<string, unknown>): Record<string, unknown> => ({
+      ...span,
+      span_id: spanId,
+      trace_id: traceId,
+    });
+    // All values come from the real captured exchange: model from the wire
+    // body, URL from the actual request, headers/body/status/timing verbatim.
+    const model =
+      fieldString(exchange.requestBody, 'model') ??
+      fieldString(exchange.responseBody, 'model');
+    const startedNs = exchange.startTimeMs * 1_000_000;
+    const endedNs = exchange.endTimeMs * 1_000_000;
+    const durationNs = Math.max(0, endedNs - startedNs);
+    const started = identify(
+      buildSpan('copilotkit', 'llm', {
+        stage: 'started',
+        model,
+        url: exchange.url,
+        rawRequestBody: exchange.requestBody,
+        request_headers: exchange.requestHeaders,
+        redactSensitiveHeaders: redact,
+      }),
+    );
+    const completed = identify(
+      buildSpan('copilotkit', 'llm', {
+        stage: 'completed',
+        model,
+        url: exchange.url,
+        rawRequestBody: exchange.requestBody,
+        rawResponseBody: exchange.responseBody,
+        request_headers: exchange.requestHeaders,
+        response_headers: exchange.responseHeaders,
+        http_status_code: exchange.httpStatusCode,
+        redactSensitiveHeaders: redact,
+      }),
+    );
+    return [
+      leanCopilotLlmSpan({ ...started, start_time: startedNs, end_time: 0 }),
+      leanCopilotLlmSpan({
+        ...completed,
+        start_time: startedNs,
+        end_time: endedNs,
+        duration_ns: durationNs,
+      }),
+    ] as unknown as SpanData[];
+  });
 }
 
 function toolOutputForGovernance<TArtifact>(

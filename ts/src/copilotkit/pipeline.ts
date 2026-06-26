@@ -5,6 +5,7 @@ import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { EVENT } from '../governance/events.js';
 import {
   buildSpan,
+  leanCopilotLlmSpan,
   stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
   type LLMTokenUsage,
@@ -127,7 +128,8 @@ async function evaluateGate<T>(
     input.payload,
     overrides,
   ).map((span, index) => {
-    const withParent = withParentSpanId(span, ids.activityId);
+    const lean = leanCopilotLlmSpan(span);
+    const withParent = withParentSpanId(lean, ids.activityId);
     // The platform pairs a started span with its completion by span_id. The
     // primary span of each gate is the started/completed pair (the
     // prompt/assistant llm_completion span, or the tool-call span), so derive
@@ -135,7 +137,7 @@ async function evaluateGate<T>(
     // the assistant-completed gate then produce a matching span_id/trace_id.
     // Any additional spans (e.g. tool calls embedded in an assistant message)
     // keep their own identity.
-    return index === 0 || (span as { name?: string }).name === 'POST'
+    return index === 0 || (lean as { name?: string }).name === 'POST'
       ? withSpanIdentityFromActivity(withParent, ids.activityId)
       : withParent;
   });

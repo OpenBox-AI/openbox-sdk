@@ -402,8 +402,12 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   stage: 'started' | 'completed',
   output?: unknown,
   activityId?: string,
+  startTimeNs?: number,
 ): SpanData {
   const now = nowUnixNano();
+  // Real timing when the caller threads the started timestamp: the completed
+  // span's duration_ns is end-start instead of a hardcoded 0.
+  const startTime = startTimeNs ?? now;
   const profile = definition.spanProfile?.(input, stage);
   const requestBody = stringifySpanBody({
     tool_choice: definition.toolName,
@@ -420,9 +424,10 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     kind: 'tool',
     span_type: 'function',
     hook_type: 'function_call',
-    start_time: now,
+    start_time: startTime,
     end_time: stage === 'completed' ? now : null,
-    duration_ns: stage === 'completed' ? 0 : null,
+    duration_ns:
+      stage === 'completed' ? Math.max(0, now - startTime) : null,
     stage,
     status: { code: 'UNSET' },
     events: [],
