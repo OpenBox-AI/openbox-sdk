@@ -622,6 +622,8 @@ export function leanCopilotLlmSpan<T extends object>(span: T): T {
   for (const key of LLM_COMPLETION_ENVELOPE_FIELDS) {
     delete next[key];
   }
+  // The reference inner span sets semantic_type explicitly (Core preserves it).
+  next.semantic_type = 'llm_completion';
   return next as unknown as T;
 }
 
