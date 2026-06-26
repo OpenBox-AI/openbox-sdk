@@ -4956,6 +4956,178 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(types).not.toContain('WorkflowCompleted');
     expect(types).not.toContain('WorkflowFailed');
   });
+
+  it('pairs runtime llm_completion and tool-call hook spans by span_id across started and completed', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TOOL_CALL_START',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        toolCallName: 'crm_lookup',
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        delta: '{"customerId":"cus_1"}',
+      },
+      { type: 'TOOL_CALL_END', threadId: 'thread-1', runId: 'run-1', toolCallId: 'call-1' },
+      {
+        type: 'TOOL_CALL_RESULT',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'm1',
+        toolCallId: 'call-1',
+        role: 'tool',
+        content: '{"ok":true}',
+      },
+      { type: 'TEXT_MESSAGE_START', messageId: 'a1', role: 'assistant' },
+      { type: 'TEXT_MESSAGE_CONTENT', messageId: 'a1', delta: 'Reviewed.' },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'a1',
+        usage: { inputTokens: 100, outputTokens: 25 },
+      },
+      {
+        type: 'RUN_FINISHED',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        model: 'gpt-4o-mini',
+        usage: { inputTokens: 100, outputTokens: 25 },
+      },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'u1', role: 'user', content: 'Review the queue.' }],
+        },
+      }),
+    );
+
+    const llmStarted = mock.events.find(
+      (event) =>
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'started',
+    )?.spans?.[0] as Record<string, any> | undefined;
+    const llmCompleted = mock.events.find(
+      (event) =>
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    )?.spans?.[0] as Record<string, any> | undefined;
+
+    expect(llmStarted?.span_id).toMatch(/^[0-9a-f]{16}$/);
+    expect(llmStarted?.trace_id).toMatch(/^[0-9a-f]{32}$/);
+    // The platform pairs a started span with its completion by span_id, so the
+    // prompt-started and assistant-completed llm_completion spans must match.
+    expect(llmCompleted?.span_id).toBe(llmStarted?.span_id);
+    expect(llmCompleted?.trace_id).toBe(llmStarted?.trace_id);
+    expect(llmCompleted?.parent_span_id).toBe(llmStarted?.parent_span_id);
+    expect(llmStarted?.span_id).not.toBe(llmStarted?.parent_span_id);
+
+    const toolSpans = mock.events
+      .flatMap((event) => event.spans ?? [])
+      .filter((span) => span.name === 'openai.TOOL.call');
+    const toolStarted = toolSpans.find((span) => span.stage === 'started');
+    const toolCompleted = toolSpans.find((span) => span.stage === 'completed');
+    expect(toolStarted?.span_id).toMatch(/^[0-9a-f]{16}$/);
+    expect(toolCompleted?.span_id).toBe(toolStarted?.span_id);
+    expect(toolCompleted?.trace_id).toBe(toolStarted?.trace_id);
+    expect(toolCompleted?.parent_span_id).toBe(toolStarted?.parent_span_id);
+  });
+
+  it('pairs governed-tool started and completed hook spans by span_id', async () => {
+    const { events, tool } = createDemoTool(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+
+    await tool.execute({
+      action: 'demo_action',
+      request: 'Create a support ticket.',
+    });
+
+    const startedHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'started',
+    )?.spans?.[0] as Record<string, any> | undefined;
+    const completedHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    )?.spans?.[0] as Record<string, any> | undefined;
+
+    expect(startedHook?.span_id).toMatch(/^[0-9a-f]{16}$/);
+    expect(startedHook?.trace_id).toMatch(/^[0-9a-f]{32}$/);
+    expect(completedHook?.span_id).toBe(startedHook?.span_id);
+    expect(completedHook?.trace_id).toBe(startedHook?.trace_id);
+  });
+
+  it('pairs the approval resume span with the original approval activity id', async () => {
+    const { spanIdentityFromActivity } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+    const events: GovernanceEventPayload[] = [];
+    const core = {
+      evaluate: vi.fn(async (payload: GovernanceEventPayload) => {
+        events.push(payload);
+        return { verdict: 'allow', action: 'allow', reason: 'allowed' };
+      }),
+      pollApproval: vi.fn(async () => ({ action: 'allow', reason: 'approved' })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const tool = createGovernedCopilotTool<DemoInput, DemoArtifact>({
+      adapter,
+      toolName: 'openbox_governed_action',
+      description: 'Test governed action.',
+      execute: async (input) => ({ body: input.request }),
+    });
+
+    await tool.resume({
+      action: 'demo_action',
+      request: 'Issue a service credit after approval.',
+      amountUsd: 7500,
+      workflowId: 'workflow-approval',
+      runId: 'run-approval',
+      activityId: 'activity-approval',
+      approved: true,
+      approvalId: 'approval-row',
+      governanceEventId: 'event-start',
+    });
+
+    const resumeHook = events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    )?.spans?.[0] as Record<string, any> | undefined;
+    // The resume completion must reuse the identity the original approval
+    // request's started span derived from the same activity id, so the
+    // platform pairs them across requests.
+    const expected = spanIdentityFromActivity('activity-approval');
+    expect(resumeHook?.span_id).toBe(expected.span_id);
+    expect(resumeHook?.trace_id).toBe(expected.trace_id);
+  });
 });
 
 function createMiddlewareDeps() {

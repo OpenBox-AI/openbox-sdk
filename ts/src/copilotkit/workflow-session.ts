@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   type OpenBoxCoreClient,
   type SpanData,
@@ -365,11 +365,43 @@ export function withCopilotToolActivityMetadata(input: unknown[]): unknown[] {
   });
 }
 
+// Started and completed hook spans for the same activity must share a span
+// identity so the OpenBox platform pairs them into a single span (a started
+// event with its completion) instead of rendering an orphaned started span.
+// Derive the identity deterministically from the activity id so the started
+// gate and the completed gate compute the same span_id/trace_id without
+// sharing in-process state. Seeds differ from the parent-span seed so the
+// span_id never collides with the parent_span_id.
+export function spanIdentityFromActivity(activityId: string): {
+  span_id: string;
+  trace_id: string;
+} {
+  return {
+    span_id: createHash('sha256')
+      .update(`openbox.span:${activityId}`)
+      .digest('hex')
+      .slice(0, 16),
+    trace_id: createHash('sha256')
+      .update(`openbox.trace:${activityId}`)
+      .digest('hex')
+      .slice(0, 32),
+  };
+}
+
+export function withSpanIdentityFromActivity<T extends object>(
+  span: T,
+  activityId: string | undefined,
+): T {
+  if (!activityId) return span;
+  return { ...span, ...spanIdentityFromActivity(activityId) };
+}
+
 export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
   stage: 'started' | 'completed',
   output?: unknown,
+  activityId?: string,
 ): SpanData {
   const now = nowUnixNano();
   const profile = definition.spanProfile?.(input, stage);
@@ -407,19 +439,27 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     request_body: requestBody,
     response_body: responseBody,
   } as SpanData;
-  if (!profile) return stripServerComputedSemantic(base);
+  if (!profile) {
+    return withSpanIdentityFromActivity(
+      stripServerComputedSemantic(base),
+      activityId,
+    );
+  }
   const profileRecord = profile as Record<string, unknown>;
-  return stripServerComputedSemantic({
-    ...base,
-    ...profile,
-    attributes: {
-      ...base.attributes,
-      ...(profile.attributes ?? {}),
-    },
-    data: profile.data ?? base.data,
-    request_body: profileRecord.request_body ?? base.request_body,
-    response_body: profileRecord.response_body ?? base.response_body,
-  } as SpanData);
+  return withSpanIdentityFromActivity(
+    stripServerComputedSemantic({
+      ...base,
+      ...profile,
+      attributes: {
+        ...base.attributes,
+        ...(profile.attributes ?? {}),
+      },
+      data: profile.data ?? base.data,
+      request_body: profileRecord.request_body ?? base.request_body,
+      response_body: profileRecord.response_body ?? base.response_body,
+    } as SpanData),
+    activityId,
+  );
 }
 
 function stringifySpanBody(value: unknown): string | null {

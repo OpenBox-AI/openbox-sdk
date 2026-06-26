@@ -36,6 +36,7 @@ import {
   ensureWorkflowStarted,
   failWorkflow,
   finishStoppedWorkflow,
+  withSpanIdentityFromActivity,
 } from './workflow-session.js';
 import { COPILOTKIT_LLM_ACTIVITY_TYPE } from './activity-types.js';
 
@@ -118,7 +119,19 @@ async function evaluateGate<T>(
     activityType,
     input.payload,
     overrides,
-  ).map((span) => withParentSpanId(span, ids.activityId));
+  ).map((span, index) => {
+    const withParent = withParentSpanId(span, ids.activityId);
+    // The platform pairs a started span with its completion by span_id. The
+    // primary span of each gate is the started/completed pair (the
+    // prompt/assistant llm_completion span, or the tool-call span), so derive
+    // its identity from the shared activity id; the prompt-started gate and
+    // the assistant-completed gate then produce a matching span_id/trace_id.
+    // Any additional spans (e.g. tool calls embedded in an assistant message)
+    // keep their own identity.
+    return index === 0
+      ? withSpanIdentityFromActivity(withParent, ids.activityId)
+      : withParent;
+  });
   const telemetry = telemetryForGate(
     input.kind,
     activityType,

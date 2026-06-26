@@ -42,6 +42,7 @@ import {
   toolInput,
   toolSpan,
   withCopilotToolActivityMetadata,
+  withSpanIdentityFromActivity,
 } from './workflow-session.js';
 import { EVENT } from '../governance/events.js';
 import { stripServerComputedSemantic } from '../governance/spans.js';
@@ -164,7 +165,15 @@ export function createGovernedCopilotTool<
           session.openActivity(activityType, {
             activityId: ids.activityId,
             input: toolActivityInput(definition, normalizedInput),
-            spans: [toolSpan(definition, normalizedInput, 'started')],
+            spans: [
+              toolSpan(
+                definition,
+                normalizedInput,
+                'started',
+                undefined,
+                ids.activityId,
+              ),
+            ],
           }),
       );
       const started = openedActivity.verdict;
@@ -233,6 +242,7 @@ export function createGovernedCopilotTool<
                       startedRedaction.input,
                       'completed',
                       failedToolOutputForGovernance(error),
+                      ids.activityId,
                     ),
                   ],
                   hookSpanParentEventType: EVENT.START,
@@ -269,6 +279,7 @@ export function createGovernedCopilotTool<
                   startedRedaction.input,
                   'completed',
                   toolOutputForGovernance(provisional),
+                  ids.activityId,
                 ),
               ],
               hookSpanParentEventType: EVENT.START,
@@ -466,7 +477,9 @@ export function createGovernedCopilotTool<
               approvalResumeToolInput(definition, normalizedInput),
             ]),
             output: toolOutputForGovernance(result),
-            spans: [approvalResumeSpan(definition, normalizedInput)],
+            spans: [
+              approvalResumeSpan(definition, normalizedInput, ids.activityId),
+            ],
             hookSpanParentEventType: EVENT.START,
           }),
       );
@@ -590,7 +603,9 @@ export function createGovernedCopilotTool<
           ).openActivity(governedToolActivityType(definition), {
             activityId: ids.activityId,
             input: toolActivityInput(definition, input),
-            spans: [toolSpan(definition, input, 'started')],
+            spans: [
+              toolSpan(definition, input, 'started', undefined, ids.activityId),
+            ],
           }),
       );
       if (isAllowed(verdict.arm)) {
@@ -678,30 +693,36 @@ function approvalResumeSpan<
 >(
   definition: Pick<GovernedCopilotToolDefinition<any, any>, 'toolName'>,
   input: TInput,
+  activityId?: string,
 ) {
   const now = nowUnixNano();
-  return stripServerComputedSemantic({
-    span_id: `approval-${randomUUID().replaceAll('-', '').slice(0, 8)}`,
-    trace_id: randomUUID().replaceAll('-', ''),
-    name: `${definition.toolName}.approval_resume`,
-    kind: 'internal',
-    span_type: 'function',
-    hook_type: 'function_call',
-    start_time: now,
-    end_time: now,
-    duration_ns: 0,
-    stage: 'completed',
-    status: { code: 'UNSET' },
-    events: [],
-    attributes: {
-      'openbox.span_type': 'function',
-      'openbox.tool.name': definition.toolName,
-      'openbox.approval.resume': true,
-      'tool.name': definition.toolName,
-      tool_name: definition.toolName,
-    },
-    data: approvalResumeMetadata(input),
-  });
+  // Pair this resume completion with the original approval-request started
+  // span by deriving the span identity from the shared activity id.
+  return withSpanIdentityFromActivity(
+    stripServerComputedSemantic({
+      span_id: `approval-${randomUUID().replaceAll('-', '').slice(0, 8)}`,
+      trace_id: randomUUID().replaceAll('-', ''),
+      name: `${definition.toolName}.approval_resume`,
+      kind: 'internal',
+      span_type: 'function',
+      hook_type: 'function_call',
+      start_time: now,
+      end_time: now,
+      duration_ns: 0,
+      stage: 'completed',
+      status: { code: 'UNSET' },
+      events: [],
+      attributes: {
+        'openbox.span_type': 'function',
+        'openbox.tool.name': definition.toolName,
+        'openbox.approval.resume': true,
+        'tool.name': definition.toolName,
+        tool_name: definition.toolName,
+      },
+      data: approvalResumeMetadata(input),
+    }),
+    activityId,
+  );
 }
 
 function approvalResumeMetadata(input: OpenBoxCopilotResumeInput) {
