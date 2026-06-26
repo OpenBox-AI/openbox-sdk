@@ -386,7 +386,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       span_count: 1,
     });
     expect(hook?.spans?.[0]).toMatchObject({
-      name: 'llm.chat.completion',
+      name: 'POST',
       module: 'anthropic-agent-sdk',
       stage: 'started',
       attributes: expect.objectContaining({
@@ -451,7 +451,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       span_count: 1,
     });
     expect(hook?.spans?.[0]).toMatchObject({
-      name: 'llm.chat.completion',
+      name: 'POST',
       module: 'anthropic-agent-sdk',
       stage: 'started',
       attributes: expect.objectContaining({

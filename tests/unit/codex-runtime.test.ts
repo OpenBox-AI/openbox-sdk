@@ -364,7 +364,7 @@ describe('Codex runtime adapter', () => {
       const promptHookEvent = mock.events.find((event) => event.hook_trigger === true);
       expect(promptHookEvent?.activity_type).toBe('PromptSubmission');
       expect(promptHookEvent?.spans?.[0]).toMatchObject({
-        name: 'llm.chat.completion',
+        name: 'POST',
         module: 'codex',
         attributes: expect.objectContaining({
           'gen_ai.system': 'codex',

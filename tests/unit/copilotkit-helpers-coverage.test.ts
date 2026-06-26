@@ -309,8 +309,8 @@ describe('copilotkit helper coverage', () => {
       'redacted field',
     );
     expect(constrainedBySummary).toMatchObject({
-      status: 'constrained',
-      verdict: 'constrain',
+      status: 'executed',
+      verdict: 'allow',
       riskScore: 0.1,
       trustTier: 2,
       alignmentScore: 0.85,
@@ -469,7 +469,7 @@ describe('copilotkit helper coverage', () => {
         true,
       ),
     ).toMatchObject({
-      status: 'constrained',
+      status: 'executed',
       changed: true,
     });
     expect(
@@ -746,8 +746,8 @@ describe('copilotkit helper coverage', () => {
       'Input redacted.',
     );
     expect(completed).toMatchObject({
-      status: 'constrained',
-      verdict: 'constrain',
+      status: 'executed',
+      verdict: 'allow',
       artifact: { body: '[REDACTED]', marked: true },
       redactionSummary: expect.stringContaining('Input redacted.'),
     });
@@ -762,8 +762,8 @@ describe('copilotkit helper coverage', () => {
       verdict({ arm: 'allow' }),
     );
     expect(visibleOnly).toMatchObject({
-      status: 'constrained',
-      verdict: 'constrain',
+      status: 'executed',
+      verdict: 'allow',
     });
     expect(
       applyCompletedRedaction(

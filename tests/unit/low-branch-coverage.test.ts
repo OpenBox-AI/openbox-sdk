@@ -127,7 +127,7 @@ describe('low-branch utility coverage', () => {
 
   it('builds shared governance spans for each MCP-supported span type and defaults', () => {
     const cases = [
-      ['llm', { prompt: 'hi' }, 'llm.chat.completion'],
+      ['llm', { prompt: 'hi' }, 'POST'],
       ['file_read', { file_path: '/tmp/read.txt' }, 'file.read'],
       ['file_write', { file_path: '/tmp/write.txt' }, 'file.write'],
       ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete'],

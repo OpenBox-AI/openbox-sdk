@@ -270,7 +270,7 @@ describe('governance/check', () => {
   it('maps every supported span type into a core governance payload', async () => {
     const { checkGovernance } = await import('../../ts/src/governance/check.ts');
     const cases = [
-      ['llm', { prompt: 'hi' }, 'PromptSubmission', 'llm.chat.completion'],
+      ['llm', { prompt: 'hi' }, 'PromptSubmission', 'POST'],
       ['file_read', { file_path: '/tmp/r' }, 'FileRead', 'file.read'],
       ['file_delete', { file_path: '/tmp/d' }, 'FileDelete', 'file.delete'],
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],

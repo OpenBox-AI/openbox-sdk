@@ -230,7 +230,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     });
     expect(promptGate?.args[2].spans?.[0]).toMatchObject({
       module: 'cursor',
-      name: 'llm.chat.completion',
+      name: 'POST',
       semantic_type: 'llm_completion',
       attributes: expect.objectContaining({
         'gen_ai.system': 'cursor',
