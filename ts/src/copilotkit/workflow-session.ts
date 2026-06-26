@@ -332,10 +332,10 @@ export function toolInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
 }
 
 export function toolActivityInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
-  definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
+  _definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
 ): unknown[] {
-  return withCopilotToolActivityMetadata([toolInput(definition, input)]);
+  return withCopilotToolActivityMetadata([{ id: undefined, args: input }]);
 }
 
 export function withCopilotToolActivityMetadata(input: unknown[]): unknown[] {

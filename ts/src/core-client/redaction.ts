@@ -148,9 +148,11 @@ function unwrapActivityOutputRedaction(redactedInput: unknown, originalOutput: u
 }
 
 export function hasGuardrailRedaction(guardrails: GuardrailsVerdict | undefined): boolean {
-  const hasRedactedField = guardrails?.fieldResults?.some((field) =>
+  const fieldResults = guardrails?.fieldResults ?? [];
+  const hasRedactedField = fieldResults.some((field) =>
     isRedactedStatus(field.status),
   );
+  if (fieldResults.length > 0 && !hasRedactedField) return false;
   return Boolean(
     guardrails &&
       (isInputLikeGuardrail(guardrails.inputType) ||

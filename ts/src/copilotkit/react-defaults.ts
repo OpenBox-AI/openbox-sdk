@@ -165,8 +165,8 @@ export const verdictStyles: Record<
   halt: {
     label: 'Halted',
     badge: 'obx-status--halt',
-    accent: 'border-orange-500/25 bg-orange-500/5',
-    dot: 'bg-orange-500',
+    accent: 'border-red-500/25 bg-red-500/5',
+    dot: 'bg-red-500',
   },
   approval: {
     label: 'Approval Required',

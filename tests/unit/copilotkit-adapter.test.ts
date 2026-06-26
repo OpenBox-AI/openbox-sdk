@@ -4138,6 +4138,131 @@ describe('CopilotKit OpenBox adapter', () => {
     );
   });
 
+  it('native runner does not re-govern final payload after an OpenBox governed tool result', async () => {
+    const mock = createMockCore((payload) => ({
+      verdict: payload.event_type === 'ActivityCompleted' ? 'block' : 'allow',
+      reason:
+        payload.event_type === 'ActivityCompleted'
+          ? 'redundant final output blocked'
+          : 'allowed',
+    }));
+    const openBoxResult = {
+      schemaVersion: 'openbox.copilotkit.result.v1',
+      status: 'executed',
+      verdict: 'allow',
+      executed: true,
+      action: 'open_operations_queue',
+      request: 'Review queue.',
+      reason: 'OpenBox allowed this action.',
+    };
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TOOL_CALL_RESULT',
+        toolCallId: 'openbox-tool-call',
+        content: JSON.stringify(openBoxResult),
+      },
+      {
+        type: 'RUN_FINISHED',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        output: { messages: [{ content: JSON.stringify(openBoxResult) }] },
+      },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Review queue.' }],
+        },
+      }),
+    );
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'TOOL_CALL_RESULT',
+        content: JSON.stringify(openBoxResult),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'RUN_FINISHED' }),
+    );
+    expect(JSON.stringify(events)).not.toContain(
+      'redundant final output blocked',
+    );
+    expect(
+      mock.events.filter((event) => event.event_type === 'ActivityCompleted'),
+    ).toHaveLength(0);
+  });
+
+  it('native runner recognizes OpenBox governed tool results outside content', async () => {
+    const mock = createMockCore((payload) => ({
+      verdict: payload.event_type === 'ActivityCompleted' ? 'halt' : 'allow',
+      reason:
+        payload.event_type === 'ActivityCompleted'
+          ? 'redundant runtime gate halted'
+          : 'allowed',
+    }));
+    const openBoxResult = {
+      schemaVersion: 'openbox.copilotkit.result.v1',
+      status: 'blocked',
+      verdict: 'block',
+      executed: false,
+      action: 'export_governance_identifiers',
+      request: 'Send exception ids.',
+      reason: 'OpenBox blocked this identifier export.',
+    };
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TOOL_CALL_RESULT',
+        toolCallId: 'openbox-tool-call',
+        result: openBoxResult,
+      },
+      {
+        type: 'RUN_FINISHED',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        output: { content: 'This should not be governed again.' },
+      },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [
+            { id: 'user-1', role: 'user', content: 'Send exception ids.' },
+          ],
+        },
+      }),
+    );
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'TOOL_CALL_RESULT',
+        result: openBoxResult,
+      }),
+    );
+    expect(JSON.stringify(events)).not.toContain('redundant runtime gate halted');
+    expect(
+      mock.events.filter((event) => event.event_type === 'ActivityCompleted'),
+    ).toHaveLength(0);
+  });
+
   it('native runner redacts custom non-text final AG-UI payloads before emit', async () => {
     const mock = createMockCore((payload) => ({
       verdict: payload.activity_type === 'llm_call' ? 'constrain' : 'allow',

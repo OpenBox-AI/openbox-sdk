@@ -460,6 +460,7 @@ function pipeGovernedEvents(
         };
       }
     | undefined;
+  let emittedOpenBoxToolResult = false;
   const queueAssistantOutputGate = (
     messageId: string,
     type: string,
@@ -563,13 +564,16 @@ function pipeGovernedEvents(
         buffer.content += String(agEvent.delta ?? agEvent.content ?? '');
         return;
       }
-      // Governed tools terminate or intentionally leave the shared task
-      // workflow open (halt/block/approval). When their result says so, the
-      // runtime must not send its own WorkflowCompleted on RUN_FINISHED.
-      if (isToolResultEvent(agEvent) && governedResultEndsWorkflow(agEvent)) {
-        stopForGovernance();
-        emit(agEvent);
-        return;
+      if (isToolResultEvent(agEvent)) {
+        const openBoxResult = openBoxResultFromToolEvent(agEvent);
+        if (openBoxResult) {
+          emittedOpenBoxToolResult = true;
+          if (openBoxResultEndsWorkflow(openBoxResult)) {
+            stopForGovernance();
+          }
+          emit(agEvent);
+          return;
+        }
       }
       if (isAssistantTextEnd(agEvent)) {
         const messageId = messageIdForEvent(agEvent);
@@ -613,6 +617,10 @@ function pipeGovernedEvents(
         }
         buffer.events.push(agEvent);
         queueToolInputGate(buffer);
+        return;
+      }
+      if (emittedOpenBoxToolResult && isRunFinishedEvent(agEvent)) {
+        queueTerminalEvent(agEvent, 'completed');
         return;
       }
       const finalPayload = finalPayloadLocationForEvent(agEvent);
@@ -1034,19 +1042,38 @@ const WORKFLOW_ENDING_RESULT_STATUSES = new Set([
   'approval_pending',
 ]);
 
-function governedResultEndsWorkflow(event: Record<string, any>): boolean {
-  const content = event.content;
-  if (typeof content !== 'string') return false;
-  try {
-    const parsed = JSON.parse(content);
-    return (
+function openBoxResultFromToolEvent(
+  event: Record<string, any>,
+): Record<string, unknown> | undefined {
+  for (const candidate of openBoxResultCandidates(event)) {
+    const parsed =
+      typeof candidate === 'string' ? parseJsonObject(candidate) : candidate;
+    if (
       isRecord(parsed) &&
-      parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION &&
-      WORKFLOW_ENDING_RESULT_STATUSES.has(String(parsed.status))
-    );
-  } catch {
-    return false;
+      parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION
+    ) {
+      return parsed;
+    }
   }
+  return undefined;
+}
+
+function openBoxResultCandidates(event: Record<string, any>): unknown[] {
+  const payload = objectRecord(event.payload);
+  return [
+    event.content,
+    event.result,
+    event.output,
+    event.data,
+    payload.content,
+    payload.result,
+    payload.output,
+    payload.data,
+  ];
+}
+
+function openBoxResultEndsWorkflow(result: Record<string, unknown>): boolean {
+  return WORKFLOW_ENDING_RESULT_STATUSES.has(String(result.status));
 }
 
 function finalPayloadLocationForEvent(

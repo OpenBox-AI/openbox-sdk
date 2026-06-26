@@ -563,12 +563,10 @@ export function isAllowed(arm: WorkflowVerdict['arm']): boolean {
 function toolInputForRedaction<
   TInput extends OpenBoxCopilotActionInput,
   TArtifact,
->(definition: GovernedCopilotToolDefinition<TInput, TArtifact>, input: TInput) {
+>(_definition: GovernedCopilotToolDefinition<TInput, TArtifact>, input: TInput) {
   return {
     id: undefined,
-    name: definition.toolName,
     args: input,
-    description: definition.description,
   };
 }
 
