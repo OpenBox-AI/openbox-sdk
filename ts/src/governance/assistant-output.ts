@@ -30,6 +30,9 @@ export interface AssistantOutputTelemetryInput {
   providerUrl?: string;
   requestBody?: unknown;
   responseBody?: unknown;
+  requestHeaders?: unknown;
+  responseHeaders?: unknown;
+  httpStatusCode?: unknown;
   startTime?: number;
   endTime?: number;
   durationNs?: number;
@@ -85,6 +88,9 @@ export function buildAssistantOutputSpan(
       usage: input.usage,
       requestBody: input.requestBody,
       responseBody: input.responseBody,
+      requestHeaders: input.requestHeaders,
+      responseHeaders: input.responseHeaders,
+      httpStatusCode: input.httpStatusCode,
       providerUrl: input.providerUrl,
       startTime: input.startTime,
       endTime: input.endTime,

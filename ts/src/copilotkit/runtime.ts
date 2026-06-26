@@ -474,6 +474,9 @@ function pipeGovernedEvents(
     if (governanceStopped) {
       return;
     }
+    if (emittedOpenBoxToolResult && !hasMeaningfulText(buffer.content)) {
+      return;
+    }
     if (terminalized) {
       emit(buffer.start);
       emit({
@@ -1176,6 +1179,10 @@ function assistantOutputPayload(
     );
   }
   return payload;
+}
+
+function hasMeaningfulText(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim().length > 0 : value != null;
 }
 
 function mergeIfPresent(

@@ -228,7 +228,12 @@ export function createGovernedCopilotTool<
                   input: toolActivityInput(definition, startedRedaction.input),
                   output: failedToolOutputForGovernance(error),
                   spans: [
-                    toolSpan(definition, startedRedaction.input, 'completed'),
+                    toolSpan(
+                      definition,
+                      startedRedaction.input,
+                      'completed',
+                      failedToolOutputForGovernance(error),
+                    ),
                   ],
                   hookSpanParentEventType: EVENT.START,
                 },
@@ -259,7 +264,12 @@ export function createGovernedCopilotTool<
               input: toolActivityInput(definition, startedRedaction.input),
               output: toolOutputForGovernance(provisional),
               spans: [
-                toolSpan(definition, startedRedaction.input, 'completed'),
+                toolSpan(
+                  definition,
+                  startedRedaction.input,
+                  'completed',
+                  toolOutputForGovernance(provisional),
+                ),
               ],
               hookSpanParentEventType: EVENT.START,
             },

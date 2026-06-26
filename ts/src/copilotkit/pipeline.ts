@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
@@ -41,6 +41,8 @@ import { COPILOTKIT_LLM_ACTIVITY_TYPE } from './activity-types.js';
 
 const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 const activityStartTimesMs = new Map<string, number>();
+const activityToolInputs = new Map<string, unknown>();
+const activityPromptInputs = new Map<string, unknown>();
 
 type GateTiming = {
   startTime?: number;
@@ -53,7 +55,10 @@ type GateOverrides = Pick<
   OpenBoxCopilotGateInput,
   'llmModel' | 'llmProvider' | 'llmUsage' | 'startTime' | 'endTime' | 'durationMs'
 > &
-  GateTiming;
+  GateTiming & {
+    pairedToolInput?: unknown;
+    pairedPromptInput?: unknown;
+  };
 
 // All gate emission goes through the spec-generated session runtime
 // (core-client/generated/govern.ts), which owns the canonical envelope:
@@ -87,8 +92,33 @@ async function evaluateGate<T>(
     input.activityType,
   );
   const timing = timingForGate(input.kind, ids, input);
-  const overrides: GateOverrides = { ...input, ...timing };
-  const spans = spansForGate(input.kind, activityType, input.payload, overrides);
+  const activityKey = activityTimingKey(ids);
+  if (input.kind === 'prompt') {
+    activityPromptInputs.set(activityKey, input.payload);
+  }
+  if (input.kind === 'tool_input') {
+    activityToolInputs.set(activityKey, input.payload);
+  }
+  const pairedToolInput =
+    input.kind === 'tool_output'
+      ? activityToolInputs.get(activityKey)
+      : undefined;
+  const pairedPromptInput =
+    input.kind === 'assistant_output'
+      ? activityPromptInputs.get(activityKey)
+      : undefined;
+  const overrides: GateOverrides = {
+    ...input,
+    ...timing,
+    pairedToolInput,
+    pairedPromptInput,
+  };
+  const spans = spansForGate(
+    input.kind,
+    activityType,
+    input.payload,
+    overrides,
+  ).map((span) => withParentSpanId(span, ids.activityId));
   const telemetry = telemetryForGate(
     input.kind,
     activityType,
@@ -128,6 +158,12 @@ async function evaluateGate<T>(
       spans,
     });
     return opened.verdict;
+  }
+  if (input.kind === 'tool_output') {
+    activityToolInputs.delete(activityKey);
+  }
+  if (input.kind === 'assistant_output') {
+    activityPromptInputs.delete(activityKey);
   }
   return session.activity(
     completed ? EVENT.COMPLETE : EVENT.START,
@@ -212,7 +248,10 @@ function withGateSpanTiming<T extends SpanData>(
       : {
           ...(endTime !== undefined ? { end_time: endTime } : {}),
           ...(timing.durationNs !== undefined
-            ? { duration_ns: timing.durationNs }
+            ? {
+                duration_ns: timing.durationNs,
+                duration_ms: timing.durationNs / 1_000_000,
+              }
             : {}),
         }),
   };
@@ -525,6 +564,9 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
   usage?: LLMTokenUsage;
   requestBody?: unknown;
   responseBody?: unknown;
+  requestHeaders?: unknown;
+  responseHeaders?: unknown;
+  httpStatusCode?: unknown;
   providerUrl?: string;
 } {
   const record = recordFrom(payload);
@@ -579,11 +621,66 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
     provider,
     usage: normalizeOpenBoxUsage(usageMetadata)?.raw,
     requestBody:
-      record.request_body ?? record.requestBody ?? metadata.request_body,
+      record.request_body ??
+      record.requestBody ??
+      metadata.request_body ??
+      metadata.requestBody,
     responseBody:
-      record.response_body ?? record.responseBody ?? metadata.response_body,
-    providerUrl: providerUrlFor(provider, model),
+      record.response_body ??
+      record.responseBody ??
+      metadata.response_body ??
+      metadata.responseBody,
+    requestHeaders:
+      record.request_headers ??
+      record.requestHeaders ??
+      metadata.request_headers ??
+      metadata.requestHeaders,
+    responseHeaders:
+      record.response_headers ??
+      record.responseHeaders ??
+      metadata.response_headers ??
+      metadata.responseHeaders,
+    httpStatusCode:
+      record.http_status_code ??
+      record.httpStatusCode ??
+      record.status_code ??
+      record.statusCode ??
+      metadata.http_status_code ??
+      metadata.httpStatusCode ??
+      metadata.status_code ??
+      metadata.statusCode,
+    providerUrl:
+      firstString(
+        record.http_url,
+        record.httpUrl,
+        record.url,
+        metadata.http_url,
+        metadata.httpUrl,
+        metadata.url,
+      ) ?? providerUrlFor(provider, model),
   };
+}
+
+function llmRequestBodyFromPrompt(
+  payload: unknown,
+  model?: string,
+  provider?: string,
+): Record<string, unknown> | undefined {
+  if (payload === undefined) return undefined;
+  const record = recordFrom(payload);
+  const body: Record<string, unknown> = {};
+  if (model) body.model = model;
+  if (provider) {
+    body.provider = provider;
+    body.model_provider = provider;
+  }
+  if (Array.isArray(record.messages)) {
+    body.messages = record.messages;
+  } else {
+    const prompt = promptTextFromPayload(payload);
+    if (prompt) body.input = prompt;
+  }
+  return Object.keys(body).length > 0 ? body : undefined;
 }
 
 function providerUrlFor(
@@ -731,7 +828,9 @@ function spansForGate(
       const usage = metadata.usage ?? normalizeOpenBoxUsage(overrides?.llmUsage)?.raw;
       if (!content && !usage) return [];
       const span = pipelineSpan(kind, 'llm.chat.completion', payload);
-      return buildAssistantOutputSpan({
+      const model = metadata.model ?? overrides?.llmModel;
+      const provider = metadata.provider ?? overrides?.llmProvider;
+      const completionSpans = buildAssistantOutputSpan({
         source: 'copilotkit',
         content,
         span: {
@@ -739,22 +838,31 @@ function spansForGate(
           kind: 'CLIENT',
           hook_type: 'http_request',
         },
-        name: 'openbox.copilotkit.assistant_output',
+        name: 'POST',
         kind: 'CLIENT',
-        model: metadata.model ?? overrides?.llmModel,
-        provider: metadata.provider ?? overrides?.llmProvider,
+        model,
+        provider,
         usage,
-        requestBody: metadata.requestBody,
+        requestBody:
+          metadata.requestBody ??
+          llmRequestBodyFromPrompt(overrides?.pairedPromptInput, model, provider),
         responseBody: metadata.responseBody,
+        requestHeaders: metadata.requestHeaders,
+        responseHeaders: metadata.responseHeaders,
+        httpStatusCode: metadata.httpStatusCode ?? 200,
         providerUrl:
           metadata.providerUrl ??
-          providerUrlFor(overrides?.llmProvider, overrides?.llmModel),
+          providerUrlFor(provider, model),
         startTime: overrides?.startTime,
         endTime: overrides?.endTime,
         durationNs: overrides?.durationNs,
         attributes: { 'gen_ai.system': 'copilotkit' },
         hasToolCalls: hasToolCallsFromPayload(payload),
       }) ?? [];
+      return [
+        ...completionSpans,
+        ...toolCallSpansFromAssistantPayload(payload, model, overrides),
+      ];
     }
     case 'tool_input':
     case 'tool_output':
@@ -770,6 +878,10 @@ function spansForGate(
             stage: 'started',
             prompt,
             model,
+            requestHeaders: metadata.requestHeaders,
+            requestBody:
+              metadata.requestBody ??
+              llmRequestBodyFromPrompt(payload, model, metadata.provider),
             data: payload,
           }) as unknown as SpanData,
           overrides,
@@ -780,14 +892,64 @@ function spansForGate(
   }
 }
 
+function toolCallSpansFromAssistantPayload(
+  payload: unknown,
+  model: string | undefined,
+  timing?: GateOverrides,
+): SpanData[] {
+  return toolCallsFromPayload(payload).flatMap((toolCall) => {
+    const started = buildSpan('copilotkit', 'llm_tool_call', {
+      stage: 'started',
+      model,
+      tool_name: toolCall.name,
+      tool_input: toolCall.args,
+      data: toolCall.raw,
+    }) as unknown as SpanData;
+    const completed = buildSpan('copilotkit', 'llm_tool_call', {
+      stage: 'completed',
+      model,
+      tool_name: toolCall.name,
+      tool_input: toolCall.args,
+      tool_output: toolCall.raw,
+      data: toolCall.raw,
+    }) as unknown as SpanData;
+    return [
+      withGateSpanTiming(started, timing, 'started'),
+      withGateSpanTiming(completed, timing, 'completed'),
+    ];
+  });
+}
+
+function parentSpanIdForActivity(activityId: string): string {
+  return createHash('sha256').update(activityId).digest('hex').slice(0, 16);
+}
+
+function withParentSpanId<T extends SpanData>(span: T, activityId: string): T {
+  if (typeof span.parent_span_id === 'string' && span.parent_span_id.trim()) {
+    return span;
+  }
+  return {
+    ...span,
+    parent_span_id: parentSpanIdForActivity(activityId),
+  };
+}
+
 function toolCallSpan(
   kind: Extract<OpenBoxCopilotGateKind, 'tool_input' | 'tool_output'>,
   activityType: string,
   payload: unknown,
-  timing?: GateTiming,
+  timing?: GateOverrides,
 ): SpanData {
-  const toolName = toolNameFromPayload(payload) ?? activityType ?? 'call';
-  const toolInput = toolInputFromPayload(payload);
+  const requestPayload =
+    kind === 'tool_output' && timing?.pairedToolInput !== undefined
+      ? timing.pairedToolInput
+      : payload;
+  const toolName =
+    toolNameFromPayload(payload) ??
+    toolNameFromPayload(requestPayload) ??
+    activityType ??
+    'call';
+  const toolInput = toolInputFromPayload(requestPayload);
   const spanType = spanTypeForTool(toolName, toolInput);
   if (spanType) {
     return withGateSpanTiming(
@@ -1085,6 +1247,56 @@ function assistantContentFromPayload(payload: unknown): string | undefined {
 
 function hasToolCallsFromPayload(payload: unknown): boolean {
   return hasToolCallBlocks(recordFrom(payload));
+}
+
+function toolCallsFromPayload(payload: unknown): Array<{
+  name: string;
+  args: Record<string, unknown>;
+  raw: unknown;
+}> {
+  return toolCallRecords(recordFrom(payload)).map((record) => {
+    const functionRecord = recordFrom(record.function);
+    const rawArgs = record.args ?? record.arguments ?? functionRecord.arguments;
+    const args =
+      typeof rawArgs === 'string' ? recordFromJson(rawArgs) : recordFrom(rawArgs);
+    return {
+      name:
+        firstString(record.name, functionRecord.name, record.toolName, record.tool_name) ??
+        'tool_call',
+      args,
+      raw: record,
+    };
+  });
+}
+
+function toolCallRecords(record: Record<string, unknown>): Record<string, unknown>[] {
+  const direct = [
+    ...arrayRecords(record.tool_calls),
+    ...arrayRecords(record.toolCalls),
+  ];
+  const additional = recordFrom(record.additional_kwargs ?? record.additionalKwargs);
+  const nested = [
+    ...arrayRecords(additional.tool_calls),
+    ...arrayRecords(additional.toolCalls),
+  ];
+  const message = recordFrom(record.message);
+  const messageCalls = Object.keys(message).length > 0 ? toolCallRecords(message) : [];
+  const messageListCalls = Array.isArray(record.messages)
+    ? record.messages.flatMap((entry) => toolCallRecords(recordFrom(entry)))
+    : [];
+  return [...direct, ...nested, ...messageCalls, ...messageListCalls];
+}
+
+function arrayRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(recordFrom).filter((record) => Object.keys(record).length > 0) : [];
+}
+
+function recordFromJson(value: string): Record<string, unknown> {
+  try {
+    return recordFrom(JSON.parse(value));
+  } catch {
+    return {};
+  }
 }
 
 function hasToolCallBlocks(record: Record<string, unknown>): boolean {

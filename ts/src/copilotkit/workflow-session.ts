@@ -46,6 +46,7 @@ export interface ActiveWorkflowEntry {
 }
 
 const activeWorkflows = new WeakMap<object, Map<string, ActiveWorkflowEntry>>();
+const sessionGoals = new WeakMap<object, Map<string, string>>();
 const LAST_WORKFLOW_KEY = '__openbox_last_workflow__';
 
 export function registerActiveWorkflow(
@@ -247,23 +248,43 @@ export async function emitUserPromptSignal(
   prompt: string | undefined,
   sessionId?: string,
 ) {
-  const goalPrompt = prompt?.trim();
-  if (!goalPrompt) return;
-  const signalArgs = [goalPrompt];
+  const currentPrompt = prompt?.trim();
+  if (!currentPrompt) return;
+  const goalKey =
+    sessionId && sessionId !== 'default'
+      ? `session:${sessionId}`
+      : `workflow:${ids.workflowId}:${ids.runId}`;
+  let goals = sessionGoals.get(adapter);
+  if (!goals) {
+    goals = new Map();
+    sessionGoals.set(adapter, goals);
+  }
+  const existingGoal = goals.get(goalKey);
+  const goalPrompt = existingGoal ?? currentPrompt;
+  const isInitialGoal = existingGoal === undefined;
+  goals.set(goalKey, goalPrompt);
+  const signalArgs = [currentPrompt];
 
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
   }).activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
-        { prompt: goalPrompt, event_category: 'agent_goal' },
+        {
+          prompt: currentPrompt,
+          current_prompt: currentPrompt,
+          goal_prompt: goalPrompt,
+          original_goal: goalPrompt,
+          event_category: 'agent_goal',
+          is_initial_goal: isInitialGoal,
+        },
         'copilotkit',
       ),
     ],
     signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId,
-    prompt: goalPrompt,
+    prompt: currentPrompt,
   });
 }
 
@@ -348,9 +369,18 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
   stage: 'started' | 'completed',
+  output?: unknown,
 ): SpanData {
   const now = nowUnixNano();
   const profile = definition.spanProfile?.(input, stage);
+  const requestBody = stringifySpanBody({
+    tool_choice: definition.toolName,
+    tool_input: input,
+  });
+  const responseBody =
+    stage === 'completed'
+      ? stringifySpanBody(output ?? { tool_calls: [{ name: definition.toolName, arguments: input }] })
+      : null;
   const base = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
@@ -359,8 +389,8 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     span_type: 'function',
     hook_type: 'function_call',
     start_time: now,
-    end_time: now,
-    duration_ns: 0,
+    end_time: stage === 'completed' ? now : null,
+    duration_ns: stage === 'completed' ? 0 : null,
     stage,
     status: { code: 'UNSET' },
     events: [],
@@ -372,8 +402,13 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       tool_name: definition.toolName,
     },
     data: input,
+    args: input,
+    result: output ?? null,
+    request_body: requestBody,
+    response_body: responseBody,
   } as SpanData;
   if (!profile) return stripServerComputedSemantic(base);
+  const profileRecord = profile as Record<string, unknown>;
   return stripServerComputedSemantic({
     ...base,
     ...profile,
@@ -382,5 +417,17 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       ...(profile.attributes ?? {}),
     },
     data: profile.data ?? base.data,
+    request_body: profileRecord.request_body ?? base.request_body,
+    response_body: profileRecord.response_body ?? base.response_body,
   } as SpanData);
+}
+
+function stringifySpanBody(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return JSON.stringify({ value: String(value) });
+  }
 }

@@ -116,6 +116,16 @@ export interface SpanInput {
   mcp_operation?: string;
   url?: string;
   method?: string;
+  request_body?: unknown;
+  requestBody?: unknown;
+  response_body?: unknown;
+  responseBody?: unknown;
+  request_headers?: unknown;
+  requestHeaders?: unknown;
+  response_headers?: unknown;
+  responseHeaders?: unknown;
+  http_status_code?: unknown;
+  httpStatusCode?: unknown;
   db_system?: string;
   system?: string;
   db_operation?: string;
@@ -138,6 +148,9 @@ export interface LLMCompletionSpanInput {
   usage?: LLMTokenUsage;
   requestBody?: unknown;
   responseBody?: unknown;
+  requestHeaders?: unknown;
+  responseHeaders?: unknown;
+  httpStatusCode?: unknown;
   providerUrl?: string;
   startTime?: number;
   endTime?: number;
@@ -713,6 +726,21 @@ export function buildLLMCompletionResponseBody(
         message: { content },
       },
     ];
+  } else if (content) {
+    const firstChoice = objectRecord(body.choices[0]);
+    const message = objectRecord(firstChoice.message);
+    if (typeof message.content !== 'string' || message.content.trim() === '') {
+      body.choices = [
+        {
+          ...firstChoice,
+          message: {
+            ...message,
+            content,
+          },
+        },
+        ...body.choices.slice(1),
+      ];
+    }
   }
   if (metadata.model && typeof body.model !== 'string') {
     body.model = metadata.model;
@@ -757,6 +785,72 @@ function buildLLMCompletionRequestBody(metadata: {
     : stringifyBody(metadata.requestBody);
 }
 
+function defaultLLMRequestHeaders(provider?: string): Record<string, string> {
+  const normalizedProvider = provider?.toLowerCase() ?? '';
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  if (normalizedProvider.includes('anthropic')) {
+    headers['x-api-key'] = '<redacted>';
+    headers['anthropic-version'] = '2023-06-01';
+  } else {
+    headers.authorization = 'Bearer <redacted>';
+  }
+  return headers;
+}
+
+function defaultLLMResponseHeaders(provider?: string): Record<string, string> {
+  const normalizedProvider = provider?.toLowerCase() ?? '';
+  return {
+    'content-type': 'application/json',
+    ...(normalizedProvider.includes('openai')
+      ? { 'openai-version': '2020-10-01' }
+      : {}),
+  };
+}
+
+function coerceHttpStatusCode(value: unknown): number | undefined {
+  const numeric =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+  if (numeric === undefined || !Number.isFinite(numeric)) return undefined;
+  return Math.trunc(numeric);
+}
+
+function sanitizeHeaderMap(value: unknown): Record<string, string> | undefined {
+  const record = objectRecord(value);
+  const entries = Object.entries(record).flatMap(([key, entry]) => {
+    if (typeof entry !== 'string') return [];
+    return [[key, sanitizeHeaderValue(key, entry)] as const];
+  });
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function sanitizeHeaderValue(key: string, value: string): string {
+  const normalizedKey = key.toLowerCase();
+  if (normalizedKey === 'authorization') {
+    const [scheme] = value.trim().split(/\s+/, 1);
+    return scheme ? `${scheme} <redacted>` : '<redacted>';
+  }
+  if (
+    normalizedKey === 'cookie' ||
+    normalizedKey === 'set-cookie' ||
+    normalizedKey === 'x-api-key' ||
+    normalizedKey.includes('api-key') ||
+    normalizedKey.includes('token')
+  ) {
+    return '<redacted>';
+  }
+  return value;
+}
+
+function headerMapOrNull(value: unknown): Record<string, string> | null {
+  return sanitizeHeaderMap(value) ?? null;
+}
+
 export function buildLLMCompletionSpan(
   input: LLMCompletionSpanInput,
 ): SpanData {
@@ -791,6 +885,12 @@ export function buildLLMCompletionSpan(
   const derivedDurationNs =
     deriveDurationNsFromRawTimestamps(rawStartTime, rawEndTime) ??
     deriveDurationNs(startTime, endTime);
+  const durationNs =
+    explicitDurationNs ??
+    usefulSourceDurationNs ??
+    derivedDurationNs ??
+    sourceDurationNs ??
+    0;
   const usage = normalizeUsage(input.usage);
   const inputTokens = toUsageInteger(
     usage?.input_tokens ?? usage?.prompt_tokens,
@@ -817,6 +917,14 @@ export function buildLLMCompletionSpan(
     explicitProviderUrl,
   );
   const httpUrl = explicitProviderUrl ?? providerUrlForLLM(modelTelemetry.provider);
+  const httpStatusCode = coerceHttpStatusCode(
+    input.httpStatusCode ?? source.http_status_code,
+  );
+  const responseHeaders =
+    sanitizeHeaderMap(input.responseHeaders ?? source.response_headers) ??
+    (httpStatusCode !== undefined
+      ? defaultLLMResponseHeaders(modelTelemetry.provider)
+      : undefined);
   return stripServerComputedSemantic({
     ...source,
     span_id: source.span_id ?? hex(16),
@@ -826,12 +934,8 @@ export function buildLLMCompletionSpan(
     kind: input.kind ?? source.kind ?? 'CLIENT',
     start_time: startTime,
     end_time: endTime,
-    duration_ns:
-      explicitDurationNs ??
-      usefulSourceDurationNs ??
-      derivedDurationNs ??
-      sourceDurationNs ??
-      0,
+    duration_ns: durationNs,
+    duration_ms: durationNs / 1_000_000,
     span_type: 'function',
     stage: 'completed',
     status: spanStatusOrDefault(source.status, spanError),
@@ -876,6 +980,7 @@ export function buildLLMCompletionSpan(
         : {}),
       'http.method': 'POST',
       'http.url': httpUrl,
+      ...(httpStatusCode !== undefined ? { 'http.status_code': httpStatusCode } : {}),
       'openbox.span_type': 'function',
       ...(source.attributes ?? {}),
       ...(input.attributes ?? {}),
@@ -904,6 +1009,12 @@ export function buildLLMCompletionSpan(
       provider: modelTelemetry.provider,
       requestBody: input.requestBody ?? source.request_body,
     }),
+    request_headers:
+      sanitizeHeaderMap(
+        input.requestHeaders ??
+          source.request_headers ??
+          defaultLLMRequestHeaders(modelTelemetry.provider),
+      ) ?? defaultLLMRequestHeaders(modelTelemetry.provider),
     data: input.data ?? source.data,
     response_body: buildLLMCompletionResponseBody(input.content, {
       model: input.model,
@@ -912,6 +1023,8 @@ export function buildLLMCompletionSpan(
       usage: input.usage,
       responseBody: input.responseBody ?? source.response_body,
     }),
+    ...(responseHeaders ? { response_headers: responseHeaders } : {}),
+    ...(httpStatusCode !== undefined ? { http_status_code: httpStatusCode } : {}),
   } as ObservableSpan) as unknown as SpanData;
 }
 
@@ -940,6 +1053,12 @@ function buildSpanWithClassifierFields(
       // hosts abstract the underlying model call, so infer the closest
       // provider URL from the model and fall back to OpenAI-compatible.
       // See `span-reference.md`.
+      const llmStage =
+        input.stage ??
+        (input.response !== undefined || input.usage !== undefined
+          ? 'completed'
+          : 'started');
+      const llmBase = llmStage === input.stage ? b : base(llmStage, input.error);
       const usage = normalizeUsage(input.usage);
       const inputTokens = toUsageInteger(
         usage?.input_tokens ?? usage?.prompt_tokens,
@@ -969,13 +1088,33 @@ function buildSpanWithClassifierFields(
           ? { messages: [{ role: 'user', content: input.prompt }] }
           : {}),
       };
+      const llmRequestBodyString = buildLLMCompletionRequestBody({
+        model: input.model,
+        modelId: modelTelemetry.modelId,
+        provider: modelTelemetry.provider,
+        requestBody: input.request_body ?? input.requestBody ?? llmRequestBody,
+      });
       const llmResponseContent =
         typeof input.response === 'string' ? input.response : '';
+      const llmRequestHeaders =
+        input.request_headers ??
+        input.requestHeaders ??
+        defaultLLMRequestHeaders(modelTelemetry.provider);
+      const llmHttpStatusCode = coerceHttpStatusCode(
+        input.http_status_code ??
+          input.httpStatusCode ??
+          (llmStage === 'completed' ? 200 : undefined),
+      );
+      const llmResponseHeaders =
+        sanitizeHeaderMap(input.response_headers ?? input.responseHeaders) ??
+        (llmHttpStatusCode !== undefined
+          ? defaultLLMResponseHeaders(modelTelemetry.provider)
+          : undefined);
       return {
-        ...b,
-        name: 'llm.chat.completion',
+        ...llmBase,
+        name: 'POST',
         span_type: 'function',
-        hook_type: 'function_call',
+        hook_type: 'http_request',
         attributes: {
           'gen_ai.system': host,
           ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
@@ -1019,6 +1158,9 @@ function buildSpanWithClassifierFields(
             : {}),
           'http.method': 'POST',
           'http.url': llmHttpUrl,
+          ...(llmHttpStatusCode !== undefined
+            ? { 'http.status_code': llmHttpStatusCode }
+            : {}),
           'openbox.span_type': 'function',
         },
         ...(input.model ? { model: input.model } : {}),
@@ -1037,21 +1179,36 @@ function buildSpanWithClassifierFields(
           : {}),
         ...(webSearchRequests !== undefined ? { web_search_requests: webSearchRequests } : {}),
         ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
+        ...(llmStage === 'completed' &&
+        typeof llmBase.duration_ns === 'number' &&
+        Number.isFinite(llmBase.duration_ns)
+          ? { duration_ms: llmBase.duration_ns / 1_000_000 }
+          : {}),
         function: 'LLMCall',
         module: host,
         args: input,
         result: input.response ?? null,
         http_method: 'POST',
         http_url: llmHttpUrl,
-        ...(Object.keys(llmRequestBody).length > 0
-          ? { request_body: stringifyBody(llmRequestBody) }
+        ...(llmRequestBodyString ? { request_body: llmRequestBodyString } : {}),
+        request_headers:
+          sanitizeHeaderMap(llmRequestHeaders) ??
+          defaultLLMRequestHeaders(modelTelemetry.provider),
+        ...(llmResponseHeaders ? { response_headers: llmResponseHeaders } : {}),
+        ...(llmHttpStatusCode !== undefined
+          ? { http_status_code: llmHttpStatusCode }
           : {}),
-        response_body: buildLLMCompletionResponseBody(llmResponseContent, {
-          model: input.model,
-          modelId: modelTelemetry.modelId,
-          provider: modelTelemetry.provider,
-          usage: input.usage,
-        }),
+        ...(llmStage === 'completed'
+          ? {
+              response_body: buildLLMCompletionResponseBody(llmResponseContent, {
+                model: input.model,
+                modelId: modelTelemetry.modelId,
+                provider: modelTelemetry.provider,
+                usage: input.usage,
+                responseBody: input.response_body ?? input.responseBody,
+              }),
+            }
+          : {}),
       };
     case 'llm_embedding': {
       const usage = normalizeUsage(input.usage);
@@ -1114,6 +1271,9 @@ function buildSpanWithClassifierFields(
       };
     }
     case 'llm_tool_call': {
+      const llmToolStage = input.stage ?? 'completed';
+      const llmToolBase =
+        llmToolStage === input.stage ? b : base(llmToolStage, input.error);
       const usage = normalizeUsage(input.usage);
       const inputTokens = toUsageInteger(
         usage?.input_tokens ?? usage?.prompt_tokens,
@@ -1127,7 +1287,7 @@ function buildSpanWithClassifierFields(
       const llmHttpUrl = providerUrlForLLM(modelTelemetry.provider);
       const toolName = input.tool_name ?? input.tool ?? 'tool_call';
       return {
-        ...b,
+        ...llmToolBase,
         name: 'openai.TOOL.call',
         span_type: 'function',
         hook_type: 'function_call',
@@ -1177,9 +1337,15 @@ function buildSpanWithClassifierFields(
           tool_choice: String(toolName),
           tool_input: input.tool_input ?? {},
         }),
-        response_body: stringifyBody({
-          tool_calls: [{ name: toolName, arguments: input.tool_input ?? {} }],
-        }),
+        ...(llmToolStage === 'completed'
+          ? {
+              response_body: stringifyBody(
+                input.tool_output === undefined
+                  ? { tool_calls: [{ name: toolName, arguments: input.tool_input ?? {} }] }
+                  : { tool_output: input.tool_output },
+              ),
+            }
+          : {}),
       };
     }
     case 'file_read':
@@ -1306,6 +1472,22 @@ function buildSpanWithClassifierFields(
       // which defaults to GET when the host does not surface one.
       const method = (input.method ?? 'GET').toUpperCase();
       const url = input.url ?? '';
+      const requestBody =
+        input.request_body ??
+        input.requestBody ??
+        input.tool_input ??
+        input.data ??
+        null;
+      const responseBody =
+        input.response_body ??
+        input.responseBody ??
+        input.tool_output ??
+        null;
+      const requestHeaders =
+        input.request_headers ?? input.requestHeaders ?? null;
+      const responseHeaders =
+        input.response_headers ?? input.responseHeaders ?? null;
+      const httpStatusCode = input.http_status_code ?? input.httpStatusCode ?? null;
       return {
         ...b,
         name: `${method} ${url}`,
@@ -1319,15 +1501,17 @@ function buildSpanWithClassifierFields(
         },
         http_method: method,
         http_url: url,
-        request_body: null,
-        response_body: null,
-        request_headers: null,
-        response_headers: null,
-        http_status_code: null,
+        request_body: requestBody === null ? null : stringifyBody(requestBody),
+        response_body: responseBody === null ? null : stringifyBody(responseBody),
+        request_headers:
+          requestHeaders === null ? null : headerMapOrNull(requestHeaders),
+        response_headers:
+          responseHeaders === null ? null : headerMapOrNull(responseHeaders),
+        http_status_code: httpStatusCode,
         function: 'HTTPCall',
         module: host,
         args: input,
-        result: null,
+        result: input.tool_output ?? null,
       };
     case 'db':
       const dbSystem = input.db_system ?? input.system ?? 'postgresql';
