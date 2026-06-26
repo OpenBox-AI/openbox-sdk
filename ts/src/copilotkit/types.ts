@@ -294,6 +294,21 @@ export interface OpenBoxCopilotTimings {
   steps: OpenBoxCopilotTimingStep[];
 }
 
+/**
+ * Real provider HTTP exchange captured at the LLM client (OTel-style). When
+ * present on an assistant-output gate, the `llm_completion` span is built from
+ * this verbatim instead of the reconstructed AG-UI payload, so it mirrors the
+ * Temporal/OTel reference (raw bodies, real headers, status code).
+ */
+export interface OpenBoxLLMCapture {
+  requestBody?: unknown;
+  responseBody?: unknown;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
+  httpStatusCode?: number;
+  providerUrl?: string;
+}
+
 export interface OpenBoxCopilotGateInput<T = unknown> {
   payload: T;
   sessionKey?: string;
@@ -310,6 +325,10 @@ export interface OpenBoxCopilotGateInput<T = unknown> {
   reason?: string;
   ensureWorkflowStarted?: boolean;
   parentActivityStarted?: boolean;
+  // Real captured LLM HTTP exchange (see OpenBoxLLMCapture) and whether to
+  // redact authorization/cookie/api-key headers when storing it.
+  llmCapture?: OpenBoxLLMCapture;
+  redactSensitiveHeaders?: boolean;
 }
 
 export interface GovernedCopilotToolDefinition<
@@ -325,6 +344,11 @@ export interface GovernedCopilotToolDefinition<
     input: TInput,
     stage: 'started' | 'completed',
   ) => Partial<SpanData> | undefined;
+  operationSpans?: (
+    input: TInput,
+    stage: 'started' | 'completed',
+    activityId: string,
+  ) => SpanData[];
   isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
   markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
   sessionKey?: (config?: unknown) => string;
@@ -421,6 +445,12 @@ export class OpenBoxCopilotKitError extends Error {
 export interface OpenBoxCopilotKitAdapter {
   isEnabled(): boolean;
   getCoreClient(): OpenBoxCoreClient;
+  /**
+   * True when the named tool is governed by the agent itself (its middleware +
+   * governed-tool), so the runtime must NOT re-govern it. Re-governing a
+   * self-governed tool double-counts it and emits an orphaned tool-call span.
+   */
+  isSelfGovernedTool(toolName: string | undefined): boolean;
   wrapAgent<TAgent>(agent: TAgent): TAgent;
   createLangChainMiddleware(
     deps: OpenBoxCopilotLangChainMiddlewareDeps,

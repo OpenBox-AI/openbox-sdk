@@ -382,10 +382,12 @@ describe('activity pairing', () => {
       expect(hooks[index]?.spans?.[0]).toMatchObject({
         ...span,
         activity_id: parent.activity_id,
-        duration_ns: null,
         end_time: null,
         start_time: Number(parent.start_time) * 1_000_000,
       });
+      // Started/ActivityStarted spans have no completion yet, so the reference
+      // omits duration_ns entirely (rather than emitting duration_ns: null).
+      expect(hooks[index]?.spans?.[0]).not.toHaveProperty('duration_ns');
     }
   });
 

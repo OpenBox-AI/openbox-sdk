@@ -29,6 +29,11 @@ import type {
   OpenBoxCopilotLangChainMiddlewareDeps,
 } from './types.js';
 import {
+  latestCapturedLLMExchange,
+  registerOpenBoxOtel,
+  runWithLLMCapture,
+} from './otel-capture.js';
+import {
   activeWorkflowFor,
   clearAllActiveWorkflows,
   clearActiveWorkflow,
@@ -54,6 +59,10 @@ export function createOpenBoxLangChainMiddleware({
   selfGovernedToolNames: Set<string>;
   strict: boolean;
 }) {
+  // SDK-owned OTel wiring: instrument the global fetch so the agent's LLM calls
+  // are captured with no host-side plumbing. Idempotent; only LLM endpoints are
+  // wrapped, all other traffic passes through untouched.
+  registerOpenBoxOtel();
   const workflowKey = (...candidates: unknown[]) => {
     for (const candidate of candidates) {
       const key = sessionKeyFromConfig(candidate);
@@ -246,7 +255,16 @@ export function createOpenBoxLangChainMiddleware({
         });
       }
       try {
-        const response = await handler(request);
+        // Run the real model call inside an OTel capture scope so the
+        // instrumented client fetch records the actual provider request/
+        // response (headers, raw body, status). Read the captured exchange
+        // INSIDE the scope — the AsyncLocalStorage store is gone once
+        // runWithLLMCapture returns. The capture feeds the llm_completion
+        // span so it mirrors the wire payload.
+        const { response, captured } = await runWithLLMCapture(async () => {
+          const result = await handler(request);
+          return { response: result, captured: latestCapturedLLMExchange() };
+        });
         const responseGate = await adapter.governAssistantOutput({
           payload: toPlain(response),
           sessionKey: key,
@@ -257,6 +275,19 @@ export function createOpenBoxLangChainMiddleware({
           llmModel,
           llmProvider,
           parentActivityStarted: promptActivityId !== undefined,
+          ...(captured
+            ? {
+                llmCapture: {
+                  requestBody: captured.requestBody,
+                  responseBody: captured.responseBody,
+                  requestHeaders: captured.requestHeaders,
+                  responseHeaders: captured.responseHeaders,
+                  httpStatusCode: captured.httpStatusCode,
+                },
+                redactSensitiveHeaders:
+                  process.env.OPENBOX_CAPTURE_RAW_HEADERS !== 'true',
+              }
+            : {}),
         });
         if (shouldStopForGate(responseGate)) {
           return new deps.AIMessage({

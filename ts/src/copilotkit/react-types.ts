@@ -25,9 +25,8 @@ export type OpenBoxUiVerdict =
 export interface OpenBoxScenarioDefinition {
   action: string;
   title: string;
-  reason: string;
-  capability: string;
-  verdict?: Exclude<OpenBoxUiVerdict, 'reviewing'>;
+  reason?: string;
+  capability?: string;
 }
 
 export interface OpenBoxChoiceOption {

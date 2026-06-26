@@ -327,7 +327,6 @@ describe('CopilotKit React renderer coverage', () => {
           title: 'Custom Action',
           reason: 'Custom scenario reason.',
           capability: 'Runtime policy + HTTP, MCP',
-          verdict: 'allow',
         },
       ],
       result: {
@@ -421,12 +420,8 @@ describe('CopilotKit React renderer coverage', () => {
     expect(hasText(redactionLabels, 'Result artifact')).toBe(true);
     expect(hasText(redactionLabels, 'Custom Field')).toBe(true);
     expect(hasText(redactionLabels, 'unknown deep action')).toBe(true);
-    expect(
-      hasText(
-        redactionLabels,
-        'OpenBox allowed this action after applying required transformations.',
-      ),
-    ).toBe(true);
+    expect(hasText(redactionLabels, 'Allowed')).toBe(true);
+    expect(hasText(redactionLabels, 'OpenBox allowed this action.')).toBe(true);
 
     const noFieldSummary = OpenBoxGovernanceDecision({
       status: 'complete',

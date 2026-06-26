@@ -73,6 +73,25 @@ function verdict(partial: Partial<WorkflowVerdict>): WorkflowVerdict {
 }
 
 describe('copilotkit helper coverage', () => {
+  it('sends only action args as guardrail activity input, keeping tool metadata out of redactable content', async () => {
+    const { toolActivityInput } = await import('../../ts/src/copilotkit/workflow-session.ts');
+    const activityInput = toolActivityInput(
+      {
+        toolName: 'openbox_governed_action',
+        description: 'Governed action',
+      } as any,
+      input,
+    ) as Array<Record<string, any>>;
+
+    expect(activityInput.length).toBeGreaterThanOrEqual(1);
+    expect(activityInput[0].args).toMatchObject({
+      action: 'review_queue',
+      request: 'Review queue',
+    });
+    expect(activityInput[0].name).toBeUndefined();
+    expect(activityInput[0].description).toBeUndefined();
+  });
+
   it('summarizes runtime model input and truncates nested values', () => {
     const messages = [
       { type: 'human', id: '1', name: 'user', content: 'hello' },
@@ -290,8 +309,8 @@ describe('copilotkit helper coverage', () => {
       'redacted field',
     );
     expect(constrainedBySummary).toMatchObject({
-      status: 'constrained',
-      verdict: 'constrain',
+      status: 'executed',
+      verdict: 'allow',
       riskScore: 0.1,
       trustTier: 2,
       alignmentScore: 0.85,
@@ -450,7 +469,7 @@ describe('copilotkit helper coverage', () => {
         true,
       ),
     ).toMatchObject({
-      status: 'constrained',
+      status: 'executed',
       changed: true,
     });
     expect(
@@ -621,6 +640,24 @@ describe('copilotkit helper coverage', () => {
       request: '[REDACTED]',
     });
     expect(started.summary).toContain('args.request');
+    const metadataOnlyStarted = applyStartedRedaction(
+      {
+        toolName: 'review_queue',
+        description: 'Review queue',
+      } as any,
+      input,
+      verdict({
+        arm: 'allow',
+        guardrailsResult: {
+          inputType: 'activity_input',
+          redactedInput: { input: [{ args: input }] },
+          validationPassed: true,
+          reasons: [],
+          fieldResults: [{ field: 'input.0.name', status: 'allowed' }],
+        },
+      }),
+    );
+    expect(metadataOnlyStarted).toEqual({ input });
     expect(
       applyStartedRedaction(
         {
@@ -709,8 +746,8 @@ describe('copilotkit helper coverage', () => {
       'Input redacted.',
     );
     expect(completed).toMatchObject({
-      status: 'constrained',
-      verdict: 'constrain',
+      status: 'executed',
+      verdict: 'allow',
       artifact: { body: '[REDACTED]', marked: true },
       redactionSummary: expect.stringContaining('Input redacted.'),
     });
@@ -725,8 +762,32 @@ describe('copilotkit helper coverage', () => {
       verdict({ arm: 'allow' }),
     );
     expect(visibleOnly).toMatchObject({
-      status: 'constrained',
-      verdict: 'constrain',
+      status: 'executed',
+      verdict: 'allow',
+    });
+    expect(
+      applyCompletedRedaction(
+        {
+          toolName: 'review_queue',
+          description: 'Review queue',
+          isArtifactRedacted: () => false,
+        } as any,
+        executedResult(input, ids, { body: 'plain' }, 'done'),
+        verdict({
+          arm: 'allow',
+          guardrailsResult: {
+            inputType: 'activity_output',
+            redactedInput: { artifact: { body: 'plain' } },
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [{ field: 'output.artifact.body', status: 'allowed' }],
+          },
+        }),
+      ),
+    ).toMatchObject({
+      status: 'executed',
+      verdict: 'allow',
+      artifact: { body: 'plain' },
     });
     expect(
       applyCompletedRedaction(

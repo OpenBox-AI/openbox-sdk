@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   type OpenBoxCoreClient,
   type SpanData,
@@ -12,6 +12,7 @@ import {
 } from '../core-client/index.js';
 import { EVENT } from '../governance/events.js';
 import {
+  buildSpan,
   stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
 } from '../governance/spans.js';
@@ -46,6 +47,7 @@ export interface ActiveWorkflowEntry {
 }
 
 const activeWorkflows = new WeakMap<object, Map<string, ActiveWorkflowEntry>>();
+const sessionGoals = new WeakMap<object, Map<string, string>>();
 const LAST_WORKFLOW_KEY = '__openbox_last_workflow__';
 
 export function registerActiveWorkflow(
@@ -247,23 +249,43 @@ export async function emitUserPromptSignal(
   prompt: string | undefined,
   sessionId?: string,
 ) {
-  const goalPrompt = prompt?.trim();
-  if (!goalPrompt) return;
-  const signalArgs = [goalPrompt];
+  const currentPrompt = prompt?.trim();
+  if (!currentPrompt) return;
+  const goalKey =
+    sessionId && sessionId !== 'default'
+      ? `session:${sessionId}`
+      : `workflow:${ids.workflowId}:${ids.runId}`;
+  let goals = sessionGoals.get(adapter);
+  if (!goals) {
+    goals = new Map();
+    sessionGoals.set(adapter, goals);
+  }
+  const existingGoal = goals.get(goalKey);
+  const goalPrompt = existingGoal ?? currentPrompt;
+  const isInitialGoal = existingGoal === undefined;
+  goals.set(goalKey, goalPrompt);
+  const signalArgs = [currentPrompt];
 
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
   }).activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
-        { prompt: goalPrompt, event_category: 'agent_goal' },
+        {
+          prompt: currentPrompt,
+          current_prompt: currentPrompt,
+          goal_prompt: goalPrompt,
+          original_goal: goalPrompt,
+          event_category: 'agent_goal',
+          is_initial_goal: isInitialGoal,
+        },
         'copilotkit',
       ),
     ],
     signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId,
-    prompt: goalPrompt,
+    prompt: currentPrompt,
   });
 }
 
@@ -332,10 +354,10 @@ export function toolInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
 }
 
 export function toolActivityInput<TInput extends OpenBoxCopilotActionInput, TArtifact>(
-  definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
+  _definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
 ): unknown[] {
-  return withCopilotToolActivityMetadata([toolInput(definition, input)]);
+  return withCopilotToolActivityMetadata([{ id: undefined, args: input }]);
 }
 
 export function withCopilotToolActivityMetadata(input: unknown[]): unknown[] {
@@ -344,43 +366,167 @@ export function withCopilotToolActivityMetadata(input: unknown[]): unknown[] {
   });
 }
 
+// Started and completed hook spans for the same activity must share a span
+// identity so the OpenBox platform pairs them into a single span (a started
+// event with its completion) instead of rendering an orphaned started span.
+// Derive the identity deterministically from the activity id so the started
+// gate and the completed gate compute the same span_id/trace_id without
+// sharing in-process state. Seeds differ from the parent-span seed so the
+// span_id never collides with the parent_span_id.
+export function spanIdentityFromActivity(activityId: string): {
+  span_id: string;
+  trace_id: string;
+} {
+  return {
+    span_id: createHash('sha256')
+      .update(`openbox.span:${activityId}`)
+      .digest('hex')
+      .slice(0, 16),
+    trace_id: createHash('sha256')
+      .update(`openbox.trace:${activityId}`)
+      .digest('hex')
+      .slice(0, 32),
+  };
+}
+
+export function withSpanIdentityFromActivity<T extends object>(
+  span: T,
+  activityId: string | undefined,
+): T {
+  if (!activityId) return span;
+  return { ...span, ...spanIdentityFromActivity(activityId) };
+}
+
+// Real operation spans (file_read / database_select) emitted alongside the
+// tool-call span so platform behavioral rules that trigger on those semantic
+// types fire. semantic_type is left for the backend to compute from the span
+// shape (buildSpan strips the server-computed field). Started and completed
+// share a deterministic span_id/trace_id derived from the activity id so the
+// platform pairs them into a single span instead of an orphaned started event.
+export function fileReadSpan(
+  filePath: string,
+  stage: 'started' | 'completed',
+  activityId: string,
+): SpanData {
+  const span = buildSpan('copilotkit', 'file_read', {
+    file_path: filePath,
+    stage,
+  }) as unknown as SpanData;
+  const seed = createHash('sha256')
+    .update(`openbox.op.file_read:${activityId}`)
+    .digest('hex');
+  return {
+    ...span,
+    span_id: seed.slice(0, 16),
+    trace_id: seed.slice(0, 32),
+  };
+}
+
+export function databaseSelectSpan(
+  statement: string,
+  stage: 'started' | 'completed',
+  activityId: string,
+): SpanData {
+  const span = buildSpan('copilotkit', 'db', {
+    db_operation: 'select',
+    db_statement: statement,
+    stage,
+  }) as unknown as SpanData;
+  const seed = createHash('sha256')
+    .update(`openbox.op.db_select:${activityId}`)
+    .digest('hex');
+  return {
+    ...span,
+    span_id: seed.slice(0, 16),
+    trace_id: seed.slice(0, 32),
+  };
+}
+
 export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
   definition: GovernedCopilotToolDefinition<TInput, TArtifact>,
   input: TInput,
   stage: 'started' | 'completed',
+  output?: unknown,
+  activityId?: string,
+  startTimeNs?: number,
 ): SpanData {
   const now = nowUnixNano();
+  // Real timing when the caller threads the started timestamp: the completed
+  // span's duration_ns is end-start instead of a hardcoded 0.
+  const startTime = startTimeNs ?? now;
   const profile = definition.spanProfile?.(input, stage);
+  const requestBody = stringifySpanBody({
+    tool_choice: definition.toolName,
+    tool_input: input,
+  });
+  const responseBody =
+    stage === 'completed'
+      ? stringifySpanBody(output ?? { tool_calls: [{ name: definition.toolName, arguments: input }] })
+      : null;
   const base = {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: definition.toolName,
     kind: 'tool',
-    span_type: 'function',
+    // Honest, backend-derived classification: this is a function-call operation,
+    // so span_type 'internal' + hook_type 'function_call'. The OpenBox backend
+    // computes semantic_type from the span shape (function_call -> 'internal');
+    // it is NOT an llm_tool_call (that classification is reserved for spans
+    // shaped as real LLM tool calls). semantic_type is left for the backend to
+    // compute (stripped below) rather than forced.
+    span_type: 'internal',
     hook_type: 'function_call',
-    start_time: now,
-    end_time: now,
-    duration_ns: 0,
+    start_time: startTime,
+    end_time: stage === 'completed' ? now : null,
+    duration_ns:
+      stage === 'completed' ? Math.max(0, now - startTime) : null,
     stage,
     status: { code: 'UNSET' },
     events: [],
     attributes: {
-      'openbox.span_type': 'function',
+      'openbox.span_type': 'internal',
       'openbox.tool.name': definition.toolName,
       'openbox.action': input.action,
       'tool.name': definition.toolName,
       tool_name: definition.toolName,
     },
     data: input,
+    args: input,
+    result: output ?? null,
+    request_body: requestBody,
+    response_body: responseBody,
   } as SpanData;
-  if (!profile) return stripServerComputedSemantic(base);
-  return stripServerComputedSemantic({
-    ...base,
-    ...profile,
-    attributes: {
-      ...base.attributes,
-      ...(profile.attributes ?? {}),
-    },
-    data: profile.data ?? base.data,
-  } as SpanData);
+  if (!profile) {
+    // semantic_type stripped so the OpenBox backend computes it (function_call
+    // -> 'internal'); no client-forced value.
+    return withSpanIdentityFromActivity(
+      stripServerComputedSemantic(base),
+      activityId,
+    );
+  }
+  const profileRecord = profile as Record<string, unknown>;
+  return withSpanIdentityFromActivity(
+    stripServerComputedSemantic({
+      ...base,
+      ...profile,
+      attributes: {
+        ...base.attributes,
+        ...(profile.attributes ?? {}),
+      },
+      data: profile.data ?? base.data,
+      request_body: profileRecord.request_body ?? base.request_body,
+      response_body: profileRecord.response_body ?? base.response_body,
+    } as SpanData),
+    activityId,
+  );
+}
+
+function stringifySpanBody(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return JSON.stringify({ value: String(value) });
+  }
 }

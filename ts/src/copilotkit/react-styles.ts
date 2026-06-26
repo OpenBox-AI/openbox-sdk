@@ -18,7 +18,7 @@ export const openBoxRendererCss = `
 }
 .obx-governance-card--allow{--obx-verdict:#2f7d5a}
 .obx-governance-card--block,.obx-governance-card--rejected{--obx-verdict:#a94444}
-.obx-governance-card--halt{--obx-verdict:#955f35}
+.obx-governance-card--halt{--obx-verdict:#a94444}
 .obx-governance-card--approval,.obx-governance-card--constrain{--obx-verdict:#826a3a}
 .obx-governance-card--reviewing{--obx-verdict:var(--obx-accent,#3f6f9c)}
 .obx-governance-card--error{--obx-verdict:var(--obx-muted)}
@@ -193,7 +193,7 @@ export const openBoxRendererCss = `
 .obx-status--reviewing{--obx-status-color:var(--obx-accent,#3f6f9c)}
 .obx-status--allow{--obx-status-color:#2f7d5a}
 .obx-status--block,.obx-status--rejected{--obx-status-color:#a94444}
-.obx-status--halt{--obx-status-color:#955f35}
+.obx-status--halt{--obx-status-color:#a94444}
 .obx-status--approval,.obx-status--constrain{--obx-status-color:#826a3a}
 .obx-status--error{--obx-status-color:var(--obx-muted)}
 .obx-renderer-title{

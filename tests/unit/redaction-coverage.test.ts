@@ -269,6 +269,26 @@ describe('guardrail redaction helpers', () => {
     ).toBe(true);
   });
 
+  it('does not treat a Core payload as redaction when explicit field rows are all allowed', () => {
+    expect(
+      hasGuardrailRedaction({
+        inputType: 'activity_output',
+        redactedInput: {
+          artifact: {
+            title: 'Operations Queue Review',
+            summary: 'All queue items can proceed.',
+          },
+        },
+        validationPassed: true,
+        reasons: [],
+        fieldResults: [
+          { field: 'output.artifact.title', status: 'allowed' },
+          { field: 'output.artifact.summary', status: 'allowed' },
+        ],
+      }),
+    ).toBe(false);
+  });
+
   it('detects signal_args redaction payloads', () => {
     expect(
       hasGuardrailRedaction({

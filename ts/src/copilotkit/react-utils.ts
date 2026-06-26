@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 import { openBoxRendererCss } from './react-styles.js';
 import type { OpenBoxRendererTheme } from './react-types.js';
 
@@ -37,6 +38,53 @@ export function textValue(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'boolean')
     return String(value);
   return '';
+}
+
+export function isOpenBoxCopilotResult(value: unknown): boolean {
+  const parsed = parseToolResult(value);
+  return (
+    parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION &&
+    typeof parsed.status === 'string' &&
+    typeof parsed.verdict === 'string'
+  );
+}
+
+export function isOpenBoxCopilotResultMessage(message: unknown): boolean {
+  const record = asRecord(message);
+  const role = textValue(record.role ?? record.type).toLowerCase();
+  if (role === 'user' || role === 'human') return false;
+  return openBoxResultContentCandidates(record.content).some(
+    isOpenBoxCopilotResult,
+  );
+}
+
+function openBoxResultContentCandidates(value: unknown): unknown[] {
+  const candidates: unknown[] = [value];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      candidates.push(item);
+      const record = asRecord(item);
+      candidates.push(
+        record.content,
+        record.text,
+        record.value,
+        record.result,
+        record.output,
+        record.data,
+      );
+    }
+  } else {
+    const record = asRecord(value);
+    candidates.push(
+      record.content,
+      record.text,
+      record.value,
+      record.result,
+      record.output,
+      record.data,
+    );
+  }
+  return candidates.filter((candidate) => candidate !== undefined);
 }
 
 export function resolveTheme(

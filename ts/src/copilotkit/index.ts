@@ -15,12 +15,24 @@ import type {
 export { createOpenBoxCopilotKitAdapter } from './adapter.js';
 export { createOpenBoxAGUIAdapter } from './agui-adapter.js';
 export { createGovernedCopilotTool } from './governed-tool.js';
+export {
+  fileReadSpan,
+  databaseSelectSpan,
+} from './workflow-session.js';
 export { createOpenBoxApprovalRoute } from './approval-route.js';
 export { createOpenBoxHeadlessApprovalClient } from './headless-approval.js';
 export { createOpenBoxReadinessCheck } from './readiness.js';
 export { resolveProjectConfigDir } from './config-utils.js';
 export { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 export { parseToolResult } from './internal-utils.js';
+export {
+  registerOpenBoxOtel,
+  createCapturingFetch,
+  runWithLLMCapture,
+  latestCapturedLLMExchange,
+  capturedLLMExchanges,
+  type CapturedLLMExchange,
+} from './otel-capture.js';
 export { OpenBoxCopilotKitError } from './types.js';
 export type {
   GovernedCopilotTool,

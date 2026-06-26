@@ -30,7 +30,7 @@ export function OpenBoxGovernanceDecision({
   const action = String(toolResult.action ?? parameters?.action ?? 'unknown');
   const scenario = scenarioFor(action, scenarios);
   const hasDecision = Boolean(toolResult.status || toolResult.verdict);
-  const verdict = !hasDecision ? 'reviewing' : verdictFromResult(toolResult, scenario);
+  const verdict = !hasDecision ? 'reviewing' : verdictFromResult(toolResult);
   const isReviewing = verdict === 'reviewing';
   const styles = verdictStyles[verdict];
   const request =
@@ -48,16 +48,14 @@ export function OpenBoxGovernanceDecision({
       ? parameters.fields
       : undefined;
   const session = parseToolResult(toolResult.session);
-  const rawReason =
+  const reason =
     toolResult.status === 'error'
       ? 'OpenBox is unavailable or returned an error. The governed action was stopped fail-closed.'
       : verdict === 'reviewing'
         ? 'OpenBox is reviewing this before the assistant acts.'
-        : textValue(toolResult.reason) || scenario.reason;
-  const reason =
-    verdict === 'constrain' && /^OpenBox allowed this action\.?$/i.test(rawReason)
-      ? 'OpenBox allowed this action after applying required transformations.'
-      : rawReason;
+        : textValue(toolResult.reason) ||
+          scenario.reason ||
+          'OpenBox returned a governance decision.';
   const riskScore =
     typeof toolResult.riskScore === 'number' && toolResult.riskScore > 0
       ? toolResult.riskScore
@@ -228,48 +226,35 @@ function scenarioFor(
     defaultScenarios.find((item) => item.action === action) ?? {
       action,
       title: action ? action.replace(/_/g, ' ') : 'Governed Action',
-      reason: 'OpenBox evaluated this CopilotKit action.',
       capability: 'Runtime governance',
-      verdict: 'allow',
     }
   );
 }
 
 export function verdictFromResult(
   result: Record<string, unknown>,
-  scenario: OpenBoxScenarioDefinition,
 ): OpenBoxUiVerdict {
+  if (result.status === 'error' || result.verdict === 'error') return 'error';
+
+  if (result.verdict === 'allow') return 'allow';
+  if (result.verdict === 'block') return 'block';
+  if (result.verdict === 'halt') return 'halt';
+  if (result.verdict === 'constrain') return 'constrain';
+  if (result.verdict === 'require_approval') return 'approval';
+
   if (result.status === 'approval_required') return 'approval';
   if (result.status === 'rejected') return 'rejected';
   // Fail-closed infrastructure errors are not governance decisions; never
   // present them as a policy "Blocked" verdict.
-  if (result.status === 'error' || result.verdict === 'error') return 'error';
-  if (
-    result.status === 'halted' ||
-    result.verdict === 'halt'
-  )
-    return 'halt';
-  if (result.status === 'constrained' || result.verdict === 'constrain')
-    return 'constrain';
-  // An allow verdict whose payload was still transformed by a guardrail is
-  // "allowed with redaction"; the card must say Redacted, not plain Allowed.
-  if (
-    typeof result.redactionSummary === 'string' &&
-    result.redactionSummary.length > 0 &&
-    (result.status === 'executed' || result.verdict === 'allow')
-  ) {
-    return 'constrain';
-  }
-  if (result.status === 'executed' || result.verdict === 'allow')
-    return 'allow';
+  if (result.status === 'halted') return 'halt';
+  if (result.status === 'constrained') return 'constrain';
+  if (result.status === 'executed') return 'allow';
   if (
     result.status === 'blocked' ||
-    result.status === 'approval_pending' ||
-    result.verdict === 'block'
+    result.status === 'approval_pending'
   ) {
     return 'block';
   }
-  if (result.verdict === 'require_approval') return 'approval';
   return 'reviewing';
 }
 
@@ -386,7 +371,8 @@ function renderRequestDetails({
   );
 }
 
-function renderCheckedLine(capability: string): React.ReactNode {
+function renderCheckedLine(capability?: string): React.ReactNode {
+  if (!capability) return null;
   const items = capability
     .split(/\s*(?:\+|,)\s+/)
     .map((item) => capabilityLabel(item.trim()))

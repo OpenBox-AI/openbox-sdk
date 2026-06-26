@@ -2,6 +2,10 @@ export { createOpenBoxApprovalClient } from './react-approval-client.js';
 export { createOpenBoxCustomMessageRenderer } from './react-custom-message-renderer.js';
 export { useOpenBoxCopilotKit } from './react-hook.js';
 export {
+  isOpenBoxCopilotResult,
+  isOpenBoxCopilotResultMessage,
+} from './react-utils.js';
+export {
   OpenBoxActionResult,
   OpenBoxApprovalReview,
   OpenBoxGovernanceDecision,

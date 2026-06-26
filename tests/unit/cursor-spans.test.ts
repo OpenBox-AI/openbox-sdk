@@ -122,7 +122,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     });
     expect(main?.payload.spans?.[0]).toMatchObject({
       module: 'cursor',
-      name: 'llm.chat.completion',
+      name: 'POST',
       semantic_type: 'llm_completion',
       attributes: expect.objectContaining({
         'gen_ai.system': 'cursor',

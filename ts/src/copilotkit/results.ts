@@ -47,13 +47,9 @@ export function safePayload<T>(
   const redactionSummary = hasGuardrailRedaction(verdict.guardrailsResult)
     ? summarizeGuardrailRedaction(verdict.guardrailsResult)
     : undefined;
-  // Allowed-with-transform is constrained by definition: the payload the
-  // caller may use is not the original one.
   const status = isGovernanceAvailabilityFailure(verdict.reason)
     ? 'error'
-    : verdict.arm === 'allow' && (redactionSummary || changed)
-      ? 'constrained'
-      : statusForVerdict(verdict);
+    : statusForVerdict(verdict);
   const haltedAt = new Date().toISOString();
   const session =
     status === 'halted'
@@ -281,15 +277,6 @@ export function resultForAllowedVerdict<
     redactionSummary,
   );
   if (verdict.arm !== 'constrain') {
-    // Input-stage transforms under an allow arm are still redaction; the
-    // result must not present itself as a plain allow.
-    if (redactionSummary) {
-      return {
-        ...result,
-        status: 'constrained',
-        verdict: 'constrain',
-      };
-    }
     return result;
   }
   return {
@@ -376,8 +363,6 @@ export function applyCompletedRedaction<
         verdict.guardrailsResult,
       ) as OpenBoxCopilotActionResult<TArtifact>)
     : result;
-  const visibleRedaction =
-    definition.isArtifactRedacted?.(redactedResult.artifact) ?? false;
   const finalResult =
     coreRedacted &&
     redactedResult.artifact &&
@@ -399,7 +384,7 @@ export function applyCompletedRedaction<
     .filter(Boolean)
     .join(' ');
 
-  if (verdict.arm === 'constrain' || coreRedacted || visibleRedaction) {
+  if (verdict.arm === 'constrain') {
     return {
       ...finalResult,
       status: 'constrained',
@@ -563,12 +548,10 @@ export function isAllowed(arm: WorkflowVerdict['arm']): boolean {
 function toolInputForRedaction<
   TInput extends OpenBoxCopilotActionInput,
   TArtifact,
->(definition: GovernedCopilotToolDefinition<TInput, TArtifact>, input: TInput) {
+>(_definition: GovernedCopilotToolDefinition<TInput, TArtifact>, input: TInput) {
   return {
     id: undefined,
-    name: definition.toolName,
     args: input,
-    description: definition.description,
   };
 }
 

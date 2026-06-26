@@ -827,4 +827,95 @@ describe('LLM completion spans', () => {
 
     expect(extractAssistantContentLikeCore([span])).toBe('');
   });
+
+  test('captures raw provider request/response headers and bodies verbatim when redaction is disabled', () => {
+    const span = buildLLMCompletionSpan({
+      content: '',
+      model: 'gpt-4o',
+      redactSensitiveHeaders: false,
+      httpStatusCode: 200,
+      rawRequestBody: {
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'hi' },
+        ],
+        model: 'gpt-4o',
+      },
+      rawResponseBody: {
+        id: 'chatcmpl-x',
+        object: 'chat.completion',
+        model: 'gpt-4o-2024-08-06',
+        system_fingerprint: 'fp_x',
+        service_tier: 'default',
+        usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+      },
+      requestHeaders: {
+        authorization: 'Bearer sk-test-RAW',
+        'user-agent': 'OpenAI/Node',
+        'x-stainless-lang': 'js',
+      },
+      responseHeaders: {
+        'cf-ray': 'abc-HKG',
+        'x-request-id': 'req_123',
+        'openai-version': '2020-10-01',
+      },
+    }) as ReturnType<typeof buildLLMCompletionSpan> & {
+      request_headers?: Record<string, string>;
+      response_headers?: Record<string, string>;
+      http_status_code?: number;
+    };
+
+    // Raw provider bodies preserved verbatim (not synthesized).
+    expect(JSON.parse(String(span.request_body))).toMatchObject({
+      model: 'gpt-4o',
+      messages: [{ role: 'system' }, { role: 'user' }],
+    });
+    expect(JSON.parse(String(span.response_body))).toMatchObject({
+      id: 'chatcmpl-x',
+      system_fingerprint: 'fp_x',
+      service_tier: 'default',
+      usage: { prompt_tokens: 10, total_tokens: 12 },
+    });
+    // Headers stored verbatim, no redaction.
+    expect(span.request_headers?.authorization).toBe('Bearer sk-test-RAW');
+    expect(span.request_headers?.['x-stainless-lang']).toBe('js');
+    expect(span.response_headers?.['cf-ray']).toBe('abc-HKG');
+    expect(span.response_headers?.['x-request-id']).toBe('req_123');
+    expect(span.http_status_code).toBe(200);
+    expect(span.attributes).toMatchObject({ 'http.status_code': 200 });
+  });
+
+  test('redacts authorization and cookie headers by default', () => {
+    const span = buildLLMCompletionSpan({
+      content: 'ok',
+      model: 'gpt-4o',
+      requestHeaders: { authorization: 'Bearer sk-secret', cookie: 'a=b' },
+    }) as ReturnType<typeof buildLLMCompletionSpan> & {
+      request_headers?: Record<string, string>;
+    };
+
+    expect(span.request_headers?.authorization).toBe('Bearer <redacted>');
+    expect(span.request_headers?.cookie).toBe('<redacted>');
+  });
+
+  test('generic completed LLM span passes raw capture through buildSpan', () => {
+    const span = buildSpan('copilotkit', 'llm', {
+      stage: 'completed',
+      model: 'gpt-4o',
+      redactSensitiveHeaders: false,
+      http_status_code: 200,
+      rawRequestBody: { messages: [{ role: 'user', content: 'hi' }], model: 'gpt-4o' },
+      rawResponseBody: { id: 'resp_1', usage: { prompt_tokens: 3, completion_tokens: 1 } },
+      request_headers: { authorization: 'Bearer sk-raw-2' },
+      response_headers: { 'x-request-id': 'req_456' },
+    }) as Record<string, any>;
+
+    expect(JSON.parse(String(span.request_body))).toMatchObject({
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(JSON.parse(String(span.response_body))).toMatchObject({ id: 'resp_1' });
+    expect(span.request_headers.authorization).toBe('Bearer sk-raw-2');
+    expect(span.response_headers['x-request-id']).toBe('req_456');
+    expect(span.http_status_code).toBe(200);
+  });
 });

@@ -744,11 +744,11 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         event.activity_type === 'OpenAIAgentsSDKRun' &&
         event.hook_trigger === true &&
         event.spans?.[0]?.module === 'openai-agents-sdk' &&
-        event.spans?.[0]?.name === 'llm.chat.completion',
+        event.spans?.[0]?.name === 'POST',
     );
     expect(startedHook?.spans?.[0]).toMatchObject({
       module: 'openai-agents-sdk',
-      name: 'llm.chat.completion',
+      name: 'POST',
       attributes: expect.objectContaining({
         'gen_ai.system': 'openai-agents-sdk',
         'http.method': 'POST',
@@ -778,7 +778,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
   it('pre-gates run input as an LLM completion before invoking the official run function', async () => {
     const mock = createMockCore((payload) =>
       payload.hook_trigger === true &&
-      payload.spans?.[0]?.name === 'llm.chat.completion'
+      payload.spans?.[0]?.name === 'POST'
         ? verdict('require_approval', { reason: 'llm approval required' })
         : verdict('allow'),
     );
@@ -806,7 +806,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
           spans: expect.arrayContaining([
             expect.objectContaining({
               module: 'openai-agents-sdk',
-              name: 'llm.chat.completion',
+              name: 'POST',
             }),
           ]),
         }),

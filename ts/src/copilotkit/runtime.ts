@@ -460,6 +460,7 @@ function pipeGovernedEvents(
         };
       }
     | undefined;
+  let emittedOpenBoxToolResult = false;
   const queueAssistantOutputGate = (
     messageId: string,
     type: string,
@@ -471,6 +472,9 @@ function pipeGovernedEvents(
     telemetryEvent?: Record<string, any>,
   ) => {
     if (governanceStopped) {
+      return;
+    }
+    if (emittedOpenBoxToolResult && !hasMeaningfulText(buffer.content)) {
       return;
     }
     if (terminalized) {
@@ -541,6 +545,9 @@ function pipeGovernedEvents(
       }
       const agEvent = event as Record<string, any>;
       const type = String(agEvent.type);
+      if (isMalformedCopilotKitLangGraphInterruptEvent(agEvent)) {
+        return;
+      }
       if (pendingAssistantOutput) {
         flushPendingAssistantOutput(
           isRunFinishedEvent(agEvent) ? agEvent : undefined,
@@ -563,13 +570,16 @@ function pipeGovernedEvents(
         buffer.content += String(agEvent.delta ?? agEvent.content ?? '');
         return;
       }
-      // Governed tools terminate or intentionally leave the shared task
-      // workflow open (halt/block/approval). When their result says so, the
-      // runtime must not send its own WorkflowCompleted on RUN_FINISHED.
-      if (isToolResultEvent(agEvent) && governedResultEndsWorkflow(agEvent)) {
-        stopForGovernance();
-        emit(agEvent);
-        return;
+      if (isToolResultEvent(agEvent)) {
+        const openBoxResult = openBoxResultFromToolEvent(agEvent);
+        if (openBoxResult) {
+          emittedOpenBoxToolResult = true;
+          if (openBoxResultEndsWorkflow(openBoxResult)) {
+            stopForGovernance();
+          }
+          emit(agEvent);
+          return;
+        }
       }
       if (isAssistantTextEnd(agEvent)) {
         const messageId = messageIdForEvent(agEvent);
@@ -612,7 +622,27 @@ function pipeGovernedEvents(
           return;
         }
         buffer.events.push(agEvent);
+        if (adapter.isSelfGovernedTool(buffer.toolName)) {
+          // Self-governed tools are governed by the agent itself (a separate
+          // CopilotKitGovernedAction activity with its own paired spans). The
+          // runtime must NOT open its own tool-call activity here: it would
+          // never close, because the result returns through the assistant-output
+          // path (governAssistantOutput) rather than a runtime tool-result
+          // event — leaving an unpaired ActivityStarted. Forward the buffered
+          // tool-call events untouched (same as a passed input gate) and do not
+          // govern. The result path is left completely intact.
+          if (!buffer.eventsEmitted) {
+            for (const bufferedEvent of buffer.events) emit(bufferedEvent);
+            buffer.eventsEmitted = true;
+          }
+          toolCallBuffers.delete(toolCallId);
+          return;
+        }
         queueToolInputGate(buffer);
+        return;
+      }
+      if (emittedOpenBoxToolResult && isRunFinishedEvent(agEvent)) {
+        queueTerminalEvent(agEvent, 'completed');
         return;
       }
       const finalPayload = finalPayloadLocationForEvent(agEvent);
@@ -642,6 +672,17 @@ function pipeGovernedEvents(
               );
             }
             return;
+          }
+          // OpenBox constrained (redacted) the output without stopping it. Surface
+          // the verdict on a status card (same mechanism as block/halt) so the UI
+          // shows "Redacted" instead of silently emitting redacted content with no
+          // governance status. The redacted content itself still flows below.
+          if (gate.verdict.arm === 'constrain') {
+            emitOpenBoxMessageEvents(
+              subscriber,
+              input,
+              adapter.toOpenBoxCopilotResult(gate.verdict, gate),
+            );
           }
           const safeEvent = eventWithSafeFinalPayload(
             agEvent,
@@ -884,6 +925,14 @@ function isRunErrorEvent(event: Record<string, any>): boolean {
   return type === 'RUN_ERROR' || type === 'RunError';
 }
 
+function isMalformedCopilotKitLangGraphInterruptEvent(
+  event: Record<string, any>,
+): boolean {
+  if (event.name !== 'CopilotKitLangGraphInterruptEvent') return false;
+  const data = objectRecord(event.data);
+  return !Array.isArray(data.messages);
+}
+
 function isToolResultEvent(event: Record<string, any>): boolean {
   const type = String(event.type);
   return type === 'TOOL_CALL_RESULT' || type === 'ToolCallResult';
@@ -1034,19 +1083,38 @@ const WORKFLOW_ENDING_RESULT_STATUSES = new Set([
   'approval_pending',
 ]);
 
-function governedResultEndsWorkflow(event: Record<string, any>): boolean {
-  const content = event.content;
-  if (typeof content !== 'string') return false;
-  try {
-    const parsed = JSON.parse(content);
-    return (
+function openBoxResultFromToolEvent(
+  event: Record<string, any>,
+): Record<string, unknown> | undefined {
+  for (const candidate of openBoxResultCandidates(event)) {
+    const parsed =
+      typeof candidate === 'string' ? parseJsonObject(candidate) : candidate;
+    if (
       isRecord(parsed) &&
-      parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION &&
-      WORKFLOW_ENDING_RESULT_STATUSES.has(String(parsed.status))
-    );
-  } catch {
-    return false;
+      parsed.schemaVersion === OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION
+    ) {
+      return parsed;
+    }
   }
+  return undefined;
+}
+
+function openBoxResultCandidates(event: Record<string, any>): unknown[] {
+  const payload = objectRecord(event.payload);
+  return [
+    event.content,
+    event.result,
+    event.output,
+    event.data,
+    payload.content,
+    payload.result,
+    payload.output,
+    payload.data,
+  ];
+}
+
+function openBoxResultEndsWorkflow(result: Record<string, unknown>): boolean {
+  return WORKFLOW_ENDING_RESULT_STATUSES.has(String(result.status));
 }
 
 function finalPayloadLocationForEvent(
@@ -1149,6 +1217,10 @@ function assistantOutputPayload(
     );
   }
   return payload;
+}
+
+function hasMeaningfulText(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim().length > 0 : value != null;
 }
 
 function mergeIfPresent(

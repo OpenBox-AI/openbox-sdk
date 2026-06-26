@@ -30,6 +30,12 @@ export interface AssistantOutputTelemetryInput {
   providerUrl?: string;
   requestBody?: unknown;
   responseBody?: unknown;
+  requestHeaders?: unknown;
+  responseHeaders?: unknown;
+  httpStatusCode?: unknown;
+  rawRequestBody?: unknown;
+  rawResponseBody?: unknown;
+  redactSensitiveHeaders?: boolean;
   startTime?: number;
   endTime?: number;
   durationNs?: number;
@@ -72,7 +78,14 @@ export function buildAssistantOutputSpan(
   input: AssistantOutputTelemetryInput,
 ): SpanData[] | undefined {
   const content = firstText(input.content);
-  if (!content && !input.usage) return undefined;
+  if (
+    !content &&
+    !input.usage &&
+    input.rawRequestBody === undefined &&
+    input.rawResponseBody === undefined
+  ) {
+    return undefined;
+  }
   return [
     buildLLMCompletionSpan({
       content: content ?? '',
@@ -85,6 +98,12 @@ export function buildAssistantOutputSpan(
       usage: input.usage,
       requestBody: input.requestBody,
       responseBody: input.responseBody,
+      requestHeaders: input.requestHeaders,
+      responseHeaders: input.responseHeaders,
+      httpStatusCode: input.httpStatusCode,
+      rawRequestBody: input.rawRequestBody,
+      rawResponseBody: input.rawResponseBody,
+      redactSensitiveHeaders: input.redactSensitiveHeaders,
       providerUrl: input.providerUrl,
       startTime: input.startTime,
       endTime: input.endTime,

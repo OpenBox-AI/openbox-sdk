@@ -9408,7 +9408,7 @@ export const GUARDRAIL_CAPABILITY_GUARDS = [
     "coreContract": "CopilotKit adapters send prompt/tool/output activities to OpenBox Core guardrails and map Core verdicts into runtime and interruption results.",
     "redactionBehavior": "Output transforms use Core-provided redacted content without legacy placeholders; failed guardrails interrupt or block execution.",
     "failClosedBehavior": "Failed guardrails or unsupported transforms fail closed by skipping execution, interrupting, or returning blocked results.",
-    "guardTest": "tests/unit/copilotkit-adapter.test.ts#treats Core output guardrail transforms as constrained without legacy placeholders"
+    "guardTest": "tests/unit/copilotkit-adapter.test.ts#applies Core output guardrail transforms without mutating the Core verdict"
   },
   {
     "provider": "n8n",
