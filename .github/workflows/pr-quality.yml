@@ -56,6 +56,11 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+      - name: Build package for SDK validation
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
       - name: Validate SDKs
         run: npm run check:sdks
         env:
