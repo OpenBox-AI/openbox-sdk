@@ -545,6 +545,9 @@ function pipeGovernedEvents(
       }
       const agEvent = event as Record<string, any>;
       const type = String(agEvent.type);
+      if (isMalformedCopilotKitLangGraphInterruptEvent(agEvent)) {
+        return;
+      }
       if (pendingAssistantOutput) {
         flushPendingAssistantOutput(
           isRunFinishedEvent(agEvent) ? agEvent : undefined,
@@ -893,6 +896,14 @@ function isRunFinishedEvent(event: Record<string, any>): boolean {
 function isRunErrorEvent(event: Record<string, any>): boolean {
   const type = String(event.type);
   return type === 'RUN_ERROR' || type === 'RunError';
+}
+
+function isMalformedCopilotKitLangGraphInterruptEvent(
+  event: Record<string, any>,
+): boolean {
+  if (event.name !== 'CopilotKitLangGraphInterruptEvent') return false;
+  const data = objectRecord(event.data);
+  return !Array.isArray(data.messages);
 }
 
 function isToolResultEvent(event: Record<string, any>): boolean {

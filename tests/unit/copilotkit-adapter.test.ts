@@ -4635,6 +4635,43 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(types).not.toContain('WorkflowCompleted');
   });
 
+  it('drops malformed CopilotKit interrupt meta-events before they reach subscribers', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'MetaEvent',
+        name: 'CopilotKitLangGraphInterruptEvent',
+        data: { value: { interrupt: 'missing-messages' } },
+      },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    expect(events).not.toContainEqual(
+      expect.objectContaining({
+        name: 'CopilotKitLangGraphInterruptEvent',
+      }),
+    );
+    expect(mock.events.map((event) => event.event_type)).toContain(
+      'WorkflowCompleted',
+    );
+  });
+
   it('governs runs without an agentId even when an agents filter is configured', async () => {
     const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
     const baseRunner = createFakeRunner(
