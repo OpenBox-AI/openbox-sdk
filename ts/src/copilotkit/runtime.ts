@@ -741,17 +741,6 @@ function pipeGovernedEvents(
     if (!buffer.inputGate) {
       buffer.inputGate = queuePending(async () => {
         if (governanceStopped) return;
-        if (adapter.isSelfGovernedTool(buffer.toolName)) {
-          // The agent's middleware + governed-tool fully govern this tool. The
-          // runtime must not re-govern it (that emitted an orphaned, unpaired
-          // openai.TOOL.call started span). Just forward the buffered tool-call
-          // events so the agent still receives the call.
-          if (!buffer.eventsEmitted) {
-            for (const bufferedEvent of buffer.events) emit(bufferedEvent);
-            buffer.eventsEmitted = true;
-          }
-          return;
-        }
         const gate = await adapter.governToolInput({
           payload: toolInputPayload(buffer),
           sessionKey,
@@ -785,11 +774,6 @@ function pipeGovernedEvents(
     queuePending(async () => {
       await inputGate;
       if (governanceStopped || terminalized) return;
-      if (adapter.isSelfGovernedTool(buffer.toolName)) {
-        // Self-governed by the agent; forward the result without re-governing.
-        emit(resultEvent);
-        return;
-      }
       const gate = await adapter.governToolOutput({
         payload: toolOutputPayload(buffer, resultEvent),
         sessionKey,
@@ -816,11 +800,6 @@ function pipeGovernedEvents(
       if (governanceStopped) return;
       const toolCallId = toolCallIdForEvent(resultEvent);
       const toolName = toolNameForToolEvent(resultEvent);
-      if (adapter.isSelfGovernedTool(toolName)) {
-        // Self-governed by the agent; forward the result without re-governing.
-        emit(resultEvent);
-        return;
-      }
       const gate = await adapter.governToolOutput({
         payload: toolOutputPayload(
           { toolCallId, toolName, events: [], argsText: '' },
