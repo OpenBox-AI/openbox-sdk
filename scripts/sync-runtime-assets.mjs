@@ -6,21 +6,21 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const { PROVIDER_PLUGIN_COMPONENTS } = await import('../dist/governance/index.js');
 
-function pascalProvider(provider: string): string {
+function pascalProvider(provider) {
   return provider
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
 }
 
-async function pluginExporter(provider: string): Promise<(options: { out: string }) => string> {
+async function pluginExporter(provider) {
   const runtime = await import(`../dist/runtime/${provider}/index.js`);
   const exportName = `export${pascalProvider(provider)}Plugin`;
   const exporter = runtime[exportName];
   if (typeof exporter !== 'function') {
     throw new Error(`Missing plugin exporter ${exportName} for ${provider}`);
   }
-  return exporter as (options: { out: string }) => string;
+  return exporter;
 }
 
 for (const { provider } of PROVIDER_PLUGIN_COMPONENTS) {

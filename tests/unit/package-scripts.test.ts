@@ -17,7 +17,7 @@ const sdkTargetsFixture = JSON.parse(
     }>;
   };
 };
-const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.ts'), 'utf8');
+const syncRuntimeAssets = readFileSync(resolve(process.cwd(), 'scripts/sync-runtime-assets.mjs'), 'utf8');
 const runSpecCommandScript = readFileSync(resolve(process.cwd(), 'scripts/run-spec-command.mjs'), 'utf8');
 const runRootPipelineScript = readFileSync(resolve(process.cwd(), 'scripts/run-root-pipeline.mjs'), 'utf8');
 const runSdkGenerationScript = readFileSync(resolve(process.cwd(), 'scripts/run-sdk-generation.mjs'), 'utf8');
