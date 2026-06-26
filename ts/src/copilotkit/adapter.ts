@@ -40,6 +40,8 @@ export function createOpenBoxCopilotKitAdapter(
   const adapter: OpenBoxCopilotKitAdapter = {
     isEnabled: () => config.enabled !== false,
     getCoreClient,
+    isSelfGovernedTool: (toolName) =>
+      typeof toolName === 'string' && selfGovernedToolNames.has(toolName),
     wrapAgent: (agent) => agent,
     createLangChainMiddleware: (deps) =>
       createOpenBoxLangChainMiddleware({

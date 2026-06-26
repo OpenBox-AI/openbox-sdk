@@ -440,6 +440,12 @@ export class OpenBoxCopilotKitError extends Error {
 export interface OpenBoxCopilotKitAdapter {
   isEnabled(): boolean;
   getCoreClient(): OpenBoxCoreClient;
+  /**
+   * True when the named tool is governed by the agent itself (its middleware +
+   * governed-tool), so the runtime must NOT re-govern it. Re-governing a
+   * self-governed tool double-counts it and emits an orphaned tool-call span.
+   */
+  isSelfGovernedTool(toolName: string | undefined): boolean;
   wrapAgent<TAgent>(agent: TAgent): TAgent;
   createLangChainMiddleware(
     deps: OpenBoxCopilotLangChainMiddlewareDeps,
