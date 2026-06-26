@@ -18,7 +18,6 @@ import {
   validateAgentIdentityConfig,
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
-import { normalizeServiceUrl } from '../../env/connection.js';
 import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import { recallAgentKey } from '../../file-tokens/agent-keys.js';
 import {
@@ -37,6 +36,7 @@ import {
   ensureProjectOpenBoxRuntime,
   writeOpenBoxCliRunner,
 } from '../project-openbox-runtime.js';
+import { resolveInstallRuntimeCoreUrl } from '../install-runtime-defaults.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -441,16 +441,13 @@ export function configureClaudeCodeRuntime(options: ConfigureClaudeCodeRuntimeOp
     ...existing,
   };
 
-  const apiKey = resolveRuntimeKey(options);
   const runtimeEnv: Record<string, string | undefined> = {};
+  const existingSettingsLocalEnv = readClaudeCodeSettingsLocalEnv(cwd);
+  const apiKey = resolveRuntimeKey(options);
   if (apiKey !== undefined) {
     const format = validateApiKeyFormat(apiKey);
     if (format !== true) throw new Error(format);
     runtimeEnv.OPENBOX_API_KEY = apiKey;
-  }
-
-  if (options.coreUrl !== undefined) {
-    runtimeEnv.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
   }
 
   const discoveredIdentity = options.agentIdentity ?? resolveAgentIdentity();
@@ -459,6 +456,12 @@ export function configureClaudeCodeRuntime(options: ConfigureClaudeCodeRuntimeOp
     runtimeEnv.OPENBOX_AGENT_DID = agentIdentity.did;
     runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
   }
+
+  runtimeEnv.OPENBOX_CORE_URL = resolveInstallRuntimeCoreUrl({
+    coreUrl: options.coreUrl,
+    existingCoreUrl: existingSettingsLocalEnv.OPENBOX_CORE_URL,
+    runtimeEnv,
+  });
 
   const approvalMode = normalizeApprovalMode(options.approvalMode);
   if (approvalMode !== undefined) next.approvalMode = approvalMode;

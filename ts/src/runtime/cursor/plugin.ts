@@ -18,8 +18,7 @@ import {
   validateAgentIdentityConfig,
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
-import { writeDotenvConfig } from '../../config/host-config.js';
-import { normalizeServiceUrl } from '../../env/connection.js';
+import { loadDotenv, writeDotenvConfig } from '../../config/host-config.js';
 import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import { recallAgentKey } from '../../file-tokens/agent-keys.js';
 import type { RulesProjection } from '../../governance/rules-projection.js';
@@ -32,6 +31,7 @@ import {
   projectOpenBoxHookCommand,
   projectOpenBoxMcpServerEntry,
 } from '../project-openbox-runtime.js';
+import { resolveInstallRuntimeCoreUrl } from '../install-runtime-defaults.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -298,6 +298,7 @@ export function configureCursorRuntime(options: ConfigureCursorRuntimeOptions = 
   delete next.OPENBOX_AGENT_DID;
   delete next.OPENBOX_AGENT_PRIVATE_KEY;
   const runtimeEnv: Record<string, string | undefined> = {};
+  const existingRuntimeEnv = loadDotenv(cursorRuntimeEnvFile(cwd));
 
   const apiKey = resolveRuntimeKey(options);
   if (apiKey !== undefined) {
@@ -306,16 +307,18 @@ export function configureCursorRuntime(options: ConfigureCursorRuntimeOptions = 
     runtimeEnv.OPENBOX_API_KEY = apiKey;
   }
 
-  if (options.coreUrl !== undefined) {
-    runtimeEnv.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
-  }
-
   const discoveredIdentity = options.agentIdentity ?? resolveAgentIdentity();
   if (discoveredIdentity !== undefined) {
     const agentIdentity = validateAgentIdentityConfig(discoveredIdentity);
     runtimeEnv.OPENBOX_AGENT_DID = agentIdentity.did;
     runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
   }
+
+  runtimeEnv.OPENBOX_CORE_URL = resolveInstallRuntimeCoreUrl({
+    coreUrl: options.coreUrl,
+    existingCoreUrl: existingRuntimeEnv.OPENBOX_CORE_URL,
+    runtimeEnv,
+  });
 
   const approvalMode = normalizeApprovalMode(options.approvalMode);
   if (approvalMode !== undefined) next.approvalMode = approvalMode;

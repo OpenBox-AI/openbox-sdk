@@ -8,6 +8,7 @@ import {
   parseHostScope,
   registerInstallCommands,
 } from '../../ts/src/cli/commands/install.ts';
+import { DEFAULT_OPENBOX_CORE_URL } from '../../ts/src/runtime/install-runtime-defaults.js';
 
 const temps: string[] = [];
 const originalEnv = { ...process.env };
@@ -276,6 +277,71 @@ describe('minimal install command', () => {
     expectRuntimeConfig(cursorProject, 'cursor', runtimeKey, coreUrl, 'inline', identity);
     expectClaudeRuntimeConfig(claudeProject, runtimeKey, coreUrl, 'remote', identity);
     expectRuntimeConfig(codexProject, 'codex', runtimeKey, coreUrl, 'defer', identity);
+  });
+
+  it('writes production Core defaults for lean top-level coding agent install flags', async () => {
+    const runtimeKey = `obx_test_${'4'.repeat(48)}`;
+    const identity = {
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+      privateKey: Buffer.alloc(32, 1).toString('base64'),
+    };
+    const cursorProject = tempDir('openbox-install-lean-cursor-');
+    const claudeProject = tempDir('openbox-install-lean-claude-');
+    const codexProject = tempDir('openbox-install-lean-codex-');
+    const cursorPlugin = join(cursorProject, '.cursor', 'plugins', 'local', 'openbox');
+
+    const leanRuntimeFlags = [
+      '--runtime-api-key',
+      runtimeKey,
+      '--agent-did',
+      identity.did,
+      '--agent-private-key',
+      identity.privateKey,
+    ];
+
+    await runInstallCli([
+      'install',
+      'cursor',
+      '--cwd',
+      cursorProject,
+      '--plugin-target',
+      cursorPlugin,
+      ...leanRuntimeFlags,
+    ]);
+    await runInstallCli([
+      'install',
+      'claude-code',
+      '--cwd',
+      claudeProject,
+      ...leanRuntimeFlags,
+    ]);
+    await runInstallCli([
+      'install',
+      'codex',
+      '--cwd',
+      codexProject,
+      ...leanRuntimeFlags,
+    ]);
+
+    expect(readDotenv(join(cursorProject, '.openbox', 'cursor', '.env'))).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: identity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: identity.privateKey,
+    });
+    const claudeEnv = readJson(join(claudeProject, '.claude', 'settings.local.json')).env as Record<string, unknown>;
+    expect(claudeEnv).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: identity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: identity.privateKey,
+    });
+    expect(readDotenv(join(codexProject, '.openbox', 'codex', '.env'))).toMatchObject({
+      OPENBOX_API_KEY: runtimeKey,
+      OPENBOX_CORE_URL: DEFAULT_OPENBOX_CORE_URL,
+      OPENBOX_AGENT_DID: identity.did,
+      OPENBOX_AGENT_PRIVATE_KEY: identity.privateKey,
+    });
   });
 
   it('rejects incomplete direct signing identity flags', async () => {
