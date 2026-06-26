@@ -11,10 +11,7 @@ import {
   type WorkflowVerdict,
 } from '../core-client/index.js';
 import { EVENT } from '../governance/events.js';
-import {
-  stripServerComputedSemantic,
-  withOpenBoxActivityMetadata,
-} from '../governance/spans.js';
+import { withOpenBoxActivityMetadata } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
 import {
   effectiveArmForGuardrails,
@@ -422,9 +419,13 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     trace_id: randomBytes(16).toString('hex'),
     name: definition.toolName,
     kind: 'tool',
-    // Matches the langgraph-py/Temporal reference: function-call operations are
-    // span_type 'internal' (+ hook_type 'function_call'), never 'function'.
+    // Structural span_type stays 'internal' (+ hook_type 'function_call'), but
+    // the governance semantic_type is 'llm_tool_call': this span represents the
+    // agent invoking a governed tool/action. Set explicitly (and NOT stripped
+    // below) so the server keeps it instead of computing 'internal' from
+    // span_type.
     span_type: 'internal',
+    semantic_type: 'llm_tool_call',
     hook_type: 'function_call',
     start_time: startTime,
     end_time: stage === 'completed' ? now : null,
@@ -435,6 +436,7 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     events: [],
     attributes: {
       'openbox.span_type': 'internal',
+      'openbox.semantic_type': 'llm_tool_call',
       'openbox.tool.name': definition.toolName,
       'openbox.action': input.action,
       'tool.name': definition.toolName,
@@ -447,14 +449,13 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     response_body: responseBody,
   } as SpanData;
   if (!profile) {
-    return withSpanIdentityFromActivity(
-      stripServerComputedSemantic(base),
-      activityId,
-    );
+    // Not stripped: the explicit semantic_type 'llm_tool_call' must reach the
+    // server (it would otherwise recompute 'internal' from span_type).
+    return withSpanIdentityFromActivity(base, activityId);
   }
   const profileRecord = profile as Record<string, unknown>;
   return withSpanIdentityFromActivity(
-    stripServerComputedSemantic({
+    {
       ...base,
       ...profile,
       attributes: {
@@ -464,7 +465,7 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
       data: profile.data ?? base.data,
       request_body: profileRecord.request_body ?? base.request_body,
       response_body: profileRecord.response_body ?? base.response_body,
-    } as SpanData),
+    } as SpanData,
     activityId,
   );
 }
