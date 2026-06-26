@@ -929,6 +929,17 @@ function spansForGate(
     }
     case 'tool_input':
     case 'tool_output':
+      // langgraph-py strict (capture mode): emit NO separate tool-call span. The
+      // tool-call DECISION is already inside the planner's llm_completion
+      // response_body (captured), and the tool EXECUTION is a separate activity
+      // whose own operations are spanned (governed-tool → internal +
+      // llm_completion). A gate-level openai.TOOL.call span at /chat/completions
+      // duplicates the planner's llm_completion and — being a gate, not an
+      // operation — cannot pair (the gate fires at the call, not the result),
+      // producing the orphaned started span. The gate still runs (verdict +
+      // result forwarding); it just emits no span. Mirrors the prompt gate
+      // above. Capture-less hosts keep the span (their only tool record).
+      if (process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE === 'true') return [];
       return [toolCallSpan(kind, activityType, payload, overrides)];
     case 'prompt': {
       // In capture mode the assistant gate emits the full started+completed
