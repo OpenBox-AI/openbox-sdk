@@ -419,12 +419,11 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     trace_id: randomBytes(16).toString('hex'),
     name: definition.toolName,
     kind: 'tool',
-    // Structural span_type stays 'internal' (+ hook_type 'function_call'), but
-    // the governance semantic_type is 'llm_tool_call': this span represents the
-    // agent invoking a governed tool/action. Set explicitly (and NOT stripped
-    // below) so the server keeps it instead of computing 'internal' from
-    // span_type.
-    span_type: 'internal',
+    // This span represents the agent invoking a governed tool/action, so it is
+    // an llm_tool_call. The server derives semantic_type from span_type, so set
+    // span_type 'llm_tool_call' (semantic_type set explicitly to match, and NOT
+    // stripped below) rather than 'internal'.
+    span_type: 'llm_tool_call',
     semantic_type: 'llm_tool_call',
     hook_type: 'function_call',
     start_time: startTime,
@@ -435,7 +434,7 @@ export function toolSpan<TInput extends OpenBoxCopilotActionInput, TArtifact>(
     status: { code: 'UNSET' },
     events: [],
     attributes: {
-      'openbox.span_type': 'internal',
+      'openbox.span_type': 'llm_tool_call',
       'openbox.semantic_type': 'llm_tool_call',
       'openbox.tool.name': definition.toolName,
       'openbox.action': input.action,
