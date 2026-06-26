@@ -896,7 +896,7 @@ describe('SDK target validation manifest', () => {
         id: 'runtime-assets',
         label: 'Runtime asset sync',
         command: 'node',
-        args: ['--experimental-strip-types', 'scripts/sync-runtime-assets.ts'],
+        args: ['scripts/sync-runtime-assets.mjs'],
         workingDirectory: '.',
       },
     ]);
