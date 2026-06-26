@@ -262,7 +262,7 @@ using OpenBox.Workflow;
   bundleBuild: #{
     steps: #[
       #{ id: "tsup", label: "TypeScript bundle", command: "npx", args: #["tsup"], workingDirectory: "." },
-      #{ id: "runtime-assets", label: "Runtime asset sync", command: "node", args: #["--experimental-strip-types", "scripts/sync-runtime-assets.ts"], workingDirectory: "." },
+      #{ id: "runtime-assets", label: "Runtime asset sync", command: "node", args: #["scripts/sync-runtime-assets.mjs"], workingDirectory: "." },
     ],
   },
   qualityCommands: #{
@@ -396,7 +396,7 @@ using OpenBox.Workflow;
       #{ path: "scripts/check-sdks.mjs", category: "target-validator", canonicalSurface: "targets", role: "Validates each TypeSpec-declared SDK or app target using its native commands and manifest checks." },
       #{ path: "scripts/check-generated-drift.ts", category: "generated-check", canonicalSurface: "generatedArtifacts", role: "Compares regenerated output against the TypeSpec-emitted generated artifact inventory." },
       #{ path: "scripts/check-generated-banners.ts", category: "generated-check", canonicalSurface: "generatedArtifacts", role: "Enforces provenance banners on emitted generated files." },
-      #{ path: "scripts/sync-runtime-assets.ts", category: "asset-sync", canonicalSurface: "PROVIDER_PLUGIN_COMPONENTS", role: "Copies runtime templates and built provider plugin bundles based on generated provider component metadata." },
+      #{ path: "scripts/sync-runtime-assets.mjs", category: "asset-sync", canonicalSurface: "PROVIDER_PLUGIN_COMPONENTS", role: "Copies runtime templates and built provider plugin bundles based on generated provider component metadata." },
 	      #{ path: "scripts/record-guardrails-hub.mjs", category: "spec-runner", canonicalSurface: "guardrailsHubRecordingSurface", role: "Reports validator provenance and records or replays sanitized Guardrails Hub validator results from the TypeSpec-owned Hub recording corpus." },
 	      #{ path: "scripts/write-governance-checklist.mjs", category: "generated-artifact-writer", canonicalSurface: "governanceChecklistRows", role: "Writes repo-local governance checklist markdown and CSV artifacts from the generated provider capability fixture." },
 	      #{ path: "scripts/local-llamafirewall-server.py", category: "local-stack-adapter", canonicalSurface: "localStackGovernanceMatrix", role: "Hosts a local HTTP adapter around the official LlamaFirewall scanner used by local-stack governance drift checks." },

@@ -50,6 +50,11 @@ jobs:
       - name: Lint generated/ banners
         run: npm run lint:generated-banners
 
+      - name: Build package for SDK validation
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
       - name: Run unit tests (covers emitter snapshots)
         run: npm run test:unit
 

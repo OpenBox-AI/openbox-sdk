@@ -121,7 +121,7 @@ Those wrappers hide the startup path and make the stack harder to reproduce.
 
 ## Operational Scripts
 
-- `sync-runtime-assets.ts` copies runtime templates and exports built plugin
+- `sync-runtime-assets.mjs` copies runtime templates and exports built plugin
   bundles after the bundle step; this depends on built runtime code and is not
   a spec emitter.
 - `lib/spec-steps.mjs` is the shared runner framework for TypeSpec-emitted
