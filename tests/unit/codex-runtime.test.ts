@@ -856,6 +856,10 @@ describe('Codex runtime adapter', () => {
     const mcp = programWith(registerMcpCommands);
     const runtimeKey = `obx_test_${'c'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';
+    const identity = {
+      did: 'did:aip:550e8400-e29b-41d4-a716-446655440002',
+      privateKey: Buffer.alloc(32, 3).toString('base64'),
+    };
     const exported = mkdtempSync(join(tmpdir(), 'openbox-codex-export-parent-'));
     const project = mkdtempSync(join(tmpdir(), 'openbox-codex-project-'));
     try {
@@ -886,6 +890,10 @@ describe('Codex runtime adapter', () => {
         runtimeKey,
         '--core-url',
         coreUrl,
+        '--agent-did',
+        identity.did,
+        '--agent-private-key',
+        identity.privateKey,
         '--approval-mode',
         'inline',
         '--governance-timeout',
@@ -904,6 +912,10 @@ describe('Codex runtime adapter', () => {
         runtimeKey,
         '--core-url',
         coreUrl,
+        '--agent-did',
+        identity.did,
+        '--agent-private-key',
+        identity.privateKey,
         '--approval-mode',
         'defer',
         '--governance-timeout',
@@ -916,6 +928,8 @@ describe('Codex runtime adapter', () => {
       const runtimeEnv = readDotenv(join(project, '.openbox', 'codex', '.env'));
       expect(runtimeEnv.OPENBOX_API_KEY).toBe(runtimeKey);
       expect(runtimeEnv.OPENBOX_CORE_URL).toBe(coreUrl);
+      expect(runtimeEnv.OPENBOX_AGENT_DID).toBe(identity.did);
+      expect(runtimeEnv.OPENBOX_AGENT_PRIVATE_KEY).toBe(identity.privateKey);
       const runtimeConfig = readJson(join(project, '.openbox', 'codex', 'config.json'));
       expect(runtimeConfig.approvalMode).toBe('defer');
       expect(runtimeConfig.governanceTimeout).toBe('18');

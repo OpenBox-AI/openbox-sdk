@@ -3,6 +3,11 @@ import { EXIT, bailWith } from '../exit-codes.js';
 import { error, output, row, success, summary } from '../output.js';
 import { isMachineMode } from '../non-interactive.js';
 import type { ConfigureCodexRuntimeOptions } from '../../runtime/codex/index.js';
+import {
+  hasAgentIdentityOptions,
+  parseAgentIdentityOptions,
+  type AgentIdentityOptions,
+} from '../agent-identity-options.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -35,15 +40,18 @@ function parseRuntimeOptions(opts: {
   cwd?: string;
   runtimeApiKey?: string;
   agentId?: string;
+  agentDid?: string;
+  agentPrivateKey?: string;
   coreUrl?: string;
   approvalMode?: string;
   governanceTimeout?: string;
   hitlMaxWait?: string;
   hitlPollInterval?: string;
-}): ConfigureCodexRuntimeOptions | undefined {
+} & AgentIdentityOptions): ConfigureCodexRuntimeOptions | undefined {
   if (
     opts.runtimeApiKey === undefined &&
     opts.agentId === undefined &&
+    !hasAgentIdentityOptions(opts) &&
     opts.coreUrl === undefined &&
     opts.approvalMode === undefined &&
     opts.governanceTimeout === undefined &&
@@ -67,6 +75,7 @@ function parseRuntimeOptions(opts: {
     apiKey: opts.runtimeApiKey,
     agentId: opts.agentId,
     coreUrl: opts.coreUrl,
+    agentIdentity: parseAgentIdentityOptions(opts),
     approvalMode: approvalMode as ConfigureCodexRuntimeOptions['approvalMode'],
     governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
     hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
@@ -78,12 +87,14 @@ async function configureRuntimeIfRequested(opts: {
   cwd?: string;
   runtimeApiKey?: string;
   agentId?: string;
+  agentDid?: string;
+  agentPrivateKey?: string;
   coreUrl?: string;
   approvalMode?: string;
   governanceTimeout?: string;
   hitlMaxWait?: string;
   hitlPollInterval?: string;
-}): Promise<void> {
+} & AgentIdentityOptions): Promise<void> {
   const runtime = parseRuntimeOptions(opts);
   if (!runtime) return;
   const { configureCodexRuntime } = await import('../../runtime/codex/index.js');
@@ -112,6 +123,8 @@ export function registerCodexCommands(program: Command) {
     .option('--cwd <dir>', 'Project root for project-local install')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .openbox/codex/.env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .openbox/codex/.env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .openbox/codex/.env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .openbox/codex/.env')
     .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
     .option('--governance-timeout <seconds>', 'Governance request timeout in seconds')
@@ -121,6 +134,8 @@ export function registerCodexCommands(program: Command) {
       cwd?: string;
       runtimeApiKey?: string;
       agentId?: string;
+      agentDid?: string;
+      agentPrivateKey?: string;
       coreUrl?: string;
       approvalMode?: string;
       governanceTimeout?: string;
@@ -182,6 +197,8 @@ export function registerCodexCommands(program: Command) {
     .option('--skip-marketplace', 'Do not write .agents/plugins/marketplace.json')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .openbox/codex/.env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .openbox/codex/.env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .openbox/codex/.env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .openbox/codex/.env')
     .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
     .option('--governance-timeout <seconds>', 'Governance request timeout in seconds')
@@ -201,6 +218,8 @@ export function registerCodexCommands(program: Command) {
       skipMarketplace?: boolean;
       runtimeApiKey?: string;
       agentId?: string;
+      agentDid?: string;
+      agentPrivateKey?: string;
       coreUrl?: string;
       approvalMode?: string;
       governanceTimeout?: string;

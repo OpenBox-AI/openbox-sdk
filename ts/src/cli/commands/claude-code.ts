@@ -3,6 +3,11 @@ import { EXIT, bailWith } from '../exit-codes.js';
 import { isMachineMode } from '../non-interactive.js';
 import { error, output, row, success, summary } from '../output.js';
 import type { ConfigureClaudeCodeRuntimeOptions } from '../../runtime/claude-code/index.js';
+import {
+  hasAgentIdentityOptions,
+  parseAgentIdentityOptions,
+  type AgentIdentityOptions,
+} from '../agent-identity-options.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -44,15 +49,18 @@ function parseRuntimeOptions(opts: {
   cwd?: string;
   runtimeApiKey?: string;
   agentId?: string;
+  agentDid?: string;
+  agentPrivateKey?: string;
   coreUrl?: string;
   approvalMode?: string;
   governanceTimeout?: string;
   hitlMaxWait?: string;
   hitlPollInterval?: string;
-}): ConfigureClaudeCodeRuntimeOptions | undefined {
+} & AgentIdentityOptions): ConfigureClaudeCodeRuntimeOptions | undefined {
   if (
     opts.runtimeApiKey === undefined &&
     opts.agentId === undefined &&
+    !hasAgentIdentityOptions(opts) &&
     opts.coreUrl === undefined &&
     opts.approvalMode === undefined &&
     opts.governanceTimeout === undefined &&
@@ -76,6 +84,7 @@ function parseRuntimeOptions(opts: {
     apiKey: opts.runtimeApiKey,
     agentId: opts.agentId,
     coreUrl: opts.coreUrl,
+    agentIdentity: parseAgentIdentityOptions(opts),
     approvalMode: approvalMode as ConfigureClaudeCodeRuntimeOptions['approvalMode'],
     governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
     hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
@@ -152,6 +161,8 @@ export function registerClaudeCodeCommands(program: Command) {
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Claude Code')
     .option('--runtime-api-key <key>', 'Agent runtime key written to project .claude/settings.local.json env')
     .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--agent-did <did>', 'Agent DID written to project .claude/settings.local.json env')
+    .option('--agent-private-key <key>', 'Agent DID private key written to project .claude/settings.local.json env')
     .option('--core-url <url>', 'Core/runtime policy endpoint written to project .claude/settings.local.json env')
     .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
     .option('--governance-timeout <seconds>', 'Governance request timeout in seconds')
@@ -172,6 +183,8 @@ export function registerClaudeCodeCommands(program: Command) {
         symlink?: string;
         runtimeApiKey?: string;
         agentId?: string;
+        agentDid?: string;
+        agentPrivateKey?: string;
         coreUrl?: string;
         approvalMode?: string;
         governanceTimeout?: string;
