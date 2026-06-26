@@ -30,6 +30,7 @@ import type {
 } from './types.js';
 import {
   latestCapturedLLMExchange,
+  registerOpenBoxOtel,
   runWithLLMCapture,
 } from './otel-capture.js';
 import {
@@ -58,6 +59,10 @@ export function createOpenBoxLangChainMiddleware({
   selfGovernedToolNames: Set<string>;
   strict: boolean;
 }) {
+  // SDK-owned OTel wiring: instrument the global fetch so the agent's LLM calls
+  // are captured with no host-side plumbing. Idempotent; only LLM endpoints are
+  // wrapped, all other traffic passes through untouched.
+  registerOpenBoxOtel();
   const workflowKey = (...candidates: unknown[]) => {
     for (const candidate of candidates) {
       const key = sessionKeyFromConfig(candidate);

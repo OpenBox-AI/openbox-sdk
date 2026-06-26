@@ -22,6 +22,7 @@ export { resolveProjectConfigDir } from './config-utils.js';
 export { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 export { parseToolResult } from './internal-utils.js';
 export {
+  registerOpenBoxOtel,
   createCapturingFetch,
   runWithLLMCapture,
   latestCapturedLLMExchange,

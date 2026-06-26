@@ -84,10 +84,45 @@ function bodyText(body: unknown): string | undefined {
   }
 }
 
+const DEFAULT_LLM_URL_PATTERN =
+  /\/(chat\/completions|responses|messages|generateContent|embeddings)\b/;
+
+let globalFetchPatched = false;
+
+/**
+ * SDK-owned wiring: instrument the global `fetch` once so every LLM provider
+ * call is captured without the host injecting a per-client fetch. This mirrors
+ * the Temporal/OTel reference (global instrumentation at the HTTP layer). Only
+ * requests whose URL matches `urlPattern` are wrapped; all other traffic passes
+ * through untouched. Idempotent.
+ */
+export function registerOpenBoxOtel(
+  options: { urlPattern?: RegExp } = {},
+): void {
+  if (globalFetchPatched) return;
+  globalFetchPatched = true;
+  const pattern = options.urlPattern ?? DEFAULT_LLM_URL_PATTERN;
+  const baseFetch = globalThis.fetch?.bind(globalThis);
+  if (typeof baseFetch !== 'function') return;
+  const capturing = createCapturingFetch(baseFetch);
+  globalThis.fetch = ((input: Request | string | URL, init?: RequestInit) => {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : (input as Request)?.url ?? '';
+    return pattern.test(url)
+      ? capturing(input as RequestInfo, init)
+      : baseFetch(input as RequestInfo, init);
+  }) as typeof fetch;
+}
+
 /**
  * Wrap a `fetch` so each call is recorded as a real OTel CLIENT span and pushed
  * into the active capture scope. Pass the returned function as the OpenAI
- * client's `fetch` (LangChain: `new ChatOpenAI({ configuration: { fetch } })`).
+ * client's `fetch` (LangChain: `new ChatOpenAI({ configuration: { fetch } })`),
+ * or prefer `registerOpenBoxOtel()` to instrument globally with no host wiring.
  */
 export function createCapturingFetch(
   baseFetch: typeof fetch = globalThis.fetch,
