@@ -613,6 +613,11 @@ PRESET_MANIFEST = [
         "activityType": "PromptSubmission"
       },
       {
+        "name": "llmCall",
+        "eventType": "ActivityStarted",
+        "activityType": "llm_call"
+      },
+      {
         "name": "llm",
         "eventType": "ActivityCompleted",
         "activityType": "LLMCompleted"
@@ -1312,6 +1317,7 @@ PRESET_ACTIVITY_TYPES = {
     "stop": "Stop",
     "userPromptSubmit": "UserPromptSubmit",
     "prompt": "PromptSubmission",
+    "llmCall": "llm_call",
     "llm": "LLMCompleted",
     "tool": "ToolStarted",
     "toolCompleted": "ToolCompleted",
@@ -1794,6 +1800,9 @@ class DefaultSession(BaseGovernedSession):
 
     async def prompt(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityStarted", "PromptSubmission", payload or {})
+
+    async def llm_call(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
+        return await self.run_activity("ActivityStarted", "llm_call", payload or {})
 
     async def llm(self, payload: GovernedPayload | None = None) -> WorkflowVerdict:
         return await self.run_activity("ActivityCompleted", "LLMCompleted", payload or {})

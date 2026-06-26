@@ -63,6 +63,7 @@ export function createGovernedCopilotTool<
   >();
   const workflowType = DEFAULT_WORKFLOW_TYPE;
   const taskQueue = DEFAULT_TASK_QUEUE;
+  const activityType = governedToolActivityType(definition);
 
   const normalize = (input: TInput) =>
     definition.normalizeInput ? definition.normalizeInput(input) : input;
@@ -126,13 +127,14 @@ export function createGovernedCopilotTool<
     try {
       // attached: the workflow is opened explicitly below (owned runs) or by
       // the CopilotKit runtime in another process (shared runs); gates must
-      // never auto-open it.
+      // never auto-open it. CopilotKit host flows need approval_required back
+      // as a tool result so the UI/backend approval route can resume it.
       const session = createWorkflowSession(
         definition.adapter,
         ids,
         workflowType,
         taskQueue,
-        { attached: true },
+        { attached: true, inlineApproval: true },
       );
       if (!ridesSharedWorkflow) {
         await timings.measure(
@@ -140,7 +142,6 @@ export function createGovernedCopilotTool<
           'Start governance workflow',
           'openbox',
           async () => {
-            await session.workflowStarted();
             await emitUserPromptSignal(
               definition.adapter,
               ids,
@@ -149,6 +150,7 @@ export function createGovernedCopilotTool<
               normalizedInput.request,
               key,
             );
+            await session.workflowStarted();
           },
         );
       }
@@ -159,7 +161,7 @@ export function createGovernedCopilotTool<
         'Input policy check',
         'openbox',
         () =>
-          session.openActivity(definition.toolName, {
+          session.openActivity(activityType, {
             activityId: ids.activityId,
             input: toolActivityInput(definition, normalizedInput),
             spans: [toolSpan(definition, normalizedInput, 'started')],
@@ -230,7 +232,7 @@ export function createGovernedCopilotTool<
                   ],
                   hookSpanParentEventType: EVENT.START,
                 },
-                definition.toolName,
+                activityType,
               );
             } catch {
               // Preserve the business error. WorkflowFailed below records the terminal state.
@@ -261,7 +263,7 @@ export function createGovernedCopilotTool<
               ],
               hookSpanParentEventType: EVENT.START,
             },
-            definition.toolName,
+            activityType,
           ),
       );
 
@@ -448,7 +450,7 @@ export function createGovernedCopilotTool<
             workflowType,
             taskQueue,
             { attached: true, inlineApproval: true },
-          ).activity(EVENT.COMPLETE, definition.toolName, {
+          ).activity(EVENT.COMPLETE, activityType, {
             activityId: ids.activityId,
             input: withCopilotToolActivityMetadata([
               approvalResumeToolInput(definition, normalizedInput),
@@ -575,7 +577,7 @@ export function createGovernedCopilotTool<
             workflowType,
             taskQueue,
             { attached: true, inlineApproval: true },
-          ).openActivity(definition.toolName, {
+          ).openActivity(governedToolActivityType(definition), {
             activityId: ids.activityId,
             input: toolActivityInput(definition, input),
             spans: [toolSpan(definition, input, 'started')],
@@ -638,6 +640,13 @@ function failedToolOutputForGovernance(error: unknown) {
     status: 'failed',
     error: errorOutput(error),
   };
+}
+
+function governedToolActivityType(
+  definition: Pick<GovernedCopilotToolDefinition<any, any>, 'toolName'>,
+): string {
+  const toolName = definition.toolName.trim();
+  return toolName || 'copilotkit_tool';
 }
 
 function approvalResumeToolInput<

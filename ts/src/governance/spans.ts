@@ -124,6 +124,7 @@ export interface SpanInput {
   statement?: string;
   query?: string;
   error?: unknown;
+  data?: unknown;
 }
 
 export interface LLMCompletionSpanInput {
@@ -1374,5 +1375,10 @@ export function buildSpan(
   type: SpanType,
   input: SpanInput,
 ): Record<string, unknown> {
-  return stripServerComputedSemantic(buildSpanWithClassifierFields(host, type, input));
+  const span = buildSpanWithClassifierFields(host, type, input);
+  return stripServerComputedSemantic(
+    input.data !== undefined && span.data === undefined
+      ? { ...span, data: input.data }
+      : span,
+  );
 }

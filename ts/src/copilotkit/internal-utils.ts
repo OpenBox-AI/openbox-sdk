@@ -23,6 +23,8 @@ export function modelInput(request: {
   tools?: unknown[];
 }) {
   return {
+    model: modelNameFromRequest(request),
+    model_provider: modelProviderFromRequest(request),
     systemPrompt:
       typeof request.systemPrompt === 'string'
         ? truncate(request.systemPrompt, MAX_RUNTIME_SYSTEM_CHARS)
@@ -46,6 +48,42 @@ export function modelInput(request: {
           .slice(0, 30)
       : [],
   };
+}
+
+export function modelNameFromRequest(request: unknown): string | undefined {
+  return firstStringAtPaths(request, [
+    'model',
+    'modelName',
+    'model_name',
+    'ls_model_name',
+    'model.model',
+    'model.modelName',
+    'model.model_name',
+    'model.ls_model_name',
+    'model.kwargs.model',
+    'model.kwargs.modelName',
+    'model.lc_kwargs.model',
+    'model.lc_kwargs.modelName',
+    'model.invocationParams.model',
+    'modelInvocation.model',
+  ]);
+}
+
+export function modelProviderFromRequest(request: unknown): string | undefined {
+  return firstStringAtPaths(request, [
+    'provider',
+    'modelProvider',
+    'model_provider',
+    'ls_provider',
+    'model.provider',
+    'model.modelProvider',
+    'model.model_provider',
+    'model.ls_provider',
+    'model.kwargs.provider',
+    'model.kwargs.modelProvider',
+    'model.lc_kwargs.provider',
+    'model.lc_kwargs.modelProvider',
+  ]);
 }
 
 export function toolCallInput(request: {
@@ -239,6 +277,29 @@ export function objectRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object'
     ? (value as Record<string, any>)
     : {};
+}
+
+function firstStringAtPaths(
+  value: unknown,
+  paths: readonly string[],
+): string | undefined {
+  for (const path of paths) {
+    const candidate = valueAtPath(value, path);
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function valueAtPath(value: unknown, path: string): unknown {
+  let current = value;
+  for (const part of path.split('.')) {
+    const record = objectRecord(current);
+    if (!Object.prototype.hasOwnProperty.call(record, part)) return undefined;
+    current = record[part];
+  }
+  return current;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

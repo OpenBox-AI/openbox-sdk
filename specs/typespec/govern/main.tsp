@@ -50,6 +50,7 @@ using OpenBox.Workflow;
 
   // --- Default preset ----------------------------------------------------
   PromptSubmission: "Prompt Submission",
+  llm_call: "LLM Call",
   LLMCompleted: "LLM Completed",
   ToolStarted: "Tool Started",
   ToolCompleted: "Tool Completed",
@@ -1326,6 +1327,9 @@ interface DefaultPreset {
 
   @maps_to("ActivityStarted", "PromptSubmission")
   prompt(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "llm_call")
+  llmCall(payload: GovernedPayload): WorkflowVerdict;
 
   @maps_to("ActivityCompleted", "LLMCompleted")
   llm(payload: GovernedPayload): WorkflowVerdict;

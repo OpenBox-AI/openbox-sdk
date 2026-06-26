@@ -3,11 +3,14 @@ import {
   OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION,
   OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY,
 } from './constants.js';
+import { COPILOTKIT_LLM_ACTIVITY_TYPE } from './activity-types.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import {
   errorOutput,
   isRecord,
   modelInput,
+  modelNameFromRequest,
+  modelProviderFromRequest,
   objectRecord,
   runIdFromState,
   sessionKeyFromConfig,
@@ -89,6 +92,7 @@ export function createOpenBoxLangChainMiddleware({
     return {
       workflowId: pick('openboxWorkflowId'),
       runId: pick('openboxRunId'),
+      promptActivityId: pick('openboxPromptActivityId'),
       promptGoverned:
         context.openboxPromptGoverned === true ||
         configurable.openboxPromptGoverned === true,
@@ -140,18 +144,6 @@ export function createOpenBoxLangChainMiddleware({
       owned: true,
     };
     registerActiveWorkflow(adapter, key, owned);
-    const session = createWorkflowSession(
-      adapter,
-      { workflowId: owned.workflowId, runId: owned.runId },
-      workflowType,
-      taskQueue,
-    );
-    await swallow(() => session.workflowStarted());
-    await swallow(() =>
-      session.onChainStart({
-        input: [{ runtime: 'copilotkit', framework: 'langchain' }],
-      }),
-    );
     return owned;
   };
   return deps.createMiddleware({
@@ -195,6 +187,8 @@ export function createOpenBoxLangChainMiddleware({
         return new deps.AIMessage({ content: '' });
       }
       const key = sessionKeyFromConfig(request);
+      const llmModel = modelNameFromRequest(request);
+      const llmProvider = modelProviderFromRequest(request);
       const gateIds = await ensureTaskWorkflow(
         key,
         request.state,
@@ -210,14 +204,21 @@ export function createOpenBoxLangChainMiddleware({
         (isRecord(request.state) &&
           request.state[OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY] === true) ||
         contextIds(request.runtime).promptGoverned;
+      let promptActivityId =
+        contextIds(request.runtime).promptActivityId ??
+        promptActivityIdFromState(request.state);
       if (!runtimePromptGoverned) {
         const promptGate = await adapter.governPrompt({
           payload: modelInput(request),
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: langchainActivity.onChatModelStart,
+          activityType: COPILOTKIT_LLM_ACTIVITY_TYPE,
+          llmModel,
+          llmProvider,
+          ensureWorkflowStarted: gateIds.owned,
         });
+        promptActivityId = promptGate.activityId;
         if (shouldStopForGate(promptGate)) {
           return new deps.AIMessage({
             content: JSON.stringify(
@@ -246,13 +247,16 @@ export function createOpenBoxLangChainMiddleware({
       }
       try {
         const response = await handler(request);
-        if (runtimePromptGoverned) return response;
         const responseGate = await adapter.governAssistantOutput({
           payload: toPlain(response),
           sessionKey: key,
           workflowId: gateIds.workflowId,
           runId: gateIds.runId,
-          activityType: langchainActivity.onLlmEnd,
+          activityId: promptActivityId,
+          activityType: COPILOTKIT_LLM_ACTIVITY_TYPE,
+          llmModel,
+          llmProvider,
+          parentActivityStarted: promptActivityId !== undefined,
         });
         if (shouldStopForGate(responseGate)) {
           return new deps.AIMessage({
@@ -298,6 +302,7 @@ export function createOpenBoxLangChainMiddleware({
         workflowId: gateIds.workflowId,
         runId: gateIds.runId,
         activityType: toolActivityTypeFromRequest(request),
+        ensureWorkflowStarted: gateIds.owned,
       });
       if (shouldStopForGate(inputGate)) {
         return JSON.stringify(
@@ -314,6 +319,7 @@ export function createOpenBoxLangChainMiddleware({
           runId: gateIds.runId,
           activityId: inputGate.activityId,
           activityType: toolActivityTypeFromRequest(request),
+          parentActivityStarted: true,
         });
         if (shouldStopForGate(outputGate)) {
           return JSON.stringify(
@@ -392,6 +398,17 @@ function toolActivityTypeFromRequest(request: any): string {
   return typeof name === 'string' && name.trim()
     ? name.trim()
     : langchainActivity.onToolStart;
+}
+
+function promptActivityIdFromState(state: unknown): string | undefined {
+  const record = objectRecord(state);
+  const openboxSession = objectRecord(record.openboxSession);
+  if (typeof openboxSession.promptActivityId === 'string') {
+    return openboxSession.promptActivityId;
+  }
+  return typeof record.openboxPromptActivityId === 'string'
+    ? record.openboxPromptActivityId
+    : undefined;
 }
 
 const OPENBOX_RESULT_STATUSES = new Set([

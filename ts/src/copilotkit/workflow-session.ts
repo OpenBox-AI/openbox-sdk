@@ -247,22 +247,23 @@ export async function emitUserPromptSignal(
   prompt: string | undefined,
   sessionId?: string,
 ) {
-  const signalArgs = prompt?.trim();
-  if (!signalArgs) return;
+  const goalPrompt = prompt?.trim();
+  if (!goalPrompt) return;
+  const signalArgs = [goalPrompt];
 
   await createWorkflowSession(adapter, ids, workflowType, taskQueue, {
     attached: true,
   }).activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
-        { prompt: signalArgs, event_category: 'agent_goal' },
+        { prompt: goalPrompt, event_category: 'agent_goal' },
         'copilotkit',
       ),
     ],
     signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId,
-    prompt: signalArgs,
+    prompt: goalPrompt,
   });
 }
 

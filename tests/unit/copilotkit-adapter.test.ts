@@ -209,6 +209,46 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('returns governed tool input approvals to the CopilotKit host without polling', async () => {
+    const { core, events, execute, tool } = createDemoTool((payload) => {
+      if (
+        payload.event_type === 'ActivityStarted' &&
+        payload.hook_trigger !== true
+      ) {
+        return {
+          verdict: 'require_approval',
+          action: 'require_approval',
+          reason: 'Large refund requires approval.',
+          approval_id: 'approval-large-refund',
+          governance_event_id: 'event-large-refund',
+          approval_expiration_time: '2027-01-01T00:00:00.000Z',
+        };
+      }
+      return { verdict: 'allow', reason: 'allowed' };
+    });
+
+    const result = await tool.execute({
+      action: 'demo_action',
+      request: 'Issue a large refund.',
+      amountUsd: 7500,
+    });
+
+    expect(result.status).toBe('approval_required');
+    expect(result.verdict).toBe('require_approval');
+    expect(result.executed).toBe(false);
+    expect(result.approvalId).toBe('approval-large-refund');
+    expect(result.governanceEventId).toBe('event-large-refund');
+    expect(result.expiresAt).toBe('2027-01-01T00:00:00.000Z');
+    expect(execute).not.toHaveBeenCalled();
+    expect(core.pollApproval).not.toHaveBeenCalled();
+    expect(events.map((event) => event.event_type)).toEqual([
+      'SignalReceived',
+      'WorkflowStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+    ]);
+  });
+
   it('renders OpenBox assistant tool-call snapshots through the React custom message renderer', () => {
     const renderer = createOpenBoxCustomMessageRenderer();
     const Render = renderer.render as (props: Record<string, unknown>) => unknown;
@@ -724,8 +764,8 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.artifact).toEqual({ body: 'Create a support ticket.' });
     expect(execute).toHaveBeenCalledTimes(1);
     expect(events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
@@ -753,6 +793,8 @@ describe('CopilotKit OpenBox adapter', () => {
     );
     expect(startedParent?.spans).toBeUndefined();
     expect(completedParent?.spans).toBeUndefined();
+    expect(startedParent?.activity_type).toBe('openbox_governed_action');
+    expect(completedParent?.activity_type).toBe('openbox_governed_action');
     expect(startedHook?.span_count).toBe(1);
     expect(completedHook?.span_count).toBe(1);
     expect(startedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
@@ -779,10 +821,10 @@ describe('CopilotKit OpenBox adapter', () => {
         'tool.name': 'openbox_governed_action',
       }),
     });
-    expect(events[1]).toMatchObject({
+    expect(events[0]).toMatchObject({
       event_type: 'SignalReceived',
       signal_name: 'user_prompt',
-      signal_args: 'Create a support ticket.',
+      signal_args: ['Create a support ticket.'],
       session_id: 'default',
       prompt: 'Create a support ticket.',
       activity_input: [
@@ -817,8 +859,8 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(result.status).toBe('error');
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
@@ -1339,8 +1381,8 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(result.reason).toBe('policy blocked');
     expect(execute).not.toHaveBeenCalled();
     expect(events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
       'WorkflowFailed',
@@ -1420,8 +1462,8 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(second.reason).toBe('production action halted');
     expect(execute).not.toHaveBeenCalled();
     expect(events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
       'WorkflowFailed',
@@ -1434,7 +1476,7 @@ describe('CopilotKit OpenBox adapter', () => {
   it('blocks a prompt before the model handler runs', async () => {
     const mock = createMockCore((payload) => ({
       verdict:
-        payload.activity_type === 'on_chat_model_start' ? 'block' : 'allow',
+        payload.activity_type === 'llm_call' ? 'block' : 'allow',
       reason: 'prompt blocked',
     }));
     const middleware = createOpenBoxCopilotKitAdapter({
@@ -1669,7 +1711,7 @@ describe('CopilotKit OpenBox adapter', () => {
         .join('\n'),
     }));
 
-    await middleware.wrapModelCall(
+    const result = await middleware.wrapModelCall(
       {
         messages: [
           { type: 'system', content: hugeSchema },
@@ -1738,18 +1780,30 @@ describe('CopilotKit OpenBox adapter', () => {
       }),
     );
 
+    expect(
+      mock.events.map((event) => [
+        event.event_type,
+        event.activity_type,
+        event.hook_trigger,
+      ]),
+    ).toEqual([
+      ['SignalReceived', 'user_prompt', false],
+      ['ActivityStarted', 'llm_call', false],
+      ['ActivityStarted', 'llm_call', true],
+      ['ActivityCompleted', 'llm_call', false],
+      ['ActivityStarted', 'llm_call', true],
+    ]);
+    const startedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger !== true,
+    );
     const completedParent = mock.events.find(
       (event) =>
         event.event_type === 'ActivityCompleted' &&
-        event.activity_type === 'on_llm_end' &&
+        event.activity_type === 'llm_call' &&
         event.hook_trigger !== true,
-    );
-    const completed = mock.events.find(
-      (event) =>
-        event.event_type === 'ActivityStarted' &&
-        event.activity_type === 'on_llm_end' &&
-        event.hook_trigger &&
-        event.spans?.[0]?.stage === 'completed',
     );
     expect(completedParent).toMatchObject({
       llm_model: 'gpt-4o-mini',
@@ -1762,52 +1816,131 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedParent).not.toHaveProperty('spans');
     expect(completedParent).not.toHaveProperty('span_count');
     expect(completedParent?.status).toBe('completed');
-    expect(completed?.span_count).toBe(1);
-    const span = completed?.spans?.[0] as Record<string, any> | undefined;
-    expect(span).not.toHaveProperty('semantic_type');
-    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
-    expect(span).toMatchObject({
-      stage: 'completed',
-      model: 'gpt-4o-mini',
-      model_id: 'gpt-4o-mini',
-      provider: 'openai',
-      model_provider: 'openai',
-      attributes: {
+    const startedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'started',
+    );
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    expect(startedHook?.span_count).toBe(1);
+    expect(startedHook?.activity_id).toBe(startedParent?.activity_id);
+    expect(startedHook?.spans?.[0]).toMatchObject({
+      name: 'llm.chat.completion',
+      stage: 'started',
+      hook_type: 'function_call',
+      attributes: expect.objectContaining({
         'gen_ai.system': 'copilotkit',
-        'openbox.model.id': 'gpt-4o-mini',
-        'openbox.model.provider': 'openai',
         'http.method': 'POST',
-        'http.url': 'https://api.openai.com/v1/chat/completions',
-      },
+      }),
     });
-    expect(JSON.parse(String(span?.response_body))).toEqual({
-      choices: [
-        {
-          message: {
-            content: 'The queue has two governed requests ready.',
-          },
-        },
-      ],
+    expect(completedHook?.span_count).toBe(1);
+    expect(completedParent?.activity_id).toBe(startedParent?.activity_id);
+    expect(completedHook?.activity_id).toBe(startedParent?.activity_id);
+    const completedSpan = completedHook?.spans?.[0] as
+      | Record<string, any>
+      | undefined;
+    expect(completedSpan).toMatchObject({
+      name: 'openbox.copilotkit.assistant_output',
+      kind: 'CLIENT',
+      stage: 'completed',
+      hook_type: 'http_request',
+      http_url: 'https://api.openai.com/v1/chat/completions',
+      input_tokens: 42,
+      output_tokens: 16,
+      total_tokens: 58,
+      attributes: expect.objectContaining({
+        'http.url': 'https://api.openai.com/v1/chat/completions',
+        'gen_ai.usage.input_tokens': 42,
+        'gen_ai.usage.output_tokens': 16,
+        'gen_ai.usage.total_tokens': 58,
+      }),
+    });
+    expect(JSON.parse(String(completedSpan?.response_body))).toMatchObject({
       model: 'gpt-4o-mini',
-      model_id: 'gpt-4o-mini',
-      provider: 'openai',
-      model_provider: 'openai',
       usage: {
         prompt_tokens: 42,
-        input_tokens: 42,
         completion_tokens: 16,
-        output_tokens: 16,
         total_tokens: 58,
       },
     });
-    expect(
-      mock.events.some(
-        (event) =>
-          event.event_type === 'ActivityCompleted' &&
-          event.activity_type === undefined &&
-          event.hook_trigger,
-      ),
-    ).toBe(false);
+  });
+
+  it('uses LangChain request model metadata when AIMessage output omits model fields', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+
+    await middleware.wrapModelCall(
+      {
+        model: {
+          model: 'gpt-5.3-codex-spark',
+          modelProvider: 'openai',
+        },
+        messages: [{ type: 'human', content: 'Review the queue.' }],
+        state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
+      },
+      async () => ({
+        content: '',
+        tool_calls: [{ id: 'call-1', name: 'openbox_governed_action' }],
+        lc_kwargs: {
+          usage_metadata: {
+            input_tokens: 17072,
+            output_tokens: 847,
+            total_tokens: 17919,
+          },
+          response_metadata: {
+            model_provider: 'openai',
+          },
+        },
+      }),
+    );
+
+    const completedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger !== true,
+    );
+    expect(completedParent).toMatchObject({
+      llm_model: 'gpt-5.3-codex-spark',
+      input_tokens: 17072,
+      output_tokens: 847,
+      total_tokens: 17919,
+      has_tool_calls: true,
+    });
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    const completedSpan = completedHook?.spans?.[0] as
+      | Record<string, any>
+      | undefined;
+    expect(completedSpan).toMatchObject({
+      http_url: 'https://api.openai.com/v1/chat/completions',
+      model: 'gpt-5.3-codex-spark',
+      input_tokens: 17072,
+      output_tokens: 847,
+      total_tokens: 17919,
+      attributes: expect.objectContaining({
+        'http.url': 'https://api.openai.com/v1/chat/completions',
+        'openbox.model.provider': 'openai',
+      }),
+    });
   });
 
   it('emits same-activity tool-call spans for generic LangChain tool gates', async () => {
@@ -2041,7 +2174,11 @@ describe('CopilotKit OpenBox adapter', () => {
     const mock = createMockCore((payload) => ({
       verdict: 'allow',
       reason: 'allowed',
-      age_result: payload.hook_trigger ? ageResult : undefined,
+      age_result:
+        payload.event_type === 'ActivityCompleted' &&
+        payload.activity_type === 'llm_call'
+          ? ageResult
+          : undefined,
     }));
     const adapter = createOpenBoxCopilotKitAdapter({
       core: mock.core as any,
@@ -2051,6 +2188,56 @@ describe('CopilotKit OpenBox adapter', () => {
 
     const result = await adapter.governAssistantOutput({
       payload: { content: 'The update stays aligned with the customer task.' },
+      workflowId: 'wf',
+      runId: 'run',
+      activityId: 'activity-1',
+    });
+    const copilotResult = adapter.toOpenBoxCopilotResult(
+      result.verdict,
+      result,
+    );
+
+    expect((result.verdict as unknown as Record<string, unknown>).ageResult).toEqual(
+      ageResult,
+    );
+    expect(copilotResult.ageResult).toEqual(ageResult);
+  });
+
+  it('passes Core AGE metadata from assistant hook spans through governance results', async () => {
+    const ageResult = {
+      allowed: true,
+      verdict: 'allow',
+      governance_checks_incomplete: false,
+      goal_alignment_checked: true,
+      goal_drifted: false,
+      span_results: [],
+      total_spans: 1,
+      violations_count: 0,
+      response_time_ms: 9,
+    };
+    const mock = createMockCore((payload) => ({
+      verdict: 'allow',
+      reason: 'allowed',
+      age_result:
+        payload.hook_trigger === true &&
+        payload.event_type === 'ActivityStarted' &&
+        payload.activity_type === 'llm_call'
+          ? ageResult
+          : undefined,
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+
+    const result = await adapter.governAssistantOutput({
+      payload: {
+        content: 'The update stays aligned with the customer task.',
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        usage: { inputTokens: 5, outputTokens: 7 },
+      },
       workflowId: 'wf',
       runId: 'run',
       activityId: 'activity-1',
@@ -2162,19 +2349,18 @@ describe('CopilotKit OpenBox adapter', () => {
         messages: [{ role: 'user', content: 'Open the revenue queue.' }],
       },
       sessionKey: 'missing-state',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
     });
 
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
     ]);
-    expect(mock.events[1]).toMatchObject({
+    expect(mock.events[0]).toMatchObject({
       signal_name: 'user_prompt',
-      signal_args: 'Open the revenue queue.',
+      signal_args: ['Open the revenue queue.'],
       session_id: 'missing-state',
       prompt: 'Open the revenue queue.',
       activity_input: [
@@ -2185,12 +2371,30 @@ describe('CopilotKit OpenBox adapter', () => {
         }),
       ],
     });
-    // The allowed input gate is paired under one activity id.
+    expect(mock.events[2]).toMatchObject({
+      event_type: 'ActivityStarted',
+      activity_type: 'llm_call',
+      activity_input: [{ prompt: 'Open the revenue queue.' }],
+    });
+    expect(mock.events[3]).toMatchObject({
+      event_type: 'ActivityStarted',
+      activity_type: 'llm_call',
+      hook_trigger: true,
+      span_count: 1,
+    });
     expect(mock.events[3].activity_id).toBe(mock.events[2].activity_id);
-    expect(mock.events[4].activity_id).toBe(mock.events[2].activity_id);
-    expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
-    expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
-    expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
+    expect(mock.events[3].spans?.[0]).toMatchObject({
+      name: 'llm.chat.completion',
+      stage: 'started',
+      hook_type: 'function_call',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'copilotkit',
+        'http.method': 'POST',
+      }),
+    });
+    expect(mock.events[1].workflow_id).toBe(mock.events[2].workflow_id);
+    expect(mock.events[1].run_id).toBe(mock.events[2].run_id);
+    expect(mock.events[1].run_id).not.toBe(mock.events[1].workflow_id);
 
     const outputMock = createMockCore(() => ({
       verdict: 'allow',
@@ -2236,7 +2440,7 @@ describe('CopilotKit OpenBox adapter', () => {
         ],
       },
       sessionKey: 'empty-prompt',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
     });
 
     expect(result.status).toBe('executed');
@@ -2255,21 +2459,20 @@ describe('CopilotKit OpenBox adapter', () => {
     await adapter.governPrompt({
       payload: { content: 'Draft a renewal follow-up for the customer.' },
       sessionKey: 'content-prompt',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
     });
 
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
     ]);
-    expect(mock.events[1]).toMatchObject({
+    expect(mock.events[0]).toMatchObject({
       event_type: 'SignalReceived',
       activity_type: 'user_prompt',
       signal_name: 'user_prompt',
-      signal_args: 'Draft a renewal follow-up for the customer.',
+      signal_args: ['Draft a renewal follow-up for the customer.'],
     });
   });
 
@@ -2290,19 +2493,19 @@ describe('CopilotKit OpenBox adapter', () => {
         messages: [{ role: 'user', content: 'Check a database update.' }],
       },
       sessionKey: 'core-error-after-start',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
     });
 
     expect(result.status).toBe('error');
     expect(result.verdict.reason).toContain('503 Service Unavailable');
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'WorkflowFailed',
     ]);
-    expect(mock.events[3].workflow_id).toBe(mock.events[0].workflow_id);
-    expect(mock.events[3].run_id).toBe(mock.events[0].run_id);
+    expect(mock.events[3].workflow_id).toBe(mock.events[1].workflow_id);
+    expect(mock.events[3].run_id).toBe(mock.events[1].run_id);
   });
 
   it('runtime handler stores distinct OpenBox workflow IDs on governed input state', async () => {
@@ -2348,22 +2551,28 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(governedBody.state.openboxSession.runId).toBe(
       governedBody.state.openboxRunId,
     );
+    expect(governedBody.state.openboxPromptActivityId).toEqual(expect.any(String));
+    expect(governedBody.state.openboxSession.promptActivityId).toBe(
+      governedBody.state.openboxPromptActivityId,
+    );
     expect(governedBody.state.__openboxRuntimePromptGoverned).toBe(true);
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
     ]);
-    expect(mock.events[1]).toMatchObject({
+    expect(mock.events[0]).toMatchObject({
       signal_name: 'user_prompt',
-      signal_args: 'Open the revenue queue.',
+      signal_args: ['Open the revenue queue.'],
     });
-    expect(mock.events[0].workflow_id).toBe(
+    expect(mock.events[1].workflow_id).toBe(
       governedBody.state.openboxWorkflowId,
     );
-    expect(mock.events[0].run_id).toBe(governedBody.state.openboxRunId);
+    expect(mock.events[1].run_id).toBe(governedBody.state.openboxRunId);
+    expect(mock.events[2].activity_id).toBe(
+      governedBody.state.openboxPromptActivityId,
+    );
   });
 
   it('runtime handler starts a fresh OpenBox workflow when CopilotKit state carries old IDs', async () => {
@@ -2586,17 +2795,16 @@ describe('CopilotKit OpenBox adapter', () => {
       workflowId: 'workflow-1',
       runId: 'run-1',
       sessionKey: 'thread-1',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
       ensureWorkflowStarted: true,
     });
 
     expect(result.status).toBe('executed');
     expect(events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
     ]);
   });
 
@@ -2616,7 +2824,7 @@ describe('CopilotKit OpenBox adapter', () => {
       workflowId: 'workflow-fail-closed',
       runId: 'run-fail-closed',
       sessionKey: 'thread-fail-closed',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
     });
 
     expect(result.status).toBe('error');
@@ -2669,7 +2877,7 @@ describe('CopilotKit OpenBox adapter', () => {
       workflowId: 'repeated-workflow-start',
       runId: 'repeated-run-start',
       sessionKey: 'repeated-thread',
-      activityType: 'on_chat_model_start',
+      activityType: 'llm_call',
       ensureWorkflowStarted: true,
     };
 
@@ -2677,15 +2885,13 @@ describe('CopilotKit OpenBox adapter', () => {
     await adapter.governPrompt(input);
 
     expect(events.map((event) => event.event_type)).toEqual([
+      'SignalReceived',
       'WorkflowStarted',
+      'ActivityStarted',
+      'ActivityStarted',
       'SignalReceived',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
-      'SignalReceived',
-      'ActivityStarted',
-      'ActivityStarted',
-      'ActivityCompleted',
     ]);
   });
 
@@ -2715,7 +2921,7 @@ describe('CopilotKit OpenBox adapter', () => {
       verdict: 'constrain',
       reason: 'prompt constrained',
       guardrails_result:
-        payload.activity_type === 'on_chat_model_start'
+        payload.activity_type === 'llm_call'
           ? {
               input_type: 'activity_input',
               redacted_input: {
@@ -2860,7 +3066,7 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('blocks unsafe final assistant output before it is returned', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'block' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'block' : 'allow',
       reason: 'assistant output blocked',
     }));
     const middleware = createOpenBoxCopilotKitAdapter({
@@ -2881,10 +3087,10 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('redacts final assistant output before it is returned', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'constrain' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'constrain' : 'allow',
       reason: 'assistant output constrained',
       guardrails_result:
-        payload.activity_type === 'on_llm_end'
+        payload.activity_type === 'llm_call'
           ? {
               input_type: 'activity_output',
               redacted_input: { content: '[REDACTED_EMAIL]' },
@@ -2914,7 +3120,7 @@ describe('CopilotKit OpenBox adapter', () => {
   it('rechecks OpenBox for later gates in the same session after a halt verdict', async () => {
     const mock = createMockCore((payload) => ({
       verdict:
-        payload.activity_type === 'UserPromptSubmit' ||
+        payload.activity_type === 'llm_call' ||
         payload.activity_type === 'safe_tool'
           ? 'halt'
           : 'allow',
@@ -2940,13 +3146,13 @@ describe('CopilotKit OpenBox adapter', () => {
             event.hook_trigger !== true,
         )
         .map((event) => event.activity_type),
-    ).toEqual(['UserPromptSubmit', 'safe_tool']);
+    ).toEqual(['llm_call', 'safe_tool']);
   });
 
   it('pauses on approval-required prompt verdict without calling the model', async () => {
     const mock = createMockCore((payload) => ({
       verdict:
-        payload.activity_type === 'on_chat_model_start'
+        payload.activity_type === 'llm_call'
           ? 'require_approval'
           : 'allow',
       reason: 'approval required',
@@ -2973,7 +3179,7 @@ describe('CopilotKit OpenBox adapter', () => {
   it('native runner blocks a prompt before the CopilotKit runner executes', async () => {
     const mock = createMockCore((payload) => ({
       verdict:
-        payload.activity_type === 'on_chat_model_start' ? 'block' : 'allow',
+        payload.activity_type === 'llm_call' ? 'block' : 'allow',
       reason: 'runtime prompt blocked',
     }));
     const baseRunner = createFakeRunner([
@@ -3031,11 +3237,10 @@ describe('CopilotKit OpenBox adapter', () => {
     );
 
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
       'WorkflowCompleted',
     ]);
     expect(mock.events.at(-1)).toMatchObject({
@@ -3072,11 +3277,10 @@ describe('CopilotKit OpenBox adapter', () => {
     ).rejects.toThrow('stream failed');
 
     expect(mock.events.map((event) => event.event_type)).toEqual([
-      'WorkflowStarted',
       'SignalReceived',
+      'WorkflowStarted',
       'ActivityStarted',
       'ActivityStarted',
-      'ActivityCompleted',
       'WorkflowFailed',
     ]);
   });
@@ -3086,7 +3290,7 @@ describe('CopilotKit OpenBox adapter', () => {
       verdict: 'constrain',
       reason: 'runtime prompt constrained',
       guardrails_result:
-        payload.activity_type === 'on_chat_model_start'
+        payload.activity_type === 'llm_call'
           ? {
               input_type: 'activity_input',
               redacted_input: {
@@ -3141,10 +3345,10 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('native runner buffers and redacts final assistant text before emit', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'constrain' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'constrain' : 'allow',
       reason: 'final output constrained',
       guardrails_result:
-        payload.activity_type === 'on_llm_end'
+        payload.activity_type === 'llm_call'
           ? {
               input_type: 'activity_output',
               redacted_input: { content: 'Contact [REDACTED_EMAIL].' },
@@ -3189,6 +3393,657 @@ describe('CopilotKit OpenBox adapter', () => {
 
     expect(JSON.stringify(events)).toContain('Contact [REDACTED_EMAIL].');
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
+  });
+
+  it('native runner records model usage and cost on the assistant output hook span', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'assistant-1',
+        role: 'assistant',
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'assistant-1',
+        delta: 'Reviewed.',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'assistant-1',
+        usage: {
+          inputTokens: 100,
+          outputTokens: 25,
+          cost_usd: 0.0042,
+        },
+      },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'SignalReceived',
+      'WorkflowStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'ActivityStarted',
+      'WorkflowCompleted',
+    ]);
+    const startedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger !== true,
+    );
+    const completedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger !== true,
+    );
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    const startedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'started',
+    );
+    expect(completedParent).toMatchObject({
+      llm_model: 'gpt-4o-mini',
+      input_tokens: 100,
+      output_tokens: 25,
+      total_tokens: 125,
+      cost_usd: 0.0042,
+      completion: 'Reviewed.',
+    });
+    expect(completedParent?.activity_id).toBe(startedParent?.activity_id);
+    expect(startedHook?.activity_id).toBe(startedParent?.activity_id);
+    expect(completedHook?.activity_id).toBe(startedParent?.activity_id);
+    expect(startedHook?.spans?.[0]).toMatchObject({
+      name: 'llm.chat.completion',
+      stage: 'started',
+      hook_type: 'function_call',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'copilotkit',
+      }),
+    });
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      name: 'openbox.copilotkit.assistant_output',
+      kind: 'CLIENT',
+      hook_type: 'http_request',
+      http_url: 'https://api.openai.com/v1/chat/completions',
+      input_tokens: 100,
+      output_tokens: 25,
+      total_tokens: 125,
+      cost_usd: 0.0042,
+    });
+    expect(JSON.parse(String(completedHook?.spans?.[0]?.response_body))).toMatchObject({
+      model: 'gpt-4o-mini',
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 25,
+        total_tokens: 125,
+      },
+    });
+  });
+
+  it('native runner merges RUN_FINISHED model usage into the assistant output span', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'assistant-1',
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'assistant-1',
+        delta: 'Reviewed.',
+      },
+      { type: 'TEXT_MESSAGE_END', messageId: 'assistant-1' },
+      {
+        type: 'RUN_FINISHED',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        model: 'claude-3-5-sonnet-latest',
+        provider: 'anthropic',
+        usage: {
+          inputTokens: 120,
+          outputTokens: 45,
+          totalTokens: 165,
+          costUsd: 0.031,
+        },
+      },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    const completedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger !== true,
+    );
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+
+    expect(completedParent).toMatchObject({
+      llm_model: 'claude-3-5-sonnet-latest',
+      input_tokens: 120,
+      output_tokens: 45,
+      total_tokens: 165,
+      cost_usd: 0.031,
+    });
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      name: 'openbox.copilotkit.assistant_output',
+      kind: 'CLIENT',
+      hook_type: 'http_request',
+      http_url: 'https://api.anthropic.com/v1/messages',
+      input_tokens: 120,
+      output_tokens: 45,
+      total_tokens: 165,
+      cost_usd: 0.031,
+    });
+  });
+
+  it('native runner records raw CopilotKit tool calls as same-activity tool spans', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TOOL_CALL_START',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        toolCallName: 'crm_lookup',
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        delta: '{"customerId":"cus_123"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+      },
+      {
+        type: 'TOOL_CALL_RESULT',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'tool-message-1',
+        toolCallId: 'call-1',
+        role: 'tool',
+        content: '{"ok":true,"accountTier":"enterprise"}',
+      },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Lookup account.' }],
+        },
+      }),
+    );
+
+    expect((events as Array<Record<string, any>>).map((event) => event.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+      'RUN_FINISHED',
+    ]);
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'SignalReceived',
+      'WorkflowStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'ActivityStarted',
+      'WorkflowCompleted',
+    ]);
+
+    const startedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger !== true,
+    );
+    const startedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger === true &&
+        event.activity_id === startedParent?.activity_id &&
+        event.spans?.[0]?.stage === 'started',
+    );
+    const completedParent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger !== true &&
+        event.activity_id === startedParent?.activity_id,
+    );
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'crm_lookup' &&
+        event.hook_trigger === true &&
+        event.activity_id === startedParent?.activity_id &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+
+    expect(startedParent?.spans).toBeUndefined();
+    expect(completedParent?.spans).toBeUndefined();
+    expect(startedParent).toMatchObject({
+      activity_id: 'call-1',
+      tool_name: 'crm_lookup',
+      tool_type: 'llm_tool_call',
+    });
+    expect(startedParent?.activity_input).toContainEqual(expect.objectContaining({
+      source: 'copilotkit',
+      event_type: 'TOOL_CALL_START',
+      event_types: ['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END'],
+      thread_id: 'thread-1',
+      run_id: 'run-1',
+      tool_call_id: 'call-1',
+      toolCallId: 'call-1',
+      raw_args: '{"customerId":"cus_123"}',
+      args: { customerId: 'cus_123' },
+      copilotkit: expect.objectContaining({
+        toolCallId: 'call-1',
+        toolName: 'crm_lookup',
+        eventTypes: ['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END'],
+        rawArgs: '{"customerId":"cus_123"}',
+      }),
+    }));
+    expect(completedParent).toMatchObject({
+      activity_id: 'call-1',
+      tool_name: 'crm_lookup',
+      tool_type: 'llm_tool_call',
+      activity_output: expect.objectContaining({
+        source: 'copilotkit',
+        event_type: 'TOOL_CALL_RESULT',
+        result_event_type: 'TOOL_CALL_RESULT',
+        thread_id: 'thread-1',
+        run_id: 'run-1',
+        message_id: 'tool-message-1',
+        tool_call_id: 'call-1',
+        toolCallId: 'call-1',
+        content: '{"ok":true,"accountTier":"enterprise"}',
+        result: { ok: true, accountTier: 'enterprise' },
+        copilotkit: expect.objectContaining({
+          toolCallId: 'call-1',
+          toolName: 'crm_lookup',
+          resultEventType: 'TOOL_CALL_RESULT',
+          messageId: 'tool-message-1',
+          role: 'tool',
+        }),
+      }),
+    });
+    expect(startedHook?.span_count).toBe(1);
+    expect(completedHook?.span_count).toBe(1);
+    expect(startedHook?.spans?.[0]).toMatchObject({
+      stage: 'started',
+      hook_type: 'function_call',
+      data: expect.objectContaining({
+        source: 'copilotkit',
+        tool_call_id: 'call-1',
+        event_types: ['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END'],
+      }),
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'crm_lookup',
+        'tool.name': 'crm_lookup',
+      }),
+    });
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      stage: 'completed',
+      hook_type: 'function_call',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'crm_lookup',
+        'tool.name': 'crm_lookup',
+      }),
+      result: expect.objectContaining({
+        source: 'copilotkit',
+        result_event_type: 'TOOL_CALL_RESULT',
+        message_id: 'tool-message-1',
+        content: '{"ok":true,"accountTier":"enterprise"}',
+      }),
+    });
+  });
+
+  it('native runner preserves tool-result ordering before final assistant output in one session', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TOOL_CALL_START',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        toolCallName: 'crm_lookup',
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        delta: '{"customerId":"cus_123"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+      },
+      {
+        type: 'TOOL_CALL_RESULT',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'tool-message-1',
+        toolCallId: 'call-1',
+        role: 'tool',
+        content: '{"ok":true,"accountTier":"enterprise"}',
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'assistant-1',
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'assistant-1',
+        delta: 'Account lookup completed.',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'assistant-1',
+      },
+      {
+        type: 'RUN_FINISHED',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        model: 'gpt-5.4',
+        provider: 'openai-compatible',
+        usage: {
+          inputTokens: 321,
+          outputTokens: 87,
+          totalTokens: 408,
+          costUsd: 0.0042,
+        },
+      },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [
+            {
+              id: 'user-1',
+              role: 'user',
+              content: 'Lookup account and summarize the result.',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect((events as Array<Record<string, any>>).map((event) => event.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ]);
+    expect(mock.events.map((event) => event.event_type)).toEqual([
+      'SignalReceived',
+      'WorkflowStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'ActivityStarted',
+      'ActivityCompleted',
+      'ActivityStarted',
+      'WorkflowCompleted',
+    ]);
+
+    const toolCompleteIndex = mock.events.findIndex(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'crm_lookup',
+    );
+    const assistantCompleteIndex = mock.events.findIndex(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'llm_call',
+    );
+    const assistantCompleted = mock.events[assistantCompleteIndex];
+    const assistantHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    const assistantStartHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'llm_call' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'started',
+    );
+
+    expect(toolCompleteIndex).toBeGreaterThan(0);
+    expect(assistantCompleteIndex).toBeGreaterThan(toolCompleteIndex);
+    expect(assistantCompleted).toMatchObject({
+      llm_model: 'gpt-5.4',
+      input_tokens: 321,
+      output_tokens: 87,
+      total_tokens: 408,
+      cost_usd: 0.0042,
+    });
+    expect(assistantStartHook?.activity_id).toBe(assistantCompleted.activity_id);
+    expect(assistantHook?.spans?.[0]).toMatchObject({
+      name: 'openbox.copilotkit.assistant_output',
+      total_tokens: 408,
+      cost_usd: 0.0042,
+    });
+  });
+
+  it('native runner stops after a governed tool-output block without duplicating source tool events', async () => {
+    const mock = createMockCore((payload) => ({
+      verdict:
+        payload.event_type === 'ActivityCompleted' &&
+        payload.activity_type === 'crm_lookup'
+          ? 'block'
+          : 'allow',
+      reason: 'tool output blocked',
+    }));
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      {
+        type: 'TOOL_CALL_START',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        toolCallName: 'crm_lookup',
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        delta: '{"customerId":"cus_123"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        toolCallId: 'call-1',
+      },
+      {
+        type: 'TOOL_CALL_RESULT',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'tool-message-1',
+        toolCallId: 'call-1',
+        role: 'tool',
+        content: '{"email":"jane@example.com"}',
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'assistant-1',
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'assistant-1',
+        delta: 'I used the blocked tool output.',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        messageId: 'assistant-1',
+      },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [
+            {
+              id: 'user-1',
+              role: 'user',
+              content: 'Lookup account and summarize the result.',
+            },
+          ],
+        },
+      }),
+    );
+    const typedEvents = events as Array<Record<string, any>>;
+    const sourceToolTypes = typedEvents
+      .filter((event) => event.toolCallId === 'call-1')
+      .map((event) => event.type);
+    const emittedTypes = typedEvents.map((event) => event.type);
+
+    expect(sourceToolTypes).toEqual([
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+    ]);
+    expect(JSON.stringify(typedEvents)).toContain('tool output blocked');
+    expect(emittedTypes).not.toContain('TEXT_MESSAGE_START');
+    expect(emittedTypes).not.toContain('TEXT_MESSAGE_CONTENT');
+    expect(emittedTypes).not.toContain('TEXT_MESSAGE_END');
+    expect(emittedTypes).not.toContain('RUN_FINISHED');
+    expect(mock.events.map((event) => event.event_type)).toContain(
+      'WorkflowFailed',
+    );
+    expect(mock.events.map((event) => event.event_type)).not.toContain(
+      'WorkflowCompleted',
+    );
   });
 
   it('native runner keeps RUN_FINISHED after late final assistant text', async () => {
@@ -3239,7 +4094,7 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('native runner blocks unsafe final assistant text before emit', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'block' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'block' : 'allow',
       reason: 'final output blocked',
     }));
     const baseRunner = createFakeRunner([
@@ -3285,10 +4140,10 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('native runner redacts custom non-text final AG-UI payloads before emit', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'constrain' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'constrain' : 'allow',
       reason: 'custom final output constrained',
       guardrails_result:
-        payload.activity_type === 'on_llm_end'
+        payload.activity_type === 'llm_call'
           ? {
               input_type: 'activity_output',
               redacted_input: {
@@ -3338,10 +4193,10 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('native runner redacts custom AG-UI final_output payloads without final flags', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'constrain' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'constrain' : 'allow',
       reason: 'named custom final output constrained',
       guardrails_result:
-        payload.activity_type === 'on_llm_end'
+        payload.activity_type === 'llm_call'
           ? {
               input_type: 'activity_output',
               redacted_input: {
@@ -3394,7 +4249,7 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('native runner blocks custom non-text final AG-UI payloads before emit', async () => {
     const mock = createMockCore((payload) => ({
-      verdict: payload.activity_type === 'on_llm_end' ? 'block' : 'allow',
+      verdict: payload.activity_type === 'llm_call' ? 'block' : 'allow',
       reason: 'custom final output blocked',
     }));
     const baseRunner = createFakeRunner([
@@ -3645,11 +4500,18 @@ describe('CopilotKit OpenBox adapter', () => {
     const workflowIds = new Set(mock.events.map((event) => event.workflow_id));
     expect(workflowIds.size).toBe(1);
     const types = mock.events.map((event) => event.event_type);
-    expect(types[0]).toBe('WorkflowStarted');
+    expect(types.slice(0, 3)).toEqual([
+      'SignalReceived',
+      'WorkflowStarted',
+      'ActivityStarted',
+    ]);
     expect(types[types.length - 1]).toBe('WorkflowCompleted');
     expect(
       mock.events.filter((event) => event.event_type === 'WorkflowStarted'),
     ).toHaveLength(1);
+    expect(
+      mock.events.some((event) => event.activity_type === 'LangChainStart'),
+    ).toBe(false);
   });
 
   it('middleware adopts the runtime workflow from state and leaves its terminal event to the runtime', async () => {
