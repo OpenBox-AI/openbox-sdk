@@ -211,7 +211,7 @@ const STATUS_COLORS: Record<RowStatus, (s: string) => string> = {
   removed: color.green,
 };
 
-const TARGET_COL = 14;
+const TARGET_COL = 32;
 const STATUS_COL = 14;
 const OVERFLOW_GAP = 2;
 
