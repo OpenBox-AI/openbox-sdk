@@ -302,7 +302,7 @@ describe('Test Fixtures', () => {
   });
 
   describe('makeOpaUnsupportedConstrainConformanceCase', () => {
-    it('generates the unsupported OPA CONSTRAIN boundary case', () => {
+    it('generates the OPA CONSTRAIN propagation boundary case', () => {
       const testCase = makeOpaUnsupportedConstrainConformanceCase();
       const policyBody: GeneratedCreatePolicyDto = testCase.policyBody;
 
@@ -313,10 +313,13 @@ describe('Test Fixtures', () => {
       expect(testCase.event.activity_type).toBe('DatabaseQuery');
       expect(testCase.event.spans?.[0]?.semantic_type).toBe('database_query');
       expect(testCase.expected).toEqual({
-        verdict: 'allow',
-        action: 'allow',
-        reason: 'SDK conformance unsupported OPA CONSTRAIN boundary',
+        verdict: 'constrain',
+        action: 'constrain',
+        reason: 'SDK conformance OPA CONSTRAIN propagation boundary',
       });
+      expect(testCase.expected.verdict).not.toBe('allow');
+      expect(testCase.expected.action).not.toBe('allow');
+      expect(testCase.expected.reason).toContain('CONSTRAIN');
     });
   });
 

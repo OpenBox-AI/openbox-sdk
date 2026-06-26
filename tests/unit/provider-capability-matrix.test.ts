@@ -577,7 +577,7 @@ describe('provider capability matrix', () => {
     const serialized = JSON.stringify(OPA_EVALUATION_MATRIX);
     expect(serialized).not.toMatch(/\/tmp\/openbox-sdk/);
     expect(serialized).toContain('fixtures/openbox-sdk-readme.md');
-    expect(OPA_EVALUATION_MATRIX.unsupportedConstrain.expectedVerdict).toBe('allow');
+    expect(OPA_EVALUATION_MATRIX.unsupportedConstrain.expectedVerdict).toBe('constrain');
     expect(OPA_EVALUATION_MATRIX.unavailableFailClosed.unavailableVerdict).toBe('halt');
   });
 

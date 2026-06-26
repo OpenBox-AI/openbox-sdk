@@ -120,25 +120,31 @@ if (args.length === 0) {
 }
 
 const laneById = new Map(lanes.map((lane) => [lane.id, lane]));
-const selected = args.map((id) => {
+const selectedLanes = args.map((id) => {
   const lane = laneById.get(id);
   if (!lane) {
     throw new Error(`Unknown local-stack proof lane "${id}". Use --list to inspect lanes.`);
   }
-  return laneStep(lane);
+  return lane;
 });
-const selectedLanes = args.map((id) => laneById.get(id));
+const parallelSafeSteps = selectedLanes
+  .filter((lane) => lane.parallelSafe !== false)
+  .map(laneStep);
+const serializedSteps = selectedLanes
+  .filter((lane) => lane.parallelSafe === false)
+  .map(laneStep);
 const steps = [
   ...(shouldPrewarmMatrix(selectedLanes) ? [prewarmMatrixStep()] : []),
-  selected.length > 1
+  parallelSafeSteps.length > 1
     ? {
         type: 'group',
-        id: 'selected-local-stack-proof-lanes',
-        label: 'Selected local-stack proof lanes',
+        id: 'parallel-local-stack-proof-lanes',
+        label: 'Parallel local-stack proof lanes',
         parallel: true,
-        steps: selected,
+        steps: parallelSafeSteps,
       }
-    : selected[0],
-];
+    : parallelSafeSteps[0],
+  ...serializedSteps,
+].filter(Boolean);
 
 await runSteps(steps);

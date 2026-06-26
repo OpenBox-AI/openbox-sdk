@@ -9953,7 +9953,7 @@ LOCAL_STACK_SCENARIO_PATHS = [
         ]
       }
     ],
-    "requiredBehavior": "A generated CONSTRAIN policy must prove the real backend/Core boundary: backend accepts the policy, Core falls through to allow, and SDK validation rejects CONSTRAIN as unsupported authoring input."
+    "requiredBehavior": "A generated CONSTRAIN policy must prove the real backend/Core boundary: backend accepts the policy and Core propagates the constrain verdict/action to SDK callers."
   },
   {
     "id": "opa-unavailable-fail-closed",
