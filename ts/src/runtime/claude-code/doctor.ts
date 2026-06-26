@@ -11,6 +11,7 @@ import {
   readClaudeCodeSettingsLocalEnv,
   verifyClaudeCodePlugin,
 } from './plugin.js';
+import { checkProjectOpenBoxRuntime } from '../project-openbox-runtime.js';
 
 export type ClaudeCodeInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -245,6 +246,7 @@ export function verifyClaudeCodeInstall(
     path: check.path,
     detail: check.detail,
   }));
+  checks.push(checkProjectOpenBoxRuntime(opts.cwd));
 
   if (opts.includeRuntime || opts.validateRuntime) {
     return checkRuntimeReadiness(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [

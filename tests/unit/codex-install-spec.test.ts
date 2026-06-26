@@ -69,9 +69,10 @@ describe('codex HOOK_SPEC', () => {
     const hooks = JSON.parse(readFileSync(hooksFile, 'utf-8')) as any;
     expect(hooks.hooks.PreToolUse[0].hooks[0]).toMatchObject({
       type: 'command',
-      command: 'openbox codex hook',
+      command: './.openbox/bin/openbox codex hook',
       timeout: 86400,
     });
+    expect(existsSync(path.join(cwd, '.openbox', 'bin', 'openbox'))).toBe(true);
     expect(readFileSync(configFile, 'utf-8')).toContain('hitlEnabled');
 
     const checks = verifyCodexInstall({ cwd });
@@ -165,7 +166,7 @@ describe('codex HOOK_SPEC', () => {
     installMcpEntry(HOOK_SPEC, 'openbox', { command: 'openbox', args: ['mcp', 'serve'] }, { cwd });
     const configToml = readFileSync(path.join(cwd, '.codex', 'config.toml'), 'utf-8');
     expect(configToml).toContain('[mcp_servers.openbox]');
-    expect(configToml).toContain('command = "openbox"');
+    expect(configToml).toContain('command = "./.openbox/bin/openbox"');
     expect(configToml).toContain('args = ["mcp", "serve"]');
     expect(existsSync(path.join(cwd, '.codex', 'mcp.json'))).toBe(false);
 

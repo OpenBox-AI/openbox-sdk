@@ -25,6 +25,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  ensureProjectOpenBoxRuntime,
+  projectOpenBoxHookCommand,
+  projectOpenBoxMcpServerEntry,
+} from '../runtime/project-openbox-runtime.js';
 
 export type InstallScope = 'project';
 
@@ -151,6 +156,7 @@ function ruleIsOpenBox(rule: ClaudeRuleEntry, command: string): boolean {
   return rule.hooks?.some(
     (h) =>
       h.command === command ||
+      h.command?.includes('.openbox/bin/openbox') ||
       h.command?.includes('openbox claude-code') ||
       h.command?.includes('openbox cursor') ||
       h.command?.includes('openbox codex'),
@@ -164,7 +170,9 @@ function isCursorOpenBoxHook(value: unknown, command: string): boolean {
   }
   if (typeof value !== 'object') return false;
   const cmd = (value as { command?: string }).command;
-  return cmd === command || cmd?.includes('openbox cursor') === true;
+  return cmd === command ||
+    cmd?.includes('.openbox/bin/openbox') === true ||
+    cmd?.includes('openbox cursor') === true;
 }
 
 function dropExampleConfig(configDir: string): void {
@@ -188,7 +196,10 @@ function dropExampleConfig(configDir: string): void {
 
 export function installAdapter(spec: HookSpec, options: InstallOptions = {}): void {
   const paths = resolveInstallPaths(spec, options);
+  const cwd = options.cwd ?? process.cwd();
+  ensureProjectOpenBoxRuntime({ cwd });
   const settings = loadJson(paths.hooksFile);
+  const command = commandForSpec(spec);
 
   if (spec.style === 'claude-array' || spec.style === 'codex-array') {
     let hooksBlock = settings[spec.key] as Record<string, ClaudeRuleEntry[]> | undefined;
@@ -199,7 +210,7 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
     for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
       if (!hooksBlock[evt.name]) hooksBlock[evt.name] = [];
       hooksBlock[evt.name] = hooksBlock[evt.name].filter((r) => !ruleIsOpenBox(r, spec.command));
-      const inner: ClaudeInnerHook = { type: 'command', command: spec.command };
+      const inner: ClaudeInnerHook = { type: 'command', command };
       if (evt.timeout) inner.timeout = evt.timeout;
       hooksBlock[evt.name].push({ hooks: [inner] });
     }
@@ -225,7 +236,7 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
       settings[spec.key] = hooksBlock;
     }
     for (const evt of spec.events.filter((event) => event.installDefault !== false)) {
-      const entry: CursorEntry = { command: spec.command };
+      const entry: CursorEntry = { command };
       if (evt.timeout) entry.timeout = evt.timeout;
       if (evt.matcher) entry.matcher = evt.matcher;
       hooksBlock[evt.name] = [entry];
@@ -239,6 +250,13 @@ export function installAdapter(spec: HookSpec, options: InstallOptions = {}): vo
   console.log(`Hook events: ${spec.events.filter((event) => event.installDefault !== false).map((e) => e.name).join(', ')}`);
 
   dropExampleConfig(paths.configDir);
+}
+
+function commandForSpec(spec: HookSpec): string {
+  if (spec.command.includes('claude-code')) return projectOpenBoxHookCommand('claude-code');
+  if (spec.command.includes('codex')) return projectOpenBoxHookCommand('codex');
+  if (spec.command.includes('cursor')) return projectOpenBoxHookCommand('cursor');
+  return spec.command;
 }
 
 export function uninstallAdapter(spec: HookSpec, options: InstallOptions = {}): void {
@@ -296,15 +314,20 @@ export function installMcpEntry(
   options: InstallOptions = {},
 ): string {
   const paths = resolveInstallPaths(spec, options);
+  const cwd = options.cwd ?? process.cwd();
+  ensureProjectOpenBoxRuntime({ cwd });
+  const entry = serverName === 'openbox'
+    ? projectOpenBoxMcpServerEntry()
+    : serverEntry;
   if (spec.style === 'codex-array') {
-    installCodexMcpToml(paths.mcpFile, serverName, serverEntry);
+    installCodexMcpToml(paths.mcpFile, serverName, entry);
     // eslint-disable-next-line no-console
     console.log(`Registered MCP server '${serverName}' in ${paths.mcpFile}`);
     return paths.mcpFile;
   }
   const cfg = loadJson(paths.mcpFile);
   const servers = (cfg[paths.mcpKey] as Record<string, unknown>) ?? {};
-  servers[serverName] = serverEntry as unknown as Record<string, unknown>;
+  servers[serverName] = entry as unknown as Record<string, unknown>;
   cfg[paths.mcpKey] = servers;
   saveJson(paths.mcpFile, cfg);
   // eslint-disable-next-line no-console

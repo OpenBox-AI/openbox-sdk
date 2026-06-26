@@ -14,6 +14,7 @@ import {
   verifyCursorPlugin,
   verifyCursorRepoMode,
 } from './plugin.js';
+import { checkProjectOpenBoxRuntime } from '../project-openbox-runtime.js';
 
 export type CursorInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -147,6 +148,7 @@ export function verifyCursorInstall(
           : verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget })
     ),
   ];
+  checks.push(checkProjectOpenBoxRuntime(opts.cwd));
 
   if (opts.includeRuntime || opts.validateRuntime) {
     return checkRuntimeReadiness(opts.cwd, Boolean(opts.validateRuntime)).then((runtime) => [...checks, runtime]);

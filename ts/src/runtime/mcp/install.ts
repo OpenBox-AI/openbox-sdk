@@ -7,6 +7,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { HOOK_SPEC as CODEX_HOOK_SPEC } from '../../core-client/generated/runtime/codex.js';
 import { installMcpEntry, uninstallMcpEntry } from '../../install/from-spec.js';
+import {
+  ensureProjectOpenBoxRuntime,
+  projectOpenBoxMcpServerEntry,
+} from '../project-openbox-runtime.js';
 
 export type McpTarget = 'cursor' | 'claude-code' | 'codex';
 export type McpScope = 'project';
@@ -14,10 +18,7 @@ export type McpScope = 'project';
 const SERVER_NAME = 'openbox';
 
 /** The MCP entry written into every host's config. */
-const SERVER_ENTRY = {
-  command: 'openbox',
-  args: ['mcp', 'serve'],
-};
+const SERVER_ENTRY = projectOpenBoxMcpServerEntry();
 
 interface McpHost {
   target: McpTarget;
@@ -102,13 +103,15 @@ export function installMcp(opts: McpInstallOpts = {}): void {
   console.log(
     `MCP server entry written into each host's config:\n` +
       `  ${SERVER_ENTRY.command} ${SERVER_ENTRY.args.join(' ')}\n` +
-      `  (the host launches the openbox CLI directly; make sure it's on the\n` +
-      `   host's PATH: see comment in this module if Claude Desktop says\n` +
-      `   "openbox: command not found")\n`,
+      `  (the host launches the project-local OpenBox runner)\n`,
   );
 
   const scope = opts.scope ?? 'project';
   const cwd = opts.cwd ?? process.cwd();
+  if (scope !== 'project') {
+    throw new Error(`scope \`${scope}\` is not supported; expected project`);
+  }
+  ensureProjectOpenBoxRuntime({ cwd });
 
   for (const base of pickHosts(opts.targets)) {
     const host = resolveHost(base, scope, cwd);

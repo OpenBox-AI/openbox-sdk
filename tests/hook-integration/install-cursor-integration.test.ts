@@ -90,12 +90,13 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     for (const evt of Object.keys(hooks.hooks)) {
       expect(Array.isArray(hooks.hooks[evt]), evt).toBe(true);
       expect(hooks.hooks[evt][0]).toHaveProperty('command');
+      expect(hooks.hooks[evt][0].command).toBe('./.openbox/bin/openbox cursor hook');
     }
 
     // 2. MCP entry
     const mcp = JSON.parse(readFileSync(join(plugin, 'mcp.json'), 'utf-8'));
     expect(mcp.mcpServers.openbox).toBeDefined();
-    expect(mcp.mcpServers.openbox.command).toBe('openbox');
+    expect(mcp.mcpServers.openbox.command).toBe('./.openbox/bin/openbox');
     expect(mcp.mcpServers.openbox.args).toContain('mcp');
     expect(mcp.mcpServers.openbox.args).toContain('serve');
 
@@ -122,6 +123,8 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     // 6. Skill mirror
     expect(existsSync(join(plugin, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(PROJECT, '.openbox', 'cursor', 'config.json'))).toBe(true);
+    expect(existsSync(join(PROJECT, '.openbox', 'bin', 'openbox'))).toBe(true);
+    expect(existsSync(join(PROJECT, '.openbox', 'sdk', 'dist', 'cli', 'index.js'))).toBe(true);
 
     expect(existsSync(join(HOME, '.cursor', 'plugins', 'local', 'openbox'))).toBe(false);
     expect(existsSync(join(HOME, '.cursor', 'hooks.json'))).toBe(false);
@@ -132,7 +135,7 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     const r = runCLI(['cursor', 'doctor', '--json', '--surface-only']);
     expect(r.status, r.err).toBe(0);
     const payload = JSON.parse(r.out);
-    expect(payload.summary).toEqual({ pass: 10, skip: 0, fail: 0 });
+    expect(payload.summary).toEqual({ pass: 11, skip: 0, fail: 0 });
     expect(payload.checks.map((c: any) => c.name)).toEqual([
       'plugin',
       'plugin-manifest',
@@ -144,6 +147,7 @@ describe('openbox install cursor; project-local plugin bundle', () => {
       'plugin-agents',
       'plugin-hooks',
       'plugin-mcp',
+      'openbox-runtime',
     ]);
   });
 

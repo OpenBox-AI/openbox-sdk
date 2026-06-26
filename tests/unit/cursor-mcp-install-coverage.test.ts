@@ -53,7 +53,7 @@ describe('runtime/cursor/install; source-level verification', () => {
     const pluginDir = path.join(cwd, '.cursor', 'plugins', 'local', 'openbox');
     const hooks = readJson(path.join(pluginDir, 'hooks', 'hooks.json')).hooks;
     expect(hooks.beforeShellExecution[0]).toMatchObject({
-      command: 'openbox cursor hook',
+      command: './.openbox/bin/openbox cursor hook',
       timeout: 1800,
       matcher: '\\b(rm|curl)\\b',
     });
@@ -77,6 +77,7 @@ describe('runtime/cursor/install; source-level verification', () => {
       ['plugin-agents', 'pass'],
       ['plugin-hooks', 'pass'],
       ['plugin-mcp', 'pass'],
+      ['openbox-runtime', 'pass'],
     ]);
   });
 
@@ -142,7 +143,7 @@ describe('runtime/mcp/install; host and error states', () => {
     installMcp({ targets: ['cursor'], cwd });
     expect(readJson(file).mcpServers).toMatchObject({
       keep: { command: 'keep' },
-      openbox: { command: 'openbox', args: ['mcp', 'serve'] },
+      openbox: { command: './.openbox/bin/openbox', args: ['mcp', 'serve'] },
     });
     expect(fs.existsSync(path.join(home, '.cursor', 'mcp.json'))).toBe(false);
 
@@ -171,7 +172,7 @@ describe('runtime/mcp/install; host and error states', () => {
 
     installMcp({ targets: ['cursor'], scope: 'project', cwd });
     expect(readJson(path.join(cwd, '.cursor', 'mcp.json')).mcpServers.openbox).toEqual({
-      command: 'openbox',
+      command: './.openbox/bin/openbox',
       args: ['mcp', 'serve'],
     });
 
@@ -218,20 +219,22 @@ describe('install/from-spec; MCP entry helpers', () => {
     );
     expect(first).toBe(path.join(cwd, '.cursor', 'mcp.json'));
     expect(readJson(first).mcpServers.openbox).toEqual({
-      command: 'openbox',
+      command: './.openbox/bin/openbox',
       args: ['mcp', 'serve'],
     });
 
     installMcpEntry(
       HOOK_SPEC,
-      'openbox',
+      'other',
       { command: 'openbox-local', args: ['mcp', 'serve'] },
       { scope: 'project', cwd },
     );
-    expect(readJson(first).mcpServers.openbox.command).toBe('openbox-local');
+    expect(readJson(first).mcpServers.other.command).toBe('openbox-local');
 
     expect(uninstallMcpEntry(HOOK_SPEC, 'missing', { scope: 'project', cwd })).toBe(first);
     uninstallMcpEntry(HOOK_SPEC, 'openbox', { scope: 'project', cwd });
+    expect(readJson(first).mcpServers.other.command).toBe('openbox-local');
+    uninstallMcpEntry(HOOK_SPEC, 'other', { scope: 'project', cwd });
     expect(readJson(first).mcpServers).toBeUndefined();
   });
 

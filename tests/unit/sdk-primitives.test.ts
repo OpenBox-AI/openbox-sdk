@@ -239,7 +239,7 @@ describe('install/from-spec', () => {
     expect(json.hooks).toBeDefined();
     const flat = JSON.stringify(json.hooks);
     expect(flat).toContain('beforeShellExecution');
-    expect(flat).toContain('openbox cursor hook');
+    expect(flat).toContain('./.openbox/bin/openbox cursor hook');
   });
 });
 
