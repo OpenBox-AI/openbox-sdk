@@ -9007,7 +9007,7 @@ export const GOAL_SIGNAL_GUARDS = [
     "signalActivity": "user_prompt",
     "firstGovernedSurface": "openbox_governed_action",
     "guardTest": "tests/unit/copilotkit-adapter.test.ts#emits workflow/tool lifecycle events around a governed tool",
-    "orderGuarantee": "SignalReceived user_prompt precedes first governed tool activity"
+    "orderGuarantee": "SignalReceived user_prompt precedes openbox_governed_action"
   },
   {
     "provider": "n8n",

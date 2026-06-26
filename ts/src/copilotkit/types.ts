@@ -301,8 +301,15 @@ export interface OpenBoxCopilotGateInput<T = unknown> {
   runId?: string;
   activityId?: string;
   activityType?: string;
+  startTime?: number;
+  endTime?: number;
+  durationMs?: number;
+  llmModel?: string;
+  llmProvider?: string;
+  llmUsage?: unknown;
   reason?: string;
   ensureWorkflowStarted?: boolean;
+  parentActivityStarted?: boolean;
 }
 
 export interface GovernedCopilotToolDefinition<
