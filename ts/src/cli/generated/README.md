@@ -5,7 +5,7 @@
 | Source | Reproduces |
 |---|---|
 | `specs/typespec/cli/main.tsp` | the `Auth` interface, the `EnvFlag`, `AuthProfileOutput`, and `PersistedCredentials` types, and `CLI_COMMAND_MANIFEST` |
-| `codegen/emitters/typespec-emitter-typescript/src/index.ts` | the emit logic |
+| `codegen/emitters/typespec-emitter/src/index.ts` | the emit logic |
 
 Regenerate with `npm run specs:compile`.
 

@@ -200,6 +200,16 @@ export function claimAction(key: string): ActionClaim {
     return { won: true, path: lockPath };
   } catch (err: NodeJS.ErrnoException | any) {
     if (err?.code === 'EEXIST') {
+      if (publishedDecisionExpired(lockPath)) {
+        try {
+          fs.unlinkSync(lockPath);
+          const fd = fs.openSync(lockPath, 'wx', 0o600);
+          fs.closeSync(fd);
+          return { won: true, path: lockPath };
+        } catch {
+          return { won: false, path: lockPath };
+        }
+      }
       // Another subprocess won the claim. Check it's not stale; if
       // it is, take it over. (reapStale() above would normally have
       // unlinked it, but a race is possible.)
@@ -236,6 +246,7 @@ export function claimAction(key: string): ActionClaim {
 export interface ClaimDecision {
   arm: 'allow' | 'constrain' | 'require_approval' | 'block' | 'halt';
   reason: string;
+  fallbackUsed?: boolean;
 }
 
 /** Grace window after publishing the decision before the winner
@@ -268,7 +279,12 @@ export function publishClaimDecision(claim: ActionClaim, decision: ClaimDecision
   try {
     fs.writeFileSync(
       tmp,
-      JSON.stringify({ ts: Date.now(), arm: decision.arm, reason: decision.reason }),
+      JSON.stringify({
+        ts: Date.now(),
+        arm: decision.arm,
+        reason: decision.reason,
+        fallbackUsed: decision.fallbackUsed === true,
+      }),
       { mode: 0o600 },
     );
     fs.renameSync(tmp, claim.path);
@@ -298,7 +314,7 @@ function readDecisionOnce(lockPath: string): ClaimDecision | null {
   } catch {
     return null; // file vanished or unreadable; treat as not-ready
   }
-  let parsed: { arm?: string; reason?: string };
+  let parsed: { arm?: string; reason?: string; fallbackUsed?: unknown };
   try {
     parsed = JSON.parse(content);
   } catch {
@@ -308,7 +324,37 @@ function readDecisionOnce(lockPath: string): ClaimDecision | null {
   return {
     arm: parsed.arm as ClaimDecision['arm'],
     reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+    fallbackUsed: parsed.fallbackUsed === true,
   };
+}
+
+function publishedDecisionExpired(lockPath: string): boolean {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(lockPath, 'utf-8')) as { ts?: unknown; arm?: unknown };
+    return typeof parsed.arm === 'string' &&
+      typeof parsed.ts === 'number' &&
+      Date.now() - parsed.ts > PUBLISH_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
+
+export function verdictUsesGovernanceFallback(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
+    ? record.metadata as Record<string, unknown>
+    : {};
+  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
+    ? record.ageResult as Record<string, unknown>
+    : record.age_result && typeof record.age_result === 'object' && !Array.isArray(record.age_result)
+      ? record.age_result as Record<string, unknown>
+      : {};
+  return record.fallbackUsed === true
+    || record.fallback_used === true
+    || metadata.age_fallback_used === true
+    || metadata.fallback_used === true
+    || ageResult.fallback_used === true;
 }
 
 /**

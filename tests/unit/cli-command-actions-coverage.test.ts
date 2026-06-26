@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Command } from 'commander';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,6 +29,25 @@ function programWith(register: (program: Command) => void): Command {
   });
   register(program);
   return program;
+}
+
+function readJson(file: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
+}
+
+function expectRuntimeConfig(
+  file: string,
+  runtimeKey: string,
+  coreUrl: string,
+  approvalMode: string,
+): void {
+  const config = readJson(file);
+  expect(config.OPENBOX_API_KEY).toBe(runtimeKey);
+  expect(config.OPENBOX_CORE_URL).toBe(coreUrl);
+  expect(config.approvalMode).toBe(approvalMode);
+  expect(config.governanceTimeout).toBe('18');
+  expect(config.hitlMaxWait).toBe(90);
+  expect(config.hitlPollInterval).toBe(4);
 }
 
 async function run(program: Command, args: string[]): Promise<void> {
@@ -157,6 +176,8 @@ describe('CLI command action coverage', () => {
 
   it('cursor command actions export/install/inspect/uninstall the plugin surface', async () => {
     const cursor = programWith(registerCursorCommands);
+    const runtimeKey = `obx_test_${'e'.repeat(48)}`;
+    const coreUrl = 'http://127.0.0.1:8086';
     const exported = join(project, 'exported-plugin');
     const exportedWithMatcher = join(project, 'exported-plugin-matcher');
     const installed = join(project, 'installed-plugin');
@@ -192,7 +213,20 @@ describe('CLI command action coverage', () => {
       installed,
       '--matcher',
       'beforeShellExecution=rm',
+      '--runtime-api-key',
+      runtimeKey,
+      '--core-url',
+      coreUrl,
+      '--approval-mode',
+      'remote',
+      '--governance-timeout',
+      '18',
+      '--hitl-max-wait',
+      '90',
+      '--hitl-poll-interval',
+      '4',
     ]);
+    expectRuntimeConfig(join(project, '.cursor-hooks', 'config.json'), runtimeKey, coreUrl, 'remote');
     await run(cursor, [
       'cursor',
       'plugin',
@@ -236,6 +270,8 @@ describe('CLI command action coverage', () => {
 
   it('claude-code command actions install and uninstall scoped surfaces', async () => {
     const claude = programWith(registerClaudeCodeCommands);
+    const runtimeKey = `obx_test_${'f'.repeat(48)}`;
+    const coreUrl = 'http://127.0.0.1:8086';
     const exported = join(project, 'exported-claude-plugin');
     const exportedWithMatcher = join(project, 'exported-claude-plugin-matcher');
     const target = join(project, 'claude-plugin-target');
@@ -267,7 +303,20 @@ describe('CLI command action coverage', () => {
       '--matcher',
       'PreToolUse=Bash|Write',
       '--include-opt-in-hooks',
+      '--runtime-api-key',
+      runtimeKey,
+      '--core-url',
+      coreUrl,
+      '--approval-mode',
+      'defer',
+      '--governance-timeout',
+      '18',
+      '--hitl-max-wait',
+      '90',
+      '--hitl-poll-interval',
+      '4',
     ]);
+    expectRuntimeConfig(join(project, '.claude-hooks', 'config.json'), runtimeKey, coreUrl, 'defer');
     await run(claude, [
       'claude-code',
       'doctor',

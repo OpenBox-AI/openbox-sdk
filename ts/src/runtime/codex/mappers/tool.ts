@@ -173,7 +173,7 @@ export async function handlePostToolUse(
     toolName,
     toolType: spanType ?? undefined,
     spans: span ? [span] : undefined,
-    hookSpanParentEventType: span ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: span ? EVENT.START : undefined,
     ensureHookSpanParent: span ? !pending : undefined,
   });
   if (verdict.arm === 'halt') markHalted(env, cfg);

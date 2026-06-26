@@ -57,6 +57,7 @@ using OpenBox.Workflow;
   FileEdit: "File Edit",
   FileDelete: "File Delete",
   ShellExecution: "Shell Execution",
+  DatabaseQuery: "Database Query",
   HTTPRequest: "HTTP Request",
   MCPToolCall: "MCP Tool Call",
   AgentSpawn: "Agent Spawn",
@@ -79,6 +80,21 @@ using OpenBox.Workflow;
   MessageDisplay: "Message Display",
   Notification: "Notification",
   Stop: "Stop",
+  ClaudeCodeSession: "Claude Code Session",
+  ClaudeCodeMessage: "Claude Code Message",
+  ClaudeCodeConfigChange: "Claude Code Config Change",
+  ClaudeCodeWorkspaceChange: "Claude Code Workspace Change",
+  ClaudeCodeTask: "Claude Code Task",
+  CodexSession: "Codex Session",
+  AnthropicAgentSDKSession: "Anthropic Agent SDK Session",
+  AnthropicAgentSDKMessage: "Anthropic Agent SDK Message",
+  AnthropicAgentSDKConfigChange: "Anthropic Agent SDK Config Change",
+  AnthropicAgentSDKWorkspaceChange: "Anthropic Agent SDK Workspace Change",
+  AnthropicAgentSDKTask: "Anthropic Agent SDK Task",
+  MCPElicitation: "MCP Elicitation",
+  user_prompt: "User Prompt",
+  claude_usage: "Claude Usage",
+  anthropic_agent_sdk_usage: "Anthropic Agent SDK Usage",
   // Cursor; lowerCamel hook names
   beforeSubmitPrompt: "Before Submit Prompt",
   preToolUse: "Pre-Tool Use",
@@ -241,6 +257,79 @@ using OpenBox.Workflow;
   file_write: "File Write",
   agent_action: "Agent Action",
 })
+@governProtocol(#{
+  name: "govern-protocol",
+  description: "The govern() wrapper fires events in the right order with the right canonical activity_type strings, in every language.",
+  cases: #[
+    #{
+      name: "single-allow",
+      scenario: #[
+        #{ kind: "begin_workflow", workflowId: "wf-1", runId: "run-1" },
+        #{
+          kind: "activity",
+          activityType: "PromptSubmission",
+          input: #[#{ prompt: "hello" }],
+          verdict: #{ arm: "allow", riskScore: 0.1 },
+        },
+        #{ kind: "end_workflow" },
+      ],
+      expectedEvents: #[
+        #{ event_type: "WorkflowStarted", workflow_id: "wf-1", run_id: "run-1" },
+        #{ event_type: "ActivityStarted", activity_type: "PromptSubmission" },
+        #{ event_type: "ActivityCompleted", activity_type: "PromptSubmission" },
+        #{ event_type: "WorkflowCompleted", workflow_id: "wf-1", run_id: "run-1" },
+      ],
+    },
+    #{
+      name: "block-halts-workflow",
+      scenario: #[
+        #{ kind: "begin_workflow", workflowId: "wf-2", runId: "run-2" },
+        #{
+          kind: "activity",
+          activityType: "ShellExecution",
+          input: #[#{ command: "rm -rf /" }],
+          verdict: #{ arm: "block", riskScore: 1.0, reason: "destructive" },
+        },
+      ],
+      expectedEvents: #[
+        #{ event_type: "WorkflowStarted", workflow_id: "wf-2", run_id: "run-2" },
+        #{ event_type: "ActivityStarted", activity_type: "ShellExecution" },
+        #{
+          event_type: "WorkflowFailed",
+          workflow_id: "wf-2",
+          run_id: "run-2",
+          status: "failed",
+        },
+      ],
+      note: "Blocked activities never emit ActivityCompleted; the workflow ends in WorkflowFailed.",
+    },
+    #{
+      name: "approval-poll-then-allow",
+      scenario: #[
+        #{ kind: "begin_workflow", workflowId: "wf-3", runId: "run-3" },
+        #{
+          kind: "activity",
+          activityType: "ToolCompleted",
+          input: #[#{ tool: "transfer_funds", amount: 5000 }],
+          verdict: #{
+            arm: "require_approval",
+            approvalId: "ap-xyz",
+            riskScore: 0.7,
+          },
+          approvalResolution: #{ arm: "allow", riskScore: 0.7 },
+        },
+        #{ kind: "end_workflow" },
+      ],
+      expectedEvents: #[
+        #{ event_type: "WorkflowStarted", workflow_id: "wf-3", run_id: "run-3" },
+        #{ event_type: "ActivityStarted", activity_type: "ToolCompleted" },
+        #{ event_type: "ActivityCompleted", activity_type: "ToolCompleted" },
+        #{ event_type: "WorkflowCompleted", workflow_id: "wf-3", run_id: "run-3" },
+      ],
+      note: "Approval polling happens between ActivityStarted and ActivityCompleted; SDK only emits one Started/Completed pair regardless of how many polls were issued.",
+    },
+  ],
+})
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------
@@ -288,6 +377,10 @@ enum VerdictArm {
  */
 model GuardrailFieldVerdict {
   field: string;
+  /** Guardrail group/type that produced this field outcome, when Core returns grouped results. */
+  guardrailType?: string;
+  /** Field evaluation order from Core's GuardrailFieldResult. */
+  order?: int32;
   status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
@@ -320,6 +413,15 @@ model GuardrailsVerdict {
    * is input-like and uses `applyInputRedaction(...)`.
    */
   redactedInput?: unknown;
+
+  /**
+   * Output-specific redacted payload for SDK/provider compatibility.
+   * Core's public GuardrailsResult uses `redacted_input` as the
+   * canonical validated payload, including `activity_output`; adapters
+   * may still prefer this value when a provider bridge supplies it and
+   * fall back to `redactedInput` for Core responses.
+   */
+  redactedOutput?: unknown;
 
   /** False when any field result is `blocked`. */
   validationPassed: boolean;
@@ -388,11 +490,36 @@ model WorkflowVerdict {
   guardrailsResult?: GuardrailsVerdict;
 
   /**
+   * Core AGE/governance evaluator output. This mirrors the core wire
+   * response's `age_result` field and is intentionally free-form here
+   * because the govern programming model does not import the Core HTTP
+   * namespace.
+   */
+  ageResult?: unknown;
+
+  /**
    * The activity id this verdict was evaluated under. Callers that need
    * cross-request correlation (for example HITL approval resume, which
    * polls on workflow_id + run_id + activity_id) read it from here.
    */
   activityId?: string;
+}
+
+/**
+ * Cross-SDK source attribution contract for approval rows. The Core
+ * Approval model does not have a dedicated source column yet, so SDKs
+ * stamp the first activity input item with `inputKey`; pending-approval
+ * readers use that value after the backend has stripped span details.
+ */
+model SourceAttributionContract {
+  /** Activity input key used by SDKs for source attribution. */
+  inputKey: "_openbox_source";
+
+  /** Default source used by the generic Python governed-session runtime. */
+  defaultPythonSource: "python-sdk";
+
+  /** Canonical Core event source for generated governed-session payloads. */
+  workflowEventSource: "workflow-telemetry";
 }
 
 /** Free-form input/output payload. Server stringifies; SDKs pass through. */
@@ -417,6 +544,9 @@ model GovernedPayload {
 
   /** Total token count observed by the SDK. */
   totalTokens?: numeric;
+
+  /** Estimated provider/API cost in USD observed by the SDK. */
+  costUsd?: numeric;
 
   /** True when the LLM completion requested tool calls. */
   hasToolCalls?: boolean;
@@ -475,11 +605,11 @@ model GovernedPayload {
 
   /**
    * Spans describing the underlying operation. REQUIRED for behavior-rule
-   * matching: core's classifier reads each span's `semantic_type` plus the
-   * gate attributes (`http.method`, `http.url`, `file.path`, `db.system`,
-   * `gen_ai.system`, `shell.command`) and resolves the trigger the rule
-   * was created against. Without spans, behavior rules silently never
-   * fire; the verdict falls through to default-allow with
+   * matching: SDKs emit typed root fields and classifier gate attributes
+   * (`http.method`, `http.url`, `file.path`, `db.system`, `gen_ai.system`,
+   * `shell.command`); Core computes each span's `semantic_type` and
+   * resolves the trigger the rule was created against. Without spans,
+   * behavior rules silently never fire; the verdict falls through to default-allow with
    * `policy_id="00000000-0000-0000-0000-000000000000"`. See
    * `skill/references/span-reference.md` for span shapes by semantic type.
    */
@@ -521,6 +651,45 @@ model GovernedPayload {
 
 @preset("claude-code")
 interface ClaudeCodePreset {
+  @maps_to("ActivityStarted", "ClaudeCodeSession")
+  sessionActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeSession")
+  sessionActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeMessage")
+  messageActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeMessage")
+  messageActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "ClaudeCodeMessage")
+  messageSignalReceived(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeConfigChange")
+  configChangeActivity(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "ClaudeCodeWorkspaceChange")
+  workspaceChangeSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeWorkspaceChange")
+  workspaceChangeCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "MCPElicitation")
+  mcpElicitationStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MCPElicitation")
+  mcpElicitationCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "ClaudeCodeTask")
+  taskActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "ClaudeCodeTask")
+  taskActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "claude_usage")
+  claudeUsageSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PreToolUse")
   preToolUse(payload: GovernedPayload): WorkflowVerdict;
 
@@ -548,6 +717,45 @@ interface ClaudeCodePreset {
 
 @preset("anthropic-agent-sdk")
 interface AnthropicAgentSDKPreset {
+  @maps_to("ActivityStarted", "AnthropicAgentSDKSession")
+  sessionActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKSession")
+  sessionActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKMessage")
+  messageActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKMessage")
+  messageActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "AnthropicAgentSDKMessage")
+  messageSignalReceived(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKConfigChange")
+  configChangeActivity(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "AnthropicAgentSDKWorkspaceChange")
+  workspaceChangeSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKWorkspaceChange")
+  workspaceChangeCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "MCPElicitation")
+  mcpElicitationStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "MCPElicitation")
+  mcpElicitationCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AnthropicAgentSDKTask")
+  taskActivityStarted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "AnthropicAgentSDKTask")
+  taskActivityCompleted(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("SignalReceived", "anthropic_agent_sdk_usage")
+  usageSignal(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "SessionStart")
   sessionStart(payload: GovernedPayload): WorkflowVerdict;
 
@@ -623,6 +831,9 @@ interface CursorPreset {
 
 @preset("codex")
 interface CodexPreset {
+  @maps_to("ActivityCompleted", "CodexSession")
+  sessionCompleted(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "UserPromptSubmit")
   userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1101,6 +1312,18 @@ interface ModernTreasuryPreset {
  */
 @preset("default")
 interface DefaultPreset {
+  @maps_to("SignalReceived", "user_prompt")
+  goalSignal(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "SessionStart")
+  sessionStart(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityCompleted", "Stop")
+  stop(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "UserPromptSubmit")
+  userPromptSubmit(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "PromptSubmission")
   prompt(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1125,6 +1348,9 @@ interface DefaultPreset {
   @maps_to("ActivityStarted", "ShellExecution")
   shell(payload: GovernedPayload): WorkflowVerdict;
 
+  @maps_to("ActivityStarted", "DatabaseQuery")
+  databaseQuery(payload: GovernedPayload): WorkflowVerdict;
+
   @maps_to("ActivityStarted", "HTTPRequest")
   httpRequest(payload: GovernedPayload): WorkflowVerdict;
 
@@ -1133,6 +1359,9 @@ interface DefaultPreset {
 
   @maps_to("ActivityStarted", "AgentSpawn")
   agentSpawn(payload: GovernedPayload): WorkflowVerdict;
+
+  @maps_to("ActivityStarted", "AgentAction")
+  agentAction(payload: GovernedPayload): WorkflowVerdict;
 }
 
 /**

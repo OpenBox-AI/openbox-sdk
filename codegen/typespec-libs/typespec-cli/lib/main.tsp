@@ -292,3 +292,11 @@ extern dec cli_dto_defaults(target: Operation, defaults: valueof Record<unknown>
  * checks per op.
  */
 extern dec cli_post_validate(target: Operation, callbackName: valueof string);
+
+/**
+ * Attaches a language-neutral CLI conformance fixture to the CLI
+ * namespace. Emitters materialize it as `codegen/fixtures/*.json`;
+ * SDK/CLI ports consume that JSON instead of hand-authoring their own
+ * command behavior suites.
+ */
+extern dec cli_conformance(target: Namespace, fixture: valueof Record<unknown>);

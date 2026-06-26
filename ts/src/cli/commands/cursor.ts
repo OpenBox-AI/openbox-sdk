@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { error, row, success, summary, output } from '../output.js';
 import { isMachineMode } from '../non-interactive.js';
+import type { ConfigureCursorRuntimeOptions } from '../../runtime/cursor/index.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -18,6 +19,58 @@ function parseMatcherPairs(pairs: string[] | undefined): Record<string, string> 
     matchers[pair.slice(0, idx).trim()] = pair.slice(idx + 1);
   }
   return Object.keys(matchers).length > 0 ? matchers : undefined;
+}
+
+function parsePositiveInt(value: string | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    error(`${label}: expected a positive integer`);
+    bailWith(EXIT.USAGE);
+  }
+  return parsed;
+}
+
+function parseRuntimeOptions(opts: {
+  cwd?: string;
+  runtimeApiKey?: string;
+  agentId?: string;
+  coreUrl?: string;
+  approvalMode?: string;
+  governanceTimeout?: string;
+  hitlMaxWait?: string;
+  hitlPollInterval?: string;
+}): ConfigureCursorRuntimeOptions | undefined {
+  if (
+    opts.runtimeApiKey === undefined &&
+    opts.agentId === undefined &&
+    opts.coreUrl === undefined &&
+    opts.approvalMode === undefined &&
+    opts.governanceTimeout === undefined &&
+    opts.hitlMaxWait === undefined &&
+    opts.hitlPollInterval === undefined
+  ) {
+    return undefined;
+  }
+  const approvalMode = opts.approvalMode;
+  if (
+    approvalMode !== undefined &&
+    approvalMode !== 'inline' &&
+    approvalMode !== 'remote'
+  ) {
+    error(`--approval-mode: invalid value '${approvalMode}'; expected inline or remote`);
+    bailWith(EXIT.USAGE);
+  }
+  return {
+    cwd: opts.cwd,
+    apiKey: opts.runtimeApiKey,
+    agentId: opts.agentId,
+    coreUrl: opts.coreUrl,
+    approvalMode: approvalMode as ConfigureCursorRuntimeOptions['approvalMode'],
+    governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
+    hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
+    hitlPollInterval: parsePositiveInt(opts.hitlPollInterval, '--hitl-poll-interval'),
+  };
 }
 
 /** `openbox cursor <subcommand>`:
@@ -79,6 +132,13 @@ export function registerCursorCommands(program: Command) {
     .option('--cwd <dir>', 'Project root for project-local install')
     .option('--target <dir>', 'Cursor project-local plugin target directory')
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Cursor')
+    .option('--runtime-api-key <key>', 'Agent runtime key written to project .cursor-hooks/config.json')
+    .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--core-url <url>', 'Core/runtime policy endpoint written to project .cursor-hooks/config.json')
+    .option('--approval-mode <mode>', 'Approval mode: remote or inline')
+    .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
+    .option('--hitl-max-wait <seconds>', 'Maximum human-approval wait in seconds')
+    .option('--hitl-poll-interval <seconds>', 'Human-approval polling interval in seconds')
     .option(
       '--matcher <pair>',
       "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
@@ -90,6 +150,13 @@ export function registerCursorCommands(program: Command) {
         cwd?: string;
         target?: string;
         symlink?: string;
+        runtimeApiKey?: string;
+        agentId?: string;
+        coreUrl?: string;
+        approvalMode?: string;
+        governanceTimeout?: string;
+        hitlMaxWait?: string;
+        hitlPollInterval?: string;
         matcher: string[];
       }) => {
         const { installCursorPlugin } = await import('../../runtime/cursor/index.js');
@@ -98,6 +165,7 @@ export function registerCursorCommands(program: Command) {
           target: opts.target,
           symlink: opts.symlink,
           matchers: parseMatcherPairs(opts.matcher),
+          runtime: parseRuntimeOptions(opts),
         });
         success(`installed Cursor plugin at ${target}`);
       },
@@ -114,6 +182,61 @@ export function registerCursorCommands(program: Command) {
       success('removed Cursor plugin');
     });
 
+  const repo = cursor
+    .command('repo')
+    .description('Install or remove cloud-compatible project Cursor files');
+
+  repo
+    .command('install')
+    .description('Install .cursor hooks, MCP, rules, and .agents skill files')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .option('--runtime-api-key <key>', 'Agent runtime key written to project .cursor-hooks/config.json')
+    .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--core-url <url>', 'Core/runtime policy endpoint written to project .cursor-hooks/config.json')
+    .option('--approval-mode <mode>', 'Approval mode: remote or inline')
+    .option('--governance-timeout <seconds>', 'Core evaluation request timeout in seconds')
+    .option('--hitl-max-wait <seconds>', 'Maximum human-approval wait in seconds')
+    .option('--hitl-poll-interval <seconds>', 'Human-approval polling interval in seconds')
+    .option(
+      '--matcher <pair>',
+      "Hook matcher pair `<event>=<regex>` copied into .cursor/hooks.json. Repeatable.",
+      collectPair,
+      [],
+    )
+    .action(async (opts: {
+      cwd?: string;
+      runtimeApiKey?: string;
+      agentId?: string;
+      coreUrl?: string;
+      approvalMode?: string;
+      governanceTimeout?: string;
+      hitlMaxWait?: string;
+      hitlPollInterval?: string;
+      matcher: string[];
+    }) => {
+      const { installCursorRepoMode } = await import('../../runtime/cursor/index.js');
+      const target = installCursorRepoMode({
+        cwd: opts.cwd,
+        matchers: parseMatcherPairs(opts.matcher),
+        runtime: parseRuntimeOptions(opts),
+      });
+      success(`installed Cursor repo mode at ${target}`);
+    });
+
+  repo
+    .command('uninstall')
+    .description('Remove .cursor hooks, MCP, rules, and optionally the repo skill')
+    .option('--cwd <dir>', 'Project root for project-local install')
+    .option('--remove-skill', 'Also remove .agents/skills/openbox')
+    .action(async (opts: { cwd?: string; removeSkill?: boolean }) => {
+      const { uninstallCursorRepoMode } = await import('../../runtime/cursor/index.js');
+      uninstallCursorRepoMode({
+        cwd: opts.cwd,
+        removeSkill: opts.removeSkill,
+      });
+      success('removed Cursor repo mode');
+    });
+
   cursor
     .command('doctor')
     .description(
@@ -121,14 +244,21 @@ export function registerCursorCommands(program: Command) {
     )
     .option('--cwd <dir>', 'Project root for project-local install')
     .option('--plugin-target <dir>', 'Cursor project-local plugin target directory')
+    .option('--mode <mode>', 'plugin, repo, or both', 'plugin')
     .option('--surface-only', 'Check installed files only; skip runtime key/core validation', false)
     .option('--no-core-validate', 'Check runtime config and key format without calling core')
     .option('--json', 'Emit machine-readable JSON', false)
-    .action(async (opts: { cwd?: string; pluginTarget?: string; surfaceOnly?: boolean; coreValidate?: boolean; json?: boolean }) => {
+    .action(async (opts: { cwd?: string; pluginTarget?: string; mode?: 'plugin' | 'repo' | 'both'; surfaceOnly?: boolean; coreValidate?: boolean; json?: boolean }) => {
       const { verifyCursorInstall } = await import('../../runtime/cursor/install.js');
+      const mode = opts.mode ?? 'plugin';
+      if (!['plugin', 'repo', 'both'].includes(mode)) {
+        error(`--mode: invalid value '${mode}'; expected plugin, repo, or both`);
+        bailWith(EXIT.USAGE);
+      }
       const base = {
         cwd: opts.cwd,
         pluginTarget: opts.pluginTarget,
+        mode,
       };
       const checks = opts.surfaceOnly
         ? verifyCursorInstall(base)

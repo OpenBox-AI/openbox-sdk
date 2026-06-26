@@ -9,14 +9,57 @@
 // that with a runtime assertion that each manifest entry's method is a
 // `function` on the right Session prototype.
 
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, test } from 'vitest';
 import {
   PRESET_MANIFEST,
   presets,
   BaseGovernedSession,
   CustomSession,
+  CANONICAL_ACTIVITY_LABELS,
 } from '../../ts/src/core-client/generated/govern.js';
 import * as corePublic from '../../ts/src/core-client/index.js';
+
+function readSdkManifestFixture(): {
+  generatedBy: string;
+  sources: string[];
+  governPresetManifest: unknown;
+} {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), 'codegen/fixtures/sdk-manifests.json'), 'utf8'),
+  ) as {
+    generatedBy: string;
+    sources: string[];
+    governPresetManifest: unknown;
+  };
+}
+
+function readGovernProtocolFixture(): {
+  generatedBy: string;
+  source: string;
+  regenerate: string;
+  name: string;
+  cases: Array<{
+    name: string;
+    scenario: Array<Record<string, unknown>>;
+    expectedEvents: Array<Record<string, unknown>>;
+  }>;
+} {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), 'codegen/fixtures/govern-protocol.json'), 'utf8'),
+  ) as {
+    generatedBy: string;
+    source: string;
+    regenerate: string;
+    name: string;
+    cases: Array<{
+      name: string;
+      scenario: Array<Record<string, unknown>>;
+      expectedEvents: Array<Record<string, unknown>>;
+    }>;
+  };
+}
 
 const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   airflow: 'airflow',
@@ -44,6 +87,45 @@ const PRESET_TO_CAMEL: Record<string, keyof typeof presets> = {
   temporal: 'temporal',
   'vercel-ai': 'vercelAi',
 };
+
+describe('TypeSpec govern manifest conformance fixture', () => {
+  test('generated preset manifest matches the SDK fixture', () => {
+    const fixture = readSdkManifestFixture();
+
+    expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
+    expect(fixture.sources).toContain('specs/typespec/govern/main.tsp');
+    expect(PRESET_MANIFEST).toEqual(fixture.governPresetManifest);
+  });
+
+  test('generated lifecycle fixture is TypeSpec-owned and references canonical activity labels', () => {
+    const fixture = readGovernProtocolFixture();
+
+    expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
+    expect(fixture.source).toBe('specs/typespec/govern/main.tsp');
+    expect(fixture.regenerate).toBe('npm run specs:compile');
+    expect(fixture.name).toBe('govern-protocol');
+    expect(fixture.cases.map((entry) => entry.name)).toEqual([
+      'single-allow',
+      'block-halts-workflow',
+      'approval-poll-then-allow',
+    ]);
+
+    const activityTypes = new Set<string>();
+    for (const entry of fixture.cases) {
+      for (const step of entry.scenario) {
+        if (typeof step.activityType === 'string') activityTypes.add(step.activityType);
+      }
+      for (const event of entry.expectedEvents) {
+        if (typeof event.activity_type === 'string') activityTypes.add(event.activity_type);
+      }
+    }
+
+    expect([...activityTypes].sort()).toEqual(['PromptSubmission', 'ShellExecution', 'ToolCompleted']);
+    for (const activityType of activityTypes) {
+      expect(CANONICAL_ACTIVITY_LABELS[activityType], activityType).toBeTruthy();
+    }
+  });
+});
 
 // Pascal-case the preset name the same way the emitter does (drops dashes,
 // title-cases each segment, appends "Session"). Keeps the index re-export

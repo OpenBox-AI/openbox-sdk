@@ -11,31 +11,32 @@ on:
 
 jobs:
   test:
-    name: tsc + vitest
+    name: SDK checks
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node: [20, 22]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python -m pip install uv==0.9.24
       - run: NODE_OPTIONS=--max-old-space-size=4096 npm ci
-      - run: npm run specs:all
-      - run: npm run lint
-      - run: npx tsc --noEmit
-      - run: npm run test:unit
-      - run: npm run test:contract
-      - run: npm run test:hook-integration
+      - run: npm run check:sdks
+        env:
+          UV_PYTHON: "3.11"
 
   build:
     name: tsup bundle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm

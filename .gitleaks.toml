@@ -6,6 +6,10 @@ description = "OpenBox placeholder keys used by tests and generated contract fix
 condition = "AND"
 paths = [
   '''^codegen/fixtures/(cli-auth|env-resolution)\.json$''',
+  # Canonical TypeSpec fixture literals intentionally include non-secret
+  # obx_* placeholder keys so generated TS/Python/future SDK conformance
+  # tests validate exact token-format behavior from one source of truth.
+  '''^specs/typespec/(cli|env)/main\.tsp$''',
   '''^tests/(unit|e2e)/(core-client|cursor-mcp-install-coverage|runtime-cursor-mappers)\.test\.ts$''',
   '''^tests/unit/(claude-hook-handler-coverage|copilotkit-adapter|copilotkit-pure-coverage|cursor-hook-handler-coverage|runtime-adapters-coverage)\.test\.ts$''',
 ]

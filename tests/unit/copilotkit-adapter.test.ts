@@ -5,7 +5,9 @@ import {
   createOpenBoxRuntimeHooks,
   createGovernedCopilotTool,
   createOpenBoxCopilotKitAdapter,
+  createOpenBoxAGUIAdapter,
   createOpenBoxApprovalRoute,
+  createOpenBoxHeadlessApprovalClient,
   createOpenBoxReadinessCheck,
   OpenBoxCopilotKitError,
   type OpenBoxCopilotActionInput,
@@ -434,6 +436,160 @@ describe('CopilotKit OpenBox adapter', () => {
     }
   });
 
+  it('maps AG-UI run, tool, message, state, error, and interrupt events through OpenBox gates', async () => {
+    const safe = (payload: unknown) => ({
+      safe: payload,
+      verdict: { arm: 'allow' as const, reason: 'allowed' },
+      status: 'executed' as const,
+      changed: false,
+      rawBlocked: false,
+      reason: 'allowed',
+      message: 'allowed',
+      workflowId: 'workflow-agui',
+      runId: 'run-agui',
+      activityId: 'activity-agui',
+    });
+    const adapter = {
+      governPrompt: vi.fn(async ({ payload }) => safe(payload)),
+      governToolInput: vi.fn(async ({ payload }) => safe(payload)),
+      governToolOutput: vi.fn(async ({ payload }) => safe(payload)),
+      governAssistantOutput: vi.fn(async ({ payload }) => safe(payload)),
+    };
+    const agui = createOpenBoxAGUIAdapter({
+      adapter: adapter as any,
+      sessionKey: (event) => event.threadId ?? 'agui-thread',
+    });
+
+    await agui.handleEvent({ type: 'RUN_STARTED', threadId: 'thread-1', input: { prompt: 'hi' } });
+    await agui.handleEvent({ type: 'TOOL_CALL_START', threadId: 'thread-1', toolCallId: 'tool-1', toolName: 'lookup', input: { q: 'x' } });
+    await agui.handleEvent({ type: 'TOOL_CALL_RESULT', threadId: 'thread-1', toolCallId: 'tool-1', toolName: 'lookup', output: { ok: true } });
+    await agui.handleEvent({ type: 'TEXT_MESSAGE_CONTENT', threadId: 'thread-1', messageId: 'msg-1', delta: 'hello' });
+    await agui.handleEvent({ type: 'STATE_DELTA', threadId: 'thread-1', state: { selected: 1 } });
+    await agui.handleEvent({ type: 'RUN_ERROR', threadId: 'thread-1', error: new Error('boom') });
+    const interrupt = await agui.handleEvent({
+      type: 'INTERRUPT',
+      threadId: 'thread-1',
+      payload: { governanceEventId: 'event-1' },
+    });
+
+    expect(adapter.governPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey: 'thread-1',
+        ensureWorkflowStarted: true,
+      }),
+    );
+    expect(adapter.governToolInput).toHaveBeenCalledTimes(2);
+    expect(adapter.governToolOutput).toHaveBeenCalledTimes(1);
+    expect(adapter.governAssistantOutput).toHaveBeenCalledTimes(3);
+    expect(interrupt).toMatchObject({
+      kind: 'interrupt',
+      eventType: 'INTERRUPT',
+      sessionKey: 'thread-1',
+    });
+  });
+
+  it('normalizes usage and cost from AG-UI run completion events', async () => {
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      action: 'allow',
+      risk_score: 0,
+      reason: 'allowed',
+    }));
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    });
+    const agui = createOpenBoxAGUIAdapter({ adapter });
+
+    const result = await agui.handleEvent({
+      type: 'RUN_FINISHED',
+      threadId: 'thread-usage',
+      runId: 'run-usage',
+      model: 'gpt-4o-mini',
+      usage: {
+        inputTokens: 5,
+        outputTokens: 7,
+        total_cost_usd: 0.019,
+      },
+      output: 'done',
+    });
+
+    expect(result.kind).toBe('message');
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'CopilotKitAGUI:RUN_FINISHED',
+    );
+    expect(completed).toMatchObject({
+      llm_model: 'gpt-4o-mini',
+      input_tokens: 5,
+      output_tokens: 7,
+      total_tokens: 12,
+      cost_usd: 0.019,
+      completion: 'done',
+    });
+    expect(completed?.activity_output).toMatchObject({
+      event_type: 'RUN_FINISHED',
+      model: 'gpt-4o-mini',
+      usage: {
+        inputTokens: 5,
+        outputTokens: 7,
+        total_cost_usd: 0.019,
+      },
+      output: 'done',
+      content: 'done',
+    });
+  });
+
+  it('resolves OpenBox approvals from headless non-React callers', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ data: {} }),
+        text: () => Promise.resolve(JSON.stringify({ data: {} })),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ data: { id: 'event-headless' } }),
+        text: () => Promise.resolve(JSON.stringify({ data: { id: 'event-headless' } })),
+      } as Response);
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    try {
+      const client = createOpenBoxHeadlessApprovalClient({
+        apiUrl: 'https://api.openbox.test',
+        backendApiKey: `obx_key_${'b'.repeat(48)}`,
+        agentId: 'agent-1',
+      });
+
+      const result = await client.approve({
+        result: {
+          governanceEventId: 'event-headless',
+          workflowId: 'workflow-1',
+          runId: 'run-1',
+          activityId: 'activity-1',
+        },
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        decision: 'approve',
+        eventId: 'event-headless',
+      });
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://api.openbox.test/agent/agent-1/approvals/event-headless/decide?action=approve',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('approval route requires backend config for decisions', async () => {
     const previous = {
       OPENBOX_API_URL: process.env.OPENBOX_API_URL,
@@ -599,9 +755,12 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedParent?.spans).toBeUndefined();
     expect(startedHook?.span_count).toBe(1);
     expect(completedHook?.span_count).toBe(1);
+    expect(startedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(startedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(startedHook?.spans?.[0]).toMatchObject({
       stage: 'started',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -612,7 +771,6 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -682,9 +840,10 @@ describe('CopilotKit OpenBox adapter', () => {
       error: { errorName: 'Error', message: 'business tool failed' },
     });
     expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       attributes: expect.objectContaining({
         'openbox.tool.name': 'openbox_governed_action',
       }),
@@ -786,12 +945,12 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completionParent?.spans).toBeUndefined();
     expect(completionHook?.hook_trigger).toBe(true);
     expect(completionHook?.span_count).toBe(1);
+    expect(completionHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completionHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completionHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       span_type: 'function',
       attributes: expect.objectContaining({
-        'openbox.semantic_type': 'llm_tool_call',
         'openbox.span_type': 'function',
         'openbox.tool.name': 'openbox_governed_action',
         'tool.name': 'openbox_governed_action',
@@ -852,6 +1011,53 @@ describe('CopilotKit OpenBox adapter', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('maps camelCase CopilotKit approval status aliases', async () => {
+    const expiresAt = '2027-01-01T00:00:00.000Z';
+    const core = {
+      evaluate: vi.fn(),
+      pollApproval: vi.fn(async () => ({
+        action: 'allow',
+        reason: 'approval granted',
+        approvalExpiresAt: expiresAt,
+        trustTier: 2,
+        guardrailsResult: {
+          input_type: 'activity_output',
+          redacted_output: { output: { secret: '[REDACTED]' } },
+          validation_passed: true,
+          reasons: [],
+          field_results: [{ field: 'output.secret', status: 'redacted' }],
+        },
+      })),
+    };
+    const adapter = createOpenBoxCopilotKitAdapter({
+      core: core as any,
+      workflowType: 'CopilotKitTestWorkflow',
+      taskQueue: 'langgraph',
+    });
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session'
+    );
+
+    await expect(
+      pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      }),
+    ).resolves.toMatchObject({
+      arm: 'allow',
+      reason: 'approval granted',
+      approvalExpiresAt: expiresAt,
+      trustTier: 2,
+      guardrailsResult: {
+        inputType: 'activity_output',
+        redactedOutput: { output: { secret: '[REDACTED]' } },
+        fieldResults: [{ field: 'output.secret', status: 'redacted' }],
+      },
+    });
+    expect(core.pollApproval).toHaveBeenCalledTimes(1);
   });
 
   it('keeps polling CopilotKit approvals when Core omits expiration', async () => {
@@ -1031,55 +1237,21 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(core.pollApproval).toHaveBeenCalledTimes(1);
   });
 
-  it('parses DB-style CopilotKit approval expiration timestamps as UTC', async () => {
+  it('does not locally expire DB-style CopilotKit approval timestamps', async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
+      let polls = 0;
       const core = {
         evaluate: vi.fn(),
-        pollApproval: vi.fn(async () => ({
-          action: 'allow',
-          reason: 'approval should be expired',
-          approval_expiration_time: '2026-01-01 00:00:09',
-        })),
-      };
-      const adapter = createOpenBoxCopilotKitAdapter({
-        core: core as any,
-        workflowType: 'CopilotKitTestWorkflow',
-        taskQueue: 'langgraph',
-      });
-      const { pollApproval } = await import(
-        '../../ts/src/copilotkit/workflow-session'
-      );
-
-      await expect(
-        pollApproval(adapter, {
-          workflowId: 'workflow-approval',
-          runId: 'run-approval',
-          activityId: 'activity-approval',
+        pollApproval: vi.fn(async () => {
+          polls += 1;
+          return {
+            action: polls === 1 ? 'require_approval' : 'allow',
+            reason: polls === 1 ? 'approval pending' : 'approval allowed by server',
+            approval_expiration_time: '2026-01-01 00:00:09',
+          };
         }),
-      ).resolves.toMatchObject({
-        arm: 'block',
-        reason: 'approval should be expired',
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('blocks CopilotKit approvals when the server approval deadline elapses', async () => {
-    vi.useFakeTimers();
-    try {
-      const startedAt = new Date('2026-01-01T00:00:00.000Z');
-      vi.setSystemTime(startedAt);
-      const expiresAt = new Date(startedAt.getTime() + 1_000).toISOString();
-      const core = {
-        evaluate: vi.fn(),
-        pollApproval: vi.fn(async () => ({
-          action: 'require_approval',
-          reason: 'approval pending',
-          approval_expiration_time: expiresAt,
-        })),
       };
       const adapter = createOpenBoxCopilotKitAdapter({
         core: core as any,
@@ -1095,11 +1267,55 @@ describe('CopilotKit OpenBox adapter', () => {
         runId: 'run-approval',
         activityId: 'activity-approval',
       });
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(750);
 
       await expect(result).resolves.toMatchObject({
-        arm: 'block',
-        reason: 'OpenBox approval expired.',
+        arm: 'allow',
+        reason: 'approval allowed by server',
+        approvalExpiresAt: '2026-01-01 00:00:09',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps polling CopilotKit approvals after elapsed expiration timestamp until server action', async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = new Date('2026-01-01T00:00:00.000Z');
+      vi.setSystemTime(startedAt);
+      const expiresAt = new Date(startedAt.getTime() + 1_000).toISOString();
+      let polls = 0;
+      const core = {
+        evaluate: vi.fn(),
+        pollApproval: vi.fn(async () => {
+          polls += 1;
+          return {
+            action: polls === 1 ? 'require_approval' : 'allow',
+            reason: polls === 1 ? 'approval pending' : 'approval allowed after timestamp',
+            approval_expiration_time: expiresAt,
+          };
+        }),
+      };
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: core as any,
+        workflowType: 'CopilotKitTestWorkflow',
+        taskQueue: 'langgraph',
+      });
+      const { pollApproval } = await import(
+        '../../ts/src/copilotkit/workflow-session'
+      );
+
+      const result = pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      });
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      await expect(result).resolves.toMatchObject({
+        arm: 'allow',
+        reason: 'approval allowed after timestamp',
         approvalExpiresAt: expiresAt,
       });
     } finally {
@@ -1548,9 +1764,10 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completedParent?.status).toBe('completed');
     expect(completed?.span_count).toBe(1);
     const span = completed?.spans?.[0] as Record<string, any> | undefined;
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'gpt-4o-mini',
       model_id: 'gpt-4o-mini',
       provider: 'openai',
@@ -1661,9 +1878,12 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(completed?.hook_trigger).toBe(true);
     expect(started?.span_count).toBe(1);
     expect(completed?.span_count).toBe(1);
+    expect(started?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(started?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(completed?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completed?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(started?.spans?.[0]).toMatchObject({
       stage: 'started',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -1674,7 +1894,6 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     expect(completed?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       status: { code: 'UNSET' },
       events: [],
@@ -1687,6 +1906,112 @@ describe('CopilotKit OpenBox adapter', () => {
       ok: true,
       accountTier: 'enterprise',
     });
+  });
+
+  it('maps CopilotKit runtime tool gates into backend-classifiable semantic spans', async () => {
+    const cases = [
+      {
+        name: 'Read',
+        args: { file_path: 'fixtures/hostname.txt' },
+        toolType: 'file_read',
+        span: {
+          span_type: 'file_io',
+          attributes: expect.objectContaining({
+            'file.path': 'fixtures/hostname.txt',
+            'file.operation': 'read',
+          }),
+        },
+      },
+      {
+        name: 'WebFetch',
+        args: { method: 'PATCH', url: 'https://example.com/patch' },
+        toolType: 'http',
+        span: {
+          span_type: 'http',
+          attributes: expect.objectContaining({
+            'http.method': 'PATCH',
+            'http.url': 'https://example.com/patch',
+          }),
+        },
+      },
+      {
+        name: 'mcp__postgres__query',
+        args: { operation: 'SELECT', resource: 'accounts' },
+        toolType: 'db',
+        span: {
+          span_type: 'database',
+          attributes: expect.objectContaining({
+            'db.system': 'postgresql',
+            'db.operation': 'SELECT',
+            'db.statement': 'database resource accounts',
+          }),
+        },
+      },
+      {
+        name: 'mcp__openbox__status',
+        args: {},
+        toolType: 'mcp',
+        span: {
+          span_type: 'mcp_tool_call',
+          attributes: expect.objectContaining({
+            'mcp.method': 'callTool',
+            'mcp.operation': 'status',
+            'mcp.server_id': 'openbox',
+          }),
+        },
+      },
+      {
+        name: 'Bash',
+        args: { command: 'echo hello' },
+        toolType: 'shell',
+        span: {
+          span_type: 'function',
+          attributes: expect.objectContaining({
+            'shell.command': 'echo hello',
+          }),
+        },
+      },
+    ];
+
+    for (const entry of cases) {
+      const mock = createMockCore(() => ({
+        verdict: 'allow',
+        reason: 'allowed',
+      }));
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: mock.core as any,
+      });
+
+      await adapter.governToolInput({
+        payload: { name: entry.name, args: entry.args },
+        activityType: entry.name,
+        sessionKey: `semantic-${entry.name}`,
+      });
+
+      const parent = mock.events.find(
+        (event) => event.event_type === 'ActivityStarted' && !event.hook_trigger,
+      );
+      const hook = mock.events.find(
+        (event) =>
+          event.event_type === 'ActivityStarted' &&
+          event.hook_trigger === true &&
+          Array.isArray(event.spans) &&
+          event.spans.length > 0,
+      );
+
+      expect(parent, entry.name).toMatchObject({
+        tool_name: entry.name,
+        tool_type: entry.toolType,
+      });
+      expect(parent?.activity_input, entry.name).toContainEqual({
+        __openbox: { tool_type: entry.toolType },
+      });
+      expect(hook?.spans?.[0], entry.name).not.toHaveProperty('semantic_type');
+      expect(hook?.spans?.[0]?.attributes, entry.name).not.toHaveProperty(
+        'openbox.semantic_type',
+      );
+      expect(hook?.spans?.[0], entry.name).toMatchObject(entry.span);
+    }
   });
 
   it('passes Core AGE metadata through assistant output governance results', async () => {
@@ -1832,6 +2157,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
     ]);
     expect(mock.events[1]).toMatchObject({
@@ -1849,9 +2175,38 @@ describe('CopilotKit OpenBox adapter', () => {
     });
     // The allowed input gate is paired under one activity id.
     expect(mock.events[3].activity_id).toBe(mock.events[2].activity_id);
+    expect(mock.events[4].activity_id).toBe(mock.events[2].activity_id);
     expect(mock.events[0].workflow_id).toBe(mock.events[2].workflow_id);
     expect(mock.events[0].run_id).toBe(mock.events[2].run_id);
     expect(mock.events[0].run_id).not.toBe(mock.events[0].workflow_id);
+
+    const outputMock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const outputAdapter = createOpenBoxCopilotKitAdapter({ core: outputMock.core as any });
+    await outputAdapter.governToolOutput({
+      payload: { toolName: 'crm_lookup', ok: true },
+      sessionKey: 'missing-tool-state',
+      activityId: 'standalone-tool-output',
+    });
+    const outputEvents = outputMock.events.filter(
+      (event) => event.activity_id === 'standalone-tool-output',
+    );
+    expect(outputEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(outputEvents[0].spans).toBeUndefined();
+    expect(outputEvents[2].spans?.[0]).toMatchObject({
+      activity_id: 'standalone-tool-output',
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'crm_lookup',
+        'tool.name': 'crm_lookup',
+      }),
+    });
   });
 
   it('skips empty prompt activity gates after opening the workflow', async () => {
@@ -1894,6 +2249,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
     ]);
@@ -1984,6 +2340,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
     ]);
@@ -2226,6 +2583,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
     ]);
   });
@@ -2310,8 +2668,10 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
     ]);
@@ -2662,6 +3022,7 @@ describe('CopilotKit OpenBox adapter', () => {
       'WorkflowStarted',
       'SignalReceived',
       'ActivityStarted',
+      'ActivityStarted',
       'ActivityCompleted',
       'WorkflowCompleted',
     ]);
@@ -2701,6 +3062,7 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(mock.events.map((event) => event.event_type)).toEqual([
       'WorkflowStarted',
       'SignalReceived',
+      'ActivityStarted',
       'ActivityStarted',
       'ActivityCompleted',
       'WorkflowFailed',

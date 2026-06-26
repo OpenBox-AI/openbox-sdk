@@ -9,6 +9,10 @@ import { EVENT } from '../../../governance/events.js';
 import type { CodexConfig } from '../config.js';
 import { CODEX_ACTIVITY_TYPES } from '../activity-types.js';
 import { clearSession, codexSessionKey, markHalted } from '../session-resolver.js';
+import {
+  buildCodexAssistantOutputSpan,
+  codexAssistantTelemetryFields,
+} from './assistant-output.js';
 
 export async function handleStop(
   env: CodexEnvelope,
@@ -16,10 +20,15 @@ export async function handleStop(
   cfg: CodexConfig,
 ): Promise<WorkflowVerdict | undefined> {
   const payload = buildStopPayload(env);
+  const spans = buildCodexAssistantOutputSpan(env);
   const verdict = await session.activity(EVENT.COMPLETE, CODEX_ACTIVITY_TYPES.SESSION, {
     input: [stampSource(payload, 'codex')],
     output: stampSource(payload, 'codex'),
     sessionId: codexSessionKey(env),
+    ...codexAssistantTelemetryFields(env),
+    spans,
+    hookSpanParentEventType: spans ? EVENT.START : undefined,
+    ensureHookSpanParent: spans ? true : undefined,
   });
   if (verdict.arm === 'halt') {
     markHalted(env, cfg);

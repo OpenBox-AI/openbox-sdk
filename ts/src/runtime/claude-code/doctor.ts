@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
+import { normalizeServiceUrl } from '../../env/connection.js';
 import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import {
   claudeCodePluginTargetDir,
@@ -60,13 +61,25 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     OPENBOX_AGENT_PRIVATE_KEY: getRuntime('OPENBOX_AGENT_PRIVATE_KEY'),
   });
 
+  const rawCoreUrl = getRuntime('OPENBOX_CORE_URL');
+  let coreUrl = '';
+  let coreUrlError: string | undefined;
+  if (rawCoreUrl) {
+    try {
+      coreUrl = normalizeServiceUrl('OPENBOX_CORE_URL', rawCoreUrl);
+    } catch (err) {
+      coreUrlError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   return {
     configDir,
     configFile,
     envFile,
     projectConfigPresent: existsSync(configFile),
     projectEnvPresent: existsSync(envFile),
-    coreUrl: getRuntime('OPENBOX_CORE_URL') ?? '',
+    coreUrl,
+    coreUrlError,
     apiKey: getRuntime('OPENBOX_API_KEY') ?? '',
     governancePolicy: 'fail_closed' as const,
     approvalMode: parseApprovalMode(getSetting('approvalMode')),
@@ -92,7 +105,7 @@ export function claudeCodeRuntimeDiagnostics(cwd = process.cwd()): Record<string
     failMode: runtime.governancePolicy,
     approvalMode: runtime.approvalMode,
     unsupportedOrOptInSurfaces: {
-      worktreeCreate: 'explicit_out_of_scope_replaces_default_git_behavior',
+      worktreeCreate: 'opt_in_managed_worktree_creator',
       sessionEnd: 'opt_in_shutdown_telemetry',
       monitors: 'opt_in_unsandboxed_not_project_scope',
       lsp: 'out_of_scope_no_openbox_language_server',
@@ -114,6 +127,14 @@ async function checkRuntimeReadiness(
     `approvalMode=${runtime.approvalMode}`,
   ];
 
+  if (runtime.coreUrlError) {
+    return {
+      name: 'runtime',
+      status: 'fail',
+      path: runtime.configFile,
+      detail: `${details.join('; ')}; invalid OPENBOX_CORE_URL: ${runtime.coreUrlError}`,
+    };
+  }
   if (!runtime.coreUrl) {
     return {
       name: 'runtime',

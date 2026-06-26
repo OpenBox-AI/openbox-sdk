@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { EXIT, bailWith } from '../exit-codes.js';
 import { isMachineMode } from '../non-interactive.js';
 import { error, output, row, success, summary } from '../output.js';
+import type { ConfigureClaudeCodeRuntimeOptions } from '../../runtime/claude-code/index.js';
 
 function collectPair(value: string, prior: string[]): string[] {
   return [...prior, value];
@@ -27,6 +28,59 @@ function parsePluginScope(value: string | undefined): 'project' {
     bailWith(EXIT.USAGE);
   }
   return 'project';
+}
+
+function parsePositiveInt(value: string | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    error(`${label}: expected a positive integer`);
+    bailWith(EXIT.USAGE);
+  }
+  return parsed;
+}
+
+function parseRuntimeOptions(opts: {
+  cwd?: string;
+  runtimeApiKey?: string;
+  agentId?: string;
+  coreUrl?: string;
+  approvalMode?: string;
+  governanceTimeout?: string;
+  hitlMaxWait?: string;
+  hitlPollInterval?: string;
+}): ConfigureClaudeCodeRuntimeOptions | undefined {
+  if (
+    opts.runtimeApiKey === undefined &&
+    opts.agentId === undefined &&
+    opts.coreUrl === undefined &&
+    opts.approvalMode === undefined &&
+    opts.governanceTimeout === undefined &&
+    opts.hitlMaxWait === undefined &&
+    opts.hitlPollInterval === undefined
+  ) {
+    return undefined;
+  }
+  const approvalMode = opts.approvalMode;
+  if (
+    approvalMode !== undefined &&
+    approvalMode !== 'inline' &&
+    approvalMode !== 'remote' &&
+    approvalMode !== 'defer'
+  ) {
+    error(`--approval-mode: invalid value '${approvalMode}'; expected inline, remote, or defer`);
+    bailWith(EXIT.USAGE);
+  }
+  return {
+    cwd: opts.cwd,
+    apiKey: opts.runtimeApiKey,
+    agentId: opts.agentId,
+    coreUrl: opts.coreUrl,
+    approvalMode: approvalMode as ConfigureClaudeCodeRuntimeOptions['approvalMode'],
+    governanceTimeout: parsePositiveInt(opts.governanceTimeout, '--governance-timeout'),
+    hitlMaxWait: parsePositiveInt(opts.hitlMaxWait, '--hitl-max-wait'),
+    hitlPollInterval: parsePositiveInt(opts.hitlPollInterval, '--hitl-poll-interval'),
+  };
 }
 
 /** `openbox claude-code <subcommand>`:
@@ -67,7 +121,7 @@ export function registerClaudeCodeCommands(program: Command) {
       collectPair,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd and WorktreeCreate')
     .action(async (opts: { out: string; matcher: string[]; includeOptInHooks?: boolean }) => {
       const { exportClaudeCodePlugin, verifyClaudeCodePlugin } = await import(
         '../../runtime/claude-code/index.js'
@@ -96,19 +150,33 @@ export function registerClaudeCodeCommands(program: Command) {
     .option('--cwd <dir>', 'Project root for --scope project')
     .option('--target <dir>', 'Explicit Claude Code plugin target directory')
     .option('--symlink <dir>', 'Symlink an already-exported plugin folder into Claude Code')
+    .option('--runtime-api-key <key>', 'Agent runtime key written to project .claude-hooks/config.json')
+    .option('--agent-id <id>', 'Resolve the runtime key from the project OpenBox agent-key cache')
+    .option('--core-url <url>', 'Core/runtime policy endpoint written to project .claude-hooks/config.json')
+    .option('--approval-mode <mode>', 'Approval mode: remote, inline, or defer')
+    .option('--governance-timeout <seconds>', 'Governance request timeout in seconds')
+    .option('--hitl-max-wait <seconds>', 'Maximum human-approval wait in seconds')
+    .option('--hitl-poll-interval <seconds>', 'Human-approval polling interval in seconds')
     .option(
       '--matcher <pair>',
       "Hook matcher pair `<event>=<regex>` copied into hooks/hooks.json. Repeatable.",
       collectPair,
       [],
     )
-    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd; WorktreeCreate remains diagnostic-only')
+    .option('--include-opt-in-hooks', 'Also install opt-in hook events such as SessionEnd and WorktreeCreate')
     .action(
       async (opts: {
         scope?: string;
         cwd?: string;
         target?: string;
         symlink?: string;
+        runtimeApiKey?: string;
+        agentId?: string;
+        coreUrl?: string;
+        approvalMode?: string;
+        governanceTimeout?: string;
+        hitlMaxWait?: string;
+        hitlPollInterval?: string;
         matcher: string[];
         includeOptInHooks?: boolean;
       }) => {
@@ -120,6 +188,7 @@ export function registerClaudeCodeCommands(program: Command) {
           symlink: opts.symlink,
           matchers: parseMatcherPairs(opts.matcher),
           includeOptInHooks: opts.includeOptInHooks,
+          runtime: parseRuntimeOptions(opts),
         });
         success(`installed Claude Code plugin at ${target}`);
       },

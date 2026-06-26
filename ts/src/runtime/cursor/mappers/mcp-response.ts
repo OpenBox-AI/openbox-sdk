@@ -12,7 +12,8 @@ import type { CursorConfig } from '../config.js';
 import { EVENT } from '../activity-types.js';
 import { sideEffects } from '../side-effects.js';
 import { stampSource } from '../../../approvals/source.js';
-import { buildSpan, withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { withOpenBoxActivityMetadata } from '../../../governance/spans.js';
+import { buildCursorSpan } from './spans.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
 type ObserveCapableCursorSession = CursorSession & {
@@ -101,14 +102,14 @@ export async function handleAfterMCPExecution(
     toolName,
     toolType: 'mcp',
     spans: [
-      buildSpan('cursor', 'mcp', {
+      buildCursorSpan('mcp', {
         stage: 'completed',
         tool_name: toolName,
         tool_input: env.tool_input,
         tool_output: payload.tool_output,
       }),
     ],
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }

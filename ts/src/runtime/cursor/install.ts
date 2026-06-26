@@ -5,10 +5,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
-import { listConfig, configStorePath } from '../../config/index.js';
-import { resolveAgentIdentity, resolveConnection, validateApiKeyFormat } from '../../env/index.js';
+import { configStorePath } from '../../config/index.js';
+import { normalizeServiceUrl } from '../../env/connection.js';
+import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
-import { verifyCursorPlugin } from './plugin.js';
+import { verifyCursorPlugin, verifyCursorRepoMode } from './plugin.js';
 
 export type CursorInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -24,6 +25,8 @@ export interface VerifyCursorInstallOptions {
   cwd?: string;
   /** Cursor project-local plugin target. Defaults to <cwd>/.cursor/plugins/local/openbox. */
   pluginTarget?: string;
+  /** Surface to verify. Defaults to plugin for backward compatibility. */
+  mode?: 'plugin' | 'repo' | 'both';
   /** Include hook runtime readiness checks. Install flows keep this
    *  false so they can lay down files before a runtime key exists. */
   includeRuntime?: boolean;
@@ -40,27 +43,21 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
   const configDir = path.join(cwd, '.cursor-hooks');
   const configFile = path.join(configDir, 'config.json');
   const envFile = path.join(configDir, '.env');
-  const values: Record<string, string> = {};
-  const fill = (src: Record<string, string>) => {
-    for (const [key, value] of Object.entries(src)) {
-      if (process.env[key] !== undefined) values[key] = process.env[key]!;
-      else if (values[key] === undefined) values[key] = value;
-    }
-  };
-
-  fill(listConfig());
-
   const fileConfig = loadJsonConfig(configFile);
   const envConfig = loadDotenv(envFile);
   const get = (key: string): string | undefined =>
-    process.env[key] ?? values[key] ?? fileConfig[key] ?? envConfig[key];
+    process.env[key] ?? fileConfig[key] ?? envConfig[key];
 
-  const connection = resolveConnection({
-    apiUrl: get('OPENBOX_API_URL'),
-    coreUrl: get('OPENBOX_CORE_URL'),
-    platformUrl: get('OPENBOX_PLATFORM_URL'),
-  });
-  const coreUrl = connection.coreUrl;
+  const rawCoreUrl = get('OPENBOX_CORE_URL');
+  let coreUrl = '';
+  let coreUrlError: string | undefined;
+  if (rawCoreUrl) {
+    try {
+      coreUrl = normalizeServiceUrl('OPENBOX_CORE_URL', rawCoreUrl);
+    } catch (err) {
+      coreUrlError = err instanceof Error ? err.message : String(err);
+    }
+  }
   const apiKey = get('OPENBOX_API_KEY') ?? '';
   const agentIdentity = resolveAgentIdentity({
     OPENBOX_AGENT_DID: get('OPENBOX_AGENT_DID'),
@@ -71,6 +68,7 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
     envFile,
     cliConfigFile: configStorePath(),
     coreUrl,
+    coreUrlError,
     apiKey,
     agentIdentity,
   };
@@ -81,10 +79,16 @@ async function checkRuntimeReadiness(cwd: string | undefined, validateRuntime: b
   const details = [
     `config=${runtime.configFile}`,
     `cliConfig=${runtime.cliConfigFile}`,
-    `core=${runtime.coreUrl}`,
+    `core=${runtime.coreUrl || '(missing)'}`,
   ];
   if (!runtime.apiKey) {
     return { name: 'runtime', status: 'fail', path: runtime.configFile, detail: `${details.join('; ')}; missing OPENBOX_API_KEY` };
+  }
+  if (runtime.coreUrlError) {
+    return { name: 'runtime', status: 'fail', path: runtime.configFile, detail: `${details.join('; ')}; invalid OPENBOX_CORE_URL: ${runtime.coreUrlError}` };
+  }
+  if (!runtime.coreUrl) {
+    return { name: 'runtime', status: 'fail', path: runtime.configFile, detail: `${details.join('; ')}; missing OPENBOX_CORE_URL` };
   }
   if (isPlaceholderKey(runtime.apiKey)) {
     return { name: 'runtime', status: 'fail', path: runtime.configFile, detail: `${details.join('; ')}; placeholder OPENBOX_API_KEY` };
@@ -126,7 +130,16 @@ export function verifyCursorInstall(
   opts: VerifyCursorInstallOptions = {},
 ): CursorInstallCheck[] | Promise<CursorInstallCheck[]> {
   const checks: CursorInstallCheck[] = [
-    ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget }),
+    ...(
+      opts.mode === 'repo'
+        ? verifyCursorRepoMode({ cwd: opts.cwd })
+        : opts.mode === 'both'
+          ? [
+              ...verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget }),
+              ...verifyCursorRepoMode({ cwd: opts.cwd }),
+            ]
+          : verifyCursorPlugin({ cwd: opts.cwd, target: opts.pluginTarget })
+    ),
   ];
 
   if (opts.includeRuntime || opts.validateRuntime) {

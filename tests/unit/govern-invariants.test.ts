@@ -8,8 +8,8 @@
 //      ActivityCompleted (unless pre-stage block short-circuits).
 //   3. Idempotent: a session can't be reused after a terminal event;
 //      activity calls throw SessionAlreadyTerminatedError.
-//   4. Approval polling is bounded by the server-supplied
-//      approvalExpiresAt; the SDK does not impose a second total wait cap.
+//   4. Approval polling waits for server terminal status; the SDK does
+//      not convert locally elapsed approvalExpiresAt timestamps into blocks.
 //
 // We mock the OpenBoxCoreClient instead of hitting a live core; the
 // invariants are about what the runtime emits, not about wire fidelity
@@ -36,6 +36,7 @@ import {
   emitN8nNodePreExecute,
   emitN8nNodePostExecute,
 } from '../../ts/src/runtime/n8n/index.js';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 interface MockCore {
   events: GovernanceEventPayload[];
@@ -89,6 +90,55 @@ function expectNoInlineSpanFields(
 }
 
 describe('govern() lifecycle invariants', () => {
+  test('EXHAUSTIVE_SPEC_PROOF: generated govern runtime normalizes every legacy Core action member', async () => {
+    const expectedArms: Record<string, WorkflowVerdict['arm']> = {
+      allow: 'allow',
+      constrain: 'constrain',
+      require_approval: 'require_approval',
+      block: 'block',
+      halt: 'halt',
+      continue: 'allow',
+      stop: 'halt',
+    };
+    expect(Object.keys(expectedArms).sort()).toEqual(
+      [...GOVERNANCE_SPEC_DOMAINS.coreLegacyActions].sort(),
+    );
+
+    const events: GovernanceEventPayload[] = [];
+    const evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
+      events.push(payload);
+      const action = String(payload.activity_type ?? '').replace(/^legacy-action-/, '');
+      return {
+        governance_event_id: `evt_${action || 'lifecycle'}`,
+        action: action in expectedArms ? action : 'allow',
+        risk_score: 0,
+      } as GovernanceVerdictResponse;
+    });
+    const mock: MockCore = {
+      events,
+      evaluate,
+      pollApproval: vi.fn(async () => ({
+        id: 'evt_test',
+        action: 'allow',
+      })),
+    };
+    const observed = new Map<string, WorkflowVerdict['arm']>();
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.default },
+      async (session) => {
+        for (const action of GOVERNANCE_SPEC_DOMAINS.coreLegacyActions) {
+          const verdict = await session.activity('SignalReceived', `legacy-action-${action}`, {
+            input: [{ action }],
+          });
+          observed.set(action, verdict.arm);
+        }
+      },
+    );
+
+    expect(Object.fromEntries(observed)).toEqual(expectedArms);
+  });
+
   test('success path emits exactly one WorkflowStarted + WorkflowCompleted', async () => {
     const mock = createMockCore('allow');
     await govern(
@@ -247,14 +297,16 @@ describe('activity pairing', () => {
         (hook.spans?.[0] as Record<string, unknown> | undefined)?.activity_id,
       ).toBe(parent.activity_id);
     }
+    expect(firstHook.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(firstHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(firstHook.spans?.[0]).toMatchObject({
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(secondHook.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(secondHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(secondHook.spans?.[0]).toMatchObject({
-      semantic_type: 'mcp_tool_call',
       attributes: expect.objectContaining({
         'mcp.method': 'callTool',
         'mcp.operation': 'read',
@@ -661,10 +713,11 @@ describe('activity pairing', () => {
     expect(completedHook?.activity_type).toBe(completedParent.activity_type);
     expect(completedHook?.span_count).toBe(1);
     const span = completedHook?.spans?.[0] as Record<string, unknown> | undefined;
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       name: 'openbox.n8n.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
       model_id: 'gemini-2.5-flash',
       provider: 'google',
@@ -694,6 +747,95 @@ describe('activity pairing', () => {
         total_tokens: 25,
       },
     });
+  });
+
+  test('n8n pre-execute approvals keep source attribution through Core polling', async () => {
+    const mock = createMockCore('require_approval', {
+      approval_id: 'approval-n8n-node',
+    });
+
+    await govern(
+      {
+        ...baseConfig(mock),
+        preset: presets.n8n,
+        approvalPollIntervalMs: 1,
+        approvalPollBackoffFactor: 1,
+        approvalPollJitter: 0,
+      },
+      async (session) => {
+        const verdict = await emitN8nNodePreExecute(session, {
+          input: { operation: 'refund' },
+          nodeName: 'Approval Node',
+          sessionId: 'n8n-approval-1',
+          prompt: 'Refund the order.',
+        });
+        expect(verdict.arm).toBe('allow');
+      },
+    );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-pre-execute',
+    );
+    expect(started?.activity_input).toContainEqual(
+      expect.objectContaining({
+        operation: 'refund',
+        event_category: 'node_pre_execute',
+        node_name: 'Approval Node',
+        _openbox_source: 'n8n',
+      }),
+    );
+    expect(mock.pollApproval).toHaveBeenCalledWith({
+      workflow_id: started?.workflow_id,
+      run_id: started?.run_id,
+      activity_id: started?.activity_id,
+    });
+  });
+
+  test('n8n pre-execute guardrail constraints keep redaction and source attribution', async () => {
+    const mock = createMockCore('constrain', {
+      reason: 'guardrail redacted node input',
+      guardrails_result: {
+        input_type: 'activity_input',
+        redacted_input: [{ operation: '[redacted]' }],
+        validation_passed: true,
+        field_results: [{ field: 'operation', status: 'redacted' }],
+      },
+    });
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.n8n },
+      async (session) => {
+        const verdict = await emitN8nNodePreExecute(session, {
+          input: { operation: 'refund secret' },
+          nodeName: 'Guardrails Node',
+          sessionId: 'n8n-guardrail-1',
+        });
+        expect(verdict.arm).toBe('constrain');
+        expect(verdict.guardrailsResult?.redactedInput).toEqual([
+          { operation: '[redacted]' },
+        ]);
+        expect(verdict.guardrailsResult?.fieldResults).toEqual([
+          { field: 'operation', status: 'redacted', reason: undefined },
+        ]);
+      },
+    );
+
+    const started = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'node-pre-execute',
+    );
+    expect(started?.activity_input).toContainEqual(
+      expect.objectContaining({
+        operation: 'refund secret',
+        event_category: 'node_pre_execute',
+        node_name: 'Guardrails Node',
+        _openbox_source: 'n8n',
+      }),
+    );
+    expect(mock.pollApproval).not.toHaveBeenCalled();
   });
 
   test('n8n generic node completion emits paired parent plus tool hook span', async () => {
@@ -759,11 +901,12 @@ describe('activity pairing', () => {
     expect(completedHook?.hook_trigger).toBe(true);
     expect(completedHook?.activity_id).toBe(completedParent.activity_id);
     expect(completedHook?.span_count).toBe(1);
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(completedHook?.spans?.[0]).toMatchObject({
       activity_id: completedParent.activity_id,
       name: 'n8n.CRM Upsert',
       stage: 'completed',
-      semantic_type: 'llm_tool_call',
       hook_type: 'function_call',
       duration_ns: 25_000_000,
       status: { code: 'ERROR', description: 'CRM timeout' },
@@ -782,6 +925,38 @@ describe('activity pairing', () => {
         node_name: 'CRM Upsert',
         status: 'failed',
         error: 'CRM timeout',
+      }),
+    });
+
+    const orphanMock = createMockCore('allow');
+    await govern(
+      { ...baseConfig(orphanMock), preset: presets.n8n },
+      async (session) => {
+        await emitN8nNodePostExecute(session, {
+          activityId: 'node-without-pre',
+          input: { operation: 'sync' },
+          output: { updated: true },
+          nodeName: 'CRM Upsert',
+          sessionId: 'n8n-node-2',
+          durationMs: 25,
+        });
+      },
+    );
+    const orphanEvents = orphanMock.events.filter(
+      (event) => event.activity_id === 'node-without-pre',
+    );
+    expect(orphanEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(orphanEvents[0].spans).toBeUndefined();
+    expect(orphanEvents[2].spans?.[0]).toMatchObject({
+      activity_id: 'node-without-pre',
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'CRM Upsert',
+        'tool.name': 'CRM Upsert',
       }),
     });
   });
@@ -1028,10 +1203,9 @@ describe('approval polling bounds', () => {
     expect(mock.pollApproval).toHaveBeenCalledTimes(2);
   });
 
-  test('polling stops at server-supplied approvalExpiresAt even if config max-wait is longer', async () => {
+  test('polling continues past elapsed approvalExpiresAt until server returns terminal status', async () => {
     const mock = createMockCore('allow');
-    // Override the response with require_approval + a tight expiry.
-    const expiresAt = new Date(Date.now() + 50).toISOString();
+    const expiresAt = new Date(Date.now() - 50).toISOString();
     mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
       mock.events.push(payload);
       if (payload.event_type === 'ActivityStarted') {
@@ -1051,29 +1225,34 @@ describe('approval polling bounds', () => {
         risk_score: 0,
       } as GovernanceVerdictResponse;
     });
-    // Always-pending poll responses
-    mock.pollApproval = vi.fn(async () => ({
-      id: 'apr_xxx',
-      action: 'require_approval',
-    }));
+    mock.pollApproval = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'require_approval',
+        approval_expiration_time: expiresAt,
+      })
+      .mockResolvedValueOnce({
+        id: 'apr_xxx',
+        action: 'allow',
+        reason: 'approved by server after elapsed timestamp',
+        approval_expiration_time: expiresAt,
+      });
 
-    const start = Date.now();
     await govern(
       {
         ...baseConfig(mock),
         preset: presets.claudeCode,
-        approvalPollIntervalMs: 10,
-        approvalMaxWaitMs: 60_000, // long config, but server expires at 50ms
+        approvalPollIntervalMs: 0,
+        approvalMaxWaitMs: 1,
       },
       async (session) => {
         const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
-        expect(verdict.arm).toBe('block');
-        expect(verdict.reason).toBe('Approval expired for PreToolUse');
+        expect(verdict.arm).toBe('allow');
+        expect(verdict.reason).toBe('approved by server after elapsed timestamp');
       },
     );
-    const elapsed = Date.now() - start;
-    // Should bail well before the 60s config max-wait; server expiry wins.
-    expect(elapsed).toBeLessThan(2_000);
+    expect(mock.pollApproval).toHaveBeenCalledTimes(2);
   });
 
   test('polling treats DB-style approvalExpiresAt timestamps as UTC', async () => {
@@ -1264,8 +1443,8 @@ describe('approval polling bounds', () => {
   });
 
   test('exponential backoff: poll intervals grow toward the cap', async () => {
-    // Set up a require_approval that never resolves so we get many poll
-    // attempts. Capture the gap between successive pollApproval() calls.
+    // Set up a require_approval that resolves only when Core explicitly
+    // reports expiration, so we get enough poll attempts to measure gaps.
     const mock = createMockCore('allow');
     mock.evaluate = vi.fn(async (payload: GovernanceEventPayload) => {
       mock.events.push(payload);
@@ -1289,7 +1468,9 @@ describe('approval polling bounds', () => {
     const pollTimes: number[] = [];
     mock.pollApproval = vi.fn(async () => {
       pollTimes.push(Date.now());
-      return { id: 'apr_xxx', action: 'require_approval' };
+      return pollTimes.length >= 6
+        ? { id: 'apr_xxx', action: 'require_approval', expired: true }
+        : { id: 'apr_xxx', action: 'require_approval' };
     });
 
     await govern(
@@ -1343,23 +1524,34 @@ describe('approval polling bounds', () => {
     const pollTimes: number[] = [];
     mock.pollApproval = vi.fn(async () => {
       pollTimes.push(Date.now());
-      return { id: 'apr_xxx', action: 'require_approval' };
+      return pollTimes.length >= 8
+        ? { id: 'apr_xxx', action: 'require_approval', expired: true }
+        : { id: 'apr_xxx', action: 'require_approval' };
     });
 
-    await govern(
-      {
-        ...baseConfig(mock),
-        preset: presets.claudeCode,
-        approvalPollIntervalMs: 50,
-        approvalPollMaxIntervalMs: 50,
-        approvalPollBackoffFactor: 1, // no backoff; fixed base
-        approvalPollJitter: 0.5, // ±50%
-        approvalMaxWaitMs: 800,
-      },
-      async (session) => {
-        await session.preToolUse({ input: [{ tool: 'Bash' }] });
-      },
-    );
+    let randomIndex = 0;
+    const randomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
+      randomIndex += 1;
+      return randomIndex % 2 === 0 ? 1 : 0;
+    });
+    try {
+      await govern(
+        {
+          ...baseConfig(mock),
+          preset: presets.claudeCode,
+          approvalPollIntervalMs: 50,
+          approvalPollMaxIntervalMs: 50,
+          approvalPollBackoffFactor: 1, // no backoff; fixed base
+          approvalPollJitter: 0.5, // ±50%
+          approvalMaxWaitMs: 800,
+        },
+        async (session) => {
+          await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        },
+      );
+    } finally {
+      randomSpy.mockRestore();
+    }
 
     expect(pollTimes.length).toBeGreaterThanOrEqual(5);
     const gaps = pollTimes.slice(1).map((t, i) => t - pollTimes[i]);
@@ -1881,6 +2073,116 @@ describe('govern.attach (cross-process / harness-owned lifecycle)', () => {
     const after = process.listenerCount('SIGINT');
     expect(after).toBe(before);
   });
+
+  test('normalizes Python runtime verdict aliases on generated sessions', async () => {
+    const approved = createMockCore('allow', {
+      verdict: 'approved' as never,
+      action: 'approved' as never,
+    });
+    await govern(
+      { ...baseConfig(approved), preset: presets.claudeCode },
+      async (session) => {
+        const approvedVerdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(approvedVerdict.arm).toBe('allow');
+      },
+    );
+
+    const denied = createMockCore('allow', {
+      verdict: 'denied' as never,
+      action: 'denied' as never,
+    });
+    await govern(
+      { ...baseConfig(denied), preset: presets.claudeCode },
+      async (session) => {
+        const deniedVerdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(deniedVerdict.arm).toBe('block');
+      },
+    );
+
+    const ask = createMockCore('allow', {
+      verdict: 'ask' as never,
+      action: 'ask' as never,
+    });
+    await govern(
+      {
+        ...baseConfig(ask),
+        preset: presets.claudeCode,
+        inlineApproval: true,
+      },
+      async (session) => {
+        const askVerdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(askVerdict.arm).toBe('require_approval');
+      },
+    );
+  });
+
+  test('maps Python runtime camelCase verdict response aliases', async () => {
+    const events: GovernanceEventPayload[] = [];
+    const ageResult = {
+      overall_compliant: true,
+      total_spans: 0,
+      violations_count: 0,
+      span_results: [],
+      response_time_ms: 1,
+    };
+    const mock: MockCore = {
+      events,
+      evaluate: vi.fn(async (payload: GovernanceEventPayload) => {
+        events.push(payload);
+        return {
+          verdict: 'allow',
+          action: 'allow',
+          approvalId: 'approval-camel',
+          governanceEventId: 'event-camel',
+          approvalExpiresAt: '2026-01-01T00:00:00.000Z',
+          reason: 'camel aliases',
+          riskScore: 0.7,
+          trustTier: 2,
+          alignmentScore: 0.9,
+          policyId: 'policy-camel',
+          behavioralViolations: ['rule-camel'],
+          constraints: ['constraint-camel'],
+          metadata: { source: 'camel' },
+          fallbackUsed: true,
+          ageResult,
+          guardrailsResult: {
+            input_type: 'activity_input',
+            redacted_input: [{ prompt: '<REDACTED>' }],
+            validation_passed: true,
+            reasons: [],
+            field_results: [{ field: 'prompt', status: 'redacted' }],
+          },
+        } as unknown as GovernanceVerdictResponse;
+      }),
+      pollApproval: vi.fn(),
+    };
+
+    await govern(
+      { ...baseConfig(mock), preset: presets.claudeCode },
+      async (session) => {
+        const verdict = await session.preToolUse({ input: [{ tool: 'Bash' }] });
+        expect(verdict).toMatchObject({
+          arm: 'allow',
+          approvalId: 'approval-camel',
+          governanceEventId: 'event-camel',
+          approvalExpiresAt: '2026-01-01T00:00:00.000Z',
+          reason: 'camel aliases',
+          riskScore: 0.7,
+          trustTier: 2,
+          alignmentScore: 0.9,
+          policyId: 'policy-camel',
+          behavioralViolations: ['rule-camel'],
+          constraints: ['constraint-camel'],
+          metadata: { source: 'camel' },
+          fallbackUsed: true,
+          ageResult,
+        });
+        expect(verdict.guardrailsResult?.fieldResults).toEqual([
+          { field: 'prompt', status: 'redacted', reason: undefined },
+        ]);
+      },
+    );
+  });
 });
 
 describe('WorkflowVerdict.guardrailsResult', () => {
@@ -1930,9 +2232,11 @@ describe('WorkflowVerdict.guardrailsResult', () => {
         guardrails_result: {
           input_type: 'activity_input',
           redacted_input: [{ tool: 'Bash', cmd: '<REDACTED>' }],
+          redacted_output: { stdout: '<REDACTED>' },
           validation_passed: true,
           raw_logs: { pii: { redacted: 1 }, evaluator: 'guardrail-service' },
           reasons: [{ type: 'pii', field: 'cmd', reason: 'looks like a token' }],
+          field_results: [{ field: 'direct_cmd', status: 'transformed', reason: 'direct row' }],
           results: [
             {
               guardrail_type: 'pii',
@@ -1955,6 +2259,7 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     const v = captured!;
     expect(v.guardrailsResult).toBeDefined();
     expect(v.guardrailsResult?.inputType).toBe('activity_input');
+    expect(v.guardrailsResult?.redactedOutput).toEqual({ stdout: '<REDACTED>' });
     expect(v.guardrailsResult?.validationPassed).toBe(true);
     expect(v.guardrailsResult?.rawLogs).toEqual({
       pii: { redacted: 1 },
@@ -1962,8 +2267,10 @@ describe('WorkflowVerdict.guardrailsResult', () => {
     });
     expect(v.guardrailsResult?.reasons).toHaveLength(1);
     expect(v.guardrailsResult?.reasons[0].type).toBe('pii');
-    expect(v.guardrailsResult?.fieldResults).toHaveLength(1);
-    expect(v.guardrailsResult?.fieldResults[0].status).toBe('redacted');
+    expect(v.guardrailsResult?.fieldResults).toEqual([
+      { field: 'direct_cmd', status: 'transformed', reason: 'direct row' },
+      { field: 'cmd', guardrailType: 'pii', order: 0, status: 'redacted', reason: 'token' },
+    ]);
   });
 
   test('SignalReceived preserves guardrails_result input_type=signal_args', async () => {

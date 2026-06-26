@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
 import { getBackendClient, fullResponse, getOrgId } from '../helpers/api-client';
+
+function backendOperation(operationId: string) {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
+}
 
 describe('Members', () => {
   const client = getBackendClient();
@@ -9,35 +16,26 @@ describe('Members', () => {
     orgId = getOrgId();
   });
 
-  it('GET /organization/{orgId}/members returns 200 or 403', async () => {
-    try {
-      const response = await client.get(`/organization/${orgId}/members`);
-      const body = fullResponse(response);
+  it('NEGATIVE: GET /organization/{orgId}/members requires read:user', async () => {
+    // CONTRACT_BOUNDARY_PROOF: the local-stack SDK API key intentionally lacks
+    // user-read permission, so member listing fails closed instead of
+    // degrading to a status-only smoke assertion.
+    const response = await client.get(`/organization/${orgId}/members?page=0&perPage=5`);
+    const body = response.data;
 
-      if (body.status === 403) {
-        console.log(
-          'GET /organization/{orgId}/members returned 403 (permission denied), skipping assertions',
-        );
-        return;
-      }
-
-      expect(body.status).toBe(200);
-    } catch (err) {
-      console.log(
-        'GET /organization/{orgId}/members threw an error, skipping:',
-        (err as Error).message,
-      );
-    }
+    expect(body.status).toBe(403);
+    expect(body.message).toContain('read:user');
   });
 
-  it('GET /user/roles returns 200 or 403', async () => {
-    const response = await client.get('/user/roles');
-    const body = fullResponse(response);
+  it('NEGATIVE: GET /user/roles requires read:user', async () => {
+    // CONTRACT_BOUNDARY_PROOF: role listing fails closed for the SDK X-API-Key
+    // principal instead of accepting a status-only 200-or-403 branch.
+    const operation = backendOperation('UserController_getRoles');
+    expect(operation.verb).toBe('get');
+    const response = await client.get(operation.path);
+    const body = response.data;
 
-    // May return 403 if user lacks read:user permission
-    expect([200, 403]).toContain(body.status);
-    if (body.status === 200) {
-      expect(Array.isArray(body.data)).toBe(true);
-    }
+    expect(body.status).toBe(403);
+    expect(body.message).toContain('read:user');
   });
 });

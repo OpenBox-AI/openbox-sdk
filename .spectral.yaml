@@ -1,1 +1,10 @@
 extends: ['spectral:oas']
+
+rules:
+  # Generated upstream snapshots are used for SDK compatibility checks. These
+  # documentation-completeness rules create noisy warnings without changing the
+  # generated client/runtime contract.
+  info-contact: off
+  oas3-api-servers: off
+  operation-description: off
+  oas3-unused-component: off

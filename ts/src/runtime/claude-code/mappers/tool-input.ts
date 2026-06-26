@@ -43,6 +43,27 @@ export function dbStatementFor(toolInput: Record<string, unknown>): string | und
   );
 }
 
+const SQL_VERBS = [
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+] as const;
+
+function dbOperationFromStatement(statement: string | undefined): string | undefined {
+  if (!statement) return undefined;
+  const normalized = statement.trim().toUpperCase();
+  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
+}
+
 export function dbSystemFor(
   toolName: string,
   toolInput: Record<string, unknown>,
@@ -62,14 +83,21 @@ export function dbSystemFor(
 }
 
 export function dbOperationFor(toolInput: Record<string, unknown>): string {
+  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
   const explicit = firstString(
     toolInput.db_operation,
     toolInput.dbOperation,
     toolInput.operation,
   );
-  if (explicit) return explicit.toUpperCase();
-  if (dbStatementFor(toolInput)) return 'QUERY';
-  return 'QUERY';
+  const explicitOperation = explicit?.toUpperCase();
+  if (
+    explicitOperation &&
+    explicitOperation !== 'QUERY' &&
+    explicitOperation !== 'UNKNOWN'
+  ) {
+    return explicitOperation;
+  }
+  return statementOperation ?? explicitOperation ?? 'QUERY';
 }
 
 export function isDatabaseMcpTool(
@@ -90,4 +118,20 @@ export function isDatabaseMcpTool(
     lowerName.includes('query') ||
     lowerName.includes('execute') ||
     lowerName.includes('select');
+}
+
+export function isHttpMcpTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): boolean {
+  if (!toolName.startsWith('mcp__')) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksHttp =
+    lowerName.includes('http') ||
+    lowerName.includes('fetch') ||
+    lowerName.includes('request') ||
+    lowerName.includes('web');
+  if (!nameLooksHttp) return false;
+  return Boolean(httpTargetFor(toolInput)) ||
+    Boolean(firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod));
 }

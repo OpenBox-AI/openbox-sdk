@@ -169,8 +169,6 @@ alias BehaviorRuleTrigger =
   | "llm_completion"
   | "llm_embedding"
   | "llm_tool_call"
-  | "llm_gen_ai"
-  | "mcp_tool_call"
   | "database_select"
   | "database_insert"
   | "database_update"
@@ -182,18 +180,7 @@ alias BehaviorRuleTrigger =
   | "file_delete"
   | "internal";
 
-model BehaviorRuleMatchCondition {
-  "field": string;
-  "op": string;
-  value?: unknown;
-}
-
-model BehaviorRuleStateCondition {
-  semantic_type: BehaviorRuleTrigger;
-  match?: BehaviorRuleMatchCondition[];
-}
-
-alias BehaviorRuleStateInput = BehaviorRuleTrigger | BehaviorRuleStateCondition;
+alias BehaviorRuleStateInput = BehaviorRuleTrigger;
 
 model BehaviorRule {
   id: string;
@@ -201,7 +188,6 @@ model BehaviorRule {
   description?: string;
   priority: int32;
   trigger: BehaviorRuleTrigger;
-  trigger_match?: BehaviorRuleMatchCondition[] | null;
   states: BehaviorRuleStateInput[];
   time_window: int32;
   verdict: int32;
@@ -249,25 +235,43 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model TrustHistory {
-  trust_score: float64;
-  tier?: string;
+  time?: string;
+  score?: float64;
+  trust_score?: float64;
+  tier?: int32 | string;
   timestamp?: string;
   ...Record<unknown>;
 }
 
 model TrustEvent {
   id: string;
+  agent_id?: string;
   event_type?: string;
   impact?: float64;
+  trust_score?: float64;
+  trust_tier?: int32;
+  previous_score?: float64 | null;
+  previous_tier?: int32 | null;
+  change_type?: string;
+  change_reason?: string | null;
+  evaluated_by?: string;
   timestamp?: string;
   ...Record<unknown>;
 }
 
 model TrustTierChange {
   id: string;
+  agent_id?: string;
   from_tier?: string;
   to_tier?: string;
   reason?: string;
+  trust_score?: float64;
+  trust_tier?: int32;
+  previous_score?: float64 | null;
+  previous_tier?: int32 | null;
+  change_type?: string;
+  change_reason?: string | null;
+  evaluated_by?: string;
   timestamp?: string;
   ...Record<unknown>;
 }
@@ -279,7 +283,12 @@ model TrustTierChange {
 model Assessment {
   id: string;
   score?: float64;
+  trust_score?: float64;
+  trust_tier?: int32;
   severity?: string;
+  change_type?: string;
+  change_reason?: string | null;
+  evaluated_by?: string;
   timestamp?: string;
   ...Record<unknown>;
 }
@@ -386,8 +395,7 @@ model Violation {
 
 model Organization {
   id: string;
-  name: string;
-  domain?: string;
+  displayName?: string;
   ...Record<unknown>;
 }
 
@@ -439,10 +447,21 @@ model AuditLog {
 }
 
 model AuditExport {
-  id: string;
+  /** Export identifier. List/history rows use `id`; create/status rows use `exportId`. */
+  id?: string;
+  exportId?: string;
   export_name?: string;
+  exportName?: string;
   status?: string;
+  message?: string;
+  totalRecords?: int32;
+  processedRecords?: int32;
   created_at?: string;
+  updated_at?: string;
+  completed_at?: string | null;
+  createdAt?: string;
+  completedAt?: string | null;
+  errorMessage?: string | null;
   ...Record<unknown>;
 }
 
@@ -475,7 +494,7 @@ model Webhook {
   name: string;
   channel: "http" | "slack";
   url: string;
-  event_types: string[];
+  event_types: WebhookEventType[];
   agent_ids?: string[] | null;
   is_active?: boolean;
   description?: string;
@@ -487,13 +506,24 @@ model Webhook {
 model WebhookDelivery {
   id: string;
   webhook_id: string;
-  event_type?: string;
+  event_type?: WebhookEventType | string;
   status?: string;
   status_code?: int32;
   attempt_count?: int32;
   delivered_at?: string;
   ...Record<unknown>;
 }
+
+alias WebhookEventType =
+  "governance.verdict.block"
+  | "governance.verdict.halt"
+  | "governance.verdict.require_approval"
+  | "governance.verdict.constrain"
+  | "approval.decided"
+  | "approval.expired"
+  | "trust_score.decreased"
+  | "compliance.export.ready"
+  | "compliance.attestation.expiring";
 
 model SsoStatus {
   enabled?: boolean;
@@ -547,12 +577,13 @@ model SsoMetadata {
 
 /** Per-penalty row inside TrustRecoveryStatus.recovery.penalties. */
 model TrustPenalty {
-  penalty_id: string;
+  penalty_id?: string;
   component: string;
   trust_impact: string;
   penalty_amount: float64;
   session_position: int32;
   sessions_until_cleared: int32;
+  progress_percent?: float64;
 }
 
 /** Trust-recovery status from /agent/{id}/trust/recovery-status. When
@@ -628,13 +659,14 @@ model AgentBehaviorMetrics {
 model GuardrailMetricsResult {
   active_guardrails: int32;
   violations_today: int32;
-  protection_rate: float64;
+  protection_rate: float64 | null;
   avg_response_time_ms: float64;
   /** Time-series for violations; backend returns the row shape opaquely. */
   violations_trend: Record<unknown>[];
-  /** {[type]: rate} aggregate. */
-  trigger_rate_by_type: Record<float64>;
-  latency_percentiles: Record<float64>;
+  /** Backend dashboard row shape for trigger-rate buckets. */
+  trigger_rate_by_type: Record<unknown>[];
+  /** Backend may return stringified percentile values from SQL aggregates. */
+  latency_percentiles: Record<unknown>;
   evaluations_per_sec: float64;
 }
 
@@ -652,7 +684,7 @@ model InsightMetricsResult {
 /** Policy summary on /agent/{id}/policies/metrics. */
 model PolicyMetricsResult {
   total_evaluations: int32;
-  compliance_rate: float64;
+  compliance_rate: float64 | null;
   avg_latency_ms: float64;
   decision_distribution: Record<int32>;
   timeline: Record<unknown>[];
@@ -674,8 +706,8 @@ model OrgApprovalsMetrics {
   approved_today: int32;
   rejected_today: int32;
   expired_today: int32;
-  avg_time: float64;
-  avg_change: float64;
+  avg_time: float64 | null;
+  avg_change: float64 | null;
 }
 
 /** Composite agent metrics on /agent/metrics. Three opaque sub-rollups

@@ -3,7 +3,7 @@ import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
 import { normalizeServiceUrl } from '../env/connection.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
-import { parseApprovalExpirationMs } from './approval-time.js';
+import { validateCoreRequest } from './generated/request-preflight.js';
 
 // Every wire-shape type in this module comes from the spec at
 // specs/typespec/core/main.tsp via codegen/emitters/ts/. This file
@@ -59,10 +59,8 @@ export interface BehavioralResult {
 
 export type ApprovalStatusResponseWithClientExpiry = ApprovalStatusResponse & {
   /**
-   * Client-normalized approval timeout marker. Core currently returns the
-   * expiration timestamp; the SDK derives this flag when that deadline is
-   * already in the past so callers can handle the same shape exposed by the
-   * official OpenBox SDKs without changing the Core wire contract.
+   * Server-owned approval timeout marker. The SDK preserves this flag when
+   * Core returns it, but does not derive expiry from timestamps locally.
    */
   expired?: boolean;
 };
@@ -200,7 +198,7 @@ export class OpenBoxCoreClient {
     const response = await this.request('POST', '/api/v1/governance/approval', {
       data: request,
     }) as ApprovalStatusResponse;
-    return withClientExpiredApproval(response);
+    return response as ApprovalStatusResponseWithClientExpiry;
   }
 
   // =========================================================================
@@ -217,6 +215,7 @@ export class OpenBoxCoreClient {
     if (path !== '/') {
       validateCoreRuntimeApiKey(this.config.apiKey);
     }
+    validateCoreRequest(method, path, undefined, options?.data);
     if (this.rateLimiter) {
       await this.rateLimiter.acquire();
     }
@@ -452,16 +451,6 @@ function serializeBinaryBytes(value: Uint8Array): string {
   } catch {
     return Buffer.from(value).toString('base64');
   }
-}
-
-function withClientExpiredApproval<T extends ApprovalStatusResponse>(
-  response: T,
-): T & { expired?: boolean } {
-  const expiration = response.approval_expiration_time;
-  if (!expiration) return response;
-  const deadline = parseApprovalExpirationMs(expiration);
-  if (deadline === undefined || Date.now() <= deadline) return response;
-  return { ...response, expired: true };
 }
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');

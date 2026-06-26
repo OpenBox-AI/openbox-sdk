@@ -4,10 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   exportCursorPlugin,
+  installCursorRepoMode,
   installCursorPlugin,
+  uninstallCursorRepoMode,
   uninstallCursorPlugin,
+  verifyCursorRepoMode,
   verifyCursorPlugin,
 } from '../../ts/src/runtime/cursor/plugin.js';
+import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-matrix.js';
+import type { RulesProjection } from '../../ts/src/governance/rules-projection.js';
 
 const temps: string[] = [];
 
@@ -17,8 +22,54 @@ function tempDir(): string {
   return dir;
 }
 
+const CURSOR_COMPONENTS = PROVIDER_PLUGIN_COMPONENTS.find(
+  (entry) => entry.provider === 'cursor',
+)!.components;
+type CursorComponent = (typeof CURSOR_COMPONENTS)[number];
+const CURSOR_PLUGIN_COMPONENTS = CURSOR_COMPONENTS.filter(
+  (component) => component.surface !== 'repo',
+) as readonly CursorComponent[];
+const CURSOR_REPO_COMPONENTS = CURSOR_COMPONENTS.filter(
+  (component) => component.surface === 'repo',
+) as readonly CursorComponent[];
+
+function assertSpecComponentPathsExist(
+  root: string,
+  components: readonly CursorComponent[] = CURSOR_PLUGIN_COMPONENTS,
+): void {
+  for (const component of components) {
+    expect(
+      component.path,
+      `Cursor plugin component ${component.name} path`,
+    ).toBeTruthy();
+    expect(
+      fs.existsSync(path.join(root, component.path!)),
+      component.name,
+    ).toBe(true);
+  }
+}
+
+function rulesProjection(): RulesProjection {
+  return {
+    agentId: 'agent-cursor',
+    fetchedAt: '2026-06-20T00:00:00.000Z',
+    version: 1,
+    rules: [
+      {
+        id: 'guardrail/pii-wall',
+        source: 'guardrail',
+        description: 'Block unnecessary PII',
+        body: 'Do not expose unnecessary PII.',
+        trigger: 'always',
+        severity: 'block',
+      },
+    ],
+  };
+}
+
 afterEach(() => {
-  for (const dir of temps.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  for (const dir of temps.splice(0))
+    fs.rmSync(dir, { recursive: true, force: true });
 });
 
 describe('Cursor plugin asset', () => {
@@ -31,9 +82,17 @@ describe('Cursor plugin asset', () => {
       },
     });
 
-    expect(fs.existsSync(path.join(out, '.cursor-plugin', 'plugin.json'))).toBe(true);
-    expect(fs.existsSync(path.join(out, '.cursor-plugin', 'marketplace.json'))).toBe(true);
-    expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    assertSpecComponentPathsExist(out);
+    expect(fs.existsSync(path.join(out, '.cursor-plugin', 'plugin.json'))).toBe(
+      true,
+    );
+    expect(
+      fs.existsSync(path.join(out, '.cursor-plugin', 'marketplace.json')),
+    ).toBe(true);
+    expect(fs.existsSync(path.join(out, 'workspaceOpen.json'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(
+      true,
+    );
     expect(fs.readdirSync(path.join(out, 'commands')).sort()).toEqual([
       'openbox-check.md',
       'openbox-doctor.md',
@@ -42,17 +101,54 @@ describe('Cursor plugin asset', () => {
       'openbox-status.md',
     ]);
     expect(fs.readdirSync(path.join(out, 'rules'))).toEqual(['openbox.mdc']);
-    expect(fs.readdirSync(path.join(out, 'agents'))).toEqual(['openbox-reviewer.md']);
+    expect(fs.readdirSync(path.join(out, 'agents'))).toEqual([
+      'openbox-reviewer.md',
+    ]);
 
-    const hooks = JSON.parse(fs.readFileSync(path.join(out, 'hooks', 'hooks.json'), 'utf-8'));
+    const hooks = JSON.parse(
+      fs.readFileSync(path.join(out, 'hooks', 'hooks.json'), 'utf-8'),
+    );
     expect(hooks.hooks.beforeShellExecution[0].matcher).toBe('\\b(rm|sudo)\\b');
     expect(hooks.hooks.sessionEnd[0].command).toBe('openbox cursor hook');
 
-    const mcp = JSON.parse(fs.readFileSync(path.join(out, 'mcp.json'), 'utf-8'));
-    expect(mcp.mcpServers.openbox).toEqual({ command: 'openbox', args: ['mcp', 'serve'] });
+    const mcp = JSON.parse(
+      fs.readFileSync(path.join(out, 'mcp.json'), 'utf-8'),
+    );
+    expect(mcp.mcpServers.openbox).toEqual({
+      command: 'openbox',
+      args: ['mcp', 'serve'],
+    });
+    const workspaceOpen = JSON.parse(
+      fs.readFileSync(path.join(out, 'workspaceOpen.json'), 'utf-8'),
+    );
+    expect(workspaceOpen.workspaceOpen.plugins[0]).toMatchObject({
+      name: 'openbox',
+      path: '.cursor/plugins/local/openbox',
+      activation: 'workspaceOpen',
+    });
 
     const checks = verifyCursorPlugin({ target: out });
     expect(checks.every((check) => check.status === 'pass')).toBe(true);
+  });
+
+  it('renders plugin rules from the shared TypeSpec rules projection when provided', () => {
+    const out = path.join(tempDir(), 'openbox');
+    exportCursorPlugin({ out, rulesProjection: rulesProjection() });
+
+    const rules = fs.readdirSync(path.join(out, 'rules')).sort();
+    expect(rules).toEqual(['openbox-guardrail-pii-wall.mdc']);
+    const content = fs.readFileSync(
+      path.join(out, 'rules', rules[0]!),
+      'utf-8',
+    );
+    expect(content).toContain('<!-- openbox-managed: do-not-edit -->');
+    expect(content).toContain('alwaysApply: true');
+    expect(content).toContain('Do not expose unnecessary PII.');
+    expect(
+      verifyCursorPlugin({ target: out }).every(
+        (check) => check.status === 'pass',
+      ),
+    ).toBe(true);
   });
 
   it('installs by symlink and uninstalls the local plugin target', () => {
@@ -63,8 +159,12 @@ describe('Cursor plugin asset', () => {
 
     installCursorPlugin({ cwd, target, symlink: source });
     expect(fs.lstatSync(target).isSymbolicLink()).toBe(true);
-    expect(verifyCursorPlugin({ target }).every((check) => check.status === 'pass')).toBe(true);
-    expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(true);
+    expect(
+      verifyCursorPlugin({ target }).every((check) => check.status === 'pass'),
+    ).toBe(true);
+    expect(fs.existsSync(path.join(cwd, '.cursor-hooks', 'config.json'))).toBe(
+      true,
+    );
 
     uninstallCursorPlugin({ cwd, target });
     expect(fs.existsSync(target)).toBe(false);
@@ -75,8 +175,66 @@ describe('Cursor plugin asset', () => {
     const cwd = tempDir();
     exportCursorPlugin({ out: source });
 
-    expect(() => installCursorPlugin({ cwd, target: path.join(tempDir(), 'outside') })).toThrow(
-      'Cursor plugin install target must be inside the project',
+    expect(() =>
+      installCursorPlugin({ cwd, target: path.join(tempDir(), 'outside') }),
+    ).toThrow('Cursor plugin install target must be inside the project');
+  });
+
+  it('installs and uninstalls cloud-compatible repo mode files', () => {
+    const cwd = tempDir();
+    const root = installCursorRepoMode({
+      cwd,
+      matchers: {
+        beforeShellExecution: '\\b(rm|sudo)\\b',
+      },
+    });
+    expect(root).toBe(path.join(cwd, '.cursor'));
+    const hooks = JSON.parse(
+      fs.readFileSync(path.join(cwd, '.cursor', 'hooks.json'), 'utf-8'),
     );
+    expect(hooks.hooks.beforeShellExecution[0].matcher).toBe('\\b(rm|sudo)\\b');
+    expect(fs.existsSync(path.join(cwd, '.cursor', 'mcp.json'))).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(cwd, '.agents', 'skills', 'openbox', 'SKILL.md')),
+    ).toBe(true);
+    assertSpecComponentPathsExist(cwd, CURSOR_REPO_COMPONENTS);
+    expect(
+      verifyCursorRepoMode({ cwd }).every((check) => check.status === 'pass'),
+    ).toBe(true);
+
+    uninstallCursorRepoMode({ cwd, removeSkill: true });
+    expect(fs.existsSync(path.join(cwd, '.cursor', 'hooks.json'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, '.agents', 'skills', 'openbox'))).toBe(
+      false,
+    );
+  });
+
+  it('renders repo mode rules from the shared TypeSpec rules projection when provided', () => {
+    const cwd = tempDir();
+    installCursorRepoMode({ cwd, rulesProjection: rulesProjection() });
+
+    const rules = fs.readdirSync(path.join(cwd, '.cursor', 'rules')).sort();
+    expect(rules).toEqual(['openbox-guardrail-pii-wall.mdc']);
+    const content = fs.readFileSync(
+      path.join(cwd, '.cursor', 'rules', rules[0]!),
+      'utf-8',
+    );
+    expect(content).toContain('<!-- openbox-managed: do-not-edit -->');
+    expect(content).toContain('description: Block unnecessary PII');
+    expect(
+      verifyCursorRepoMode({ cwd }).every((check) => check.status === 'pass'),
+    ).toBe(true);
+
+    uninstallCursorRepoMode({ cwd, removeSkill: true });
+    expect(
+      fs.existsSync(
+        path.join(cwd, '.cursor', 'rules', 'openbox-guardrail-pii-wall.mdc'),
+      ),
+    ).toBe(false);
   });
 });

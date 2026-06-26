@@ -150,7 +150,7 @@ describe('validators; every uncovered branch', () => {
 
   it('validateBehaviorTrigger / validateBehaviorStates accept canonical names', async () => {
     const mod: any = await import('../../ts/src/validators');
-    const triggers = ['http_post', 'http_get', 'llm_gen_ai', 'mcp_tool_call', 'tool_call', 'made_up'];
+    const triggers = ['http_post', 'http_get', 'file_read', 'internal', 'tool_call', 'made_up'];
     for (const t of triggers) {
       try { mod.validateBehaviorTrigger(t); } catch { /* */ }
     }

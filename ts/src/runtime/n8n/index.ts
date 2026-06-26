@@ -4,16 +4,40 @@ import type {
   N8nSession,
   WorkflowVerdict,
 } from '../../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
+import { EVENT } from '../../governance/events.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
+  buildSpan,
+  stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
   withSpanActivityId,
+  type SpanInput,
+  type SpanType,
 } from '../../governance/spans.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../../governance/assistant-output.js';
+import { N8N_INTEGRATION_SURFACE } from '../../governance/capability-matrix.js';
 import { stampSource } from '../../approvals/source.js';
+
+export const OPENBOX_N8N_INTEGRATION = N8N_INTEGRATION_SURFACE;
+
+export type OpenBoxN8nIntegrationSurface = typeof OPENBOX_N8N_INTEGRATION;
+export type OpenBoxN8nCredentialDescriptor = OpenBoxN8nIntegrationSurface['credentials'][number];
+export type OpenBoxN8nNodeDescriptor = OpenBoxN8nIntegrationSurface['nodes'][number];
+export type OpenBoxN8nWorkflowTemplateDescriptor =
+  OpenBoxN8nIntegrationSurface['workflowTemplates'][number];
+export type OpenBoxN8nExampleDescriptor = OpenBoxN8nIntegrationSurface['examples'][number];
+export type OpenBoxN8nIntegrationDiagnosticStatus = 'pass' | 'fail';
+
+export interface OpenBoxN8nIntegrationDiagnosticCheck {
+  name: string;
+  status: OpenBoxN8nIntegrationDiagnosticStatus;
+  detail: string;
+  remediation?: string;
+}
 
 export interface N8nUserPromptSignalOptions {
   nodeName?: string;
@@ -62,16 +86,116 @@ export interface N8nNodePostExecutePayloadInput {
   durationMs?: number;
 }
 
+export interface N8nGovernanceCheckPayloadInput {
+  activityId?: string;
+  spanType: SpanType;
+  activityInput: SpanInput & Record<string, unknown>;
+  nodeName?: string;
+  sessionId?: string;
+  prompt?: string;
+}
+
 type SignalCapableN8nSession = Pick<N8nSession, 'activity'>;
 type NodePreExecuteCapableN8nSession = Pick<N8nSession, 'activity' | 'openActivity'>;
 type NodePostExecuteCapableN8nSession = Pick<N8nSession, 'nodePostExecute'>;
+type GovernanceCheckCapableN8nSession = Pick<N8nSession, 'nodePreExecute'>;
 
 interface PendingNodeActivity {
   activityId: string;
   startTime: number;
 }
 
+function descriptorById<T extends Readonly<Record<string, unknown>>>(
+  items: readonly T[],
+  id: string,
+): T | undefined {
+  return items.find((entry) => entry.id === id);
+}
+
+export function listOpenBoxN8nCredentials(): readonly OpenBoxN8nCredentialDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.credentials;
+}
+
+export function listOpenBoxN8nNodes(): readonly OpenBoxN8nNodeDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.nodes;
+}
+
+export function listOpenBoxN8nWorkflowTemplates(): readonly OpenBoxN8nWorkflowTemplateDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.workflowTemplates;
+}
+
+export function listOpenBoxN8nExamples(): readonly OpenBoxN8nExampleDescriptor[] {
+  return OPENBOX_N8N_INTEGRATION.examples;
+}
+
+export function getOpenBoxN8nCredential(
+  id = 'openboxCredentials',
+): OpenBoxN8nCredentialDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.credentials, id);
+}
+
+export function getOpenBoxN8nNode(id: string): OpenBoxN8nNodeDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.nodes, id);
+}
+
+export function getOpenBoxN8nWorkflowTemplate(
+  id: string,
+): OpenBoxN8nWorkflowTemplateDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.workflowTemplates, id);
+}
+
+export function getOpenBoxN8nExample(id: string): OpenBoxN8nExampleDescriptor | undefined {
+  return descriptorById(OPENBOX_N8N_INTEGRATION.examples, id);
+}
+
+export function verifyOpenBoxN8nIntegrationSurface(
+  surface: OpenBoxN8nIntegrationSurface = OPENBOX_N8N_INTEGRATION,
+): OpenBoxN8nIntegrationDiagnosticCheck[] {
+  const nodeIds = new Set(surface.nodes.map((node) => String(node.id)));
+  const packageNodeIds = arrayOfStrings(
+    recordFrom(surface.packageManifest).openboxSpecNodeIds,
+  );
+  return [
+    descriptorListCheck('credentials', surface.credentials, 'OpenBox credential descriptor'),
+    descriptorListCheck('nodes', surface.nodes, 'OpenBox n8n node descriptor'),
+    descriptorListCheck('workflow-templates', surface.workflowTemplates, 'OpenBox workflow template'),
+    descriptorListCheck('examples', surface.examples, 'OpenBox example workflow'),
+    {
+      name: 'package-node-ids',
+      status:
+        packageNodeIds.length > 0 &&
+        packageNodeIds.every((nodeId) => nodeIds.has(nodeId))
+          ? 'pass'
+          : 'fail',
+      detail: `package manifest references ${packageNodeIds.length} OpenBox node ids.`,
+      remediation: 'Regenerate the n8n package manifest from the TypeSpec integration surface.',
+    },
+    {
+      name: 'workflow-template-content',
+      status: surface.workflowTemplates.every((template) =>
+        arrayFrom(recordFrom(template.workflow).nodes).length > 0)
+        ? 'pass'
+        : 'fail',
+      detail: 'Workflow templates include executable n8n nodes.',
+      remediation: 'Regenerate workflow templates so each template carries at least one node.',
+    },
+    {
+      name: 'showcase-workflows',
+      status: surface.showcaseWorkflows.length > 0 &&
+        surface.showcaseWorkflows.every((workflow) =>
+          workflow.requiredOpenBoxNodeTypes.length > 0 &&
+          workflow.requiredCheckpoints.length > 0)
+        ? 'pass'
+        : 'fail',
+      detail: `Found ${surface.showcaseWorkflows.length} showcase workflow specifications.`,
+      remediation: 'Regenerate showcase workflow specifications from TypeSpec.',
+    },
+  ];
+}
+
 const N8N_NODE_TOOL_TYPE = 'n8n_node';
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const n8nActivity = PRESET_ACTIVITY_TYPES.n8n;
 const pendingNodeActivities = new WeakMap<object, Map<string, PendingNodeActivity>>();
 
 function cleanRecord(value: Record<string, unknown>): Record<string, unknown> {
@@ -127,6 +251,33 @@ function recordFrom(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function arrayFrom(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function arrayOfStrings(value: unknown): string[] {
+  return arrayFrom(value).filter(
+    (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0,
+  );
+}
+
+function descriptorListCheck(
+  name: string,
+  items: readonly Record<string, unknown>[],
+  label: string,
+): OpenBoxN8nIntegrationDiagnosticCheck {
+  const missingIds = items.filter((item) => typeof item.id !== 'string' || item.id.trim() === '');
+  return {
+    name,
+    status: items.length > 0 && missingIds.length === 0 ? 'pass' : 'fail',
+    detail: `${items.length} ${label}${items.length === 1 ? '' : 's'} declared.`,
+    remediation:
+      items.length > 0 && missingIds.length === 0
+        ? undefined
+        : `Regenerate ${label} entries from the TypeSpec n8n integration surface.`,
+  };
+}
+
 function errorDescription(value: unknown): string | undefined {
   if (value instanceof Error) return value.message || value.name;
   if (typeof value === 'string') {
@@ -158,7 +309,7 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
   const startTime = timeToUnixNano(input.startTime) ?? nowUnixNano();
   const endTime = timeToUnixNano(input.endTime) ?? nowUnixNano();
   const error = errorDescription(input.error);
-  return {
+  return stripServerComputedSemantic({
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: `n8n.${toolName}`,
@@ -174,11 +325,9 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
     events: [],
     error: error ?? null,
     stage: 'completed',
-    semantic_type: 'llm_tool_call',
     attributes: cleanRecord({
       'gen_ai.system': 'n8n',
       'openbox.n8n.node_name': input.nodeName,
-      'openbox.semantic_type': 'llm_tool_call',
       'openbox.span_type': 'function',
       ...nodeToolAttributes(toolName),
     }),
@@ -191,7 +340,7 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
       output: input.output,
     }),
     result: input.output,
-  };
+  });
 }
 
 function stableStringify(value: unknown): string {
@@ -252,7 +401,7 @@ export async function emitN8nUserPromptSignal(
 ): Promise<WorkflowVerdict | undefined> {
   const signalArgs = prompt?.trim();
   if (!signalArgs) return undefined;
-  return session.activity('SignalReceived', 'user_prompt', {
+  return session.activity(EVENT.SIGNAL, defaultActivity.goalSignal, {
     input: [
       stampSource(
         cleanRecord({
@@ -263,7 +412,7 @@ export async function emitN8nUserPromptSignal(
         'n8n',
       ),
     ],
-    signalName: 'user_prompt',
+    signalName: defaultActivity.goalSignal,
     signalArgs,
     sessionId: options.sessionId,
     prompt: signalArgs,
@@ -287,6 +436,32 @@ export function buildN8nNodePreExecutePayload(
   };
 }
 
+export function buildN8nGovernanceCheckPayload(
+  input: N8nGovernanceCheckPayloadInput,
+): GovernedPayload {
+  const prompt = input.prompt?.trim() ??
+    (typeof input.activityInput.prompt === 'string'
+      ? input.activityInput.prompt.trim()
+      : undefined);
+  const nodeName = trimmed(input.nodeName) ?? 'OpenBox Governance';
+  return {
+    activityId: input.activityId,
+    input: nodeActivityInput({
+      ...input.activityInput,
+      event_category: 'governance_check',
+      node_name: nodeName,
+      span_type: input.spanType,
+      prompt,
+    }),
+    sessionId: input.sessionId,
+    prompt,
+    ...nodeToolTelemetry(nodeName),
+    spans: [
+      buildSpan('n8n', input.spanType, input.activityInput),
+    ],
+  };
+}
+
 export async function emitN8nNodePreExecute(
   session: NodePreExecuteCapableN8nSession,
   input: N8nNodePreExecutePayloadInput,
@@ -296,7 +471,7 @@ export async function emitN8nNodePreExecute(
     sessionId: input.sessionId,
   });
   const startTime = Date.now();
-  const opened = await session.openActivity('node-pre-execute', {
+  const opened = await session.openActivity(n8nActivity.nodePreExecute, {
     ...buildN8nNodePreExecutePayload(input),
     activityId: input.activityId,
     startTime,
@@ -312,6 +487,13 @@ export async function emitN8nNodePreExecute(
     });
   }
   return opened.verdict;
+}
+
+export async function emitN8nGovernanceCheck(
+  session: GovernanceCheckCapableN8nSession,
+  input: N8nGovernanceCheckPayloadInput,
+): Promise<WorkflowVerdict> {
+  return session.nodePreExecute(buildN8nGovernanceCheckPayload(input));
 }
 
 export function buildN8nLlmCompletionPayload(
@@ -420,7 +602,8 @@ export async function emitN8nNodePostExecute(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime ?? input.startTime,
-    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
+    ensureHookSpanParent: !pending,
   });
 }
 
@@ -436,7 +619,7 @@ export async function emitN8nLlmCompletion(
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
     startTime: pending?.startTime,
-    hookSpanParentEventType: payload.spans?.length ? 'ActivityStarted' : undefined,
+    hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
     ensureHookSpanParent: !pending,
   });
 }

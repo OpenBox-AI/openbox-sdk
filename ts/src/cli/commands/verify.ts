@@ -129,7 +129,7 @@ const rules: Rule[] = [
     detect: (content, lines) => {
       // Context-aware: only flag these strings when they appear as an activity_type
       // value (in JSON payload, CLI --json, or SDK config). A file coincidentally using
-      // `ToolCall` as a workflow-name or type alias isn't an integration bug.
+      // a tool-call phrase as a workflow-name or type alias isn't an integration bug.
       const invented = /(["']?activity[_-]?type["']?\s*[:=]\s*["']|["']?activityType["']?\s*[:=]\s*["']|--type\s+["']?)(LLMCompletion|LLMInvocation|ToolInvocation|FileReading|FileWriting|ShellCommand|MCPInvocation|PromptSubmitted)/;
       return matchLines(lines, invented);
     },

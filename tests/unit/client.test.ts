@@ -1,5 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OpenBoxClient, OpenBoxApiError } from '../../ts/src/client/client.js';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
+import {
+  REQUEST_PREFLIGHT_RULES as BACKEND_REQUEST_PREFLIGHT_RULES,
+  RequestPreflightError,
+} from '../../ts/src/client/generated/request-preflight.js';
+import {
+  buildRequestConstraintConformance,
+  type RequestConstraintClassification,
+} from '../helpers/request-constraint-conformance';
 import { makeValidToken, makeExpiredToken } from '../helpers/jwt';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +34,89 @@ function createClient(overrides?: Partial<ConstructorParameters<typeof OpenBoxCl
     retry: { maxRetries: 0 },
     ...overrides,
   });
+}
+
+const METHOD_NAMES = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'codegen/method-names.json'), 'utf8'),
+) as Record<string, string>;
+
+function generatedQueryInvalidValue(
+  rule: NonNullable<(typeof BACKEND_REQUEST_PREFLIGHT_RULES)[number]['query']>[number],
+): unknown {
+  if (rule.enum) return '__openbox_invalid_enum__';
+  if (rule.minimum !== undefined) return rule.minimum - 1;
+  if (rule.maxLength !== undefined) return 'x'.repeat(rule.maxLength + 1);
+  throw new Error(`no invalid query value for generated rule ${rule.name}`);
+}
+
+function invalidValueForConstraint(constraint: RequestConstraintClassification): unknown {
+  switch (constraint.kind) {
+    case 'enum':
+      return '__openbox_invalid_enum__';
+    case 'type':
+      return constraint.value === 'string' ? 42 : 'not-a-number';
+    case 'minimum':
+      return Number(constraint.value) - 1;
+    case 'maximum':
+      return Number(constraint.value) + 1;
+    case 'maxLength':
+      return 'x'.repeat(Number(constraint.value) + 1);
+    case 'minItems':
+      return [];
+    case 'maxItems':
+      return Array.from({ length: Number(constraint.value) + 1 }, (_, index) => `item-${index}`);
+    case 'format':
+      return constraint.value === 'uuid' ? 'not-a-uuid' : 'not-a-date-time';
+    case 'integer':
+      return 1.5;
+    default:
+      throw new Error(`unhandled request constraint kind ${(constraint as { kind: string }).kind}`);
+  }
+}
+
+function bodyWithConstraint(location: string, value: unknown): unknown {
+  const path = location.replace(/^body\./, '').split('.');
+  const build = (segments: string[]): unknown => {
+    const [head, ...tail] = segments;
+    if (!head) return value;
+    if (head === '*') return [build(tail)];
+    return { [head]: build(tail) };
+  };
+  return build(path);
+}
+
+function methodNameForOperation(operationId: string): string {
+  const mapped = METHOD_NAMES[operationId];
+  if (mapped) return mapped;
+  const match = operationId.match(/^[A-Z][a-zA-Z]*Controller_(.+)$/);
+  return match ? match[1] : operationId;
+}
+
+function pathParamValues(path: string): string[] {
+  return [...path.matchAll(/\{([^}]+)\}/g)].map(([, name]) => `${name}-value`);
+}
+
+function wrapperArgsForConstraint(constraint: RequestConstraintClassification): unknown[] {
+  const operation = BACKEND_ENDPOINT_MANIFEST.find(
+    (entry) => entry.operationId === constraint.operationId,
+  );
+  expect(operation, constraint.key).toBeDefined();
+  const args: unknown[] = pathParamValues(operation!.path);
+  const invalidValue = invalidValueForConstraint(constraint);
+
+  if (constraint.location.startsWith('query.')) {
+    args.push({ [constraint.location.slice('query.'.length)]: invalidValue });
+    return args;
+  }
+
+  args.push(bodyWithConstraint(constraint.location, invalidValue));
+  return args;
+}
+
+function requestConstraintKeys(
+  constraints: readonly RequestConstraintClassification[],
+): string[] {
+  return constraints.map((entry) => entry.key).sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +209,108 @@ describe('OpenBoxClient', () => {
       fetchMock.mockResolvedValueOnce(mockResponse(200, { data: [] }));
       await client.listAgents();
       expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    });
+
+    it('rejects out-of-domain approval status queries before fetch', async () => {
+      await expect(
+        client.getPendingApprovals('agent-1', { status: '__not_a_status__' }),
+      ).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'AgentController_getPendingApprovals',
+        location: 'query.status',
+      });
+      await expect(
+        client.getApprovalHistory('agent-1', { status: '__not_a_status__' }),
+      ).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'AgentController_getApprovalHistory',
+        location: 'query.status',
+      });
+      await expect(
+        client.getOrgApprovals('org-1', { status: '__not_a_status__' }),
+      ).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'OrganizationController_getApprovals',
+        location: 'query.status',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects generated agent evaluation query boundaries before fetch', async () => {
+      const rule = BACKEND_REQUEST_PREFLIGHT_RULES.find(
+        (entry) => entry.operationId === 'AgentController_getAgentEvaluations',
+      );
+      expect(rule?.query?.map((entry) => entry.name).sort()).toEqual([
+        'page',
+        'pattern',
+        'perPage',
+      ]);
+
+      for (const queryRule of rule?.query ?? []) {
+        await expect(
+          client.getAgentViolations('agent-1', {
+            [queryRule.name]: generatedQueryInvalidValue(queryRule),
+          }),
+        ).rejects.toMatchObject({
+          name: 'RequestPreflightError',
+          operationId: 'AgentController_getAgentEvaluations',
+          location: `query.${queryRule.name}`,
+        });
+      }
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects RemoveMembersDto.memberIds array type and item-count violations before fetch', async () => {
+      await expect(
+        client.removeMembers('org-1', { memberIds: 'not-an-array' } as any),
+      ).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'OrganizationController_removeMembers',
+        location: 'body.memberIds',
+      });
+      await expect(
+        client.removeMembers('org-1', { memberIds: [] }),
+      ).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'OrganizationController_removeMembers',
+        location: 'body.memberIds',
+      });
+      await expect(
+        client.removeMembers('org-1', {
+          memberIds: Array.from({ length: 101 }, (_, index) => `user-${index}`),
+        }),
+      ).rejects.toBeInstanceOf(RequestPreflightError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects transport-gated generated constraints through public wrappers before fetch', async () => {
+      const ledger = buildRequestConstraintConformance();
+      const constraints = ledger.constraints.filter(
+        (entry) => entry.disposition === 'transport-or-feature-gated',
+      );
+      const closure = ledger.transportGatedPublicWrapperClosures.find(
+        (entry) => entry.sdkTarget === 'typescript',
+      );
+
+      expect(constraints.length).toBeGreaterThan(0);
+      expect(requestConstraintKeys(constraints)).toEqual(closure?.constraintKeys);
+
+      for (const constraint of constraints) {
+        const methodName = methodNameForOperation(constraint.operationId);
+        const method = (client as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[
+          methodName
+        ];
+        expect(method, `${constraint.key} -> ${methodName}`).toBeTypeOf('function');
+
+        await expect(method.apply(client, wrapperArgsForConstraint(constraint))).rejects.toMatchObject({
+          name: 'RequestPreflightError',
+          operationId: constraint.operationId,
+          location: constraint.location,
+        });
+      }
+
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('POST requests use POST method', async () => {

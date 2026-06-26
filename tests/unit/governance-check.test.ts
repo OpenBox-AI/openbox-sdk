@@ -11,8 +11,11 @@ vi.mock('../../ts/src/file-tokens/agent-keys.js', () => ({
   recallAgentKey: vi.fn((agentId: string) => state.recalls.get(agentId)),
 }));
 
-vi.mock('../../ts/src/core-client/index.js', () => ({
-  OpenBoxCoreClient: class {
+vi.mock('../../ts/src/core-client/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../ts/src/core-client/index.js')>();
+  return {
+    ...actual,
+    OpenBoxCoreClient: class {
     constructor(private readonly opts: { apiUrl: string; apiKey: string }) {
       state.constructed.push(opts);
     }
@@ -28,7 +31,8 @@ vi.mock('../../ts/src/core-client/index.js', () => ({
       };
     }
   },
-}));
+  };
+});
 
 function runtimeKey(prefix: 'live' | 'test'): string {
   return `obx_${prefix}_${'a'.repeat(48)}`;
@@ -66,14 +70,21 @@ describe('governance/check', () => {
     ]);
     expect(state.payloads[0]).toMatchObject({
       source: 'workflow-telemetry',
+      event_type: 'WorkflowStarted',
+      workflow_type: 'SdkCheck',
+      task_queue: 'sdk',
+      hook_trigger: false,
+    });
+    expect(state.payloads[1]).toMatchObject({
+      source: 'workflow-telemetry',
       event_type: 'ActivityStarted',
       activity_type: 'FileEdit',
       activity_input: [{ file_path: '/tmp/a.txt', content: 'x' }],
     });
-    expect(state.payloads[0].hook_trigger).toBe(false);
-    expect(state.payloads[0]).not.toHaveProperty('spans');
-    expect(state.payloads[0]).not.toHaveProperty('span_count');
-    expect(state.payloads[1]).toMatchObject({
+    expect(state.payloads[1].hook_trigger).toBe(false);
+    expect(state.payloads[1]).not.toHaveProperty('spans');
+    expect(state.payloads[1]).not.toHaveProperty('span_count');
+    expect(state.payloads[2]).toMatchObject({
       source: 'workflow-telemetry',
       event_type: 'ActivityStarted',
       activity_type: 'FileEdit',
@@ -83,17 +94,21 @@ describe('governance/check', () => {
     });
     expect(state.payloads[1].workflow_id).toBe(state.payloads[0].workflow_id);
     expect(state.payloads[1].run_id).toBe(state.payloads[0].run_id);
-    expect(state.payloads[1].activity_id).toBe(state.payloads[0].activity_id);
-    expect(state.payloads[1].spans[0]).toMatchObject({
-      activity_id: state.payloads[0].activity_id,
+    expect(state.payloads[2].workflow_id).toBe(state.payloads[1].workflow_id);
+    expect(state.payloads[2].run_id).toBe(state.payloads[1].run_id);
+    expect(state.payloads[2].activity_id).toBe(state.payloads[1].activity_id);
+    expect(state.payloads[2].spans[0]).not.toHaveProperty('semantic_type');
+    expect(state.payloads[2].spans[0].attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(state.payloads[2].spans[0]).toMatchObject({
+      activity_id: state.payloads[1].activity_id,
       name: 'file.write',
-      semantic_type: 'file_write',
       file_path: '/tmp/a.txt',
     });
   });
 
   it('treats uppercase continue/constrain parent verdicts as allowish before returning hook verdict', async () => {
     state.responses.push(
+      { verdict: 'allow', action: 'allow', reason: 'workflow started' },
       { verdict: ' CONTINUE ', action: 'CONTINUE', reason: 'parent allowed' },
       { verdict: 'block', action: 'block', reason: 'hook blocked' },
     );
@@ -111,11 +126,57 @@ describe('governance/check', () => {
       verdict: 'block',
       reason: 'hook blocked',
     });
-    expect(state.payloads).toHaveLength(2);
+    expect(state.payloads).toHaveLength(3);
+  });
+
+  it('emits a goal signal before the governed action when goal context is supplied', async () => {
+    const { checkGovernance } = await import('../../ts/src/governance/check.ts');
+
+    await checkGovernance({
+      agentId: 'agent-1',
+      spanType: 'llm_embedding',
+      activityInput: { prompt: 'embed this', model: 'text-embedding-3-small' },
+      goal: 'answer the customer question',
+      sessionId: 'mcp-session-1',
+      apiKey: runtimeKey('test'),
+      coreUrl: 'https://core.dev.test/ob',
+    });
+
+    expect(state.payloads[0]).toMatchObject({ event_type: 'WorkflowStarted' });
+    expect(state.payloads[1]).toMatchObject({
+      event_type: 'SignalReceived',
+      activity_type: 'user_prompt',
+      activity_input: [{ prompt: 'answer the customer question', event_category: 'agent_goal' }],
+      signal_name: 'user_prompt',
+      signal_args: 'answer the customer question',
+      prompt: 'answer the customer question',
+    });
+    expect(state.payloads[2]).toMatchObject({
+      event_type: 'ActivityStarted',
+      activity_type: 'EMBEDDING',
+      session_id: 'mcp-session-1',
+    });
+  });
+
+  it('fails closed before Core when strict goal context is required but missing', async () => {
+    const { checkGovernance } = await import('../../ts/src/governance/check.ts');
+
+    await expect(
+      checkGovernance({
+        agentId: 'agent-1',
+        spanType: 'shell',
+        activityInput: { command: 'pwd' },
+        requireGoalContext: true,
+        apiKey: runtimeKey('test'),
+        coreUrl: 'https://core.dev.test/ob',
+      }),
+    ).rejects.toThrow('goal context is required');
+    expect(state.payloads).toHaveLength(0);
   });
 
   it('still emits the hook span when the parent verdict blocks', async () => {
     state.responses.push(
+      { verdict: 'allow', action: 'allow', reason: 'workflow started' },
       { verdict: 'block', action: 'block', reason: 'parent blocked' },
       { verdict: 'allow', action: 'allow', reason: 'hook persisted' },
     );
@@ -133,15 +194,19 @@ describe('governance/check', () => {
       verdict: 'block',
       reason: 'parent blocked',
     });
-    expect(state.payloads).toHaveLength(2);
+    expect(state.payloads).toHaveLength(3);
     expect(state.payloads[0]).toMatchObject({
+      event_type: 'WorkflowStarted',
+      hook_trigger: false,
+    });
+    expect(state.payloads[1]).toMatchObject({
       event_type: 'ActivityStarted',
       activity_type: 'MCPToolCall',
       hook_trigger: false,
     });
-    expect(state.payloads[0]).not.toHaveProperty('spans');
-    expect(state.payloads[0]).not.toHaveProperty('span_count');
-    expect(state.payloads[1]).toMatchObject({
+    expect(state.payloads[1]).not.toHaveProperty('spans');
+    expect(state.payloads[1]).not.toHaveProperty('span_count');
+    expect(state.payloads[2]).toMatchObject({
       event_type: 'ActivityStarted',
       activity_type: 'MCPToolCall',
       hook_trigger: true,
@@ -149,9 +214,12 @@ describe('governance/check', () => {
     });
     expect(state.payloads[1].workflow_id).toBe(state.payloads[0].workflow_id);
     expect(state.payloads[1].run_id).toBe(state.payloads[0].run_id);
-    expect(state.payloads[1].activity_id).toBe(state.payloads[0].activity_id);
-    expect(state.payloads[1].spans[0]).toMatchObject({
-      semantic_type: 'mcp_tool_call',
+    expect(state.payloads[2].workflow_id).toBe(state.payloads[1].workflow_id);
+    expect(state.payloads[2].run_id).toBe(state.payloads[1].run_id);
+    expect(state.payloads[2].activity_id).toBe(state.payloads[1].activity_id);
+    expect(state.payloads[2].spans[0]).not.toHaveProperty('semantic_type');
+    expect(state.payloads[2].spans[0].attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(state.payloads[2].spans[0]).toMatchObject({
       attributes: {
         'mcp.method': 'callTool',
         'mcp.operation': 'danger_tool',
@@ -221,9 +289,10 @@ describe('governance/check', () => {
       const payload = state.payloads.at(-1);
       expect(payload.activity_type).toBe(activityType);
       expect(payload.spans[0].name).toBe(spanName);
+      expect(payload.spans[0]).not.toHaveProperty('semantic_type');
+      expect(payload.spans[0].attributes).not.toHaveProperty('openbox.semantic_type');
       if (spanType === 'mcp') {
         expect(payload.spans[0]).toMatchObject({
-          semantic_type: 'mcp_tool_call',
           span_type: 'mcp_tool_call',
           attributes: {
             'mcp.method': 'callTool',

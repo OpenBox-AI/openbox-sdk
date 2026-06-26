@@ -59,6 +59,7 @@ describe('runtime/cursor/install; source-level verification', () => {
       ['plugin', 'pass'],
       ['plugin-manifest', 'pass'],
       ['plugin-marketplace', 'pass'],
+      ['plugin-workspace-open', 'pass'],
       ['plugin-skill', 'pass'],
       ['plugin-commands', 'pass'],
       ['plugin-rules', 'pass'],
@@ -169,6 +170,19 @@ describe('runtime/mcp/install; host and error states', () => {
     );
   });
 
+  it('writes project-scoped Codex MCP to .codex/config.toml', async () => {
+    const { installMcp, uninstallMcp } = await import('../../ts/src/runtime/mcp/install.ts');
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    installMcp({ targets: ['codex'], scope: 'project', cwd });
+    const file = path.join(cwd, '.codex', 'config.toml');
+    expect(fs.readFileSync(file, 'utf-8')).toContain('[mcp_servers.openbox]');
+    expect(fs.existsSync(path.join(cwd, '.codex', 'mcp.json'))).toBe(false);
+
+    uninstallMcp({ targets: ['codex'], scope: 'project', cwd });
+    expect(fs.readFileSync(file, 'utf-8')).not.toContain('[mcp_servers.openbox]');
+  });
+
   it('refuses to overwrite malformed host JSON', async () => {
     const { installMcp } = await import('../../ts/src/runtime/mcp/install.ts');
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -234,6 +248,9 @@ describe('install/from-spec; MCP entry helpers', () => {
       path.join(cwd, '.claude', 'settings.json'),
     );
     expect(resolveInstallPaths(cursorSpec, { cwd }).mcpFile).toBe(path.join(cwd, '.cursor', 'mcp.json'));
+    expect(resolveInstallPaths((await import('../../ts/src/core-client/generated/runtime/codex.js')).HOOK_SPEC, { cwd }).mcpFile).toBe(
+      path.join(cwd, '.codex', 'config.toml'),
+    );
     expect(() => resolveInstallPaths(cursorSpec, { scope: 'global' as never, cwd })).toThrow(
       'scope `global` is not supported; expected project',
     );

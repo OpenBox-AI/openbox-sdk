@@ -1,10 +1,10 @@
 import type { GovernedPayload, SpanData } from '../core-client/index.js';
 import {
   buildLLMCompletionSpan,
-  llmTokenUsageFromRecord,
   type LLMTokenUsage,
   type LLMCompletionSpanInput,
 } from './spans.js';
+import { openBoxUsageTelemetryFields } from './usage.js';
 
 type AssistantTelemetryFields = Pick<
   GovernedPayload,
@@ -13,6 +13,7 @@ type AssistantTelemetryFields = Pick<
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'hasToolCalls'
   | 'completion'
 >;
@@ -47,27 +48,6 @@ function firstText(...values: Array<unknown>): string | undefined {
   return undefined;
 }
 
-function inputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  const normalized = llmTokenUsageFromRecord(usage);
-  return normalized?.promptTokens ?? normalized?.inputTokens;
-}
-
-function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  const normalized = llmTokenUsageFromRecord(usage);
-  return normalized?.completionTokens ?? normalized?.outputTokens;
-}
-
-function totalTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  const normalized = llmTokenUsageFromRecord(usage);
-  if (!normalized) return undefined;
-  if (normalized.totalTokens !== undefined) return normalized.totalTokens;
-  const input = normalized.promptTokens ?? normalized.inputTokens;
-  const output = normalized.completionTokens ?? normalized.outputTokens;
-  return input !== undefined || output !== undefined
-    ? (input ?? 0) + (output ?? 0)
-    : undefined;
-}
-
 function defaultAssistantSpanName(source: string): string {
   return `openbox.${source}.assistant_output`;
 }
@@ -75,12 +55,14 @@ function defaultAssistantSpanName(source: string): string {
 export function assistantOutputTelemetryFields(
   input: AssistantOutputTelemetryInput,
 ): AssistantTelemetryFields {
+  const usage = openBoxUsageTelemetryFields(input.usage);
   return {
     sessionId: input.sessionId,
     llmModel: input.model,
-    inputTokens: inputTokens(input.usage),
-    outputTokens: outputTokens(input.usage),
-    totalTokens: totalTokens(input.usage),
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    costUsd: usage.costUsd,
     hasToolCalls: input.hasToolCalls,
     completion: firstText(input.content),
   };

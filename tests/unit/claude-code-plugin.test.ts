@@ -10,6 +10,7 @@ import {
   uninstallClaudeCodePlugin,
   verifyClaudeCodePlugin,
 } from '../../ts/src/runtime/claude-code/plugin.js';
+import { PROVIDER_PLUGIN_COMPONENTS } from '../../ts/src/governance/capability-matrix.js';
 
 const temps: string[] = [];
 
@@ -17,6 +18,23 @@ function tempDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openbox-claude-code-plugin-'));
   temps.push(dir);
   return dir;
+}
+
+const CLAUDE_CODE_COMPONENTS = PROVIDER_PLUGIN_COMPONENTS.find(
+  (entry) => entry.provider === 'claude-code',
+)!.components;
+
+function assertSpecComponentPathsExist(root: string): void {
+  for (const component of CLAUDE_CODE_COMPONENTS) {
+    if (component.tier === 'out-of-scope') {
+      expect('path' in component, `Claude Code out-of-scope component ${component.name}`).toBe(false);
+      continue;
+    }
+    expect('path' in component, `Claude Code plugin component ${component.name} path`).toBe(true);
+    const componentPath = 'path' in component ? component.path : undefined;
+    expect(componentPath, `Claude Code plugin component ${component.name} path`).toBeTruthy();
+    expect(fs.existsSync(path.join(root, componentPath!)), component.name).toBe(true);
+  }
 }
 
 afterEach(() => {
@@ -33,9 +51,11 @@ describe('Claude Code plugin asset', () => {
       },
     });
 
+    assertSpecComponentPathsExist(out);
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'plugin.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, '.claude-plugin', 'marketplace.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(out, 'instructions', 'CLAUDE.md'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'component-inventory.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'claude-code-governance.json'))).toBe(true);
     expect(fs.existsSync(path.join(out, 'diagnostics', 'monitors.opt-in.json'))).toBe(true);
@@ -49,6 +69,7 @@ describe('Claude Code plugin asset', () => {
       'openbox-status.md',
     ]);
     expect(fs.readdirSync(path.join(out, 'agents'))).toEqual(['openbox-reviewer.md']);
+    expect(fs.readdirSync(path.join(out, 'instructions'))).toEqual(['CLAUDE.md']);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(out, '.claude-plugin', 'plugin.json'), 'utf-8'));
     expect(manifest.name).toBe('openbox');
@@ -77,6 +98,14 @@ describe('Claude Code plugin asset', () => {
       args: ['${CLAUDE_PLUGIN_ROOT}/bin/openbox-cli.mjs', 'mcp', 'serve'],
     });
 
+    const instructions = fs.readFileSync(path.join(out, 'instructions', 'CLAUDE.md'), 'utf-8');
+    expect(instructions).toContain('OpenBox Governance for Claude Code');
+    expect(instructions).toContain('Use the OpenBox Claude Code plugin, MCP tools, or slash commands');
+    expect(instructions).toContain('Do not evaluate OPA/Rego, behavior-rule predicates');
+    expect(instructions).toContain('Projection summary:');
+    expect(instructions).toContain('- Agent: `openbox-core`');
+    expect(instructions).toContain('## Guardrails');
+
     const inventory = JSON.parse(
       fs.readFileSync(path.join(out, 'diagnostics', 'component-inventory.json'), 'utf-8'),
     );
@@ -85,6 +114,7 @@ describe('Claude Code plugin asset', () => {
     expect(inventory.components.hooks.defaultEvents).toContain('Elicitation');
     expect(inventory.components.hooks.optInEvents).toContain('WorktreeCreate');
     expect(inventory.components.hooks.optInEvents).toContain('SessionEnd');
+    expect(inventory.components.instructions.path).toBe('instructions/CLAUDE.md');
     expect(inventory.components.bin.files).toContain('openbox-cli.mjs');
     expect(inventory.components.settings.status).toBe('diagnose_only');
     expect(inventory.components.settings.emitted).toBe(false);

@@ -1375,14 +1375,17 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  if (DEBUG_BUILD) {
-    context.subscriptions.push(
-      vscode.commands.registerCommand("openbox.showDebugInfo", () => {
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openbox.showDebugInfo", () => {
+      if (DEBUG_BUILD) {
         showDebugInfoPanel(context, buildDebugSnapshot);
-      }),
-
-    );
-  }
+        return;
+      }
+      vscode.window.showInformationMessage(
+        "OpenBox debug info is available only in debug builds.",
+      );
+    }),
+  );
 }
 
 export function deactivate() {

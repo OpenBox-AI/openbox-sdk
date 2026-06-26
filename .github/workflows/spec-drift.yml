@@ -56,10 +56,10 @@ jobs:
           fi
 
       - if: steps.gate.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - if: steps.gate.outputs.skip != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -83,7 +83,7 @@ jobs:
         run: node --experimental-strip-types scripts/spec-drift.ts diff --service ${{ matrix.service }} --tier ${{ matrix.tier }}
 
       - if: steps.gate.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spec-drift-${{ matrix.service }}-${{ matrix.tier }}
           path: /tmp/spec-drift-${{ matrix.service }}-${{ matrix.tier }}.md

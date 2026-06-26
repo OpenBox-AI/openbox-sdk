@@ -44,6 +44,7 @@ import {
   stoppedResult,
   verdictMetadata,
 } from '../../ts/src/copilotkit/results.ts';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 const ids = {
   workflowId: 'workflow-1',
@@ -480,15 +481,18 @@ describe('copilotkit helper coverage', () => {
     const mapped = mapGuardrailsResult({
       input_type: 'activity_output',
       redacted_input: { output: { secret: '[REDACTED]' } },
+      redacted_output: { output: { visible: '[SAFE]' } },
       validation_passed: false,
       raw_logs: { pii: { redacted: 1 } },
       reasons: [{ type: 'pii', field: 42, reason: null }],
       fieldResults: [{ field: 'a', status: 'block', reason: 'bad' }],
+      field_results: [{ field: 'aa', status: 'redacted', reason: 'direct' }],
       results: [
         {
+          guardrail_type: 'pii',
           results: [
-            { field: 'b', status: 'transformed' },
-            { field: 'c', status: 'allow' },
+            { field: 'b', order: 0, status: 'transformed' },
+            { field: 'c', order: 1, status: 'allow' },
           ],
         },
       ],
@@ -496,13 +500,15 @@ describe('copilotkit helper coverage', () => {
     expect(mapped).toEqual({
       inputType: 'activity_output',
       redactedInput: { output: { secret: '[REDACTED]' } },
+      redactedOutput: { output: { visible: '[SAFE]' } },
       validationPassed: false,
       rawLogs: { pii: { redacted: 1 } },
       reasons: [{ type: 'pii', field: undefined, reason: '' }],
       fieldResults: [
         { field: 'a', status: 'blocked', reason: 'bad' },
-        { field: 'b', status: 'transformed', reason: undefined },
-        { field: 'c', status: 'allowed', reason: undefined },
+        { field: 'aa', status: 'redacted', reason: 'direct' },
+        { field: 'b', guardrailType: 'pii', order: 0, status: 'transformed', reason: undefined },
+        { field: 'c', guardrailType: 'pii', order: 1, status: 'allowed', reason: undefined },
       ],
     });
     expect(mapGuardrailsResult(null)).toBeUndefined();
@@ -519,6 +525,19 @@ describe('copilotkit helper coverage', () => {
       validation_passed: true,
     });
     expect(signalMapped?.inputType).toBe('signal_args');
+    const observedFieldStatuses = new Set<string>();
+    const specStatusMapped = mapGuardrailsResult({
+      fieldResults: GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses.map((status) => ({
+        field: `spec.${status}`,
+        status,
+      })),
+    });
+    for (const result of specStatusMapped?.fieldResults ?? []) {
+      observedFieldStatuses.add(result.status);
+    }
+    expect([...observedFieldStatuses].sort()).toEqual(
+      [...GOVERNANCE_SPEC_DOMAINS.coreGuardrailFieldStatuses].sort(),
+    );
     expect(
       applyOpenBoxTransform(
         ['open avery@example.com'],
@@ -531,12 +550,23 @@ describe('copilotkit helper coverage', () => {
     expect(normalizeArm('request_approval')).toBe('require_approval');
     expect(normalizeArm('request-approval')).toBe('require_approval');
     expect(normalizeArm(' REQUEST-APPROVAL ')).toBe('require_approval');
+    expect(normalizeArm('requires_approval')).toBe('require_approval');
+    expect(normalizeArm('pending')).toBe('require_approval');
+    expect(normalizeArm('ask')).toBe('require_approval');
+    expect(normalizeArm('approve')).toBe('allow');
+    expect(normalizeArm('approved')).toBe('allow');
+    expect(normalizeArm('allowed')).toBe('allow');
+    expect(normalizeArm('reject')).toBe('block');
+    expect(normalizeArm('rejected')).toBe('block');
+    expect(normalizeArm('deny')).toBe('block');
+    expect(normalizeArm('denied')).toBe('block');
+    expect(normalizeArm('blocked')).toBe('block');
+    expect(normalizeArm('stopped')).toBe('halt');
     expect(normalizeArm(0)).toBe('allow');
     expect(normalizeArm(1)).toBe('constrain');
     expect(normalizeArm(2)).toBe('require_approval');
     expect(normalizeArm(3)).toBe('block');
     expect(normalizeArm(4)).toBe('halt');
-    expect(normalizeArm('ask')).toBe('allow');
     expect(normalizeArm('halt')).toBe('halt');
     expect(normalizeArm('HALT')).toBe('halt');
     expect(isAllowed('allow')).toBe(true);
@@ -601,7 +631,7 @@ describe('copilotkit helper coverage', () => {
         verdict({ arm: 'allow' }),
       ),
     ).toEqual({ input });
-    expect(
+    expect(() =>
       applyStartedRedaction(
         {
           toolName: 'review_queue',
@@ -618,8 +648,26 @@ describe('copilotkit helper coverage', () => {
             fieldResults: [{ field: 'args.request', status: 'redacted' }],
           },
         }),
-      ).input,
-    ).toBe(input);
+      ),
+    ).toThrow('OpenBox redacted action input but did not provide replacement input.');
+    expect(() =>
+      applyStartedRedaction(
+        {
+          toolName: 'review_queue',
+          description: 'Review queue',
+        } as any,
+        input,
+        verdict({
+          arm: 'allow',
+          guardrailsResult: {
+            inputType: 'activity_input',
+            validationPassed: true,
+            reasons: [],
+            fieldResults: [{ field: 'args.request', status: 'redacted' }],
+          },
+        }),
+      ),
+    ).toThrow('OpenBox redacted action input but did not provide replacement input.');
     expect(
       applyOpenBoxTransform(
         { request: 'secret' },

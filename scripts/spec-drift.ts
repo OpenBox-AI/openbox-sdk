@@ -23,8 +23,21 @@ import { execSync } from 'node:child_process';
 import { argv, env, exit, stderr, stdout } from 'node:process';
 import { resolve } from 'node:path';
 
-const SERVICES = new Set(['backend', 'core']);
-const TIERS = new Set(['prod', 'staging', 'develop', 'main']);
+type ServiceDriftCommand = {
+  id: string;
+  outputPathTemplate: string;
+};
+
+type ServiceDriftManifest = {
+  script: string;
+  services: string[];
+  tiers: string[];
+  commands: ServiceDriftCommand[];
+};
+
+const SERVICE_DRIFT = readServiceDriftManifest();
+const SERVICES = new Set(SERVICE_DRIFT.services);
+const TIERS = new Set(SERVICE_DRIFT.tiers);
 
 const args = parseArgs(argv.slice(2));
 const cmd = args._[0];
@@ -37,8 +50,39 @@ else if (cmd === 'diff') doDiff(args.service, args.tier);
 
 // ---------------------------------------------------------------------------
 
+function readServiceDriftManifest() {
+  const fixturePath = resolve(process.cwd(), 'codegen/fixtures/sdk-targets.json');
+  if (!existsSync(fixturePath)) {
+    stderr.write(
+      'Missing codegen/fixtures/sdk-targets.json. Run npm run specs:compile before spec drift.\n',
+    );
+    exit(1);
+  }
+
+  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  const serviceDrift = fixture.serviceDrift;
+  if (!serviceDrift || typeof serviceDrift !== 'object') {
+    stderr.write('sdk-targets fixture is missing serviceDrift metadata.\n');
+    exit(1);
+  }
+  return serviceDrift as ServiceDriftManifest;
+}
+
+function renderTemplate(template, service, tier) {
+  return template.replaceAll('<service>', service).replaceAll('<tier>', tier);
+}
+
+function outputPath(commandId, service, tier) {
+  const command = SERVICE_DRIFT.commands.find((entry) => entry.id === commandId);
+  if (!command) {
+    stderr.write(`serviceDrift metadata is missing command ${commandId}\n`);
+    exit(1);
+  }
+  return renderTemplate(command.outputPathTemplate, service, tier);
+}
+
 function doFetch(service, tier) {
-  const out = `/tmp/upstream-${service}-${tier}.json`;
+  const out = outputPath('fetch', service, tier);
 
   // Core has no deployed OpenAPI endpoint; prod/staging tiers skip,
   // develop/main go through the upstream path-regex parser.
@@ -162,8 +206,8 @@ function normalizePath(p) {
 // ---------------------------------------------------------------------------
 
 function doDiff(service, tier) {
-  const upstreamPath = `/tmp/upstream-${service}-${tier}.json`;
-  const outPath = `/tmp/spec-drift-${service}-${tier}.md`;
+  const upstreamPath = outputPath('fetch', service, tier);
+  const outPath = outputPath('diff', service, tier);
   if (!existsSync(upstreamPath)) {
     writeFileSync(outPath, `# Spec drift; ${service}@${tier}\n\nfetch step did not run\n`);
     setOutput('has_drift', 'false');
@@ -274,10 +318,12 @@ function parseArgs(rest) {
 
 function usage(msg) {
   if (msg) stderr.write(`error: ${msg}\n\n`);
+  const services = [...SERVICES].join('|');
+  const tiers = [...TIERS].join('|');
   stderr.write(
     'usage:\n' +
-      '  scripts/spec-drift.ts fetch --service <backend|core> --tier <prod|staging|develop|main>\n' +
-      '  scripts/spec-drift.ts diff  --service <backend|core> --tier <prod|staging|develop|main>\n',
+      `  ${SERVICE_DRIFT.script} fetch --service <${services}> --tier <${tiers}>\n` +
+      `  ${SERVICE_DRIFT.script} diff  --service <${services}> --tier <${tiers}>\n`,
   );
   exit(1);
 }

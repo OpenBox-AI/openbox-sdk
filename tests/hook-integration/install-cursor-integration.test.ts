@@ -13,19 +13,24 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { requireOpenBoxCli } from '../helpers/openbox-cli.js';
 
 const CLI = requireOpenBoxCli();
+const CLI_TIMEOUT_MS = 15_000;
 
 let HOME: string;
 let PROJECT: string;
 
 function runCLI(args: string[]): { status: number | null; out: string; err: string } {
-  const r = spawnSync(CLI, args, {
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME };
+  delete env.NODE_V8_COVERAGE;
+  delete env.VITEST;
+  delete env.VITEST_POOL_ID;
+  delete env.VITEST_WORKER_ID;
+  const r = spawnSync(process.execPath, [CLI, ...args], {
     cwd: PROJECT,
-    env: {
-      ...process.env,
-      HOME,
-    },
+    env,
     encoding: 'utf-8',
+    timeout: CLI_TIMEOUT_MS,
   });
+  if (r.error) throw r.error;
   return { status: r.status, out: r.stdout, err: r.stderr };
 }
 
@@ -127,11 +132,12 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     const r = runCLI(['cursor', 'doctor', '--json', '--surface-only']);
     expect(r.status, r.err).toBe(0);
     const payload = JSON.parse(r.out);
-    expect(payload.summary).toEqual({ pass: 9, skip: 0, fail: 0 });
+    expect(payload.summary).toEqual({ pass: 10, skip: 0, fail: 0 });
     expect(payload.checks.map((c: any) => c.name)).toEqual([
       'plugin',
       'plugin-manifest',
       'plugin-marketplace',
+      'plugin-workspace-open',
       'plugin-skill',
       'plugin-commands',
       'plugin-rules',
@@ -146,6 +152,7 @@ describe('openbox install cursor; project-local plugin bundle', () => {
     const r = runCLI(['cursor', 'plugin', 'export', '--out', out]);
     expect(r.status, r.err).toBe(0);
     expect(existsSync(join(out, '.cursor-plugin', 'plugin.json'))).toBe(true);
+    expect(existsSync(join(out, 'workspaceOpen.json'))).toBe(true);
     expect(existsSync(join(out, 'hooks', 'hooks.json'))).toBe(true);
     expect(existsSync(join(out, 'mcp.json'))).toBe(true);
     expect(existsSync(join(out, 'skills', 'openbox', 'SKILL.md'))).toBe(true);
@@ -166,12 +173,12 @@ describe('openbox install cursor; project-local plugin bundle', () => {
   });
 
   it('does not expose old direct Cursor install flags', () => {
-    const workspace = mkdtempSync(join(tmpdir(), 'openbox-cursor-project-'));
+    const projectDir = mkdtempSync(join(tmpdir(), 'openbox-cursor-project-'));
     try {
-      const install = runCLI(['install', 'cursor', '--scope', 'project', '--cwd', workspace]);
+      const install = runCLI(['install', 'cursor', '--scope', 'project', '--cwd', projectDir]);
       expect(install.status).not.toBe(0);
-      expect(existsSync(join(workspace, '.cursor', 'hooks.json'))).toBe(false);
-      expect(existsSync(join(workspace, '.cursor', 'mcp.json'))).toBe(false);
+      expect(existsSync(join(projectDir, '.cursor', 'hooks.json'))).toBe(false);
+      expect(existsSync(join(projectDir, '.cursor', 'mcp.json'))).toBe(false);
 
       const doctor = runCLI([
         'cursor',
@@ -179,16 +186,16 @@ describe('openbox install cursor; project-local plugin bundle', () => {
         '--scope',
         'project',
         '--cwd',
-        workspace,
+        projectDir,
         '--json',
         '--surface-only',
       ]);
       expect(doctor.status).not.toBe(0);
 
-      const uninstall = runCLI(['uninstall', 'cursor', '--scope', 'project', '--cwd', workspace]);
+      const uninstall = runCLI(['uninstall', 'cursor', '--scope', 'project', '--cwd', projectDir]);
       expect(uninstall.status).not.toBe(0);
     } finally {
-      rmSync(workspace, { recursive: true, force: true });
+      rmSync(projectDir, { recursive: true, force: true });
     }
   });
 });

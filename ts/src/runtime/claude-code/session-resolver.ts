@@ -5,8 +5,13 @@
 import {
   resolveSessionByKey,
   peekSessionByKey,
+  isSessionStartedByKey,
+  markStartedByKey,
   markHaltedByKey,
   clearSessionByKey,
+  recordGoalByKey,
+  peekGoalByKey,
+  type SessionGoalRecord,
 } from '../../session/resolver.js';
 import type { ClaudeCodeConfig } from './config.js';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
@@ -34,6 +39,27 @@ export function lastResolveCreatedFreshSession(): boolean {
 
 export function markHalted(sessionId: string, cfg: ClaudeCodeConfig): void {
   markHaltedByKey(sessionId, cfg);
+}
+
+export function isStarted(sessionId: string, cfg: ClaudeCodeConfig): boolean {
+  return isSessionStartedByKey(sessionId, cfg);
+}
+
+export function markStarted(sessionId: string, cfg: ClaudeCodeConfig): void {
+  markStartedByKey(sessionId, cfg);
+}
+
+export function recordGoal(
+  sessionId: string,
+  cfg: ClaudeCodeConfig,
+  goal: string | undefined,
+  goalSource: SessionGoalRecord['goalSource'] = 'prompt',
+): SessionGoalRecord | null {
+  return recordGoalByKey(sessionId, cfg, goal, goalSource);
+}
+
+export function peekGoal(sessionId: string, cfg: ClaudeCodeConfig): SessionGoalRecord | null {
+  return peekGoalByKey(sessionId, cfg);
 }
 
 export function clearSession(sessionId: string, cfg: ClaudeCodeConfig): void {

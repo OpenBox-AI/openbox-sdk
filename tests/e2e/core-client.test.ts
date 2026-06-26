@@ -6,8 +6,10 @@ import {
   fullResponse,
   getTeamIds,
 } from '../helpers/api-client';
+import { CORE_ENDPOINT_MANIFEST } from '../../ts/src/core-client/generated/endpoint-manifest.js';
 import { trackResource, cleanupAll } from '../helpers/cleanup';
 import { makeCreateAgentDto } from '../helpers/fixtures';
+import { GOVERNANCE_SPEC_DOMAINS } from '../helpers/governance-spec-domains';
 
 function createCoreClient(apiKey: string, agentIdentity?: AgentIdentityForSigning): OpenBoxCoreClient {
   return new OpenBoxCoreClient({
@@ -15,6 +17,37 @@ function createCoreClient(apiKey: string, agentIdentity?: AgentIdentityForSignin
     apiKey,
     agentIdentity,
   });
+}
+
+function coreOperation(operationId: string) {
+  const operation = CORE_ENDPOINT_MANIFEST.find((entry) => entry.operationId === operationId);
+  expect(operation, operationId).toBeDefined();
+  return operation!;
+}
+
+function expectRange(value: unknown, min: number, max: number, label: string) {
+  expect(typeof value, label).toBe('number');
+  expect(value as number, label).toBeGreaterThanOrEqual(min);
+  expect(value as number, label).toBeLessThanOrEqual(max);
+}
+
+function expectGovernanceVerdictResponse(result: Record<string, unknown>) {
+  expect(result).toMatchObject({
+    governance_event_id: expect.any(String),
+    verdict: expect.any(String),
+    action: expect.any(String),
+    risk_score: expect.any(Number),
+    fallback_used: expect.any(Boolean),
+  });
+  expect(GOVERNANCE_SPEC_DOMAINS.coreVerdicts).toContain(result.verdict);
+  expect(GOVERNANCE_SPEC_DOMAINS.coreLegacyActions).toContain(result.action);
+  expectRange(result.risk_score, 0, 1, 'risk_score');
+  if (result.trust_tier !== undefined && result.trust_tier !== null) {
+    expectRange(result.trust_tier, 0, 4, 'trust_tier');
+  }
+  if (result.alignment_score !== undefined && result.alignment_score !== null) {
+    expectRange(result.alignment_score, 0, 1, 'alignment_score');
+  }
 }
 
 describe('OpenBoxCoreClient E2E', () => {
@@ -45,9 +78,12 @@ describe('OpenBoxCoreClient E2E', () => {
   // =========================================================================
 
   describe('health', () => {
-    it('returns a response from the core API', async () => {
+    it('CONFORMANCE: returns the literal core health response from the generated operation', async () => {
+      const operation = coreOperation('healthCheck');
       const result = await client.health();
-      expect(result).toBeDefined();
+
+      expect(operation.path).toBe('/');
+      expect(result).toEqual('hello world');
     });
   });
 
@@ -57,8 +93,11 @@ describe('OpenBoxCoreClient E2E', () => {
 
   describe('auth validation', () => {
     it('validates the API key', async () => {
-      const result = await client.validateApiKey();
-      expect(result).toBeDefined();
+      const result = (await client.validateApiKey()) as Record<string, unknown>;
+      expect(result).toMatchObject({
+        valid: true,
+        agent_id: expect.any(String),
+      });
     });
 
     it('throws CoreApiError for invalid API key', async () => {
@@ -94,9 +133,11 @@ describe('OpenBoxCoreClient E2E', () => {
         timestamp: new Date().toISOString(),
       });
 
-      expect(result).toBeDefined();
-      expect(result.verdict).toBeDefined();
-      expect(result.action).toBeDefined();
+      expectGovernanceVerdictResponse(result as unknown as Record<string, unknown>);
+      expect(GOVERNANCE_SPEC_DOMAINS.coreVerdicts).toContain(result.verdict);
+      expect(GOVERNANCE_SPEC_DOMAINS.coreLegacyActions).toContain(result.action);
+      expect(result.risk_score).toBeGreaterThanOrEqual(0);
+      expect(result.risk_score).toBeLessThanOrEqual(1);
     });
 
     it('evaluates an activity started event', async () => {
@@ -115,14 +156,11 @@ describe('OpenBoxCoreClient E2E', () => {
         timestamp: new Date().toISOString(),
       });
 
-      expect(result).toBeDefined();
-      // Core's verdict casing has varied between snake_case lowercase
-      // (`allow`, `require_approval`) and SCREAMING_SNAKE (`ALLOW`,
-      // `REQUIRE_APPROVAL`); accept either so the test rides through
-      // the next casing flip without a code change.
-      expect(typeof result.verdict).toBe('string');
-      expect(['allow', 'constrain', 'require_approval', 'block', 'halt'])
-        .toContain(String(result.verdict).toLowerCase());
+      expectGovernanceVerdictResponse(result as unknown as Record<string, unknown>);
+      expect(GOVERNANCE_SPEC_DOMAINS.coreVerdicts).toContain(result.verdict);
+      expect(GOVERNANCE_SPEC_DOMAINS.coreLegacyActions).toContain(result.action);
+      expect(result.risk_score).toBeGreaterThanOrEqual(0);
+      expect(result.risk_score).toBeLessThanOrEqual(1);
     });
   });
 
@@ -131,19 +169,20 @@ describe('OpenBoxCoreClient E2E', () => {
   // =========================================================================
 
   describe('approval polling', () => {
-    it('polls approval status for a non-existent workflow', async () => {
-      try {
-        const result = await client.pollApproval({
+    it('returns CoreApiError not-found for a non-existent workflow', async () => {
+      await expect(
+        client.pollApproval({
           workflow_id: 'non-existent-wf',
           run_id: 'non-existent-run',
           activity_id: 'non-existent-act',
-        });
-        // May return an empty/default response or error depending on API behavior
-        expect(result).toBeDefined();
-      } catch (err) {
-        // Some APIs return 404 for unknown approvals
-        expect(err).toBeInstanceOf(CoreApiError);
-      }
+        }),
+      ).rejects.toMatchObject({
+        status: 404,
+        body: {
+          code: 404,
+          message: 'governance event not found',
+        },
+      });
     });
   });
 

@@ -4,33 +4,36 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-const assets = [
-  {
-    from: resolve(root, 'ts/src/runtime/cursor/templates'),
-    to: resolve(root, 'dist/runtime/cursor/templates'),
-  },
-  {
-    from: resolve(root, 'ts/src/runtime/claude-code/templates'),
-    to: resolve(root, 'dist/runtime/claude-code/templates'),
-  },
-] as const;
+const { PROVIDER_PLUGIN_COMPONENTS } = await import('../dist/governance/index.js');
 
-for (const asset of assets) {
-  if (!existsSync(asset.from)) {
-    throw new Error(`Missing runtime asset source: ${asset.from}`);
-  }
-  rmSync(asset.to, { recursive: true, force: true });
-  mkdirSync(dirname(asset.to), { recursive: true });
-  cpSync(asset.from, asset.to, { recursive: true });
+function pascalProvider(provider: string): string {
+  return provider
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
 }
 
-const { exportCursorPlugin } = await import('../dist/runtime/cursor/index.js');
-const { exportClaudeCodePlugin } = await import('../dist/runtime/claude-code/index.js');
+async function pluginExporter(provider: string): Promise<(options: { out: string }) => string> {
+  const runtime = await import(`../dist/runtime/${provider}/index.js`);
+  const exportName = `export${pascalProvider(provider)}Plugin`;
+  const exporter = runtime[exportName];
+  if (typeof exporter !== 'function') {
+    throw new Error(`Missing plugin exporter ${exportName} for ${provider}`);
+  }
+  return exporter as (options: { out: string }) => string;
+}
 
-exportCursorPlugin({
-  out: resolve(root, 'dist/runtime/cursor/plugin/openbox'),
-});
+for (const { provider } of PROVIDER_PLUGIN_COMPONENTS) {
+  const templatesFrom = resolve(root, 'ts/src/runtime', provider, 'templates');
+  if (existsSync(templatesFrom)) {
+    const templatesTo = resolve(root, 'dist/runtime', provider, 'templates');
+    rmSync(templatesTo, { recursive: true, force: true });
+    mkdirSync(dirname(templatesTo), { recursive: true });
+    cpSync(templatesFrom, templatesTo, { recursive: true });
+  }
 
-exportClaudeCodePlugin({
-  out: resolve(root, 'dist/runtime/claude-code/plugin/openbox'),
-});
+  const exporter = await pluginExporter(provider);
+  exporter({
+    out: resolve(root, 'dist/runtime', provider, 'plugin/openbox'),
+  });
+}

@@ -8,8 +8,13 @@
 // .github/workflows/spec-drift.yml.
 
 import "./backend/main.tsp";
+import "./backend/method-names.tsp";
+import "./backend/permissions.tsp";
 import "./core/main.tsp";
 import "./env/main.tsp";
 import "./cli/main.tsp";
 import "./govern/main.tsp";
 import "./govern/adapters.tsp";
+import "./govern/rules-projection.tsp";
+import "./govern/capabilities.tsp";
+import "./sdk/main.tsp";

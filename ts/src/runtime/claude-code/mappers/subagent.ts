@@ -114,7 +114,7 @@ export async function handleSubagentStop(
         event: 'SubagentStop',
         fallbackText: env.last_assistant_message,
       }),
-      hookSpanParentEventType: 'ActivityStarted',
+      hookSpanParentEventType: EVENT.START,
       ensureHookSpanParent: !pending,
     },
   );

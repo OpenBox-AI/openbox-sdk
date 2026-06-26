@@ -24,10 +24,10 @@ jobs:
     name: TypeSpec compile + emitter snapshots
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -44,20 +44,8 @@ jobs:
       - name: Compile TypeSpec sources
         run: npx tsp compile specs/typespec
 
-      - name: Regenerate hand-written types from emitted OpenAPI
-        run: npm run generate:types
-
       - name: Assert no uncommitted codegen drift
-        run: |
-          # Anything generated/* is reproducible from the .tsp + .json
-          # sources, so a diff means someone forgot to run the pipeline.
-          if ! git diff --quiet --exit-code -- ts/ specs/generated/; then
-            echo "::error::Generated code is out of sync with sources."
-            echo ""
-            echo "Run \`npm run specs:all\` locally and commit the diff."
-            git diff --stat -- ts/ specs/generated/
-            exit 1
-          fi
+        run: npm run check:generated-drift
 
       - name: Lint generated/ banners
         run: npm run lint:generated-banners
@@ -69,8 +57,8 @@ jobs:
     name: Lint emitted OpenAPI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -101,11 +89,11 @@ jobs:
     # post the diff onto the PR; for now the job just runs and reports.
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -130,14 +118,20 @@ jobs:
       - name: Compile main spec
         run: |
           git fetch origin main
-          git checkout origin/main -- specs/typespec codegen
+          BASE_SPEC_WORKTREE="$RUNNER_TEMP/openbox-spec-base-worktree"
+          rm -rf "$BASE_SPEC_WORKTREE"
+          git worktree add --detach "$BASE_SPEC_WORKTREE" origin/main
+          cd "$BASE_SPEC_WORKTREE"
+          npm ci
           npm run build:codegen
           npm run specs:compile || true
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Save base spec
         run: |
           mkdir -p /tmp/openbox-spec-base
-          cp specs/generated/openapi3/*.json /tmp/openbox-spec-base/ 2>/dev/null || true
+          cp "$RUNNER_TEMP/openbox-spec-base-worktree"/specs/generated/openapi3/*.json /tmp/openbox-spec-base/ 2>/dev/null || true
 
       - name: Optic diff
         run: |

@@ -13,17 +13,19 @@ import {
   buildAfterShellExecutionPayload,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
-import { clearSession } from '../session-resolver.js';
+import { clearSession, isStarted, markStarted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
 import {
   assistantOutputTelemetryFields,
-  buildAssistantOutputSpan,
 } from '../../../governance/assistant-output.js';
 import {
-  buildSpan,
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
 } from '../../../governance/spans.js';
+import {
+  buildCursorAssistantOutputSpan,
+  buildCursorSpan,
+} from './spans.js';
+import { normalizeOpenBoxUsage } from '../../../governance/usage.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
@@ -102,7 +104,7 @@ function usageFrom(value: unknown) {
     metadata.usageMetadata,
     metadata.usage_metadata,
   );
-  return llmTokenUsageFromRecord({ ...usage, ...record });
+  return normalizeOpenBoxUsage({ ...usage, ...record })?.raw;
 }
 
 function messageContent(value: unknown): string | undefined {
@@ -253,7 +255,7 @@ export async function handleAfterAgentResponse(
     input: [stampSource(payload, 'cursor')],
     output: stampSource({ ...payload, response: content }, 'cursor'),
     ...telemetry,
-    spans: buildAssistantOutputSpan({
+    spans: buildCursorAssistantOutputSpan({
       source: 'cursor',
       content,
       name: 'openbox.cursor.assistant_output',
@@ -270,7 +272,7 @@ export async function handleAfterAgentResponse(
         generation_id: env.generation_id,
       },
     }),
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
     ensureHookSpanParent: true,
   });
   return undefined;
@@ -330,7 +332,7 @@ export async function handleAfterShellExecution(
     toolName: 'Shell',
     toolType: 'shell',
     spans: [
-      buildSpan('cursor', 'shell', {
+      buildCursorSpan('shell', {
         stage: 'completed',
         command,
         cwd: env.cwd,
@@ -338,7 +340,7 @@ export async function handleAfterShellExecution(
         tool_output: output,
       }),
     ],
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }
@@ -387,14 +389,14 @@ export async function handleAfterFileEdit(
     toolName: 'FileEdit',
     toolType: 'file_write',
     spans: [
-      buildSpan('cursor', 'file_write', {
+      buildCursorSpan('file_write', {
         stage: 'completed',
         file_path: filePath,
         tool_name: 'FileEdit',
         tool_input: { edits: payload.edits },
       }),
     ],
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }
@@ -403,12 +405,15 @@ export async function handleAfterFileEdit(
 // SDK's session lifecycle is bookended properly (Temporal workflow
 // open/close), but no activity emission alongside.
 export async function handleSessionStart(
-  _env: CursorEnvelope,
+  env: CursorEnvelope,
   session: CursorSession,
-  _cfg: CursorConfig,
+  cfg: CursorConfig,
 ): Promise<undefined> {
   try {
-    await session.workflowStarted();
+    if (!isStarted(env.conversation_id, cfg)) {
+      await session.workflowStarted();
+      markStarted(env.conversation_id, cfg);
+    }
   } catch {
     /* best-effort */
   }

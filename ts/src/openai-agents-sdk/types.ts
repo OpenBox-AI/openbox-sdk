@@ -10,7 +10,7 @@ export type AgentsRunFunction = (
   options?: Record<string, unknown>,
 ) => Promise<unknown>;
 
-export type OpenBoxAgentsApprovalMode = 'wait' | 'error';
+export type OpenBoxAgentsApprovalMode = 'wait' | 'error' | 'interrupt';
 
 export interface OpenBoxAgentsSDKConfig {
   enabled?: boolean;
@@ -25,6 +25,10 @@ export interface OpenBoxAgentsSDKConfig {
   approvalMode?: OpenBoxAgentsApprovalMode;
   workflowId?: string;
   runId?: string;
+  /** Strict AGE compliance: run/tool governance requires a prompt/query/workflow goal. */
+  requireGoalContext?: boolean;
+  /** Background/scheduled workflow objective used when run input has no prompt text. */
+  defaultGoal?: string;
 }
 
 export interface OpenBoxAgentsToolOptions extends OpenBoxAgentsSDKConfig {
@@ -37,6 +41,19 @@ export interface OpenBoxAgentsRunOptions extends OpenBoxAgentsSDKConfig {
   runFunction?: AgentsRunFunction;
   sessionId?: string;
   input?: unknown;
+}
+
+export interface OpenBoxAgentsAgentHooksOptions extends OpenBoxAgentsSDKConfig {
+  sessionId?: string;
+}
+
+export interface OpenBoxAgentsTracingProcessorOptions extends OpenBoxAgentsSDKConfig {
+  sessionId?: string;
+}
+
+export interface OpenBoxAgentsGuardrailOptions extends OpenBoxAgentsSDKConfig {
+  name?: string;
+  sessionId?: string;
 }
 
 export interface OpenBoxAgentsToolCallDetails {

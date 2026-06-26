@@ -16,7 +16,12 @@ import type {
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
-import { resolveSession } from './session-resolver.js';
+import {
+  markStarted,
+  peekGoal,
+  recordGoal,
+  resolveSession,
+} from './session-resolver.js';
 import { makeHookLog } from '../../logging/hook-log.js';
 import { handlePreToolUse } from './mappers/pre-tool-use.js';
 import {
@@ -53,6 +58,7 @@ import {
   handleGenericClaudeEvent,
   observeGenericClaudeEvent,
 } from './mappers/generic.js';
+import { handleWorktreeCreate } from './mappers/worktree.js';
 import { ACTIVITY_TYPES, EVENT } from './activity-types.js';
 import { CLAUDE_CODE_HOOK_MATRIX } from './governance-matrix.js';
 import type { ClaudeCodeConfig } from './config.js';
@@ -62,6 +68,57 @@ const MAX_STDIN_BYTES = 10 * 1024 * 1024;
 
 type HandlerResult = Promise<WorkflowVerdict | undefined | void>;
 type HookHandler = (env: ClaudeCodeEnvelope, session: ClaudeCodeSession) => HandlerResult;
+
+function verdictDecision(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const decision = record.arm ?? record.verdict ?? record.action ?? record.decision;
+  return typeof decision === 'string' && decision.trim() ? decision.trim() : undefined;
+}
+
+function verdictReason(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const reason = (value as Record<string, unknown>).reason;
+  return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
+}
+
+function verdictUsesFallback(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const metadata = record.metadata && typeof record.metadata === 'object' && !Array.isArray(record.metadata)
+    ? record.metadata as Record<string, unknown>
+    : {};
+  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
+    ? record.ageResult as Record<string, unknown>
+    : {};
+  return record.fallbackUsed === true
+    || metadata.age_fallback_used === true
+    || ageResult.fallback_used === true;
+}
+
+function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  return {
+    ...(typeof record.governanceEventId === 'string' && record.governanceEventId.trim()
+      ? { governance_event_id: record.governanceEventId.trim() }
+      : {}),
+    ...(verdictUsesFallback(value) ? { fallback_used: true } : {}),
+  };
+}
+
+function envelopeLogMetadata(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  return {
+    ...(typeof record.session_id === 'string' && record.session_id.trim()
+      ? { session_id: record.session_id.trim() }
+      : {}),
+    ...(typeof record.tool_name === 'string' && record.tool_name.trim()
+      ? { tool_name: record.tool_name.trim() }
+      : {}),
+  };
+}
 
 /** Wrap a per-event handler with a JSONL log line for the OutputChannel
  *  tail. Mirrors the cursor adapter so the extension can show both
@@ -75,11 +132,17 @@ function logged<E, S, R>(
     const start = Date.now();
     try {
       const out = await fn(env, s);
+      const decision = verdictDecision(out);
+      const reason = verdictReason(out);
       hookLog.record({
         ts: new Date().toISOString(),
         event,
         verdict_kind: verdictKind,
         took_ms: Date.now() - start,
+        ...envelopeLogMetadata(env),
+        ...(decision ? { decision } : {}),
+        ...(reason ? { reason } : {}),
+        ...verdictLogMetadata(out),
       });
       return out;
     } catch (err: any) {
@@ -112,11 +175,43 @@ function isDecisionCapable(eventName: string | undefined): boolean {
   return surface !== 'none' && surface !== 'worktree-path';
 }
 
+function requiresGoalContext(env: ClaudeCodeEnvelope): boolean {
+  if (!isDecisionCapable(env.hook_event_name) || isActiveStopRetry(env)) return false;
+  return !['UserPromptSubmit', 'UserPromptExpansion', 'Stop'].includes(String(env.hook_event_name ?? ''));
+}
+
+function ensureGoalContext(env: ClaudeCodeEnvelope, cfg: ClaudeCodeConfig): void {
+  if (!cfg.requireGoalContext || !requiresGoalContext(env)) return;
+  if (peekGoal(env.session_id, cfg)) return;
+  const configuredGoal = cfg.defaultGoal?.trim();
+  if (configuredGoal) {
+    recordGoal(env.session_id, cfg, configuredGoal, 'workflow_config');
+    return;
+  }
+  throw new Error(
+    'OpenBox goal context is required for AGE alignment, but this Claude Code session has no prompt/query/workflow goal.',
+  );
+}
+
 function isActiveStopRetry(env: ClaudeCodeEnvelope | undefined): boolean {
   return (
     env?.hook_event_name === 'Stop' &&
     (env as unknown as { stop_hook_active?: unknown }).stop_hook_active === true
   );
+}
+
+async function ensureWorkflowStartedForDecision(
+  env: ClaudeCodeEnvelope,
+  session: ClaudeCodeSession,
+  cfg: ClaudeCodeConfig,
+): Promise<void> {
+  if (!isDecisionCapable(env.hook_event_name) || isActiveStopRetry(env)) return;
+
+  // Hook subprocesses are short-lived and may outlive local session-store state
+  // after Core restarts. Re-emitting WorkflowStarted is idempotent server-side;
+  // missing it can make the first tool gate fall through as a cached allow.
+  await session.workflowStarted();
+  markStarted(env.session_id, cfg);
 }
 
 function reasonFromError(prefix: string, err?: unknown): string {
@@ -132,7 +227,20 @@ function guarded(
 ): HookHandler {
   return logged(event, verdictKind, async (env, session) => {
     try {
-      return await fn(env, session);
+      await ensureWorkflowStartedForDecision(env, session, cfg);
+      ensureGoalContext(env, cfg);
+      const verdict = await fn(env, session);
+      if (
+        verdict &&
+        isDecisionCapable(env.hook_event_name) &&
+        !isActiveStopRetry(env) &&
+        verdictUsesFallback(verdict) &&
+        verdict.arm !== 'block' &&
+        verdict.arm !== 'halt'
+      ) {
+        return failClosedVerdict('OpenBox governance fallback used while processing Claude Code hook');
+      }
+      return verdict;
     } catch (err) {
       const decisionCapable = isDecisionCapable(env.hook_event_name);
       const reason = reasonFromError('OpenBox governance failed while processing Claude Code hook', err);
@@ -357,6 +465,8 @@ export async function runClaudeHook(): Promise<void> {
         eventKind: EVENT.SIGNAL,
         eventCategory: 'file_changed',
       })),
+    worktreeCreate: guarded(cfg, 'worktreeCreate', 'permission',
+      async (env, s) => handleWorktreeCreate(env, s, cfg)),
     worktreeRemove: guarded(cfg, 'worktreeRemove', 'observe',
       async (env, s) => observeGenericClaudeEvent(env, s, cfg, {
         activityType: ACTIVITY_TYPES.WORKSPACE_CHANGE,

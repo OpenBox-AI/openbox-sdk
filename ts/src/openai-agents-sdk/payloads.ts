@@ -1,20 +1,30 @@
 import type { GovernedPayload, SpanData } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { stampSource } from '../approvals/source.js';
 import {
   buildSpan,
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
-  type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import {
+  combineOpenBoxUsage,
+  normalizeOpenBoxUsage,
+  type NormalizedOpenBoxUsage,
+} from '../governance/usage.js';
+import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
+import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const openAIAgentsActivity = PRESET_ACTIVITY_TYPES['openai-agents-sdk'];
+
 export const OPENAI_AGENTS_ACTIVITY_TYPES = {
-  RUN: 'OpenAIAgentsSDKRun',
-  TOOL_STARTED: 'ToolStarted',
-  TOOL_COMPLETED: 'ToolCompleted',
-  HANDOFF: 'AgentHandoff',
-  GUARDRAIL: 'GuardrailEvaluation',
+  GOAL_SIGNAL: defaultActivity.goalSignal,
+  RUN: openAIAgentsActivity.runStarted,
+  TOOL_STARTED: openAIAgentsActivity.toolStarted,
+  TOOL_COMPLETED: openAIAgentsActivity.toolCompleted,
+  HANDOFF: openAIAgentsActivity.handoff,
+  GUARDRAIL: openAIAgentsActivity.guardrail,
 } as const;
 
 export function objectRecord(value: unknown): Record<string, unknown> {
@@ -44,13 +54,15 @@ export function toolActivityType(
   toolInput: Record<string, unknown>,
 ): string {
   const spanType = spanTypeFor(toolName, toolInput);
-  if (spanType === 'file_read') return 'FileRead';
-  if (spanType === 'file_write') return 'FileEdit';
-  if (spanType === 'file_delete') return 'FileDelete';
-  if (spanType === 'shell') return 'ShellExecution';
-  if (spanType === 'http') return 'HTTPRequest';
-  if (spanType === 'mcp') return 'MCPToolCall';
-  if (toolName === 'Agent' || toolName === 'Task') return 'AgentSpawn';
+  if (spanType === 'file_read') return defaultActivity.read;
+  if (spanType === 'file_open') return defaultActivity.read;
+  if (spanType === 'file_write') return defaultActivity.write;
+  if (spanType === 'file_delete') return defaultActivity.fileDelete;
+  if (spanType === 'shell') return defaultActivity.shell;
+  if (spanType === 'http') return defaultActivity.httpRequest;
+  if (spanType === 'db') return defaultActivity.databaseQuery;
+  if (spanType === 'mcp') return defaultActivity.mcpToolCall;
+  if (toolName === 'Agent' || toolName === 'Task') return defaultActivity.agentSpawn;
   return OPENAI_AGENTS_ACTIVITY_TYPES.TOOL_STARTED;
 }
 
@@ -73,6 +85,9 @@ export function toolSpan(
     tool_output: toolOutput,
     url: httpTargetFor(toolInput),
     method: httpMethodFor(toolInput),
+    db_system: dbSystemFor(toolName, toolInput),
+    db_operation: dbOperationFor(toolInput),
+    db_statement: dbStatementFor(toolInput),
   });
   const callFields = toolCallFields(call);
   if (Object.keys(callFields).length > 0) {
@@ -83,6 +98,16 @@ export function toolSpan(
     Object.assign(span, callFields);
   }
   return [span as unknown as SpanData];
+}
+
+export function runPromptSpan(input: unknown): SpanData[] | undefined {
+  const prompt = promptTextForRunInput(input);
+  return [
+    buildSpan('openai-agents-sdk', 'llm', {
+      stage: 'started',
+      ...(prompt ? { prompt } : {}),
+    }) as unknown as SpanData,
+  ];
 }
 
 export function toolActivityInput(
@@ -129,23 +154,57 @@ export function runTelemetryFields(
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'hasToolCalls'
   | 'finishReason'
 > {
   const resultRecord = objectRecord(result);
   const rawResponses = arrayFrom(resultRecord.rawResponses);
   const usage =
-    usageFrom(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
-    usageFrom(objectRecord(objectRecord(resultRecord.state).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.state).usage)) ??
     aggregateRawResponseUsage(rawResponses);
   return {
     llmModel: modelFromResult(resultRecord, rawResponses),
-    inputTokens: inputTokens(usage),
-    outputTokens: outputTokens(usage),
-    totalTokens: totalTokens(usage),
+    inputTokens: usage?.inputTokens,
+    outputTokens: usage?.outputTokens,
+    totalTokens: usage?.totalTokens,
+    costUsd: usage?.costUsd,
     hasToolCalls: rawResponses.some(responseHasToolCalls),
     finishReason: finishReasonFromResult(resultRecord, rawResponses),
   };
+}
+
+export function runAssistantOutputSpan(
+  result: unknown,
+  sessionId: string,
+): SpanData[] | undefined {
+  const resultRecord = objectRecord(result);
+  const rawResponses = arrayFrom(resultRecord.rawResponses);
+  const usage =
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.runContext).usage)) ??
+    normalizeOpenBoxUsage(objectRecord(objectRecord(resultRecord.state).usage)) ??
+    aggregateRawResponseUsage(rawResponses);
+  const finishReason = finishReasonFromResult(resultRecord, rawResponses);
+  return buildAssistantOutputSpan({
+    source: 'openai-agents-sdk',
+    content: assistantContentFromResult(resultRecord, rawResponses),
+    span: { module: 'openai-agents-sdk' },
+    name: 'openbox.openai-agents-sdk.assistant_output',
+    model: modelFromResult(resultRecord, rawResponses),
+    usage: usage?.raw,
+    hasToolCalls: rawResponses.some(responseHasToolCalls),
+    attributes: {
+      'openbox.openai_agents_sdk.event': 'run_complete',
+      ...(finishReason ? { 'gen_ai.response.finish_reasons': finishReason } : {}),
+    },
+    data: {
+      source: 'openai-agents-sdk',
+      event: 'run_complete',
+      session_id: sessionId,
+      raw_response_count: rawResponses.length,
+    },
+  });
 }
 
 export function brandedReason(reason: string | undefined): string {
@@ -223,15 +282,21 @@ function spanTypeFor(
   toolInput: Record<string, unknown>,
 ): SpanType | null {
   const lower = toolName.toLowerCase();
+  if (lower === 'agent' || lower === 'task') return null;
   if (lower.includes('read') || toolInput.read === true) return 'file_read';
+  if (
+    (lower === 'open' || lower.includes('file_open') || lower.includes('open_file') || toolInput.open === true) &&
+    filePathFor(toolInput)
+  ) return 'file_open';
   if (lower.includes('write') || lower.includes('edit')) return 'file_write';
   if (lower.includes('delete') || lower.includes('remove'))
     return 'file_delete';
   if (lower.includes('bash') || lower.includes('shell') || toolInput.command)
     return 'shell';
   if (lower.includes('web') || toolInput.url || toolInput.uri) return 'http';
+  if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (lower.startsWith('mcp') || lower.includes('mcp')) return 'mcp';
-  return null;
+  return 'llm_tool_call';
 }
 
 function filePathFor(toolInput: Record<string, unknown>): string | undefined {
@@ -257,6 +322,109 @@ function httpMethodFor(toolInput: Record<string, unknown>): string {
   );
 }
 
+function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(
+    toolInput.db_statement,
+    toolInput.dbStatement,
+    toolInput.statement,
+    toolInput.sql,
+    toolInput.query,
+  );
+}
+
+const SQL_VERBS = [
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+] as const;
+
+function dbOperationFromStatement(statement: string | undefined): string | undefined {
+  if (!statement) return undefined;
+  const normalized = statement.trim().toUpperCase();
+  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
+}
+
+function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
+  const explicit = firstString(
+    toolInput.db_system,
+    toolInput.dbSystem,
+    toolInput.system,
+    toolInput.database_system,
+  );
+  if (explicit) return explicit;
+  const lowerName = toolName.toLowerCase();
+  if (lowerName.includes('sqlite')) return 'sqlite';
+  if (lowerName.includes('mysql')) return 'mysql';
+  if (lowerName.includes('postgres')) return 'postgresql';
+  return 'postgresql';
+}
+
+function dbOperationFor(toolInput: Record<string, unknown>): string {
+  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
+  const explicitOperation = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation,
+  )?.toUpperCase();
+  if (
+    explicitOperation &&
+    explicitOperation !== 'QUERY' &&
+    explicitOperation !== 'UNKNOWN'
+  ) {
+    return explicitOperation;
+  }
+  return statementOperation ?? explicitOperation ?? 'QUERY';
+}
+
+function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {
+  if (!toolName.startsWith('mcp__')) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksDatabase =
+    lowerName.includes('db') ||
+    lowerName.includes('sql') ||
+    lowerName.includes('database') ||
+    lowerName.includes('postgres') ||
+    lowerName.includes('mysql') ||
+    lowerName.includes('sqlite');
+  if (!nameLooksDatabase) return false;
+  return Boolean(dbStatementFor(toolInput)) ||
+    lowerName.includes('query') ||
+    lowerName.includes('execute') ||
+    lowerName.includes('select');
+}
+
+export function promptTextForRunInput(input: unknown): string | undefined {
+  if (input === undefined || input === null) return undefined;
+  if (typeof input === 'string') return input.trim() || undefined;
+  if (Array.isArray(input)) {
+    const text = input.map(promptTextForRunInput).filter(Boolean).join(' ').trim();
+    return text || undefined;
+  }
+  const record = objectRecord(input);
+  const messages = Object.prototype.hasOwnProperty.call(record, 'messages')
+    ? promptTextForRunInput(record.messages)
+    : undefined;
+  const content = Object.prototype.hasOwnProperty.call(record, 'content')
+    ? promptTextForRunInput(record.content)
+    : undefined;
+  return firstString(
+    record.prompt,
+    record.input,
+    record.text,
+    content,
+    messages,
+  );
+}
+
 function toolCallAttributes(
   callFields: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -270,56 +438,10 @@ function toolCallAttributes(
   };
 }
 
-function usageFrom(value: unknown): LLMTokenUsage | undefined {
-  return llmTokenUsageFromRecord(value);
-}
-
-function inputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.promptTokens ?? usage?.inputTokens;
-}
-
-function outputTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  return usage?.completionTokens ?? usage?.outputTokens;
-}
-
-function totalTokens(usage: LLMTokenUsage | undefined): number | undefined {
-  if (!usage) return undefined;
-  if (usage.totalTokens !== undefined) return usage.totalTokens;
-  const input = inputTokens(usage);
-  const output = outputTokens(usage);
-  return input !== undefined || output !== undefined
-    ? (input ?? 0) + (output ?? 0)
-    : undefined;
-}
-
 function aggregateRawResponseUsage(
   rawResponses: unknown[],
-): LLMTokenUsage | undefined {
-  let input: number | undefined;
-  let output: number | undefined;
-  let total: number | undefined;
-  for (const response of rawResponses) {
-    const usage = usageFrom(objectRecord(response).usage);
-    input = addTokenValue(input, inputTokens(usage));
-    output = addTokenValue(output, outputTokens(usage));
-    total = addTokenValue(total, totalTokens(usage));
-  }
-  return input !== undefined || output !== undefined || total !== undefined
-    ? {
-        promptTokens: input,
-        inputTokens: input,
-        completionTokens: output,
-        outputTokens: output,
-        totalTokens: total,
-      }
-    : undefined;
-}
-
-function addTokenValue(
-  left: number | undefined,
-  right: number | undefined,
-): number | undefined {
-  return right === undefined ? left : (left ?? 0) + right;
+): NormalizedOpenBoxUsage | undefined {
+  return combineOpenBoxUsage(...rawResponses);
 }
 
 function modelFromResult(
@@ -327,17 +449,15 @@ function modelFromResult(
   rawResponses: unknown[],
 ): string | undefined {
   return firstString(
-    resultRecord.model,
+    ...USAGE_NORMALIZATION_SURFACE.providerModelFields.map((field) =>
+      stringAtPath(resultRecord, field),
+    ),
     objectRecord(resultRecord.state).model,
     ...rawResponses.flatMap((response) => {
       const responseRecord = objectRecord(response);
-      const providerData = objectRecord(responseRecord.providerData);
-      return [
-        responseRecord.model,
-        providerData.model,
-        objectRecord(providerData.response).model,
-        objectRecord(providerData.rawResponse).model,
-      ];
+      return USAGE_NORMALIZATION_SURFACE.providerModelFields.map((field) =>
+        stringAtPath(responseRecord, field),
+      );
     }),
   );
 }
@@ -347,19 +467,16 @@ function finishReasonFromResult(
   rawResponses: unknown[],
 ): string | undefined {
   return firstString(
-    resultRecord.finishReason,
-    resultRecord.finish_reason,
+    ...USAGE_NORMALIZATION_SURFACE.providerFinishReasonFields.map((field) =>
+      stringAtPath(resultRecord, field),
+    ),
     objectRecord(resultRecord.state).finishReason,
     objectRecord(resultRecord.state).finish_reason,
     ...rawResponses.flatMap((response) => {
-      const providerData = objectRecord(objectRecord(response).providerData);
-      return [
-        objectRecord(response).finishReason,
-        objectRecord(response).finish_reason,
-        providerData.finishReason,
-        providerData.finish_reason,
-        objectRecord(providerData.response).finish_reason,
-      ];
+      const responseRecord = objectRecord(response);
+      return USAGE_NORMALIZATION_SURFACE.providerFinishReasonFields.map((field) =>
+        stringAtPath(responseRecord, field),
+      );
     }),
   );
 }
@@ -370,6 +487,31 @@ function responseHasToolCalls(response: unknown): boolean {
     const itemType = stringFrom(objectRecord(item).type)?.toLowerCase();
     return itemType === 'function_call' || itemType?.includes('tool') === true;
   });
+}
+
+function assistantContentFromResult(
+  resultRecord: Record<string, unknown>,
+  rawResponses: unknown[],
+): string | undefined {
+  const direct = firstString(
+    resultRecord.output,
+    resultRecord.finalOutput,
+    resultRecord.final_output,
+    objectRecord(resultRecord.state).output,
+  );
+  if (direct) return direct;
+  for (const response of rawResponses) {
+    for (const item of arrayFrom(objectRecord(response).output)) {
+      const itemRecord = objectRecord(item);
+      const text = firstString(
+        itemRecord.text,
+        itemRecord.content,
+        objectRecord(itemRecord.message).content,
+      );
+      if (text) return text;
+    }
+  }
+  return undefined;
 }
 
 function arrayFrom(value: unknown): unknown[] {
@@ -388,4 +530,20 @@ function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function stringAtPath(record: Record<string, unknown>, path: string): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(record, path)) {
+    return stringFrom(record[path]);
+  }
+  if (!path.includes('.')) return stringFrom(record[path]);
+  let current: unknown = record;
+  for (const part of path.split('.')) {
+    const currentRecord = objectRecord(current);
+    if (!Object.prototype.hasOwnProperty.call(currentRecord, part)) {
+      return undefined;
+    }
+    current = currentRecord[part];
+  }
+  return stringFrom(current);
 }

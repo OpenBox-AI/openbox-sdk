@@ -1,26 +1,27 @@
 # specs/
 
-The TypeSpec contract source for the TypeScript SDK and any future
-SDK tracks.
+The canonical TypeSpec contract source for OpenBox SDK language tracks,
+including the current TypeScript and Python SDKs and future targets.
 
 | File or dir | Role |
 |---|---|
 | `typespec/` | TypeSpec sources. `main.tsp` is the root; per-area modules sit under `backend/`, `core/`, `env/`, `cli/`, `govern/` |
 | `tspconfig.yaml` | Compiler config: output paths and emitter list. Lives inside `typespec/` |
-| `generated/` | TypeSpec emits OpenAPI3 and JSON Schema here. Untracked; reproduce with `npm run specs:compile` |
+| `generated/` | TypeSpec emits OpenAPI3 and JSON Schema here. Untracked; reproduce with `npm run generate:sdks` |
 
 ## Compile
 
 ```bash
-npm run specs:compile      # tsp compile specs/typespec
-npm run generate:types     # openapi-typescript on the emitted OpenAPI
-npm run specs:all          # build:codegen + specs:compile + generate:types
+npm run generate:sdks      # build codegen, then compile specs/typespec
+npm run specs:compile      # low-level TypeSpec compile; assumes codegen is already built
+npm run specs:all          # compatibility alias for generate:sdks
 ```
 
-The TypeScript emitter under
-`codegen/emitters/typespec-emitter-typescript/` writes TypeScript
-source into `ts/src/**/generated/`. The hand-written files in
-`ts/src/` only consume those generated artifacts.
+The OpenBox emitter under
+`codegen/emitters/typespec-emitter/` writes generated SDK artifacts and
+contract metadata maps for language targets such as TypeScript and Python.
+Hand-written runtime files consume those generated artifacts; they do not
+redefine public contract shapes locally.
 
 ## Drift detection
 

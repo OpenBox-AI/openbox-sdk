@@ -7,7 +7,7 @@
 // Real session-vs-core behavior is covered by e2e.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -89,6 +89,223 @@ describe('runtime/claude-code/config', () => {
   });
 });
 
+describe('runtime/n8n integration descriptor', () => {
+  it('exports the spec-generated packaged n8n integration surface', async () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), 'example/n8n/custom-node/package.json'), 'utf8'),
+    ) as {
+      scripts: Record<string, string>;
+      n8n?: {
+        n8nNodesApiVersion?: number;
+        credentials?: string[];
+        nodes?: string[];
+        openboxSpecNodeIds?: string[];
+        openboxSpecSource?: string;
+      };
+    };
+    const {
+      OPENBOX_N8N_INTEGRATION,
+      getOpenBoxN8nCredential,
+      getOpenBoxN8nExample,
+      getOpenBoxN8nNode,
+      getOpenBoxN8nWorkflowTemplate,
+      listOpenBoxN8nCredentials,
+      listOpenBoxN8nExamples,
+      listOpenBoxN8nNodes,
+      listOpenBoxN8nWorkflowTemplates,
+      verifyOpenBoxN8nIntegrationSurface,
+    } = await import('../../ts/src/runtime/n8n');
+    const customNodeSpec = await import('../../example/n8n/custom-node/src/generated/openbox-n8n-spec');
+
+    expect(customNodeSpec.OPENBOX_N8N_INTEGRATION).toEqual(OPENBOX_N8N_INTEGRATION);
+    expect(customNodeSpec.OPENBOX_N8N_PACKAGE_MANIFEST).toEqual(
+      OPENBOX_N8N_INTEGRATION.packageManifest,
+    );
+    expect(OPENBOX_N8N_INTEGRATION.credentials[0].id).toBe('openboxCredentials');
+    expect(OPENBOX_N8N_INTEGRATION.nodes.map((node: any) => node.id)).toEqual(
+      expect.arrayContaining([
+        'openboxLlm',
+        'openboxGovernance',
+        'openboxGuardrails',
+        'openboxApproval',
+        'openboxGovernedAiAgent',
+      ]),
+    );
+    expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].id).toBe('openbox-governed-ai-agent');
+    expect(OPENBOX_N8N_INTEGRATION.workflowTemplates[0].workflow.nodes.map((node: any) => node.type)).toEqual(
+      expect.arrayContaining([
+        'n8n-nodes-openbox-hook.openboxGovernance',
+        '@n8n/n8n-nodes-langchain.agent',
+        'n8n-nodes-openbox-hook.openboxGuardrails',
+        'n8n-nodes-openbox-hook.openboxApproval',
+      ]),
+    );
+    expect(OPENBOX_N8N_INTEGRATION.examples.every((entry: any) => entry.workflow?.nodes?.length > 0)).toBe(true);
+    expect(getOpenBoxN8nExample('mcp-client-tool')?.workflow.nodes.map((node: any) => node.type)).toContain(
+      '@n8n/n8n-nodes-langchain.toolmcp',
+    );
+    expect(getOpenBoxN8nExample('mcp-server-trigger')?.workflow.nodes.map((node: any) => node.type)).toContain(
+      '@n8n/n8n-nodes-langchain.mcptrigger',
+    );
+    expect(listOpenBoxN8nCredentials()).toBe(OPENBOX_N8N_INTEGRATION.credentials);
+    expect(listOpenBoxN8nNodes()).toBe(OPENBOX_N8N_INTEGRATION.nodes);
+    expect(listOpenBoxN8nWorkflowTemplates()).toBe(OPENBOX_N8N_INTEGRATION.workflowTemplates);
+    expect(listOpenBoxN8nExamples()).toBe(OPENBOX_N8N_INTEGRATION.examples);
+    expect(verifyOpenBoxN8nIntegrationSurface().every((check) => check.status === 'pass')).toBe(true);
+    expect(
+      verifyOpenBoxN8nIntegrationSurface({
+        ...OPENBOX_N8N_INTEGRATION,
+        nodes: [],
+      } as any),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'nodes', status: 'fail' }),
+        expect.objectContaining({ name: 'package-node-ids', status: 'fail' }),
+      ]),
+    );
+    expect(getOpenBoxN8nCredential()).toBe(OPENBOX_N8N_INTEGRATION.credentials[0]);
+    expect(getOpenBoxN8nNode('openboxApproval')?.name).toBe('OpenBox Approval/HITL');
+    expect(getOpenBoxN8nWorkflowTemplate('openbox-governed-ai-agent')?.nodes).toContain(
+      'openboxGuardrails',
+    );
+    expect(getOpenBoxN8nExample('mcp-client-tool')?.name).toBe('MCP Client Tool');
+    expect(getOpenBoxN8nNode('unknown-node')).toBeUndefined();
+    const showcase = OPENBOX_N8N_INTEGRATION.showcaseWorkflows.find(
+      (entry: any) => entry.id === 'sdk-showcase',
+    ) as any;
+    expect(showcase).toBeDefined();
+    const showcaseWorkflow = JSON.parse(
+      readFileSync(join(process.cwd(), showcase.path), 'utf8'),
+    ) as {
+      name: string;
+      nodes: Array<{
+        name: string;
+        type: string;
+        parameters?: Record<string, any>;
+        credentials?: Record<string, { id?: string; name?: string }>;
+        [key: string]: any;
+      }>;
+      connections: Record<string, any>;
+    };
+    const showcaseNodeNames = new Set(showcaseWorkflow.nodes.map((node) => node.name));
+    const showcaseNodeTypes = new Set(showcaseWorkflow.nodes.map((node) => node.type));
+    const showcaseNodeByName = new Map(showcaseWorkflow.nodes.map((node) => [node.name, node]));
+    const connectedNodeNames = (source: string): string[] =>
+      Object.values(showcaseWorkflow.connections[source] ?? {}).flatMap((branches: any) =>
+        branches.flatMap((branch: any[]) => branch.map((edge) => edge.node)),
+      );
+
+    expect(showcaseWorkflow.name).toBe(showcase.name);
+    for (const type of showcase.requiredOpenBoxNodeTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const type of showcase.requiredTriggerTypes) {
+      expect(showcaseNodeTypes.has(type)).toBe(true);
+    }
+    for (const checkpoint of showcase.requiredCheckpoints) {
+      expect(showcaseNodeNames.has(checkpoint)).toBe(true);
+    }
+    for (const terminalNode of showcase.requiredTerminalNodes) {
+      expect(showcaseNodeNames.has(terminalNode)).toBe(true);
+    }
+    for (const edge of showcase.requiredEntryEdges) {
+      expect(connectedNodeNames(edge.from), `${edge.from} -> ${edge.to}`).toContain(edge.to);
+    }
+    for (const gate of showcase.checkpointGates) {
+      expect(connectedNodeNames(gate.checkpoint), `${gate.checkpoint} -> ${gate.gate}`).toContain(
+        gate.gate,
+      );
+      expect(connectedNodeNames(gate.gate), `${gate.gate} pass/fail branches`).toEqual(
+        expect.arrayContaining([gate.pass, gate.fail]),
+      );
+    }
+    for (const identity of showcase.requiredNodeIdentities ?? []) {
+      const node = showcaseNodeByName.get(identity.name);
+      expect(node, identity.name).toBeDefined();
+      expect(node?.id, `${identity.name}.id`).toBe(identity.id);
+      expect(node?.type, `${identity.name}.type`).toBe(identity.type);
+    }
+    for (const flag of showcase.requiredNodeBooleanFlags ?? []) {
+      const node = showcaseNodeByName.get(flag.node);
+      expect(node, flag.node).toBeDefined();
+      expect(node?.[flag.flag], `${flag.node}.${flag.flag}`).toBe(flag.expected);
+    }
+    for (const check of showcase.expressionSourceChecks ?? []) {
+      const nodeText = JSON.stringify(showcaseNodeByName.get(check.node) ?? {});
+      for (const required of check.requiredContains) {
+        expect(nodeText, `${check.node} must contain ${required}`).toContain(required);
+      }
+      for (const forbidden of check.forbiddenContains) {
+        expect(nodeText, `${check.node} must not contain ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+    for (const check of showcase.requiredOpenBoxNodeParameterChecks ?? []) {
+      const nodes = showcaseWorkflow.nodes.filter((node) => node.type === check.nodeType);
+      expect(nodes.length, `${check.nodeType} nodes`).toBeGreaterThan(0);
+      for (const node of nodes) {
+        const value = String(node.parameters?.[check.parameter] ?? '');
+        expect(value, `${node.name}.${check.parameter}`).not.toBe('');
+        for (const required of check.requiredContains) {
+          expect(value, `${node.name}.${check.parameter} must contain ${required}`).toContain(required);
+        }
+        for (const forbidden of check.forbiddenContains) {
+          expect(value, `${node.name}.${check.parameter} must not contain ${forbidden}`).not.toContain(
+            forbidden,
+          );
+        }
+        expect(check.forbiddenValues, `${node.name}.${check.parameter} exact value`).not.toContain(
+          value,
+        );
+      }
+    }
+    for (const [source, outputs] of Object.entries(showcaseWorkflow.connections)) {
+      expect(showcaseNodeNames.has(source)).toBe(true);
+      for (const branches of Object.values(outputs as Record<string, any>)) {
+        for (const branch of branches as any[]) {
+          for (const edge of branch) {
+            expect(showcaseNodeNames.has(edge.node)).toBe(true);
+          }
+        }
+      }
+    }
+    const showcaseJson = JSON.stringify(showcaseWorkflow);
+    expect(showcaseJson).toContain(showcase.terminalLogTable);
+    for (const forbidden of showcase.forbiddenWorkflowText ?? []) {
+      expect(showcaseJson, `showcase must not contain ${forbidden}`).not.toContain(forbidden);
+    }
+    for (const stage of showcase.approvalStages) {
+      expect(showcaseJson).toContain(stage);
+    }
+    for (const actionId of showcase.requiredApprovalActionIds) {
+      expect(showcaseJson).toContain(actionId);
+    }
+    for (const eventType of showcase.requiredTerminalEventTypes) {
+      expect(showcaseJson).toContain(eventType);
+    }
+    const buildFinalLogCode = String(
+      showcaseNodeByName.get('Build Final Log')?.parameters?.jsCode ?? '',
+    );
+    for (const step of showcase.requiredPathLogSteps) {
+      expect(buildFinalLogCode).toContain(`step: '${step}'`);
+    }
+    const credentialIds = new Set<string>();
+    for (const node of showcaseWorkflow.nodes) {
+      for (const credential of Object.values(node.credentials ?? {})) {
+        if (typeof credential.id === 'string') credentialIds.add(credential.id);
+      }
+    }
+    expect([...credentialIds].sort()).toEqual(
+      [...showcase.allowedCredentialPlaceholders].sort(),
+    );
+
+    expect(packageJson.n8n).toEqual(OPENBOX_N8N_INTEGRATION.packageManifest);
+    expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_PACKAGE_MANIFEST');
+    expect(packageJson.scripts['smoke:load']).toContain('OPENBOX_N8N_INTEGRATION');
+    expect(packageJson.scripts['smoke:load']).toContain('workflowTemplates');
+    expect(packageJson.scripts['smoke:load']).not.toContain('OpenBoxGovernance.node');
+  });
+});
+
 describe('runtime/claude-code/side-effects', () => {
   it('readFile redacts metadata paths, reads real files, and tolerates missing', async () => {
     const { sideEffects } = await import('../../ts/src/runtime/claude-code/side-effects');
@@ -133,7 +350,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
   it('routes a known tool to openActivity() with the right activity_type', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
-    const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, session_id: 'S3' };
+    const env: any = { tool_name: 'Read', tool_input: { file_path: '/project/main.ts' }, session_id: 'S3' };
     const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('openActivity');
@@ -148,7 +365,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     expect(session.calls.length).toBeGreaterThan(0);
   });
 
-  it('classifies database MCP tools as DatabaseQuery with database_query spans', async () => {
+  it('classifies database MCP tools as DatabaseQuery with SQL-derived DB spans', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession();
     const env: any = {
@@ -164,8 +381,9 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     await handlePreToolUse(env, session, cfg);
     expect(session.calls[0]?.args[0]).toBe('DatabaseQuery');
     const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('database_query');
-    expect(span?.db_operation).toBe('QUERY');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span?.db_operation).toBe('SELECT');
     expect(span?.db_statement).toBe('SELECT 1 AS openbox_real_db_probe');
   });
 
@@ -183,7 +401,8 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
     const span = session.calls[0]?.args[1]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('http_post');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span?.http_method).toBe('POST');
     expect(span?.http_url).toBe('https://example.test/blocked');
   });
@@ -191,7 +410,7 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
   it('halt verdict triggers markHalted (no throw)', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/claude-code/mappers/pre-tool-use');
     const session = recordingSession({ arm: 'halt' });
-    const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/x.ts' }, session_id: 'halt-session' };
+    const env: any = { tool_name: 'Read', tool_input: { file_path: '/project/x.ts' }, session_id: 'halt-session' };
     const cfg: any = { sessionDir: dir };
     const v = await handlePreToolUse(env, session, cfg);
     expect(v?.arm).toBe('halt');
@@ -202,7 +421,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
   it('fires COMPLETE activity for known tools', async () => {
     const { handlePostToolUse } = await import('../../ts/src/runtime/claude-code/mappers/post-tool-use');
     const session = recordingSession();
-    const env: any = { tool_name: 'Read', tool_input: { file_path: '/Users/me/main.ts' }, tool_response: 'ok', session_id: 'S5' };
+    const env: any = { tool_name: 'Read', tool_input: { file_path: '/project/main.ts' }, tool_response: 'ok', session_id: 'S5' };
     const cfg: any = { sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     expect(session.calls[0]?.method).toBe('activity');
@@ -214,7 +433,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     const session = recordingSession();
     const env: any = {
       tool_name: 'Read',
-      tool_input: { file_path: '/Users/me/main.ts' },
+      tool_input: { file_path: '/project/main.ts' },
       tool_response: 'ok',
       session_id: 'S5-skip',
     };
@@ -269,7 +488,8 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     const cfg: any = { sessionDir: dir };
     await handlePostToolUse(env, session, cfg);
     const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('http_patch');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span?.http_method).toBe('PATCH');
     expect(span?.http_url).toBe('https://example.test/complete');
   });
@@ -291,12 +511,13 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
     expect(payload.toolType).toBe('shell');
     expect(span).toMatchObject({
       name: 'ShellExecution',
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
   });
 });
 
@@ -346,7 +567,8 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     const cfg: any = { sessionDir: dir };
     await handlePermissionRequest(env, session, cfg);
     const span = session.calls[0]?.args[2]?.spans?.[0] as Record<string, any>;
-    expect(span?.semantic_type).toBe('http_delete');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span?.http_method).toBe('DELETE');
     expect(span?.http_url).toBe('https://example.test/permission');
   });
@@ -369,12 +591,13 @@ describe('runtime/claude-code/mappers/permission-request', () => {
     expect(payload.toolType).toBe('shell');
     expect(span).toMatchObject({
       name: 'ShellExecution',
-      semantic_type: 'internal',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
         'openbox.tool.name': 'Bash',
       }),
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
   });
 });
 
@@ -410,7 +633,7 @@ describe('runtime/cursor/side-effects', () => {
 });
 
 describe('runtime/cursor/mappers/pre-tool-use', () => {
-  it('short-circuits unknown tools and routine in-workspace file touches', async () => {
+  it('short-circuits unknown tools and routine in-project file touches', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     for (const env of [
@@ -436,7 +659,7 @@ describe('runtime/cursor/mappers/pre-tool-use', () => {
     }
   });
 
-  it('governs metadata paths instead of treating them as routine workspace reads', async () => {
+  it('governs metadata paths instead of treating them as routine project reads', async () => {
     const { handlePreToolUse } = await import('../../ts/src/runtime/cursor/mappers/pre-tool-use');
     const cfg: any = { sessionDir: dir, hitlMaxWait: 1 };
     const session = recordingSession();

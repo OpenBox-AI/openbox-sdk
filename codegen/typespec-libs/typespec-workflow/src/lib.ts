@@ -81,6 +81,36 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`Invalid @hookEventLabel '${'label'}'; must be a non-empty string`,
       },
     },
+    'invalid-provider-capabilities': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @providerCapabilities: ${'reason'}`,
+      },
+    },
+    'invalid-govern-protocol': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @governProtocol: ${'reason'}`,
+      },
+    },
+    'invalid-backend-permissions': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @backendPermissions: ${'reason'}`,
+      },
+    },
+    'invalid-sdk-method-names': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @sdkMethodNames: ${'reason'}`,
+      },
+    },
+    'invalid-sdk-targets': {
+      severity: 'error',
+      messages: {
+        default: paramMessage`Invalid @sdkTargets: ${'reason'}`,
+      },
+    },
   },
   state: {
     verdict: { description: 'flag: model is the canonical verdict shape' },
@@ -99,6 +129,17 @@ export const $lib = createTypeSpecLibrary({
     activityType: { description: 'fixed activity_type binding attached to an adapter operation (single value, mutually exclusive with activityRouting)' },
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
     hookEventLabel: { description: 'human-readable label attached to an adapter @hookEvent operation' },
+    providerCapabilities: { description: 'provider capability/support-tier matrix attached to a namespace' },
+    governProtocol: { description: 'cross-language governance protocol conformance fixture attached to a namespace' },
+    backendPermissions: {
+      description: 'backend operationId → required RBAC permissions table attached to a namespace',
+    },
+    sdkMethodNames: {
+      description: 'backend operationId → public SDK method name table attached to a namespace',
+    },
+    sdkTargets: {
+      description: 'SDK validation target manifest attached to a namespace',
+    },
   },
 });
 
