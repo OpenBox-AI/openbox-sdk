@@ -31,6 +31,8 @@ export { installClaudeCode, uninstallClaudeCode } from './install.js';
 export {
   claudeCodePluginTargetDir,
   claudeCodeRuntimeConfigDir,
+  claudeCodeRuntimeConfigFile,
+  configureClaudeCodeRuntime,
   exportClaudeCodePlugin,
   installClaudeCodePlugin,
   uninstallClaudeCodePlugin,
@@ -38,6 +40,8 @@ export {
   type ClaudeCodePluginCheck,
   type ClaudeCodePluginCheckStatus,
   type ClaudeCodePluginScope,
+  type ClaudeCodeApprovalMode,
+  type ConfigureClaudeCodeRuntimeOptions,
   type ExportClaudeCodePluginOptions,
   type InstallClaudeCodePluginOptions,
   type UninstallClaudeCodePluginOptions,

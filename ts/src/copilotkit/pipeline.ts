@@ -1,12 +1,17 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
+import { EVENT } from '../governance/events.js';
 import {
-  llmTokenUsageFromRecord,
+  buildSpan,
+  stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
   type LLMTokenUsage,
   type OpenBoxActivityMetadataInput,
+  type SpanType,
 } from '../governance/spans.js';
+import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -32,6 +37,9 @@ import {
   failWorkflow,
   finishStoppedWorkflow,
 } from './workflow-session.js';
+
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
 // All gate emission goes through the spec-generated session runtime
 // (core-client/generated/govern.ts), which owns the canonical envelope:
@@ -77,10 +85,8 @@ async function evaluateGate<T>(
   const spanParent =
     completed && spans && spans.length > 0
       ? {
-          hookSpanParentEventType: 'ActivityStarted' as const,
-          ...(input.kind === 'assistant_output'
-            ? { ensureHookSpanParent: true }
-            : {}),
+          hookSpanParentEventType: EVENT.START,
+          ensureHookSpanParent: true,
         }
       : {};
   if (input.kind === 'tool_input') {
@@ -93,7 +99,7 @@ async function evaluateGate<T>(
     return opened.verdict;
   }
   return session.activity(
-    completed ? 'ActivityCompleted' : 'ActivityStarted',
+    completed ? EVENT.COMPLETE : EVENT.START,
     activityType,
     completed
       ? {
@@ -391,13 +397,13 @@ function activityTypeForGate(
 ): string {
   switch (kind) {
     case 'prompt':
-      return 'UserPromptSubmit';
+      return defaultActivity.userPromptSubmit;
     case 'tool_input':
-      return toolNameFromPayload(payload) ?? 'ToolCall';
+      return toolNameFromPayload(payload) ?? langchainActivity.onToolStart;
     case 'tool_output':
-      return toolNameFromPayload(payload) ?? 'ToolCall';
+      return toolNameFromPayload(payload) ?? langchainActivity.onToolEnd;
     case 'assistant_output':
-      return 'on_llm_end';
+      return langchainActivity.onLlmEnd;
   }
 }
 
@@ -448,7 +454,7 @@ function llmCompletionMetadataFromPayload(payload: unknown): {
   return {
     model,
     provider,
-    usage: llmTokenUsageFromRecord(usageMetadata),
+    usage: normalizeOpenBoxUsage(usageMetadata)?.raw,
     requestBody:
       record.request_body ?? record.requestBody ?? metadata.request_body,
     responseBody:
@@ -482,6 +488,7 @@ function telemetryForGate(
   | 'inputTokens'
   | 'outputTokens'
   | 'totalTokens'
+  | 'costUsd'
   | 'prompt'
   | 'completion'
   | 'toolName'
@@ -573,7 +580,9 @@ function toolMetadataFromPayload(
   if (toolName === 'Agent' || toolName === 'Task' || subagentName) {
     return { toolType: 'a2a', subagentName };
   }
-  return { toolType: 'llm_tool_call' };
+  return {
+    toolType: spanTypeForTool(toolName, toolInputFromPayload(payload)) ?? 'llm_tool_call',
+  };
 }
 
 function spansForGate(
@@ -598,8 +607,17 @@ function spansForGate(
     case 'tool_input':
     case 'tool_output':
       return [toolCallSpan(kind, activityType, payload)];
-    case 'prompt':
-      return [];
+    case 'prompt': {
+      const prompt = promptTextFromPayload(payload);
+      return prompt
+        ? [
+            buildSpan('copilotkit', 'llm', {
+              stage: 'started',
+              prompt,
+            }) as unknown as SpanData,
+          ]
+        : [];
+    }
   }
 }
 
@@ -608,10 +626,29 @@ function toolCallSpan(
   activityType: string,
   payload: unknown,
 ): SpanData {
+  const toolName = toolNameFromPayload(payload) ?? activityType ?? 'call';
+  const toolInput = toolInputFromPayload(payload);
+  const spanType = spanTypeForTool(toolName, toolInput);
+  if (spanType) {
+    return buildSpan('copilotkit', spanType, {
+      stage: kind === 'tool_input' ? 'started' : 'completed',
+      file_path: filePathFor(toolInput),
+      command: firstString(toolInput.command),
+      cwd: firstString(toolInput.cwd),
+      tool_name: toolName,
+      tool_input: toolInput,
+      tool_output: kind === 'tool_output' ? payload : undefined,
+      url: httpTargetFor(toolInput),
+      method: httpMethodFor(toolInput),
+      db_system: dbSystemFor(toolName, toolInput),
+      db_operation: dbOperationFor(toolInput),
+      db_statement: dbStatementFor(toolInput),
+    }) as unknown as SpanData;
+  }
+
   const now = nowUnixNano();
   const stage = kind === 'tool_input' ? 'started' : 'completed';
-  const toolName = activityType || 'call';
-  return {
+  return stripServerComputedSemantic({
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: `tool.${toolName}`,
@@ -622,14 +659,12 @@ function toolCallSpan(
     end_time: stage === 'completed' ? now : null,
     duration_ns: stage === 'completed' ? 0 : null,
     stage,
-    semantic_type: 'llm_tool_call',
     status: { code: 'UNSET' },
     events: [],
     attributes: {
       'gen_ai.system': 'copilotkit',
       'openbox.copilotkit.gate': kind,
       'openbox.activity_type': activityType,
-      'openbox.semantic_type': 'llm_tool_call',
       'openbox.span_type': 'function',
       'openbox.tool.name': toolName,
       'tool.name': toolName,
@@ -637,7 +672,7 @@ function toolCallSpan(
     },
     data: payload,
     ...(stage === 'completed' ? { result: payload } : {}),
-  } as SpanData;
+  } as SpanData);
 }
 
 function pipelineSpan(
@@ -662,29 +697,174 @@ function pipelineSpan(
     },
     data: payload,
   } as SpanData;
-  if (kind !== 'assistant_output') return span;
+  if (kind !== 'assistant_output') return stripServerComputedSemantic(span);
 
   const assistantContent = assistantContentFromPayload(payload);
-  if (!assistantContent) return span;
-  return {
+  if (!assistantContent) return stripServerComputedSemantic(span);
+  return stripServerComputedSemantic({
     ...span,
     name: 'openbox.copilotkit.assistant_output',
-    semantic_type: 'llm_completion',
     response_body: JSON.stringify({
       choices: [{ message: { content: assistantContent } }],
     }),
-  } as SpanData;
+  } as SpanData);
 }
 
 function toolNameFromPayload(payload: unknown): string | undefined {
   const record = recordFrom(payload);
+  const toolCall = recordFrom(record.toolCall);
   return firstString(
     record.toolName,
     record.tool_name,
     record.name,
     record.action,
     record.actionName,
+    toolCall.name,
   );
+}
+
+function toolInputFromPayload(payload: unknown): Record<string, unknown> {
+  const record = recordFrom(payload);
+  const args = recordFrom(record.args);
+  if (Object.keys(args).length > 0) return args;
+  const toolCall = recordFrom(record.toolCall);
+  const toolCallArgs = recordFrom(toolCall.args);
+  if (Object.keys(toolCallArgs).length > 0) return toolCallArgs;
+  return record;
+}
+
+function spanTypeForTool(
+  toolName: string | undefined,
+  toolInput: Record<string, unknown>,
+): SpanType | null {
+  const normalized = String(toolName ?? '').trim();
+  const lower = normalized.toLowerCase();
+  if (['agent', 'task'].includes(lower)) return null;
+  if (['read', 'notebookread', 'glob', 'grep'].includes(lower) || toolInput.read === true)
+    return 'file_read';
+  if (
+    (['open', 'fileopen'].includes(lower) || lower.includes('file_open') || lower.includes('open_file') || toolInput.open === true) &&
+    filePathFor(toolInput)
+  )
+    return 'file_open';
+  if (['write', 'edit', 'multiedit', 'notebookedit'].includes(lower))
+    return 'file_write';
+  if (lower === 'delete') return 'file_delete';
+  if (['bash', 'shell', 'powershell', 'monitor'].includes(lower) || firstString(toolInput.command))
+    return 'shell';
+  if (isDatabaseMcpTool(normalized, toolInput)) return 'db';
+  if (lower.startsWith('mcp__') || lower.includes('mcp')) return 'mcp';
+  if (['webfetch', 'websearch'].includes(lower) || httpTargetFor(toolInput))
+    return 'http';
+  return 'llm_tool_call';
+}
+
+function filePathFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(
+    toolInput.file_path,
+    toolInput.filePath,
+    toolInput.path,
+    toolInput.notebook_path,
+  );
+}
+
+function httpTargetFor(toolInput: Record<string, unknown>): string | undefined {
+  return firstString(toolInput.url, toolInput.uri, toolInput.href, toolInput.query);
+}
+
+function httpMethodFor(toolInput: Record<string, unknown>): string {
+  return firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod)?.toUpperCase() ?? 'GET';
+}
+
+function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
+  const explicit = firstString(
+    toolInput.db_statement,
+    toolInput.dbStatement,
+    toolInput.statement,
+    toolInput.sql,
+    toolInput.query,
+  );
+  if (explicit) return explicit;
+  const resource = firstString(
+    toolInput.resource,
+    toolInput.table,
+    toolInput.collection,
+    toolInput.entity,
+  );
+  return resource ? `database resource ${resource}` : undefined;
+}
+
+const SQL_VERBS = [
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+] as const;
+
+function dbOperationFromStatement(statement: string | undefined): string | undefined {
+  if (!statement) return undefined;
+  const normalized = statement.trim().toUpperCase();
+  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
+}
+
+function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
+  const explicit = firstString(
+    toolInput.db_system,
+    toolInput.dbSystem,
+    toolInput.system,
+    toolInput.database_system,
+  );
+  if (explicit) return explicit;
+  const lowerName = toolName.toLowerCase();
+  if (lowerName.includes('sqlite')) return 'sqlite';
+  if (lowerName.includes('mysql')) return 'mysql';
+  if (lowerName.includes('postgres')) return 'postgresql';
+  return 'postgresql';
+}
+
+function dbOperationFor(toolInput: Record<string, unknown>): string {
+  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
+  const explicitOperation = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation,
+  )?.toUpperCase();
+  if (
+    explicitOperation &&
+    explicitOperation !== 'QUERY' &&
+    explicitOperation !== 'UNKNOWN'
+  ) {
+    return explicitOperation;
+  }
+  return statementOperation ?? explicitOperation ?? 'QUERY';
+}
+
+function isDatabaseMcpTool(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): boolean {
+  if (!toolName.startsWith('mcp__')) return false;
+  const lowerName = toolName.toLowerCase();
+  const nameLooksDatabase =
+    lowerName.includes('db') ||
+    lowerName.includes('sql') ||
+    lowerName.includes('database') ||
+    lowerName.includes('postgres') ||
+    lowerName.includes('mysql') ||
+    lowerName.includes('sqlite');
+  if (!nameLooksDatabase) return false;
+  return Boolean(dbStatementFor(toolInput)) ||
+    lowerName.includes('query') ||
+    lowerName.includes('execute') ||
+    lowerName.includes('select');
 }
 
 function assistantContentFromPayload(payload: unknown): string | undefined {

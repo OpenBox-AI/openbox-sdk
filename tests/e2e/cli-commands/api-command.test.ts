@@ -29,8 +29,11 @@ describeOrSkip('api command (e2e, real backend/core)', () => {
 
     expect(res.status).toBe(0);
     expect(res.stderr).toBe('');
-    const profile = parseStdout<{ orgId?: string }>(res.stdout);
-    expect(profile.orgId).toBe(getOrgId());
+    const profile = parseStdout<{ orgId?: string; isApiKeyAuth?: boolean }>(res.stdout);
+    expect(profile).toMatchObject({
+      orgId: getOrgId(),
+      isApiKeyAuth: true,
+    });
   });
 
   it('calls a generated backend operation with path params and query', () => {
@@ -47,8 +50,11 @@ describeOrSkip('api command (e2e, real backend/core)', () => {
 
     expect(res.status).toBe(0);
     expect(res.stderr).toBe('');
-    const body = parseStdout(res.stdout);
-    expect(body).toBeDefined();
+    const body = parseStdout<{ data?: unknown[]; meta?: { total?: number } }>(res.stdout);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.meta).toMatchObject({
+      total: expect.any(Number),
+    });
   });
 
   it('calls a generated core operation', () => {
@@ -56,7 +62,7 @@ describeOrSkip('api command (e2e, real backend/core)', () => {
 
     expect(res.status).toBe(0);
     expect(res.stderr).toBe('');
-    expect(parseStdout(res.stdout)).toBe('hello world');
+    expect(parseStdout(res.stdout)).toEqual('hello world');
   });
 
   it('rejects unknown operation IDs', () => {

@@ -11,12 +11,13 @@ import {
   buildPostToolUsePayload,
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
-import { EVENT } from '../activity-types.js';
+import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import {
-  buildSpan,
   withOpenBoxActivityMetadata,
+  type SpanInput,
   type SpanType,
 } from '../../../governance/spans.js';
+import { buildCursorSpan } from './spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 
@@ -71,20 +72,20 @@ function cursorDurationMs(env: CursorEnvelope): number | undefined {
 function activityTypeFor(env: CursorEnvelope): string {
   const toolName = env.tool_name ?? '';
   const override = applyActivityVariant(PRE_TOOL_USE_VARIANTS, toolName, env);
-  return override?.activityType ?? PRE_TOOL_USE_ROUTING[toolName] ?? (toolName || 'ToolCall');
+  return override?.activityType ?? PRE_TOOL_USE_ROUTING[toolName] ?? ACTIVITY_TYPES.AGENT_ACTION;
 }
 
 function spanTypeFor(env: CursorEnvelope): SpanType {
   const toolName = env.tool_name ?? '';
   const override = applyActivityVariant(PRE_TOOL_USE_VARIANTS, toolName, env);
-  if (override?.activityType === 'FileDelete') return 'file_delete';
+  if (override?.activityType === ACTIVITY_TYPES.FILE_DELETE) return 'file_delete';
   if (toolName === 'Read') return 'file_read';
   if (toolName === 'Write') return 'file_write';
   if (toolName === 'Shell') return 'shell';
   return 'mcp';
 }
 
-function spanInput(env: CursorEnvelope): Parameters<typeof buildSpan>[2] {
+function spanInput(env: CursorEnvelope): SpanInput {
   return {
     file_path: toolFilePath(env),
     command: toolCommand(env),
@@ -182,8 +183,8 @@ export async function handlePostToolUse(
     llmModel: env.model,
     toolName: env.tool_name,
     toolType,
-    spans: [buildSpan('cursor', toolType, { ...spanInput(env), stage: 'completed' })],
-    hookSpanParentEventType: 'ActivityStarted',
+    spans: [buildCursorSpan(toolType, { ...spanInput(env), stage: 'completed' })],
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }
@@ -213,13 +214,13 @@ export async function handlePostToolUseFailure(
     toolType,
     finishReason: stringFrom(env.failure_type) ?? 'failed',
     spans: [
-      buildSpan('cursor', toolType, {
+      buildCursorSpan(toolType, {
         ...spanInput(env),
         stage: 'completed',
         error: failureError(env),
       }),
     ],
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: EVENT.START,
   });
   return undefined;
 }

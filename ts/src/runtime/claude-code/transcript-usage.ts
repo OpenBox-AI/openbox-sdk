@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ClaudeCodeEnvelope } from '../../core-client/generated/runtime/claude-code.js';
+import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
-  llmTokenUsageFromRecord,
-  type LLMTokenUsage,
-} from '../../governance/spans.js';
+  combineOpenBoxUsage,
+  normalizeOpenBoxUsage,
+} from '../../governance/usage.js';
 
 const MAX_TRANSCRIPT_TAIL_BYTES = 1024 * 1024;
 
@@ -20,72 +21,6 @@ interface AssistantTranscriptRecord {
   usage?: LLMTokenUsage;
   content?: string;
   hasToolCalls?: boolean;
-}
-
-function normalizeClaudeUsage(value: unknown): LLMTokenUsage | undefined {
-  return llmTokenUsageFromRecord(value);
-}
-
-function sumTokenField(
-  left: number | undefined,
-  right: number | undefined,
-): number | undefined {
-  if (left === undefined) return right;
-  if (right === undefined) return left;
-  return left + right;
-}
-
-function withDerivedTotal(usage: LLMTokenUsage): LLMTokenUsage {
-  const input =
-    usage.inputTokens ??
-    usage.promptTokens;
-  const output =
-    usage.outputTokens ??
-    usage.completionTokens;
-  if (input === undefined && output === undefined) return usage;
-  const calculatedTotal = (input ?? 0) + (output ?? 0);
-  if (
-    usage.totalTokens !== undefined &&
-    usage.totalTokens >= calculatedTotal
-  ) {
-    return usage;
-  }
-  return {
-    ...usage,
-    totalTokens: calculatedTotal,
-  };
-}
-
-function combineUsage(
-  left: LLMTokenUsage | undefined,
-  right: LLMTokenUsage | undefined,
-): LLMTokenUsage | undefined {
-  if (!left) return right;
-  if (!right) return left;
-  return {
-    promptTokens: sumTokenField(left.promptTokens, right.promptTokens),
-    completionTokens: sumTokenField(
-      left.completionTokens,
-      right.completionTokens,
-    ),
-    inputTokens: sumTokenField(left.inputTokens, right.inputTokens),
-    outputTokens: sumTokenField(left.outputTokens, right.outputTokens),
-    totalTokens: sumTokenField(left.totalTokens, right.totalTokens),
-    cacheReadInputTokens: sumTokenField(
-      left.cacheReadInputTokens,
-      right.cacheReadInputTokens,
-    ),
-    cacheCreationInputTokens: sumTokenField(
-      left.cacheCreationInputTokens,
-      right.cacheCreationInputTokens,
-    ),
-    webSearchRequests: sumTokenField(
-      left.webSearchRequests,
-      right.webSearchRequests,
-    ),
-    costUSD: sumTokenField(left.costUSD, right.costUSD),
-    costUsd: sumTokenField(left.costUsd, right.costUsd),
-  };
 }
 
 function transcriptRecordId(
@@ -204,7 +139,7 @@ export function readLatestAssistantTurn(
       if (record.type !== 'assistant' && record.message?.role !== 'assistant') {
         continue;
       }
-      const usage = normalizeClaudeUsage(record.message?.usage);
+      const usage = normalizeOpenBoxUsage(record.message?.usage)?.raw;
       const content = textFromClaudeContent(record.message?.content);
       const hasToolCalls = contentHasToolUse(record.message?.content);
       if (!usage && !content && !hasToolCalls) continue;
@@ -227,13 +162,9 @@ export function readLatestAssistantTurn(
   const hasToolCalls = [...assistantRecords.values()].some(
     (record) => record.hasToolCalls,
   );
-  let aggregatedUsage: LLMTokenUsage | undefined;
-  for (const record of assistantRecords.values()) {
-    aggregatedUsage = combineUsage(aggregatedUsage, record.usage);
-  }
-  aggregatedUsage = aggregatedUsage
-    ? withDerivedTotal(aggregatedUsage)
-    : undefined;
+  const aggregatedUsage = combineOpenBoxUsage(
+    ...[...assistantRecords.values()].map((record) => record.usage),
+  )?.raw;
 
   if (!aggregatedUsage && !latestContent && !hasToolCalls) return undefined;
   return {

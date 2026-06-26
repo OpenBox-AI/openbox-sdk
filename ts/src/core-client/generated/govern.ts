@@ -5,6 +5,8 @@ export type ActivityStage = "pre" | "post";
 export type VerdictArm = "allow" | "constrain" | "require_approval" | "block" | "halt";
 export interface GuardrailFieldVerdict {
   field: string;
+  guardrailType?: string;
+  order?: number;
   status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }
@@ -16,6 +18,7 @@ export interface GuardrailReasonRef {
 export interface GuardrailsVerdict {
   inputType: "activity_input" | "activity_output" | "signal_args";
   redactedInput?: unknown;
+  redactedOutput?: unknown;
   validationPassed: boolean;
   rawLogs?: Record<string, unknown>;
   reasons: GuardrailReasonRef[];
@@ -36,8 +39,13 @@ export interface WorkflowVerdict {
   metadata?: Record<string, unknown>;
   fallbackUsed?: boolean;
   guardrailsResult?: GuardrailsVerdict;
-  activityId?: string;
   ageResult?: GovernanceVerdictResponse['age_result'];
+  activityId?: string;
+}
+export interface SourceAttributionContract {
+  inputKey: "_openbox_source";
+  defaultPythonSource: "python-sdk";
+  workflowEventSource: "workflow-telemetry";
 }
 export interface GovernedPayload {
   input?: unknown[];
@@ -47,6 +55,7 @@ export interface GovernedPayload {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  costUsd?: number;
   hasToolCalls?: boolean;
   finishReason?: string;
   prompt?: string;
@@ -107,6 +116,71 @@ export const PRESET_MANIFEST = [
   {
     "preset": "anthropic-agent-sdk",
     "methods": [
+      {
+        "name": "sessionActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKSession"
+      },
+      {
+        "name": "sessionActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKSession"
+      },
+      {
+        "name": "messageActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "messageActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "messageSignalReceived",
+        "eventType": "SignalReceived",
+        "activityType": "AnthropicAgentSDKMessage"
+      },
+      {
+        "name": "configChangeActivity",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKConfigChange"
+      },
+      {
+        "name": "workspaceChangeSignal",
+        "eventType": "SignalReceived",
+        "activityType": "AnthropicAgentSDKWorkspaceChange"
+      },
+      {
+        "name": "workspaceChangeCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKWorkspaceChange"
+      },
+      {
+        "name": "mcpElicitationStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "mcpElicitationCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "taskActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "AnthropicAgentSDKTask"
+      },
+      {
+        "name": "taskActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "AnthropicAgentSDKTask"
+      },
+      {
+        "name": "usageSignal",
+        "eventType": "SignalReceived",
+        "activityType": "anthropic_agent_sdk_usage"
+      },
       {
         "name": "sessionStart",
         "eventType": "ActivityStarted",
@@ -253,6 +327,71 @@ export const PRESET_MANIFEST = [
     "preset": "claude-code",
     "methods": [
       {
+        "name": "sessionActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeSession"
+      },
+      {
+        "name": "sessionActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeSession"
+      },
+      {
+        "name": "messageActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "messageActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "messageSignalReceived",
+        "eventType": "SignalReceived",
+        "activityType": "ClaudeCodeMessage"
+      },
+      {
+        "name": "configChangeActivity",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeConfigChange"
+      },
+      {
+        "name": "workspaceChangeSignal",
+        "eventType": "SignalReceived",
+        "activityType": "ClaudeCodeWorkspaceChange"
+      },
+      {
+        "name": "workspaceChangeCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeWorkspaceChange"
+      },
+      {
+        "name": "mcpElicitationStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "mcpElicitationCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "MCPElicitation"
+      },
+      {
+        "name": "taskActivityStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ClaudeCodeTask"
+      },
+      {
+        "name": "taskActivityCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ClaudeCodeTask"
+      },
+      {
+        "name": "claudeUsageSignal",
+        "eventType": "SignalReceived",
+        "activityType": "claude_usage"
+      },
+      {
         "name": "preToolUse",
         "eventType": "ActivityStarted",
         "activityType": "PreToolUse"
@@ -322,6 +461,11 @@ export const PRESET_MANIFEST = [
   {
     "preset": "codex",
     "methods": [
+      {
+        "name": "sessionCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "CodexSession"
+      },
       {
         "name": "userPromptSubmit",
         "eventType": "ActivityStarted",
@@ -516,6 +660,26 @@ export const PRESET_MANIFEST = [
     "preset": "default",
     "methods": [
       {
+        "name": "goalSignal",
+        "eventType": "SignalReceived",
+        "activityType": "user_prompt"
+      },
+      {
+        "name": "sessionStart",
+        "eventType": "ActivityStarted",
+        "activityType": "SessionStart"
+      },
+      {
+        "name": "stop",
+        "eventType": "ActivityCompleted",
+        "activityType": "Stop"
+      },
+      {
+        "name": "userPromptSubmit",
+        "eventType": "ActivityStarted",
+        "activityType": "UserPromptSubmit"
+      },
+      {
         "name": "prompt",
         "eventType": "ActivityStarted",
         "activityType": "PromptSubmission"
@@ -556,6 +720,11 @@ export const PRESET_MANIFEST = [
         "activityType": "ShellExecution"
       },
       {
+        "name": "databaseQuery",
+        "eventType": "ActivityStarted",
+        "activityType": "DatabaseQuery"
+      },
+      {
         "name": "httpRequest",
         "eventType": "ActivityStarted",
         "activityType": "HTTPRequest"
@@ -569,6 +738,11 @@ export const PRESET_MANIFEST = [
         "name": "agentSpawn",
         "eventType": "ActivityStarted",
         "activityType": "AgentSpawn"
+      },
+      {
+        "name": "agentAction",
+        "eventType": "ActivityStarted",
+        "activityType": "AgentAction"
       }
     ]
   },
@@ -828,6 +1002,41 @@ export const PRESET_MANIFEST = [
     ]
   },
   {
+    "preset": "openai-agents-sdk",
+    "methods": [
+      {
+        "name": "runStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "OpenAIAgentsSDKRun"
+      },
+      {
+        "name": "runCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "OpenAIAgentsSDKRun"
+      },
+      {
+        "name": "toolStarted",
+        "eventType": "ActivityStarted",
+        "activityType": "ToolStarted"
+      },
+      {
+        "name": "toolCompleted",
+        "eventType": "ActivityCompleted",
+        "activityType": "ToolCompleted"
+      },
+      {
+        "name": "handoff",
+        "eventType": "Handoff",
+        "activityType": "AgentHandoff"
+      },
+      {
+        "name": "guardrail",
+        "eventType": "ActivityStarted",
+        "activityType": "GuardrailEvaluation"
+      }
+    ]
+  },
+  {
     "preset": "pagerduty",
     "methods": [
       {
@@ -1044,6 +1253,280 @@ export const PRESET_MANIFEST = [
   }
 ] as const;
 export type PresetName = (typeof PRESET_MANIFEST)[number]["preset"];
+/** Spec-driven fixed activity_type lookup by preset method.
+ *  Free-form custom-preset methods are intentionally omitted. */
+export const PRESET_ACTIVITY_TYPES = {
+  "airflow": {
+    "onExecuteCallback": "on_execute_callback",
+    "onSuccessCallback": "on_success_callback",
+    "onFailureCallback": "on_failure_callback",
+    "onRetryCallback": "on_retry_callback",
+    "slaMissCallback": "sla_miss_callback",
+    "onSkippedCallback": "on_skipped_callback"
+  },
+  "anthropic-agent-sdk": {
+    "sessionActivityStarted": "AnthropicAgentSDKSession",
+    "sessionActivityCompleted": "AnthropicAgentSDKSession",
+    "messageActivityStarted": "AnthropicAgentSDKMessage",
+    "messageActivityCompleted": "AnthropicAgentSDKMessage",
+    "messageSignalReceived": "AnthropicAgentSDKMessage",
+    "configChangeActivity": "AnthropicAgentSDKConfigChange",
+    "workspaceChangeSignal": "AnthropicAgentSDKWorkspaceChange",
+    "workspaceChangeCompleted": "AnthropicAgentSDKWorkspaceChange",
+    "mcpElicitationStarted": "MCPElicitation",
+    "mcpElicitationCompleted": "MCPElicitation",
+    "taskActivityStarted": "AnthropicAgentSDKTask",
+    "taskActivityCompleted": "AnthropicAgentSDKTask",
+    "usageSignal": "anthropic_agent_sdk_usage",
+    "sessionStart": "SessionStart",
+    "userPromptSubmit": "UserPromptSubmit",
+    "preToolUse": "PreToolUse",
+    "permissionRequest": "PermissionRequest",
+    "postToolUse": "PostToolUse",
+    "postToolUseFailure": "PostToolUseFailure",
+    "postToolBatch": "PostToolBatch",
+    "stop": "Stop",
+    "subagentStart": "SubagentStart",
+    "subagentStop": "SubagentStop",
+    "preCompact": "PreCompact",
+    "messageDisplay": "MessageDisplay"
+  },
+  "argocd": {
+    "operationStarted": "OperationStarted",
+    "operationCompleted": "OperationCompleted",
+    "resourceUpdated": "ResourceUpdated",
+    "preSyncHookStarted": "PreSyncHookStarted",
+    "preSyncHookSucceeded": "PreSyncHookSucceeded",
+    "syncStatusChanged": "SyncStatusChanged"
+  },
+  "autogen": {
+    "textMessage": "TextMessage",
+    "multiModalMessage": "MultiModalMessage",
+    "toolCallRequestEvent": "ToolCallRequestEvent",
+    "toolCallExecutionEvent": "ToolCallExecutionEvent",
+    "memoryQueryEvent": "MemoryQueryEvent",
+    "userInputRequestedEvent": "UserInputRequestedEvent",
+    "handoffMessage": "HandoffMessage",
+    "stopMessage": "StopMessage"
+  },
+  "claude-code": {
+    "sessionActivityStarted": "ClaudeCodeSession",
+    "sessionActivityCompleted": "ClaudeCodeSession",
+    "messageActivityStarted": "ClaudeCodeMessage",
+    "messageActivityCompleted": "ClaudeCodeMessage",
+    "messageSignalReceived": "ClaudeCodeMessage",
+    "configChangeActivity": "ClaudeCodeConfigChange",
+    "workspaceChangeSignal": "ClaudeCodeWorkspaceChange",
+    "workspaceChangeCompleted": "ClaudeCodeWorkspaceChange",
+    "mcpElicitationStarted": "MCPElicitation",
+    "mcpElicitationCompleted": "MCPElicitation",
+    "taskActivityStarted": "ClaudeCodeTask",
+    "taskActivityCompleted": "ClaudeCodeTask",
+    "claudeUsageSignal": "claude_usage",
+    "preToolUse": "PreToolUse",
+    "postToolUse": "PostToolUse",
+    "userPromptSubmit": "UserPromptSubmit",
+    "permissionRequest": "PermissionRequest",
+    "preCompact": "PreCompact",
+    "subagentStop": "SubagentStop",
+    "notification": "Notification",
+    "stop": "Stop"
+  },
+  "cline": {
+    "preToolUse": "PreToolUse",
+    "postToolUse": "PostToolUse",
+    "userPromptSubmit": "UserPromptSubmit",
+    "taskStart": "TaskStart"
+  },
+  "codex": {
+    "sessionCompleted": "CodexSession",
+    "userPromptSubmit": "UserPromptSubmit",
+    "preToolUse": "PreToolUse",
+    "permissionRequest": "PermissionRequest",
+    "postToolUse": "PostToolUse",
+    "stop": "Stop"
+  },
+  "copilot": {
+    "userPromptSubmitted": "userPromptSubmitted",
+    "preToolUse": "preToolUse",
+    "postToolUse": "postToolUse",
+    "agentStop": "agentStop",
+    "subagentStop": "subagentStop",
+    "errorOccurred": "errorOccurred"
+  },
+  "crewai": {
+    "crewKickoffStarted": "CrewKickoffStarted",
+    "crewKickoffCompleted": "CrewKickoffCompleted",
+    "agentExecutionStarted": "AgentExecutionStarted",
+    "agentExecutionCompleted": "AgentExecutionCompleted",
+    "taskStarted": "TaskStarted",
+    "taskCompleted": "TaskCompleted",
+    "toolUsageStarted": "ToolUsageStarted",
+    "toolUsageFinished": "ToolUsageFinished",
+    "toolUsageError": "ToolUsageError",
+    "llmCallStarted": "LLMCallStarted",
+    "llmCallCompleted": "LLMCallCompleted"
+  },
+  "cursor": {
+    "beforeSubmitPrompt": "PromptSubmission",
+    "preToolUse": "preToolUse",
+    "postToolUse": "postToolUse",
+    "beforeShellExecution": "ShellExecution",
+    "afterShellExecution": "ShellExecution",
+    "beforeMCPExecution": "MCPToolCall",
+    "afterMCPExecution": "MCPToolCall",
+    "beforeReadFile": "FileRead",
+    "afterFileEdit": "FileEdit",
+    "afterAgentResponse": "LLMCompleted",
+    "afterAgentThought": "LLMCompleted"
+  },
+  "custom": {},
+  "default": {
+    "goalSignal": "user_prompt",
+    "sessionStart": "SessionStart",
+    "stop": "Stop",
+    "userPromptSubmit": "UserPromptSubmit",
+    "prompt": "PromptSubmission",
+    "llm": "LLMCompleted",
+    "tool": "ToolStarted",
+    "toolCompleted": "ToolCompleted",
+    "read": "FileRead",
+    "write": "FileEdit",
+    "fileDelete": "FileDelete",
+    "shell": "ShellExecution",
+    "databaseQuery": "DatabaseQuery",
+    "httpRequest": "HTTPRequest",
+    "mcpToolCall": "MCPToolCall",
+    "agentSpawn": "AgentSpawn",
+    "agentAction": "AgentAction"
+  },
+  "langchain": {
+    "onLlmStart": "on_llm_start",
+    "onLlmEnd": "on_llm_end",
+    "onLlmError": "on_llm_error",
+    "onChatModelStart": "on_chat_model_start",
+    "onToolStart": "on_tool_start",
+    "onToolEnd": "on_tool_end",
+    "onToolError": "on_tool_error",
+    "onChainStart": "on_chain_start",
+    "onChainEnd": "on_chain_end",
+    "onAgentAction": "on_agent_action",
+    "onAgentFinish": "on_agent_finish",
+    "onRetrieverStart": "on_retriever_start",
+    "onRetrieverEnd": "on_retriever_end"
+  },
+  "langgraph": {
+    "nodeStart": "node_start",
+    "nodeEnd": "node_end",
+    "interrupt": "interrupt",
+    "checkpoint": "checkpoint",
+    "taskStart": "task_start",
+    "taskEnd": "task_end",
+    "customEvent": "custom_event"
+  },
+  "llamaindex": {
+    "chunking": "CHUNKING",
+    "llm": "LLM",
+    "query": "QUERY",
+    "retrieve": "RETRIEVE",
+    "synthesize": "SYNTHESIZE",
+    "embedding": "EMBEDDING",
+    "functionCall": "FUNCTION_CALL",
+    "agentStep": "AGENT_STEP",
+    "reranking": "RERANKING",
+    "subQuestion": "SUB_QUESTION",
+    "exception": "EXCEPTION"
+  },
+  "mastra": {
+    "workflowStepStart": "workflow-step-start",
+    "workflowStepFinish": "workflow-step-finish",
+    "workflowStepProgress": "workflow-step-progress",
+    "toolCall": "tool-call",
+    "toolResult": "tool-result",
+    "error": "error"
+  },
+  "modern-treasury": {
+    "paymentOrderApproved": "payment_order.approved",
+    "paymentOrderBeginProcessing": "payment_order.begin_processing",
+    "paymentOrderFailed": "payment_order.failed",
+    "paymentOrderReconciled": "payment_order.reconciled",
+    "paymentReferenceCreated": "payment_reference.created"
+  },
+  "n8n": {
+    "nodePreExecute": "node-pre-execute",
+    "nodePostExecute": "node-post-execute",
+    "errorTrigger": "error-trigger"
+  },
+  "openai-agents-sdk": {
+    "runStarted": "OpenAIAgentsSDKRun",
+    "runCompleted": "OpenAIAgentsSDKRun",
+    "toolStarted": "ToolStarted",
+    "toolCompleted": "ToolCompleted",
+    "handoff": "AgentHandoff",
+    "guardrail": "GuardrailEvaluation"
+  },
+  "pagerduty": {
+    "incidentTriggered": "incident.triggered",
+    "incidentAcknowledged": "incident.acknowledged",
+    "incidentEscalated": "incident.escalated",
+    "incidentReassigned": "incident.reassigned",
+    "incidentDelegated": "incident.delegated",
+    "incidentPriorityUpdated": "incident.priority_updated",
+    "incidentResolved": "incident.resolved",
+    "incidentReopened": "incident.reopened",
+    "incidentUnacknowledged": "incident.unacknowledged",
+    "incidentAnnotated": "incident.annotated"
+  },
+  "pydantic-ai": {
+    "userPromptNode": "UserPromptNode",
+    "modelRequestNode": "ModelRequestNode",
+    "callToolsNode": "CallToolsNode",
+    "end": "End",
+    "outputValidator": "output_validator",
+    "toolRetry": "tool_retry"
+  },
+  "semantic-kernel": {
+    "functionInvocationPre": "function_invocation_pre",
+    "functionInvocationPost": "function_invocation_post",
+    "promptRenderPre": "prompt_render_pre",
+    "promptRenderPost": "prompt_render_post",
+    "autoFunctionInvocationPre": "auto_function_invocation_pre",
+    "autoFunctionInvocationPost": "auto_function_invocation_post"
+  },
+  "temporal": {
+    "activityTaskScheduled": "ActivityTaskScheduled",
+    "activityTaskStarted": "ActivityTaskStarted",
+    "activityTaskCompleted": "ActivityTaskCompleted",
+    "activityTaskFailed": "ActivityTaskFailed",
+    "activityTaskTimedOut": "ActivityTaskTimedOut",
+    "activityTaskCanceled": "ActivityTaskCanceled",
+    "childWorkflowExecutionInitiated": "ChildWorkflowExecutionInitiated",
+    "childWorkflowExecutionCompleted": "ChildWorkflowExecutionCompleted",
+    "workflowExecutionSignaled": "WorkflowExecutionSignaled",
+    "markerRecorded": "MarkerRecorded",
+    "timerStarted": "TimerStarted",
+    "timerFired": "TimerFired"
+  },
+  "vercel-ai": {
+    "onStepFinish": "onStepFinish",
+    "onFinish": "onFinish",
+    "onError": "onError",
+    "onAbort": "onAbort"
+  }
+} as const;
+export type PresetActivityTypes = typeof PRESET_ACTIVITY_TYPES;
+/** Named event_type constants generated from CanonicalEventType.
+ *  Runtime/adapters should import this instead of duplicating
+ *  ActivityStarted / ActivityCompleted / SignalReceived strings. */
+export const CANONICAL_EVENT_TYPE = {
+  "ACTIVITY_COMPLETED": "ActivityCompleted",
+  "ACTIVITY_STARTED": "ActivityStarted",
+  "HANDOFF": "Handoff",
+  "SIGNAL_RECEIVED": "SignalReceived",
+  "WORKFLOW_COMPLETED": "WorkflowCompleted",
+  "WORKFLOW_FAILED": "WorkflowFailed",
+  "WORKFLOW_STARTED": "WorkflowStarted"
+} as const satisfies Record<string, CanonicalEventType>;
 /** The 7 canonical event_type strings. Anything else on the wire
  *  is a protocol bug. Consumed by the session-inspect protocol
  *  checker + the verify static linter. */
@@ -1053,14 +1536,14 @@ export const CANONICAL_EVENT_TYPES: ReadonlySet<CanonicalEventType> = new Set(["
  *  the wire (custom agents legitimately emit custom names); this
  *  is the *first-party* vocabulary, useful for guardrail authors
  *  and conformance reports. */
-export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentAction","AgentExecutionCompleted","AgentExecutionStarted","AgentSpawn","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","CrewKickoffCompleted","CrewKickoffStarted","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPToolCall","MarkerRecorded","MemoryQueryEvent","MessageDisplay","ModelRequestNode","MultiModalMessage","Notification","OperationCompleted","OperationStarted","PermissionRequest","PostToolBatch","PostToolUse","PostToolUseFailure","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","SessionStart","ShellExecution","Stop","StopMessage","SubagentStart","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","agentStop","auto_function_invocation_post","auto_function_invocation_pre","checkpoint","custom_event","error","error-trigger","errorOccurred","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
+export const CANONICAL_ACTIVITY_TYPES: ReadonlySet<string> = new Set(["AGENT_STEP","ActivityTaskCanceled","ActivityTaskCompleted","ActivityTaskFailed","ActivityTaskScheduled","ActivityTaskStarted","ActivityTaskTimedOut","AgentAction","AgentExecutionCompleted","AgentExecutionStarted","AgentHandoff","AgentSpawn","AnthropicAgentSDKConfigChange","AnthropicAgentSDKMessage","AnthropicAgentSDKSession","AnthropicAgentSDKTask","AnthropicAgentSDKWorkspaceChange","CHUNKING","CallToolsNode","ChildWorkflowExecutionCompleted","ChildWorkflowExecutionInitiated","ClaudeCodeConfigChange","ClaudeCodeMessage","ClaudeCodeSession","ClaudeCodeTask","ClaudeCodeWorkspaceChange","CodexSession","CrewKickoffCompleted","CrewKickoffStarted","DatabaseQuery","EMBEDDING","EXCEPTION","End","FUNCTION_CALL","FileDelete","FileEdit","FileRead","GuardrailEvaluation","HTTPRequest","HandoffMessage","LLM","LLMCallCompleted","LLMCallStarted","LLMCompleted","MCPElicitation","MCPToolCall","MarkerRecorded","MemoryQueryEvent","MessageDisplay","ModelRequestNode","MultiModalMessage","Notification","OpenAIAgentsSDKRun","OperationCompleted","OperationStarted","PermissionRequest","PostToolBatch","PostToolUse","PostToolUseFailure","PreCompact","PreSyncHookStarted","PreSyncHookSucceeded","PreToolUse","PromptSubmission","QUERY","RERANKING","RETRIEVE","ResourceUpdated","SUB_QUESTION","SYNTHESIZE","SessionStart","ShellExecution","Stop","StopMessage","SubagentStart","SubagentStop","SyncStatusChanged","TaskCompleted","TaskStart","TaskStarted","TextMessage","TimerFired","TimerStarted","ToolCallExecutionEvent","ToolCallRequestEvent","ToolCompleted","ToolStarted","ToolUsageError","ToolUsageFinished","ToolUsageStarted","UserInputRequestedEvent","UserPromptNode","UserPromptSubmit","WorkflowExecutionSignaled","agentStop","anthropic_agent_sdk_usage","auto_function_invocation_post","auto_function_invocation_pre","checkpoint","claude_usage","custom_event","error","error-trigger","errorOccurred","function_invocation_post","function_invocation_pre","incident.acknowledged","incident.annotated","incident.delegated","incident.escalated","incident.priority_updated","incident.reassigned","incident.reopened","incident.resolved","incident.triggered","incident.unacknowledged","interrupt","node-post-execute","node-pre-execute","node_end","node_start","onAbort","onError","onFinish","onStepFinish","on_agent_action","on_agent_finish","on_chain_end","on_chain_start","on_chat_model_start","on_execute_callback","on_failure_callback","on_llm_end","on_llm_error","on_llm_start","on_retriever_end","on_retriever_start","on_retry_callback","on_skipped_callback","on_success_callback","on_tool_end","on_tool_error","on_tool_start","output_validator","payment_order.approved","payment_order.begin_processing","payment_order.failed","payment_order.reconciled","payment_reference.created","postToolUse","preToolUse","prompt_render_post","prompt_render_pre","sla_miss_callback","subagentStop","task_end","task_start","tool-call","tool-result","tool_retry","userPromptSubmitted","user_prompt","workflow-step-finish","workflow-step-progress","workflow-step-start"]);
 /** Spec-driven display label for each canonical activity_type.
  *  Source of truth for any UI that renders activity types
  *  (mobile, web dashboard, CLI list views, audit reports). Consumers
  *  fall back to a Title-Case formatter for activity_types not in
  *  this table; custom-preset domain agents emit free-form strings
  *  that legitimately aren't covered here. */
-export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentAction":"Agent Action","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentSpawn":"Agent Spawn","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","MessageDisplay":"Message Display","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolBatch":"Post-Tool Batch","PostToolUse":"Post-Tool Use","PostToolUseFailure":"Post-Tool Use Failure","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","SessionStart":"Session Start","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStart":"Subagent Start","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","agentStop":"Agent Stop","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","checkpoint":"Checkpoint","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
+export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Object.freeze({"AGENT_STEP":"Agent Step","ActivityTaskCanceled":"Activity Task Canceled","ActivityTaskCompleted":"Activity Task Completed","ActivityTaskFailed":"Activity Task Failed","ActivityTaskScheduled":"Activity Task Scheduled","ActivityTaskStarted":"Activity Task Started","ActivityTaskTimedOut":"Activity Task Timed Out","AgentAction":"Agent Action","AgentExecutionCompleted":"Agent Execution Completed","AgentExecutionStarted":"Agent Execution Started","AgentHandoff":"Agent Handoff","AgentSpawn":"Agent Spawn","AnthropicAgentSDKConfigChange":"Anthropic Agent SDK Config Change","AnthropicAgentSDKMessage":"Anthropic Agent SDK Message","AnthropicAgentSDKSession":"Anthropic Agent SDK Session","AnthropicAgentSDKTask":"Anthropic Agent SDK Task","AnthropicAgentSDKWorkspaceChange":"Anthropic Agent SDK Workspace Change","CHUNKING":"Chunking","CallToolsNode":"Call Tools Node","ChildWorkflowExecutionCompleted":"Child Workflow Execution Completed","ChildWorkflowExecutionInitiated":"Child Workflow Execution Initiated","ClaudeCodeConfigChange":"Claude Code Config Change","ClaudeCodeMessage":"Claude Code Message","ClaudeCodeSession":"Claude Code Session","ClaudeCodeTask":"Claude Code Task","ClaudeCodeWorkspaceChange":"Claude Code Workspace Change","CodexSession":"Codex Session","CrewKickoffCompleted":"Crew Kickoff Completed","CrewKickoffStarted":"Crew Kickoff Started","DatabaseQuery":"Database Query","EMBEDDING":"Embedding","EXCEPTION":"Exception","End":"End","FUNCTION_CALL":"Function Call","FileDelete":"File Delete","FileEdit":"File Edit","FileRead":"File Read","GuardrailEvaluation":"Guardrail Evaluation","HTTPRequest":"HTTP Request","HandoffMessage":"Handoff Message","LLM":"LLM","LLMCallCompleted":"LLM Call Completed","LLMCallStarted":"LLM Call Started","LLMCompleted":"LLM Completed","MCPElicitation":"MCP Elicitation","MCPToolCall":"MCP Tool Call","MarkerRecorded":"Marker Recorded","MemoryQueryEvent":"Memory Query","MessageDisplay":"Message Display","ModelRequestNode":"Model Request Node","MultiModalMessage":"Multi-Modal Message","Notification":"Notification","OpenAIAgentsSDKRun":"OpenAI Agents SDK Run","OperationCompleted":"Operation Completed","OperationStarted":"Operation Started","PermissionRequest":"Permission Request","PostToolBatch":"Post-Tool Batch","PostToolUse":"Post-Tool Use","PostToolUseFailure":"Post-Tool Use Failure","PreCompact":"Pre-Compact","PreSyncHookStarted":"Pre-Sync Hook Started","PreSyncHookSucceeded":"Pre-Sync Hook Succeeded","PreToolUse":"Pre-Tool Use","PromptSubmission":"Prompt Submission","QUERY":"Query","RERANKING":"Reranking","RETRIEVE":"Retrieve","ResourceUpdated":"Resource Updated","SUB_QUESTION":"Sub-Question","SYNTHESIZE":"Synthesize","SessionStart":"Session Start","ShellExecution":"Shell Execution","Stop":"Stop","StopMessage":"Stop Message","SubagentStart":"Subagent Start","SubagentStop":"Subagent Stop","SyncStatusChanged":"Sync Status Changed","TaskCompleted":"Task Completed","TaskStart":"Task Start","TaskStarted":"Task Started","TextMessage":"Text Message","TimerFired":"Timer Fired","TimerStarted":"Timer Started","ToolCallExecutionEvent":"Tool Call Execution","ToolCallRequestEvent":"Tool Call Request","ToolCompleted":"Tool Completed","ToolStarted":"Tool Started","ToolUsageError":"Tool Usage Error","ToolUsageFinished":"Tool Usage Finished","ToolUsageStarted":"Tool Usage Started","UserInputRequestedEvent":"User Input Requested","UserPromptNode":"User Prompt Node","UserPromptSubmit":"User Prompt Submit","WorkflowExecutionSignaled":"Workflow Execution Signaled","agentStop":"Agent Stop","anthropic_agent_sdk_usage":"Anthropic Agent SDK Usage","auto_function_invocation_post":"Auto Function Invocation Post","auto_function_invocation_pre":"Auto Function Invocation Pre","checkpoint":"Checkpoint","claude_usage":"Claude Usage","custom_event":"Custom Event","error":"Error","error-trigger":"Error Trigger","errorOccurred":"Error Occurred","function_invocation_post":"Function Invocation Post","function_invocation_pre":"Function Invocation Pre","incident.acknowledged":"Incident Acknowledged","incident.annotated":"Incident Annotated","incident.delegated":"Incident Delegated","incident.escalated":"Incident Escalated","incident.priority_updated":"Incident Priority Updated","incident.reassigned":"Incident Reassigned","incident.reopened":"Incident Reopened","incident.resolved":"Incident Resolved","incident.triggered":"Incident Triggered","incident.unacknowledged":"Incident Unacknowledged","interrupt":"Interrupt","node-post-execute":"Node Post-Execute","node-pre-execute":"Node Pre-Execute","node_end":"Node End","node_start":"Node Start","onAbort":"Abort","onError":"Error","onFinish":"Finish","onStepFinish":"Step Finish","on_agent_action":"Agent Action","on_agent_finish":"Agent Finish","on_chain_end":"Chain End","on_chain_start":"Chain Start","on_chat_model_start":"Chat Model Start","on_execute_callback":"Execute Callback","on_failure_callback":"Failure Callback","on_llm_end":"LLM End","on_llm_error":"LLM Error","on_llm_start":"LLM Start","on_retriever_end":"Retriever End","on_retriever_start":"Retriever Start","on_retry_callback":"Retry Callback","on_skipped_callback":"Skipped Callback","on_success_callback":"Success Callback","on_tool_end":"Tool End","on_tool_error":"Tool Error","on_tool_start":"Tool Start","output_validator":"Output Validator","payment_order.approved":"Payment Order Approved","payment_order.begin_processing":"Payment Order Begin Processing","payment_order.failed":"Payment Order Failed","payment_order.reconciled":"Payment Order Reconciled","payment_reference.created":"Payment Reference Created","postToolUse":"Post-Tool Use","preToolUse":"Pre-Tool Use","prompt_render_post":"Prompt Render Post","prompt_render_pre":"Prompt Render Pre","sla_miss_callback":"SLA Miss Callback","subagentStop":"Subagent Stop","task_end":"Task End","task_start":"Task Start","tool-call":"Tool Call","tool-result":"Tool Result","tool_retry":"Tool Retry","userPromptSubmitted":"User Prompt Submitted","user_prompt":"User Prompt","workflow-step-finish":"Workflow Step Finish","workflow-step-progress":"Workflow Step Progress","workflow-step-start":"Workflow Step Start"});
 /** Every verdict arm the runtime emits. Production sets typically
  *  exclude `constrain`; consumers can re-filter. */
 export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(["allow","block","constrain","halt","require_approval"] as const);
@@ -1083,7 +1566,6 @@ function randomUUID(): string {
 }
 
 import type { OpenBoxCoreClient } from '../core-client.js';
-import { parseApprovalExpirationMs } from '../approval-time.js';
 import type {
   GovernanceEventPayload,
   GovernanceVerdictResponse,
@@ -1096,6 +1578,7 @@ type TelemetryEventFields = Pick<
   | 'input_tokens'
   | 'output_tokens'
   | 'total_tokens'
+  | 'cost_usd'
   | 'has_tool_calls'
   | 'finish_reason'
   | 'prompt'
@@ -1114,6 +1597,7 @@ function telemetryEventFields(payload: GovernedPayload): Partial<TelemetryEventF
     input_tokens: payload.inputTokens,
     output_tokens: payload.outputTokens,
     total_tokens: payload.totalTokens,
+    cost_usd: payload.costUsd,
     has_tool_calls: payload.hasToolCalls,
     finish_reason: payload.finishReason,
     prompt: payload.prompt,
@@ -1154,8 +1638,6 @@ export interface GovernedSessionConfig {
   approvalPollIntervalMs?: number;
   /**
    * Cap (ms) on the per-attempt poll interval after backoff. Default: 5000ms.
-   * The actual sleep is also bounded by server-supplied approvalExpiresAt
-   * so we never overshoot the server-controlled deadline.
    */
   approvalPollMaxIntervalMs?: number;
   /**
@@ -1171,7 +1653,7 @@ export interface GovernedSessionConfig {
   approvalPollJitter?: number;
   /**
    * @deprecated Accepted as a compatibility no-op. Approval expiration is
-   * controlled by the server-supplied approvalExpiresAt value.
+   * controlled by the server-owned approval row state.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -1207,7 +1689,7 @@ export interface GovernedSessionConfig {
    * Fired the moment the backend returns a `require_approval` verdict
    * with an `approval_id`; BEFORE pollApproval starts the long wait.
    * Lets harnesses (cursor-hooks, claude-hooks) surface inline approval
-   * UI in their host IDE without first burning the full poll deadline.
+   * UI in their host IDE without first waiting through the poll loop.
    * Errors thrown here are swallowed; this hook is observability, not
    * a gate.
    */
@@ -1336,7 +1818,7 @@ export class BaseGovernedSession {
   async workflowStarted(): Promise<void> {
     if (this.opened) return;
     this.opened = true;
-    await this.emit({ event_type: 'WorkflowStarted' });
+    await this.emit({ event_type: CANONICAL_EVENT_TYPE.WORKFLOW_STARTED });
   }
   /** @deprecated use `workflowStarted()`; same behavior. */
   async begin(): Promise<void> {
@@ -1354,7 +1836,7 @@ export class BaseGovernedSession {
     if (this.finalized) return undefined;
     this.finalized = true;
     try {
-      return await this.emit({ event_type: 'WorkflowCompleted', status: 'completed' });
+      return await this.emit({ event_type: CANONICAL_EVENT_TYPE.WORKFLOW_COMPLETED, status: 'completed' });
     } finally {
       this.cleanupExitHandlers();
     }
@@ -1377,7 +1859,7 @@ export class BaseGovernedSession {
     this.finalized = true;
     try {
       return await this.emit({
-        event_type: 'WorkflowFailed',
+        event_type: CANONICAL_EVENT_TYPE.WORKFLOW_FAILED,
         status: 'failed',
         error: errorInfoFrom(error),
       });
@@ -1427,9 +1909,9 @@ export class BaseGovernedSession {
     const startTime = payload.startTime ?? Date.now();
     this.inFlight.add(activityId);
     try {
-      if (eventType === 'Handoff') {
+      if (eventType === CANONICAL_EVENT_TYPE.HANDOFF) {
         const handoffVerdict = await this.emit({
-          event_type: 'Handoff',
+          event_type: CANONICAL_EVENT_TYPE.HANDOFF,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -1438,9 +1920,9 @@ export class BaseGovernedSession {
         handoffVerdict.activityId = activityId;
         return handoffVerdict;
       }
-      if (eventType === 'SignalReceived') {
+      if (eventType === CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED) {
         const signalVerdict = await this.emit({
-          event_type: 'SignalReceived',
+          event_type: CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -1451,10 +1933,10 @@ export class BaseGovernedSession {
         signalVerdict.activityId = activityId;
         return signalVerdict;
       }
-      if (eventType === 'ActivityStarted') {
+      if (eventType === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) {
         this.activityStartsMs.set(activityId, startTime);
         const startedVerdict = await this.emitWithSpanHook({
-          event_type: 'ActivityStarted',
+          event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -1503,7 +1985,7 @@ export class BaseGovernedSession {
     this.inFlight.add(activityId);
     try {
       let verdict = await this.emitWithSpanHook({
-        event_type: 'ActivityStarted',
+        event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
         activity_id: activityId,
         activity_type: activityType,
         activity_input: payload.input,
@@ -1550,12 +2032,12 @@ export class BaseGovernedSession {
         verdict,
         complete: (completionPayload, completionActivityType) =>
           this.runActivity(
-            'ActivityCompleted',
+            CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED,
             completionActivityType ?? activityType,
             {
               ...completionPayload,
               activityId,
-              hookSpanParentEventType: completionPayload.hookSpanParentEventType ?? 'ActivityStarted',
+              hookSpanParentEventType: completionPayload.hookSpanParentEventType ?? CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
             },
           ),
       };
@@ -1588,9 +2070,9 @@ export class BaseGovernedSession {
     this.inFlight.add(activityId);
 
     try {
-      if (eventType === 'Handoff') {
+      if (eventType === CANONICAL_EVENT_TYPE.HANDOFF) {
         const handoffVerdict = await this.emit({
-          event_type: 'Handoff',
+          event_type: CANONICAL_EVENT_TYPE.HANDOFF,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -1600,9 +2082,9 @@ export class BaseGovernedSession {
         return handoffVerdict;
       }
 
-      if (eventType === 'SignalReceived') {
+      if (eventType === CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED) {
         const signalVerdict = await this.emit({
-          event_type: 'SignalReceived',
+          event_type: CANONICAL_EVENT_TYPE.SIGNAL_RECEIVED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -1614,10 +2096,10 @@ export class BaseGovernedSession {
         return signalVerdict;
       }
 
-      if (eventType === 'ActivityStarted') {
+      if (eventType === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) {
         this.activityStartsMs.set(activityId, startTime);
         const startedVerdict = await this.emitWithSpanHook({
-          event_type: 'ActivityStarted',
+          event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
           activity_id: activityId,
           activity_type: activityType,
           activity_input: payload.input,
@@ -1692,7 +2174,7 @@ export class BaseGovernedSession {
         return this.emitCompleted(activityId, activityType, { ...payload, spans: undefined });
       }
 
-      // eventType === 'ActivityCompleted'; post-stage gate.
+      // eventType === ActivityCompleted; post-stage gate.
       return this.emitCompleted(activityId, activityType, payload);
     } finally {
       this.inFlight.delete(activityId);
@@ -1711,7 +2193,7 @@ export class BaseGovernedSession {
       payload.durationMs ??
       (typeof startTime === 'number' ? Math.max(0, endTime - startTime) : undefined);
     const completedVerdict = await this.emitWithSpanHook({
-      event_type: 'ActivityCompleted',
+      event_type: CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED,
       activity_id: activityId,
       activity_type: activityType,
       status: activityCompletionStatus(activityType),
@@ -1766,19 +2248,19 @@ export class BaseGovernedSession {
       GovernanceEventPayload,
       'event_type' | 'activity_id' | 'activity_type' | 'activity_input' | 'activity_output' | 'status' | 'error' | 'attempt' | 'spans' | 'signal_name' | 'signal_args' | 'start_time' | 'end_time' | 'duration_ms' | keyof TelemetryEventFields
     > & {
-      hook_span_parent_event_type?: 'ActivityStarted';
+      hook_span_parent_event_type?: typeof CANONICAL_EVENT_TYPE.ACTIVITY_STARTED;
       ensure_hook_span_parent?: boolean;
     },
   ): Promise<WorkflowVerdict> {
     const hasActivitySpans =
-      (event.event_type === 'ActivityStarted' || event.hook_span_parent_event_type === 'ActivityStarted') &&
+      (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED || event.hook_span_parent_event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) &&
       Array.isArray(event.spans) &&
       event.spans.some(isPersistableHookSpan);
     const parentEvent = withoutSpanRuntimeHints({ ...event, spans: undefined }) as typeof event;
-    const hookParentEvent = event.hook_span_parent_event_type === 'ActivityStarted'
+    const hookParentEvent = event.hook_span_parent_event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED
       ? ({
           ...parentEvent,
-          event_type: 'ActivityStarted',
+          event_type: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
           status: undefined,
           activity_output: undefined,
           end_time: undefined,
@@ -1787,7 +2269,7 @@ export class BaseGovernedSession {
       : parentEvent;
     if (
       hasActivitySpans &&
-      hookParentEvent.event_type === 'ActivityStarted' &&
+      hookParentEvent.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED &&
       event.ensure_hook_span_parent === true &&
       event.activity_id &&
       !this.activityParents.has(event.activity_id)
@@ -1799,7 +2281,7 @@ export class BaseGovernedSession {
       }
     }
     const parentVerdict = await this.emit(parentEvent);
-    if (parentEvent.event_type === 'ActivityStarted' && event.activity_id) {
+    if (parentEvent.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED && event.activity_id) {
       this.activityParents.add(event.activity_id);
     }
     if (!hasActivitySpans) return parentVerdict;
@@ -1853,10 +2335,9 @@ export class BaseGovernedSession {
     initial: WorkflowVerdict,
   ): Promise<WorkflowVerdict> {
     // ── Polling design notes ──
-    // Bounded only by the server-supplied approvalExpiresAt. This
-    // matches the Python LangGraph SDK contract: the server controls
-    // approval expiration and the SDK does not impose a second total
-    // wait deadline.
+    // Server-owned approval expiration. This matches the Python LangGraph
+    // SDK contract: the server controls approval expiration and the SDK
+    // does not convert locally elapsed timestamps into terminal verdicts.
     // Exponential backoff (× factor each attempt, capped at maxIntervalMs)
     // matches the bimodal latency of approvals (decided in seconds OR
     // minutes) without burning a long sleep when the answer's right there.
@@ -1871,10 +2352,6 @@ export class BaseGovernedSession {
     // and run one confirmatory pollApproval() to fetch the backend's
     // authoritative verdict for this activity_id.
     const approvalId = initial.approvalId ?? activityId;
-    let deadline =
-      parseApprovalExpirationMs(initial.approvalExpiresAt) ??
-      Number.POSITIVE_INFINITY;
-
     let externalPending = this.awaitExternalDecision !== undefined;
     let externalSignaled = false;
     const externalDecision = this.awaitExternalDecision
@@ -1898,12 +2375,10 @@ export class BaseGovernedSession {
       : undefined;
 
     let nextInterval = this.approvalPollIntervalMs;
-    while (Date.now() < deadline) {
-      const remaining = deadline - Date.now();
+    while (true) {
       const jittered = applyJitter(nextInterval, this.approvalPollJitter);
-      // Never sleep past the deadline. Wake early if an external
-      // decision arrives.
-      const sleepMs = Math.max(0, Math.min(jittered, remaining));
+      // Wake early if an external decision arrives.
+      const sleepMs = Math.max(0, jittered);
       if (externalPending && externalDecision) {
         await Promise.race([sleep(sleepMs), externalDecision]);
       } else {
@@ -1926,16 +2401,7 @@ export class BaseGovernedSession {
         continue;
       }
       const statusWithExpiry = status as typeof status & { expired?: boolean };
-      const statusDeadline = parseApprovalExpirationMs(
-        status.approval_expiration_time,
-      );
-      if (statusDeadline !== undefined) {
-        deadline = Math.min(deadline, statusDeadline);
-      }
-      if (
-        statusWithExpiry.expired === true ||
-        (statusDeadline !== undefined && Date.now() >= statusDeadline)
-      ) {
+      if (statusWithExpiry.expired === true) {
         return {
           arm: 'block',
           approvalId: initial.approvalId,
@@ -1977,14 +2443,6 @@ export class BaseGovernedSession {
             this.approvalPollMaxIntervalMs,
           );
     }
-    if (Number.isFinite(deadline) && Date.now() >= deadline) {
-      return {
-        ...initial,
-        arm: 'block',
-        reason: initial.reason ?? `Approval expired for ${activityType}`,
-      };
-    }
-    return initial;
   }
 
   /**
@@ -2054,7 +2512,7 @@ function observeCompletedSpanPayload(payload: GovernedPayload): GovernedPayload 
   if (payload.hookSpanParentEventType) return payload;
   return {
     ...payload,
-    hookSpanParentEventType: 'ActivityStarted',
+    hookSpanParentEventType: CANONICAL_EVENT_TYPE.ACTIVITY_STARTED,
     ensureHookSpanParent: payload.ensureHookSpanParent ?? true,
   };
 }
@@ -2074,7 +2532,7 @@ function toolActivityTypeFromPayload(payload: GovernedPayload): string {
     if (name) return name;
   }
 
-  return 'ToolCall';
+  return 'AgentAction';
 }
 
 function namedToolFromRecord(value: unknown): string | undefined {
@@ -2130,6 +2588,58 @@ export class AirflowSession extends BaseGovernedSession {
 }
 /** Session for the `anthropic-agent-sdk` preset; methods match the framework's hook names. */
 export class AnthropicAgentSdkSession extends BaseGovernedSession {
+  async sessionActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKSession", payload);
+  }
+
+  async sessionActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKSession", payload);
+  }
+
+  async messageActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKMessage", payload);
+  }
+
+  async messageActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKMessage", payload);
+  }
+
+  async messageSignalReceived(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "AnthropicAgentSDKMessage", payload);
+  }
+
+  async configChangeActivity(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKConfigChange", payload);
+  }
+
+  async workspaceChangeSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "AnthropicAgentSDKWorkspaceChange", payload);
+  }
+
+  async workspaceChangeCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKWorkspaceChange", payload);
+  }
+
+  async mcpElicitationStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "MCPElicitation", payload);
+  }
+
+  async mcpElicitationCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "MCPElicitation", payload);
+  }
+
+  async taskActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AnthropicAgentSDKTask", payload);
+  }
+
+  async taskActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "AnthropicAgentSDKTask", payload);
+  }
+
+  async usageSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "anthropic_agent_sdk_usage", payload);
+  }
+
   async sessionStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "SessionStart", payload);
   }
@@ -2240,6 +2750,58 @@ export class AutogenSession extends BaseGovernedSession {
 }
 /** Session for the `claude-code` preset; methods match the framework's hook names. */
 export class ClaudeCodeSession extends BaseGovernedSession {
+  async sessionActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeSession", payload);
+  }
+
+  async sessionActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeSession", payload);
+  }
+
+  async messageActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeMessage", payload);
+  }
+
+  async messageActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeMessage", payload);
+  }
+
+  async messageSignalReceived(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "ClaudeCodeMessage", payload);
+  }
+
+  async configChangeActivity(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeConfigChange", payload);
+  }
+
+  async workspaceChangeSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "ClaudeCodeWorkspaceChange", payload);
+  }
+
+  async workspaceChangeCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeWorkspaceChange", payload);
+  }
+
+  async mcpElicitationStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "MCPElicitation", payload);
+  }
+
+  async mcpElicitationCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "MCPElicitation", payload);
+  }
+
+  async taskActivityStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ClaudeCodeTask", payload);
+  }
+
+  async taskActivityCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ClaudeCodeTask", payload);
+  }
+
+  async claudeUsageSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "claude_usage", payload);
+  }
+
   async preToolUse(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PreToolUse", payload);
   }
@@ -2292,6 +2854,10 @@ export class ClineSession extends BaseGovernedSession {
 }
 /** Session for the `codex` preset; methods match the framework's hook names. */
 export class CodexSession extends BaseGovernedSession {
+  async sessionCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "CodexSession", payload);
+  }
+
   async userPromptSubmit(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "UserPromptSubmit", payload);
   }
@@ -2448,6 +3014,22 @@ export class CustomSession extends BaseGovernedSession {
 }
 /** Session for the `default` preset; methods match the framework's hook names. */
 export class DefaultSession extends BaseGovernedSession {
+  async goalSignal(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("SignalReceived", "user_prompt", payload);
+  }
+
+  async sessionStart(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "SessionStart", payload);
+  }
+
+  async stop(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "Stop", payload);
+  }
+
+  async userPromptSubmit(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "UserPromptSubmit", payload);
+  }
+
   async prompt(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "PromptSubmission", payload);
   }
@@ -2480,6 +3062,10 @@ export class DefaultSession extends BaseGovernedSession {
     return this.runActivity("ActivityStarted", "ShellExecution", payload);
   }
 
+  async databaseQuery(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "DatabaseQuery", payload);
+  }
+
   async httpRequest(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "HTTPRequest", payload);
   }
@@ -2490,6 +3076,10 @@ export class DefaultSession extends BaseGovernedSession {
 
   async agentSpawn(payload: GovernedPayload): Promise<WorkflowVerdict> {
     return this.runActivity("ActivityStarted", "AgentSpawn", payload);
+  }
+
+  async agentAction(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "AgentAction", payload);
   }
 }
 /** Session for the `langchain` preset; methods match the framework's hook names. */
@@ -2684,6 +3274,32 @@ export class N8nSession extends BaseGovernedSession {
     return this.runActivity("ActivityCompleted", "error-trigger", payload);
   }
 }
+/** Session for the `openai-agents-sdk` preset; methods match the framework's hook names. */
+export class OpenaiAgentsSdkSession extends BaseGovernedSession {
+  async runStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "OpenAIAgentsSDKRun", payload);
+  }
+
+  async runCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "OpenAIAgentsSDKRun", payload);
+  }
+
+  async toolStarted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "ToolStarted", payload);
+  }
+
+  async toolCompleted(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityCompleted", "ToolCompleted", payload);
+  }
+
+  async handoff(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("Handoff", "AgentHandoff", payload);
+  }
+
+  async guardrail(payload: GovernedPayload): Promise<WorkflowVerdict> {
+    return this.runActivity("ActivityStarted", "GuardrailEvaluation", payload);
+  }
+}
 /** Session for the `pagerduty` preset; methods match the framework's hook names. */
 export class PagerdutySession extends BaseGovernedSession {
   async incidentTriggered(payload: GovernedPayload): Promise<WorkflowVerdict> {
@@ -2875,6 +3491,7 @@ export const presets = {
   mastra: MastraSession,
   modernTreasury: ModernTreasurySession,
   n8n: N8nSession,
+  openaiAgentsSdk: OpenaiAgentsSdkSession,
   pagerduty: PagerdutySession,
   pydanticAi: PydanticAiSession,
   semanticKernel: SemanticKernelSession,
@@ -2967,8 +3584,21 @@ export namespace govern {
   export const attach = governAttach;
 }
 function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
+  const raw = response as GovernanceVerdictResponse & {
+    approvalId?: string;
+    governanceEventId?: string;
+    approvalExpiresAt?: string;
+    riskScore?: number;
+    trustTier?: number;
+    alignmentScore?: number;
+    policyId?: string;
+    behavioralViolations?: string[];
+    fallbackUsed?: boolean;
+    guardrailsResult?: GovernanceVerdictResponse['guardrails_result'];
+    ageResult?: GovernanceVerdictResponse['age_result'];
+  };
   const wireArm = normalizeArm(response.verdict ?? response.action ?? 'allow');
-  const guardrailsResult = mapGuardrailsResult(response.guardrails_result);
+  const guardrailsResult = mapGuardrailsResult(response.guardrails_result ?? raw.guardrailsResult);
   const guardrailsFailed = guardrailsResult?.validationPassed === false;
   const arm =
     wireArm === 'halt' || wireArm === 'block'
@@ -2978,26 +3608,26 @@ function mapVerdict(response: GovernanceVerdictResponse): WorkflowVerdict {
         : wireArm;
   return {
     arm,
-    approvalId: response.approval_id,
+    approvalId: response.approval_id ?? raw.approvalId,
     // Cross-reference key for matching this verdict against the
     // backend's persisted Approval row (whose `event_id` field equals
     // the response's `governance_event_id`). The backend currently
     // omits `approval_id` from /governance/evaluate responses, so this
     // is the one stable identifier consumers can use to dedup against
     // the dashboard's pending-approvals list.
-    governanceEventId: (response as { governance_event_id?: string }).governance_event_id,
-    approvalExpiresAt: response.approval_expiration_time,
+    governanceEventId: (response as { governance_event_id?: string }).governance_event_id ?? raw.governanceEventId,
+    approvalExpiresAt: response.approval_expiration_time ?? raw.approvalExpiresAt,
     reason: response.reason ?? (guardrailsFailed ? guardrailFailureReason(guardrailsResult) : undefined),
-    riskScore: response.risk_score ?? 0,
-    trustTier: response.trust_tier ?? undefined,
-    alignmentScore: response.alignment_score,
-    policyId: response.policy_id,
-    behavioralViolations: response.behavioral_violations,
+    riskScore: response.risk_score ?? raw.riskScore ?? 0,
+    trustTier: response.trust_tier ?? raw.trustTier ?? undefined,
+    alignmentScore: response.alignment_score ?? raw.alignmentScore,
+    policyId: response.policy_id ?? raw.policyId,
+    behavioralViolations: response.behavioral_violations ?? raw.behavioralViolations,
     constraints: response.constraints,
     metadata: response.metadata,
-    fallbackUsed: response.fallback_used,
+    fallbackUsed: response.fallback_used ?? raw.fallbackUsed,
     guardrailsResult,
-    ageResult: response.age_result,
+    ageResult: response.age_result ?? raw.ageResult,
   };
 }
 
@@ -3023,28 +3653,68 @@ function cleanGuardrailReason(reason: string): string {
   return withoutQuestion.trimEnd();
 }
 
-function mapGuardrailsResult(
-  raw: GovernanceVerdictResponse['guardrails_result'],
+export function mapGuardrailsResult(
+  rawValue: GovernanceVerdictResponse['guardrails_result'] | unknown,
 ): GuardrailsVerdict | undefined {
-  if (!raw) return undefined;
-  if (Object.keys(raw as unknown as Record<string, unknown>).length === 0) return undefined;
+  if (!rawValue || typeof rawValue !== 'object') return undefined;
+  if (Object.keys(rawValue as Record<string, unknown>).length === 0) return undefined;
+  const raw = rawValue as GovernanceVerdictResponse['guardrails_result'] & {
+    inputType?: string;
+    redactedInput?: unknown;
+    redactedOutput?: unknown;
+    validationPassed?: boolean;
+    rawLogs?: Record<string, unknown>;
+    fieldResults?: RawGuardrailFieldResult[];
+  };
   return {
-    inputType: normalizeGuardrailsInputType(raw.input_type),
-    redactedInput: raw.redacted_input,
-    validationPassed: raw.validation_passed !== false,
-    rawLogs: raw.raw_logs,
+    inputType: normalizeGuardrailsInputType(raw.input_type ?? raw.inputType),
+    redactedInput: raw.redacted_input ?? raw.redactedInput,
+    redactedOutput: (raw as typeof raw & { redacted_output?: unknown; redactedOutput?: unknown }).redacted_output
+      ?? (raw as typeof raw & { redacted_output?: unknown; redactedOutput?: unknown }).redactedOutput,
+    validationPassed: (raw.validation_passed ?? raw.validationPassed) !== false,
+    rawLogs: raw.raw_logs ?? raw.rawLogs,
     reasons: ((raw.reasons ?? []) as Array<{ type?: string; field?: string; reason?: string }>).map((r) => ({
       type: String(r.type ?? ''),
-      field: r.field,
+      field: typeof r.field === 'string' ? r.field : undefined,
       reason: String(r.reason ?? ''),
     })),
-    fieldResults: ((raw.results ?? []) as Array<{ results?: Array<{ field?: string; status?: string; reason?: string }> }>)
-      .flatMap((g) => (g.results ?? []).map((fr) => ({
-        field: String(fr.field ?? ''),
-        status: normalizeGuardrailFieldStatus(fr.status),
-        reason: fr.reason,
-      }))),
+    fieldResults: [
+      ...(((raw as typeof raw & { fieldResults?: RawGuardrailFieldResult[] }).fieldResults ?? []) as RawGuardrailFieldResult[])
+        .map((fr) => mapGuardrailFieldResult(fr)),
+      ...(((raw as typeof raw & { field_results?: RawGuardrailFieldResult[] }).field_results ?? []) as RawGuardrailFieldResult[])
+        .map((fr) => mapGuardrailFieldResult(fr)),
+      ...((raw.results ?? []) as Array<{ guardrail_type?: string; guardrailType?: string; results?: RawGuardrailFieldResult[] }>)
+        .flatMap((g) => (g.results ?? []).map((fr) => mapGuardrailFieldResult(fr, g.guardrail_type ?? g.guardrailType))),
+    ],
   };
+}
+
+type RawGuardrailFieldResult = {
+  field?: string;
+  guardrail_type?: string;
+  guardrailType?: string;
+  order?: number;
+  status?: string;
+  reason?: string;
+};
+
+function mapGuardrailFieldResult(
+  fr: RawGuardrailFieldResult,
+  guardrailType?: string,
+): GuardrailFieldVerdict {
+  const mapped: GuardrailFieldVerdict = {
+    field: String(fr.field ?? ''),
+    status: normalizeGuardrailFieldStatus(fr.status),
+    reason: fr.reason,
+  };
+  const resultGuardrailType = fr.guardrail_type ?? fr.guardrailType ?? guardrailType;
+  if (typeof resultGuardrailType === 'string' && resultGuardrailType.length > 0) {
+    mapped.guardrailType = resultGuardrailType;
+  }
+  if (typeof fr.order === 'number' && Number.isFinite(fr.order)) {
+    mapped.order = fr.order;
+  }
+  return mapped;
 }
 
 function normalizeGuardrailsInputType(value: string | undefined): GuardrailsVerdict['inputType'] {
@@ -3098,17 +3768,29 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
       ? value.trim().toLowerCase().replace(/-/g, '_')
       : value;
   switch (normalized) {
+    case 'approve':
+    case 'approved':
     case 'allow':
+    case 'allowed':
     case 'continue':
       return 'allow';
     case 'constrain':
       return 'constrain';
     case 'require_approval':
+    case 'requires_approval':
     case 'request_approval':
+    case 'pending':
+    case 'ask':
       return 'require_approval';
+    case 'reject':
+    case 'rejected':
+    case 'deny':
+    case 'denied':
     case 'block':
+    case 'blocked':
       return 'block';
     case 'halt':
+    case 'stopped':
     case 'stop':
       return 'halt';
     default:
@@ -3232,10 +3914,10 @@ function withSpanHookContext<T>(
         ? Math.max(0, endTime - startTime)
         : undefined);
     if (startTime !== undefined) next.start_time = startTime;
-    if (event.event_type === 'ActivityStarted') {
+    if (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_STARTED) {
       next.end_time = null;
       next.duration_ns = null;
-    } else if (event.event_type === 'ActivityCompleted') {
+    } else if (event.event_type === CANONICAL_EVENT_TYPE.ACTIVITY_COMPLETED) {
       if (endTime !== undefined) next.end_time = endTime;
       if (durationNs !== undefined) next.duration_ns = durationNs;
     }

@@ -62,10 +62,10 @@ export const HOOK_EVENT_LABELS: Record<string, string> = {
 export interface HookSpec {
   file: string;
   key: string;
-  style: 'claude-array' | 'cursor-keyed';
+  style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean; verdictShape: string }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -79,70 +79,90 @@ export const HOOK_SPEC: HookSpec = {
   "events": [
     {
       "name": "beforeSubmitPrompt",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-continue"
     },
     {
       "name": "beforeReadFile",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
       "name": "beforeShellExecution",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
       "name": "beforeMCPExecution",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
       "name": "preToolUse",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
-      "name": "afterAgentResponse"
+      "name": "afterAgentResponse",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterAgentThought"
+      "name": "afterAgentThought",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterShellExecution"
+      "name": "afterShellExecution",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterFileEdit"
+      "name": "afterFileEdit",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "afterMCPExecution"
+      "name": "afterMCPExecution",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "postToolUse"
+      "name": "postToolUse",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "postToolUseFailure"
+      "name": "postToolUseFailure",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "sessionStart"
+      "name": "sessionStart",
+      "verdictShape": "none"
     },
     {
-      "name": "stop"
+      "name": "stop",
+      "verdictShape": "none"
     },
     {
       "name": "beforeTabFileRead",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
-      "name": "afterTabFileEdit"
+      "name": "afterTabFileEdit",
+      "verdictShape": "cursor-observe"
     },
     {
-      "name": "sessionEnd"
+      "name": "sessionEnd",
+      "verdictShape": "none"
     },
     {
-      "name": "preCompact"
+      "name": "preCompact",
+      "verdictShape": "cursor-observe"
     },
     {
       "name": "subagentStart",
-      "timeout": 1800
+      "timeout": 1800,
+      "verdictShape": "cursor-permission"
     },
     {
-      "name": "subagentStop"
+      "name": "subagentStop",
+      "verdictShape": "cursor-observe"
     }
   ]
 };
@@ -477,7 +497,7 @@ export interface CursorAdapterConfig {
   exit?: (code: number) => never;
   /**
    * @deprecated Compatibility no-op. Approval expiration is controlled
-   * by the server-supplied approvalExpiresAt value.
+   * by the server-owned approval row state.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -815,6 +835,7 @@ type Shape =
   | 'elicitation-response'
   | 'continue-block'
   | 'additional-context'
+  | 'worktree-path'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -849,15 +870,16 @@ function redactedOutputValue(
   env: Record<string, unknown>,
 ): unknown {
   const guardrails = v?.guardrailsResult;
+  const redactedOutput = guardrails?.redactedOutput ?? guardrails?.redactedInput;
   if (
     !guardrails ||
     guardrails.inputType !== 'activity_output' ||
-    guardrails.redactedInput === undefined ||
-    guardrails.redactedInput === null
+    redactedOutput === undefined ||
+    redactedOutput === null
   ) {
     return undefined;
   }
-  return unwrapOutputRedaction(guardrails.redactedInput, originalOutputFor(env));
+  return unwrapOutputRedaction(redactedOutput, originalOutputFor(env));
 }
 
 function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
@@ -889,11 +911,15 @@ function originalOutputFor(env: Record<string, unknown>): unknown {
 
 function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
   const guardrails = v?.guardrailsResult;
+  const hasRedactedField = guardrails?.fieldResults?.some((field) =>
+    field.status === 'redacted' || field.status === 'transformed'
+  );
   return Boolean(
     guardrails &&
       (guardrails.inputType === 'activity_input' || guardrails.inputType === 'signal_args') &&
-      guardrails.redactedInput !== undefined &&
-      guardrails.redactedInput !== null,
+      (hasRedactedField ||
+        guardrails.redactedInput !== undefined &&
+        guardrails.redactedInput !== null),
   );
 }
 
@@ -913,6 +939,13 @@ function cursorInputRedactionBlockReason(reason: string): string {
   return detail
     ? detail + '. Cursor cannot replace this hook input, so OpenBox blocked the original action.'
     : '[OpenBox] redacted this action input, but Cursor cannot replace this hook input. Rewrite the action with redacted content and retry.';
+}
+
+function missingInputReplacementBlockReason(reason: string): string {
+  const detail = reason.replace(/[.]+$/, '');
+  return detail
+    ? detail + '. OpenBox did not provide replacement input, so the original action was blocked.'
+    : '[OpenBox] redacted this action input but did not provide replacement input, so OpenBox blocked the original action.';
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
@@ -950,7 +983,17 @@ function renderVerdictOutput(
           permissionDecision: 'allow',
         };
         if (arm === 'constrain') {
-          addIfDefined(hookSpecificOutput, 'updatedInput', redactedInputRecord(v));
+          const updatedInput = redactedInputRecord(v);
+          if (hasInputRedaction(v) && updatedInput === undefined) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: eventName,
+                permissionDecision: 'deny',
+                permissionDecisionReason: missingInputReplacementBlockReason(reason),
+              },
+            };
+          }
+          addIfDefined(hookSpecificOutput, 'updatedInput', updatedInput);
           if (reason) hookSpecificOutput.additionalContext = reason;
         }
         return {
@@ -1016,7 +1059,19 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') {
         const decision: Record<string, unknown> = { behavior: 'allow' };
         if (arm === 'constrain') {
-          addIfDefined(decision, 'updatedInput', redactedInputRecord(v));
+          const updatedInput = redactedInputRecord(v);
+          if (hasInputRedaction(v) && updatedInput === undefined) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: eventName,
+                decision: {
+                  behavior: 'deny',
+                  message: missingInputReplacementBlockReason(reason),
+                },
+              },
+            };
+          }
+          addIfDefined(decision, 'updatedInput', updatedInput);
         }
         return {
           hookSpecificOutput: {
@@ -1056,11 +1111,21 @@ function renderVerdictOutput(
       const eventName = env.hook_event_name ?? 'Elicitation';
       if (arm === 'allow') return {};
       if (arm === 'constrain') {
+        const content = redactedInputRecord(v);
+        if (hasInputRedaction(v) && content === undefined) {
+          return {
+            hookSpecificOutput: {
+              hookEventName: eventName,
+              action: 'decline',
+              content: {},
+            },
+          };
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
             action: 'accept',
-            content: redactedInputRecord(v) ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
+            content: content ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
           },
         };
       }
@@ -1086,6 +1151,26 @@ function renderVerdictOutput(
           hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
           additionalContext: reason || '[OpenBox] blocked by policy',
         },
+      };
+    }
+    case 'worktree-path': {
+      const eventName = env.hook_event_name ?? 'WorktreeCreate';
+      const worktreePath = typeof (env as Record<string, unknown>).worktree_path === 'string'
+        ? ((env as Record<string, unknown>).worktree_path as string).trim()
+        : '';
+      if ((arm === 'allow' || arm === 'constrain') && worktreePath) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            worktreePath,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+        },
+        systemMessage: reason || '[OpenBox] worktree creation blocked.',
       };
     }
     case 'cursor-permission': {
@@ -1119,8 +1204,7 @@ function renderVerdictOutput(
       }
       if (arm === 'require_approval') {
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
-        // Reaching this branch means Core still reports
-        // require_approval, or the server-side approval window expired.
+        // Reaching this branch means Core still reports require_approval.
         // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',

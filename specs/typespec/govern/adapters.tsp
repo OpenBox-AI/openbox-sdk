@@ -96,6 +96,204 @@ model ClaudeCodeEnvelope {
   instructions?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Codex hook protocol
+// ---------------------------------------------------------------------------
+
+/**
+ * Codex hook stdin envelope. Codex currently uses the same top-level
+ * discriminator and project hook block shape as Claude-style hooks, but the
+ * runtime is intentionally separate so install paths, source labels, and
+ * doctor checks stay Codex-specific.
+ */
+model CodexEnvelope {
+  hook_event_name: string;
+  session_id?: string;
+  conversation_id?: string;
+  turn_id?: string;
+  tool_name?: string;
+  tool_input?: unknown;
+  tool_output?: unknown;
+  tool_use_id?: string;
+  call_id?: string;
+  tool_call_id?: string;
+  duration_ms?: numeric;
+  cwd?: string;
+  prompt?: string;
+  `model`?: string;
+  command?: string;
+  args?: unknown;
+  file_path?: string;
+  content?: unknown;
+  response?: unknown;
+  error?: string;
+  reason?: string;
+  approval_id?: string;
+  sandbox?: string;
+  metadata?: unknown;
+}
+
+@adapter("codex", "codex", "hook_event_name")
+@hookTarget(#{
+  file: ".codex/hooks.json",
+  key: "hooks",
+  style: "codex-array",
+  command: "openbox codex hook",
+  configDir: ".codex-hooks",
+})
+interface CodexAdapter {
+  @hookEvent("UserPromptSubmit")
+  @hookEventLabel("Prompt submission")
+  @verdictShape("decision-block")
+  @installTimeout(86400)
+  @payloadShape(#{
+    default: #{
+      text: #{ from: "prompt" },
+      prompt: #{ from: "prompt" },
+      `model`: #{ from: "model" },
+      event_category: #{ literal: "llm_prompt" },
+    },
+  })
+  userPromptSubmit(input: CodexEnvelope): unknown;
+
+  @hookEvent("PreToolUse")
+  @hookEventLabel("Tool call")
+  @verdictShape("permission-decision")
+  @installTimeout(86400)
+  @activityRouting(#{
+    Read: "FileRead",
+    Write: "FileEdit",
+    Edit: "FileEdit",
+    Delete: "FileDelete",
+    MultiEdit: "FileEdit",
+    Bash: "ShellExecution",
+    Shell: "ShellExecution",
+    WebFetch: "HTTPRequest",
+    WebSearch: "HTTPRequest",
+    Agent: "AgentSpawn",
+    Task: "AgentSpawn",
+  })
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      event_category: #{ literal: "agent_action" },
+    },
+    byTool: #{
+      Read: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
+        content: #{ sideEffect: "readFile", from: "tool_input.file_path" },
+        event_category: #{ literal: "file_read" },
+      },
+      Write: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
+        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        event_category: #{ literal: "file_write" },
+      },
+      Edit: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
+        content: #{ from: "tool_input.content", fallback: "tool_input.new_string" },
+        event_category: #{ literal: "file_write" },
+      },
+      Delete: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        file_path: #{ from: "tool_input.file_path", fallback: "tool_input.path" },
+        event_category: #{ literal: "file_delete" },
+      },
+      Bash: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        command: #{ from: "tool_input.command", fallback: "command" },
+        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        event_category: #{ literal: "agent_action" },
+      },
+      Shell: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        command: #{ from: "tool_input.command", fallback: "command" },
+        cwd: #{ from: "tool_input.cwd", fallback: "cwd" },
+        event_category: #{ literal: "agent_action" },
+      },
+      WebFetch: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
+        http_method: #{ from: "tool_input.method", fallback: "tool_input.http_method", default: "GET" },
+        event_category: #{ literal: "http_request" },
+      },
+      WebSearch: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        url: #{ from: "tool_input.url", fallback: "tool_input.query" },
+        http_method: #{ from: "tool_input.method", fallback: "tool_input.http_method", default: "GET" },
+        event_category: #{ literal: "http_request" },
+      },
+      Agent: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        agent_type: #{ from: "tool_input.agent_type", fallback: "tool_input.description" },
+        prompt: #{ from: "tool_input.prompt" },
+        event_category: #{ literal: "agent_action" },
+      },
+      Task: #{
+        tool_name: #{ from: "tool_name" },
+        tool_input: #{ from: "tool_input" },
+        agent_type: #{ from: "tool_input.agent_type", fallback: "tool_input.description" },
+        prompt: #{ from: "tool_input.prompt" },
+        event_category: #{ literal: "agent_action" },
+      },
+    },
+  })
+  preToolUse(input: CodexEnvelope): unknown;
+
+  @hookEvent("PermissionRequest")
+  @hookEventLabel("Permission request")
+  @verdictShape("permission-request")
+  @installTimeout(86400)
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      approval_id: #{ from: "approval_id" },
+      event_category: #{ literal: "mcp_tool_call" },
+    },
+  })
+  permissionRequest(input: CodexEnvelope): unknown;
+
+  @hookEvent("PostToolUse")
+  @hookEventLabel("Tool completion")
+  @verdictShape("decision-block")
+  @payloadShape(#{
+    default: #{
+      tool_name: #{ from: "tool_name" },
+      tool_input: #{ from: "tool_input" },
+      output: #{ from: "tool_output", fallback: "response" },
+      duration_ms: #{ from: "duration_ms" },
+      event_category: #{ literal: "agent_observation" },
+    },
+  })
+  postToolUse(input: CodexEnvelope): unknown;
+
+  @hookEvent("Stop")
+  @hookEventLabel("Stop")
+  @verdictShape("decision-block")
+  @payloadShape(#{
+    default: #{
+      status: #{ literal: "completed" },
+      reason: #{ from: "reason" },
+      event_category: #{ literal: "workflow_complete" },
+    },
+  })
+  stop(input: CodexEnvelope): unknown;
+}
+
 /**
  * Claude Code hook adapter; single binary that dispatches every hook
  * event by `hook_event_name`. Binds to the `claude-code` preset.
@@ -670,6 +868,21 @@ interface ClaudeCodeAdapter {
   })
   fileChanged(input: ClaudeCodeEnvelope): unknown;
 
+  @hookEvent("WorktreeCreate")
+  @hookEventLabel("Worktree create")
+  @installTimeout(86400)
+  @installDefault(false)
+  @verdictShape("worktree-path")
+  @payloadShape(#{
+    default: #{
+      name: #{ from: "name", fallback: "worktree_name" },
+      cwd: #{ from: "cwd" },
+      worktree_path: #{ from: "worktree_path" },
+      event_category: #{ literal: "worktree_create" },
+    },
+  })
+  worktreeCreate(input: ClaudeCodeEnvelope): unknown;
+
   @hookEvent("WorktreeRemove")
   @hookEventLabel("Worktree remove")
   @verdictShape("none")
@@ -677,6 +890,7 @@ interface ClaudeCodeAdapter {
     default: #{
       name: #{ from: "name" },
       cwd: #{ from: "cwd" },
+      worktree_path: #{ from: "worktree_path" },
       event_category: #{ literal: "workspace_change" },
     },
   })
@@ -747,13 +961,14 @@ interface ClaudeCodeAdapter {
 //      `@activityLabels` table can render them; this is what the
 //      `@activityType` decorator drives.
 //
-//   2. Span `semantic_type` + classifier gate attributes; the actual
-//      input to behavior-rule matching. Core's classifier reads each
-//      span (HTTP method/url, file.path/operation, db.system, gen_ai.system,
-//      shell.command) and resolves one of 19 trigger values (snake_case;
-//      file_read, file_write, file_delete, http_post, llm_completion,
-//      llm_tool_call, internal, ...; see `skill/references/behaviors.md`).
-//      Behavior rules MATCH against this trigger, NOT against `activity_type`.
+//   2. Span root fields + classifier gate attributes; the actual input to
+//      behavior-rule matching. Core's classifier reads each span (HTTP
+//      method/url, file.path/operation, db.system, gen_ai.system,
+//      shell.command), computes `semantic_type`, and resolves one of 19
+//      trigger values (snake_case; file_read, file_write, file_delete,
+//      http_post, llm_completion, llm_tool_call, internal, ...; see
+//      `skill/references/behaviors.md`). Behavior rules MATCH against this
+//      trigger, NOT against `activity_type`.
 //
 // Without spans on the wire, the classifier has nothing to read, so
 // behavior rules silently never fire and every evaluate falls through to
@@ -1128,8 +1343,8 @@ interface CursorAdapter {
    * Cursor's multi-agent boundary. As of this writing, this is the
    * only event where Cursor has a hardcoded chat wrapper string
    * ("Subagent creation blocked by hook: <user_message>") and the
-   * only event whose validator stubs `permission: "ask"` (currently
-   * throws). Returning `permission: "deny"` blocks subagent
+   * only event where `permission: "ask"` is not currently accepted.
+   * Returning `permission: "deny"` blocks subagent
    * creation; the user_message surfaces in the chat verbatim.
    */
   @hookEvent("subagentStart")

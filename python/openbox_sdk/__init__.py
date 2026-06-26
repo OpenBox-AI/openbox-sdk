@@ -8,6 +8,7 @@ from .clients import (
     OpenBoxAPIError,
     OpenBoxClient,
     OpenBoxCoreClient,
+    RequestPreflightError,
     RetryConfig,
 )
 from .governance import govern, govern_run, presets
@@ -22,6 +23,7 @@ __all__ = [
     "OpenBoxAPIError",
     "OpenBoxClient",
     "OpenBoxCoreClient",
+    "RequestPreflightError",
     "RetryConfig",
     "__version__",
     "apply_input_redaction",

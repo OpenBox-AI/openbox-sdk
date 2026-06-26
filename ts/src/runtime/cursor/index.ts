@@ -27,17 +27,42 @@ export {
 } from './install.js';
 export {
   cursorPluginTargetDir,
+  cursorRepoSkillTargetDir,
+  cursorRuntimeConfigFile,
+  cursorRuntimeConfigDir,
+  configureCursorRuntime,
   exportCursorPlugin,
+  installCursorRepoMode,
   installCursorPlugin,
+  uninstallCursorRepoMode,
   uninstallCursorPlugin,
+  verifyCursorRepoMode,
   verifyCursorPlugin,
+  type ConfigureCursorRuntimeOptions,
+  type CursorApprovalMode,
   type CursorPluginCheck,
   type CursorPluginCheckStatus,
   type ExportCursorPluginOptions,
+  type InstallCursorRepoOptions,
   type InstallCursorPluginOptions,
+  type UninstallCursorRepoOptions,
   type UninstallCursorPluginOptions,
+  type VerifyCursorRepoOptions,
   type VerifyCursorPluginOptions,
 } from './plugin.js';
+export {
+  CURSOR_CAPABILITY_IDS,
+  CURSOR_HOOK_MATRIX,
+  CURSOR_PROVIDER_CAPABILITY_MATRIX,
+  CURSOR_PROVIDER_EVENT_CATALOG,
+  CURSOR_REFERENCE_PROVIDER_PARITY_CLOSURES,
+  CURSOR_REFERENCE_PROVIDER_RUNTIME_AUDIT,
+  cursorGovernanceSummary,
+  defaultCursorHookEvents,
+  optInCursorHookEvents,
+  type CursorGovernanceStatus,
+  type CursorHookMatrixEntry,
+} from './governance-matrix.js';
 
 import { makeHookLog } from '../../logging/hook-log.js';
 /** Path of the JSONL log written by the cursor hook subprocess.

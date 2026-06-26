@@ -9,7 +9,7 @@
 // process env passed to claude; the hook subprocess inherits and
 // loadConfig() prefers process.env over the project config file.
 //
-// Skipped unless the project-scope test workspace is configured
+// Skipped unless the project-scope test directory is configured
 // against a loopback Core.
 
 import { describe, expect, it, beforeAll } from 'vitest';

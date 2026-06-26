@@ -5,9 +5,9 @@ export * from './requests.js';
 export * from './responses.js';
 export * from './auth.js';
 
-// Auto-generated from OpenAPI specs; imports `Backend` / `Core` namespaces
-// so consumers can reach raw schema types without colliding with the
-// curated names above. Regenerate via `npm run generate:types`.
+// Auto-generated from the TypeSpec contract; imports `Backend` / `Core`
+// namespaces so consumers can reach raw schema types without colliding with
+// the curated names above. Regenerate via `npm run specs:compile`.
 //
 //   import type { Backend, Core } from '../types/index.js';
 //   type CreateAgent = Backend.components['schemas']['CreateAgentDto'];

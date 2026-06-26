@@ -8,14 +8,19 @@ import {
   buildUserPromptSubmitPayload,
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
-import { markHalted } from '../session-resolver.js';
+import {
+  isStarted,
+  markHalted,
+  markStarted,
+  recordGoal,
+} from '../session-resolver.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import { stampSource } from '../../../approvals/source.js';
 
 /**
  * UserPromptSubmit: user typed something into Claude Code. We govern the
  * prompt (input guardrails; PII, toxicity, ban words) AND fire a
- * SignalReceived(user_prompt) so the goal-alignment service captures the
+ * SignalReceived goal signal so the goal-alignment service captures the
  * user's intent for drift detection later in the session.
  */
 export async function handleUserPromptSubmit(
@@ -26,13 +31,19 @@ export async function handleUserPromptSubmit(
   const prompt = (env.prompt ?? '').trim();
   if (!prompt) return undefined;
 
-  await session.activity(EVENT.SIGNAL, 'user_prompt', {
+  if (!isStarted(env.session_id, cfg)) {
+    await session.workflowStarted();
+    markStarted(env.session_id, cfg);
+  }
+
+  await session.activity(EVENT.SIGNAL, ACTIVITY_TYPES.GOAL_SIGNAL, {
     input: [stampSource({ prompt, event_category: 'agent_goal' }, 'claude-code')],
-    signalName: 'user_prompt',
+    signalName: ACTIVITY_TYPES.GOAL_SIGNAL,
     signalArgs: prompt,
     sessionId: env.session_id,
     prompt,
   });
+  recordGoal(env.session_id, cfg, prompt, 'prompt');
 
   const payload = buildUserPromptSubmitPayload(env);
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
@@ -52,6 +63,7 @@ export async function handleUserPromptExpansion(
 ): Promise<WorkflowVerdict | undefined> {
   const prompt = (env.expanded_prompt ?? env.prompt ?? '').trim();
   if (!prompt) return undefined;
+  recordGoal(env.session_id, cfg, prompt, 'prompt');
   const payload = buildUserPromptExpansionPayload(env);
   const verdict = await session.activity(EVENT.START, ACTIVITY_TYPES.PROMPT, {
     input: [stampSource(payload, 'claude-code')],

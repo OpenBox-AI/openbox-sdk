@@ -1,11 +1,10 @@
 // Request DTOs and query helpers for the backend API.
 //
 // Every wire DTO here is a type alias of the corresponding entry in
-// `Backend.components['schemas']` (the auto-generated openapi-typescript
-// output of specs/generated/openapi3/OpenboxBackend.json). This file
-// owns no shape information; only the friendly name → schema mapping.
-// When TypeSpec changes, run `npm run specs:all` and these aliases
-// update automatically.
+// `Backend.components['schemas']` (the TypeSpec-emitted backend wire
+// types). This file owns no shape information; only the friendly name
+// → schema mapping. When TypeSpec changes, run `npm run specs:all` and
+// these aliases update automatically.
 //
 // The query-helper interfaces at the top stay hand-written: NestJS
 // flattens `@Query` parameters into individual OpenAPI entries

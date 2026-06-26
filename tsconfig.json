@@ -9,6 +9,18 @@
     "paths": {
       "@openbox-ai/openbox-sdk/anthropic-agent-sdk": [
         "ts/src/anthropic-agent-sdk/index.ts"
+      ],
+      "@openbox-ai/openbox-sdk/copilotkit": [
+        "ts/src/copilotkit/index.ts"
+      ],
+      "@openbox-ai/openbox-sdk/openai-agents-sdk": [
+        "ts/src/openai-agents-sdk/index.ts"
+      ],
+      "@openbox-ai/openbox-sdk/runtime/codex": [
+        "ts/src/runtime/codex/index.ts"
+      ],
+      "@openbox-ai/openbox-sdk/runtime/n8n": [
+        "ts/src/runtime/n8n/index.ts"
       ]
     }
   },

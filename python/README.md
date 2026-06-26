@@ -14,9 +14,11 @@ async def run() -> dict:
     return await govern(core=core, preset=presets.claude_code, body=body)
 ```
 
-Generated files live under `openbox_sdk/generated/` and are derived from the
-monorepo TypeSpec/OpenAPI output. Regenerate them from the repo root with:
+Generated files live under `openbox_sdk/generated/` and are emitted directly by
+the monorepo TypeSpec emitter. They include backend/core clients, governance
+runtime contracts, provider capability metadata, and the shared SDK target
+manifest used by generic validation. Regenerate them from the repo root with:
 
 ```bash
-npm run generate:python
+npm run generate:sdks
 ```

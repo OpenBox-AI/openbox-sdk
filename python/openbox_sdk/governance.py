@@ -1,13 +1,28 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
-from typing import Any, TypeVar, cast
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
+from typing import Any, Protocol, TypeVar, cast
 
 from ._govern_runtime import BaseGovernedSession
 from ._utils import run_blocking
 from .generated.govern import PRESET_CLASSES, presets
 
 T = TypeVar("T")
+
+
+class GovernCallable(Protocol):
+    def __call__(
+        self,
+        config: Mapping[str, Any] | None = None,
+        body: Callable[[BaseGovernedSession], Awaitable[T]] | None = None,
+        **kwargs: Any,
+    ) -> Coroutine[Any, Any, T]: ...
+
+    def attach(
+        self,
+        config: Mapping[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> BaseGovernedSession: ...
 
 
 def _merge_config(config: Mapping[str, Any] | None, kwargs: Mapping[str, Any]) -> dict[str, Any]:
@@ -25,7 +40,7 @@ def _resolve_preset(value: Any) -> type[BaseGovernedSession]:
     raise TypeError("govern preset must be a generated preset class or preset name")
 
 
-async def govern(
+async def _govern(
     config: Mapping[str, Any] | None = None,
     body: Callable[[BaseGovernedSession], Awaitable[T]] | None = None,
     **kwargs: Any,
@@ -63,7 +78,8 @@ def govern_attach(
     return _resolve_preset(preset_value)(**merged)
 
 
-govern.attach = govern_attach  # type: ignore[attr-defined]
+_govern.attach = govern_attach  # type: ignore[attr-defined]
+govern = cast(GovernCallable, _govern)
 
 
 def govern_run(
@@ -72,13 +88,14 @@ def govern_run(
     **kwargs: Any,
 ) -> T:
     async def _run() -> T:
-        return await govern(config, body, **kwargs)
+        return await _govern(config, body, **kwargs)
 
     return run_blocking(_run)
 
 
 __all__ = [
     "BaseGovernedSession",
+    "GovernCallable",
     "govern",
     "govern_attach",
     "govern_run",

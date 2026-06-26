@@ -4,8 +4,8 @@
 // writing a redacted file or sending a redacted prompt to an LLM.
 //
 // The input shape `GuardrailsVerdict` is the spec-driven verdict
-// envelope. The camelCase `inputType` and `redactedInput` are the
-// canonical field names.
+// envelope. `redactedInput` is the Core-canonical validated payload;
+// `redactedOutput` is retained as an SDK/provider compatibility alias.
 import type { WorkflowVerdict } from './generated/govern.js';
 
 type GuardrailsVerdict = NonNullable<WorkflowVerdict['guardrailsResult']>;
@@ -105,16 +105,17 @@ export function applyInputRedaction<T = unknown>(
 }
 
 /**
- * Apply core's `redactedInput` over the ORIGINAL activity output. Same
- * deep-merge logic but keyed on `inputType === "activity_output"` (the
- * verdict shape doesn't rename "input"-side state for output redactions).
+ * Apply core's output redaction over the ORIGINAL activity output. Provider
+ * bridges may set `redactedOutput`; Core puts output transforms in
+ * `redactedInput`, so keep that fallback.
  */
 export function applyOutputRedaction<T = unknown>(
   originalOutput: T,
   guardrails: GuardrailsVerdict | undefined,
 ): T {
   if (!guardrails || guardrails.inputType !== 'activity_output') return originalOutput;
-  const redacted = unwrapActivityOutputRedaction(guardrails.redactedInput, originalOutput);
+  const redactedSource = guardrails.redactedOutput ?? guardrails.redactedInput;
+  const redacted = unwrapActivityOutputRedaction(redactedSource, originalOutput);
   if (redacted === null || redacted === undefined) return originalOutput;
   if (
     typeof originalOutput === 'object' && !Array.isArray(originalOutput) && originalOutput !== null &&
@@ -147,12 +148,16 @@ function unwrapActivityOutputRedaction(redactedInput: unknown, originalOutput: u
 }
 
 export function hasGuardrailRedaction(guardrails: GuardrailsVerdict | undefined): boolean {
+  const hasRedactedField = guardrails?.fieldResults?.some((field) =>
+    isRedactedStatus(field.status),
+  );
   return Boolean(
     guardrails &&
       (isInputLikeGuardrail(guardrails.inputType) ||
         guardrails.inputType === 'activity_output') &&
-      guardrails.redactedInput !== null &&
-      guardrails.redactedInput !== undefined,
+      (hasRedactedField ||
+        guardrails.redactedInput !== null && guardrails.redactedInput !== undefined ||
+        guardrails.redactedOutput !== null && guardrails.redactedOutput !== undefined),
   );
 }
 

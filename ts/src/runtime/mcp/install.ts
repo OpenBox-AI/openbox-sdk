@@ -5,8 +5,10 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { HOOK_SPEC as CODEX_HOOK_SPEC } from '../../core-client/generated/runtime/codex.js';
+import { installMcpEntry, uninstallMcpEntry } from '../../install/from-spec.js';
 
-export type McpTarget = 'cursor' | 'claude-code';
+export type McpTarget = 'cursor' | 'claude-code' | 'codex';
 export type McpScope = 'project';
 
 const SERVER_NAME = 'openbox';
@@ -34,6 +36,8 @@ function projectConfigPath(target: McpTarget, cwd: string): string {
       return path.join(cwd, '.cursor', 'mcp.json');
     case 'claude-code':
       return path.join(cwd, '.mcp.json');
+    case 'codex':
+      return path.join(cwd, '.codex', 'config.toml');
   }
 }
 
@@ -49,6 +53,12 @@ const HOSTS: McpHost[] = [
     label: 'Claude Code',
     configFile: '',
     postInstallNote: 'Restart Claude Code to pick up the new MCP server.',
+  },
+  {
+    target: 'codex',
+    label: 'Codex',
+    configFile: '',
+    postInstallNote: 'Restart Codex from a trusted project to pick up .codex/config.toml.',
   },
 ];
 
@@ -102,6 +112,11 @@ export function installMcp(opts: McpInstallOpts = {}): void {
 
   for (const base of pickHosts(opts.targets)) {
     const host = resolveHost(base, scope, cwd);
+    if (host.target === 'codex') {
+      installMcpEntry(CODEX_HOOK_SPEC, SERVER_NAME, SERVER_ENTRY, { scope, cwd });
+      console.log(`  ✓ ${host.label.padEnd(16)} ${host.configFile}`);
+      continue;
+    }
     const cfg = loadConfig(host.configFile);
     const servers = (cfg.mcpServers as Record<string, unknown> | undefined) ?? {};
     servers[SERVER_NAME] = SERVER_ENTRY;
@@ -123,6 +138,10 @@ export function uninstallMcp(opts: McpInstallOpts = {}): void {
   const cwd = opts.cwd ?? process.cwd();
   for (const base of pickHosts(opts.targets)) {
     const host = resolveHost(base, scope, cwd);
+    if (host.target === 'codex') {
+      uninstallMcpEntry(CODEX_HOOK_SPEC, SERVER_NAME, { scope, cwd });
+      continue;
+    }
     if (!fs.existsSync(host.configFile)) {
       console.log(`  - ${host.label.padEnd(16)} ${host.configFile} not present`);
       continue;

@@ -1,0 +1,2697 @@
+{
+  "generatedBy": "codegen/emitters/typespec-emitter",
+  "sources": [
+    "specs/typespec/backend/main.tsp",
+    "specs/typespec/backend/responses.tsp",
+    "specs/typespec/core/main.tsp",
+    "specs/typespec/govern/capabilities.tsp",
+    "specs/typespec/govern/rules-projection.tsp"
+  ],
+  "regenerate": "npm run specs:compile",
+  "domains": {
+    "guardrailTypes": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "guardrailProcessingStages": [
+      "0",
+      "1"
+    ],
+    "behaviorRuleTriggers": [
+      "http_get",
+      "http_post",
+      "http_put",
+      "http_patch",
+      "http_delete",
+      "http",
+      "llm_completion",
+      "llm_embedding",
+      "llm_tool_call",
+      "database_select",
+      "database_insert",
+      "database_update",
+      "database_delete",
+      "database_query",
+      "file_read",
+      "file_write",
+      "file_open",
+      "file_delete",
+      "internal"
+    ],
+    "behaviorRuleStateInputVariants": [
+      "BehaviorRuleTrigger"
+    ],
+    "behaviorRuleStateMembers": [
+      "http_get",
+      "http_post",
+      "http_put",
+      "http_patch",
+      "http_delete",
+      "http",
+      "llm_completion",
+      "llm_embedding",
+      "llm_tool_call",
+      "database_select",
+      "database_insert",
+      "database_update",
+      "database_delete",
+      "database_query",
+      "file_read",
+      "file_write",
+      "file_open",
+      "file_delete",
+      "internal"
+    ],
+    "behaviorRuleVerdicts": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "approvalStatuses": [
+      "pending",
+      "approved",
+      "rejected",
+      "expired"
+    ],
+    "approvalDecisionActions": [
+      "approve",
+      "reject"
+    ],
+    "sessionStatuses": [
+      "pending",
+      "completed",
+      "failed",
+      "blocked",
+      "halted"
+    ],
+    "sessionDurations": [
+      "<1min",
+      "1-5mins",
+      "5-15mins",
+      ">15mins"
+    ],
+    "trustHistoryDurations": [
+      "7d",
+      "30d",
+      "90d",
+      "1y"
+    ],
+    "auditEventTypes": [
+      "policy_change",
+      "guardrail_change",
+      "agent_session",
+      "agent_risk_configuration_change",
+      "agent_goal_alignment_configuration_change",
+      "role_change",
+      "security_event",
+      "settings_update",
+      "team_management",
+      "member_management",
+      "invitation"
+    ],
+    "auditResults": [
+      "success",
+      "failed",
+      "denied",
+      "warning",
+      "approved",
+      "allowed"
+    ],
+    "auditExportStatuses": [
+      "pending",
+      "processing",
+      "completed",
+      "failed"
+    ],
+    "agentAttestationModes": [
+      "kms",
+      "external"
+    ],
+    "apiKeyPermissions": [
+      "write:org",
+      "read:org",
+      "create:user",
+      "read:user",
+      "update:user",
+      "delete:user",
+      "create:agent",
+      "read:agent",
+      "update:agent",
+      "delete:agent",
+      "create:team",
+      "read:team",
+      "update:team",
+      "delete:team",
+      "create:webhook",
+      "read:webhook",
+      "update:webhook",
+      "delete:webhook",
+      "create:api_key",
+      "read:api_key",
+      "update:api_key",
+      "delete:api_key",
+      "manage:sso",
+      "read:agent_session",
+      "manage:agent_session",
+      "read:agent_log",
+      "create:agent_guardrail",
+      "read:agent_guardrail",
+      "update:agent_guardrail",
+      "delete:agent_guardrail",
+      "create:agent_policy",
+      "read:agent_policy",
+      "update:agent_policy",
+      "delete:agent_policy",
+      "create:agent_behavior_rule",
+      "read:agent_behavior_rule",
+      "update:agent_behavior_rule",
+      "delete:agent_behavior_rule"
+    ],
+    "webhookChannels": [
+      "http",
+      "slack"
+    ],
+    "organizationTimezones": [
+      "America/New_York (EST)",
+      "America/Los_Angeles (PST)",
+      "Europe/London (GMT)"
+    ],
+    "welcomeEmailTypes": [
+      "welcome",
+      "auto_password"
+    ],
+    "webhookEventTypes": [
+      "governance.verdict.block",
+      "governance.verdict.halt",
+      "governance.verdict.require_approval",
+      "governance.verdict.constrain",
+      "approval.decided",
+      "approval.expired",
+      "trust_score.decreased",
+      "compliance.export.ready",
+      "compliance.attestation.expiring"
+    ],
+    "ssoMethods": [
+      "oidc",
+      "saml"
+    ],
+    "demoSetupStatuses": [
+      "completed",
+      "running",
+      "failed",
+      "not_started"
+    ],
+    "coreEventTypes": [
+      "WorkflowStarted",
+      "WorkflowCompleted",
+      "WorkflowFailed",
+      "ActivityStarted",
+      "ActivityCompleted",
+      "SignalReceived",
+      "Handoff"
+    ],
+    "coreAuthEnvironments": [
+      "live",
+      "test",
+      "unknown"
+    ],
+    "coreGuardrailsInputTypes": [
+      "activity_input",
+      "activity_output"
+    ],
+    "coreGuardrailFieldStatuses": [
+      "allowed",
+      "blocked",
+      "redacted",
+      "transformed",
+      "skipped"
+    ],
+    "coreVerdicts": [
+      "allow",
+      "constrain",
+      "require_approval",
+      "block",
+      "halt"
+    ],
+    "coreLegacyActions": [
+      "allow",
+      "constrain",
+      "require_approval",
+      "block",
+      "halt",
+      "continue",
+      "stop"
+    ],
+    "openboxProviderIds": [
+      "codex",
+      "cursor",
+      "claude-code",
+      "mcp",
+      "openai-agents-sdk",
+      "anthropic-agent-sdk",
+      "copilotkit",
+      "n8n"
+    ],
+    "openboxSupportTiers": [
+      "native",
+      "wrapped",
+      "observe-only",
+      "diagnose-only",
+      "out-of-scope"
+    ],
+    "openboxCapabilityIds": [
+      "hooks",
+      "plugins",
+      "skills",
+      "mcp",
+      "rules-instructions",
+      "subagents-agents",
+      "approvals-hitl",
+      "usage-cost",
+      "guardrails",
+      "behavior-rules",
+      "opa-rules",
+      "goal-signals",
+      "tracing",
+      "install-doctor"
+    ],
+    "claudeCodeGovernanceStatuses": [
+      "implement_now",
+      "observe_only",
+      "diagnose_only",
+      "explicit_out_of_scope"
+    ],
+    "localStackScenarioCategories": [
+      "approvals-hitl",
+      "behavioral",
+      "goal-drift",
+      "guardrails",
+      "opa",
+      "tracing",
+      "usage-cost",
+      "workflow"
+    ],
+    "localStackScenarioAxes": [
+      "approval",
+      "cost",
+      "dbquery",
+      "failure",
+      "goal",
+      "guardrails",
+      "happy",
+      "matrix",
+      "opa",
+      "order",
+      "rego",
+      "span",
+      "tool",
+      "usage"
+    ],
+    "localStackProofLevels": [
+      "none",
+      "smoke",
+      "negative-path",
+      "behavioral",
+      "conformance"
+    ],
+    "localStackOutcomeSources": [
+      "local-stack-e2e",
+      "provider-guard-fixture"
+    ],
+    "localGovernanceSpanTypes": [
+      "llm",
+      "llm_embedding",
+      "llm_tool_call",
+      "file_read",
+      "file_open",
+      "file_write",
+      "file_delete",
+      "shell",
+      "http",
+      "db",
+      "mcp"
+    ],
+    "localGovernanceVerdicts": [
+      "allow",
+      "constrain",
+      "require_approval",
+      "block",
+      "halt"
+    ],
+    "localGovernanceOutcomes": [
+      "allow",
+      "require_approval",
+      "deny"
+    ],
+    "localStackUsageWireCaseIds": [
+      "nonzero-tokens-nonzero-cost",
+      "zero-tokens-zero-cost"
+    ],
+    "sdkSemanticGapClosureTargets": [
+      "typescript",
+      "python"
+    ],
+    "governanceChecklistBoundaryOwners": [
+      "host",
+      "caller"
+    ],
+    "governanceChecklistScopes": [
+      "scored",
+      "limitation",
+      "universal"
+    ],
+    "governanceChecklistRowStatuses": [
+      "done",
+      "limitation",
+      "missing",
+      "universal"
+    ],
+    "referenceProviderParityClosureStatuses": [
+      "implemented-through-wrapper",
+      "host-owned-observe-only",
+      "runtime-diagnostic-only",
+      "host-unsupported"
+    ],
+    "referenceProviderRuntimePromotionDecisions": [
+      "implemented-runtime-diagnostic",
+      "max-through-wrapper",
+      "retain-host-owned-boundary",
+      "retain-protocol-boundary",
+      "retain-package-boundary"
+    ],
+    "ruleTriggers": [
+      "always",
+      "globMatch",
+      "agentRequested",
+      "manual"
+    ],
+    "ruleSeverities": [
+      "block",
+      "warn",
+      "info"
+    ],
+    "projectedRuleSources": [
+      "guardrail",
+      "policy",
+      "behavior-rule"
+    ]
+  },
+  "provenance": {
+    "guardrailTypes": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateGuardrailDto.guardrail_type",
+      "extractor": "model-field"
+    },
+    "guardrailProcessingStages": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateGuardrailDto.processing_stage",
+      "extractor": "model-field"
+    },
+    "behaviorRuleTriggers": {
+      "source": "specs/typespec/backend/responses.tsp",
+      "selector": "model BehaviorRule.trigger",
+      "extractor": "model-field"
+    },
+    "behaviorRuleStateInputVariants": {
+      "source": "specs/typespec/backend/responses.tsp",
+      "selector": "alias BehaviorRuleStateInput",
+      "extractor": "type-alias"
+    },
+    "behaviorRuleStateMembers": {
+      "source": "specs/typespec/backend/responses.tsp",
+      "selector": "model BehaviorRule.states[]",
+      "extractor": "resolved-alias"
+    },
+    "behaviorRuleVerdicts": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateBehaviorRuleDto.verdict",
+      "extractor": "model-field"
+    },
+    "approvalStatuses": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getPendingApprovals.status",
+      "extractor": "operation-parameter"
+    },
+    "approvalDecisionActions": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_decideApproval.action",
+      "extractor": "operation-parameter"
+    },
+    "sessionStatuses": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getSessions.status",
+      "extractor": "operation-parameter"
+    },
+    "sessionDurations": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getSessions.duration",
+      "extractor": "operation-parameter"
+    },
+    "trustHistoryDurations": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getAgentTrustHistories.duration",
+      "extractor": "operation-parameter"
+    },
+    "auditEventTypes": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model PreviewExportDto.eventTypes",
+      "extractor": "model-field"
+    },
+    "auditResults": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model ExportAuditLogsDto.result",
+      "extractor": "model-field"
+    },
+    "auditExportStatuses": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getExportHistory.status",
+      "extractor": "operation-parameter"
+    },
+    "agentAttestationModes": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateAgentDto.attestation_mode",
+      "extractor": "model-field"
+    },
+    "apiKeyPermissions": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateApiKeyDto.permissions",
+      "extractor": "model-field"
+    },
+    "webhookChannels": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateWebhookDto.channel",
+      "extractor": "model-field"
+    },
+    "organizationTimezones": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateOrganizationSettingsDto.timezone",
+      "extractor": "model-field"
+    },
+    "welcomeEmailTypes": {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model SendWelcomeEmailDto.type",
+      "extractor": "model-field"
+    },
+    "webhookEventTypes": {
+      "source": "specs/typespec/backend/responses.tsp",
+      "selector": "model Webhook.event_types[]",
+      "extractor": "model-field"
+    },
+    "ssoMethods": {
+      "source": "specs/typespec/backend/responses.tsp",
+      "selector": "model SsoStatus.method",
+      "extractor": "model-field"
+    },
+    "demoSetupStatuses": {
+      "source": "specs/typespec/backend/responses.tsp",
+      "selector": "model DemoSetupStatus.status",
+      "extractor": "model-field"
+    },
+    "coreEventTypes": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "enum EventType",
+      "extractor": "enum"
+    },
+    "coreAuthEnvironments": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model AgentValidationResponse.environment",
+      "extractor": "model-field"
+    },
+    "coreGuardrailsInputTypes": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GuardrailsResult.input_type",
+      "extractor": "model-field"
+    },
+    "coreGuardrailFieldStatuses": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GuardrailFieldResult.status",
+      "extractor": "model-field"
+    },
+    "coreVerdicts": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "enum Verdict",
+      "extractor": "enum"
+    },
+    "coreLegacyActions": {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "enum LegacyAction",
+      "extractor": "enum"
+    },
+    "openboxProviderIds": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum OpenBoxProviderId",
+      "extractor": "enum"
+    },
+    "openboxSupportTiers": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum OpenBoxSupportTier",
+      "extractor": "enum"
+    },
+    "openboxCapabilityIds": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum OpenBoxCapabilityId",
+      "extractor": "enum"
+    },
+    "claudeCodeGovernanceStatuses": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum ClaudeCodeGovernanceStatus",
+      "extractor": "enum"
+    },
+    "localStackScenarioCategories": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackScenarioCategoryId",
+      "extractor": "enum"
+    },
+    "localStackScenarioAxes": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackScenarioAxisId",
+      "extractor": "enum"
+    },
+    "localStackProofLevels": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackProofLevel",
+      "extractor": "enum"
+    },
+    "localStackOutcomeSources": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackOutcomeSource",
+      "extractor": "enum"
+    },
+    "localGovernanceSpanTypes": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalGovernanceSpanType",
+      "extractor": "enum"
+    },
+    "localGovernanceVerdicts": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalGovernanceVerdict",
+      "extractor": "enum"
+    },
+    "localGovernanceOutcomes": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalGovernanceOutcome",
+      "extractor": "enum"
+    },
+    "localStackUsageWireCaseIds": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackUsageWireCaseId",
+      "extractor": "enum"
+    },
+    "sdkSemanticGapClosureTargets": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum SdkSemanticGapClosureTarget",
+      "extractor": "enum"
+    },
+    "governanceChecklistBoundaryOwners": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum GovernanceChecklistBoundaryOwner",
+      "extractor": "enum"
+    },
+    "governanceChecklistScopes": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum GovernanceChecklistScope",
+      "extractor": "enum"
+    },
+    "governanceChecklistRowStatuses": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum GovernanceChecklistRowStatus",
+      "extractor": "enum"
+    },
+    "referenceProviderParityClosureStatuses": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum ReferenceProviderParityClosureStatus",
+      "extractor": "enum"
+    },
+    "referenceProviderRuntimePromotionDecisions": {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum ReferenceProviderRuntimePromotionDecision",
+      "extractor": "enum"
+    },
+    "ruleTriggers": {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "enum RuleTrigger",
+      "extractor": "enum"
+    },
+    "ruleSeverities": {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "enum RuleSeverity",
+      "extractor": "enum"
+    },
+    "projectedRuleSources": {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "model ProjectedRule.source",
+      "extractor": "model-field"
+    }
+  },
+  "discoveredFiniteDomains": [
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model BehaviorRule.states",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model BehaviorRule.trigger",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model BehaviorRule.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateAgentDto.attestation_mode",
+      "values": [
+        "external",
+        "kms"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateApiKeyDto.permissions",
+      "values": [
+        "create:agent",
+        "create:agent_behavior_rule",
+        "create:agent_guardrail",
+        "create:agent_policy",
+        "create:api_key",
+        "create:team",
+        "create:user",
+        "create:webhook",
+        "delete:agent",
+        "delete:agent_behavior_rule",
+        "delete:agent_guardrail",
+        "delete:agent_policy",
+        "delete:api_key",
+        "delete:team",
+        "delete:user",
+        "delete:webhook",
+        "manage:agent_session",
+        "manage:sso",
+        "read:agent",
+        "read:agent_behavior_rule",
+        "read:agent_guardrail",
+        "read:agent_log",
+        "read:agent_policy",
+        "read:agent_session",
+        "read:api_key",
+        "read:org",
+        "read:team",
+        "read:user",
+        "read:webhook",
+        "update:agent",
+        "update:agent_behavior_rule",
+        "update:agent_guardrail",
+        "update:agent_policy",
+        "update:api_key",
+        "update:team",
+        "update:user",
+        "update:webhook",
+        "write:org"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateBehaviorRuleDto.states",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateBehaviorRuleDto.trigger",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateBehaviorRuleDto.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateBehaviorRuleDto.verdict",
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateGuardrailDto.guardrail_type",
+      "values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateGuardrailDto.processing_stage",
+      "values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateGuardrailDto.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreatePolicyDto.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateWebhookDto.channel",
+      "values": [
+        "http",
+        "slack"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model CreateWebhookDto.event_types",
+      "values": [
+        "approval.decided",
+        "approval.expired",
+        "compliance.attestation.expiring",
+        "compliance.export.ready",
+        "governance.verdict.block",
+        "governance.verdict.constrain",
+        "governance.verdict.halt",
+        "governance.verdict.require_approval",
+        "trust_score.decreased"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model DemoSetupStatus.status",
+      "values": [
+        "completed",
+        "failed",
+        "not_started",
+        "running"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model ExportAuditLogsDto.eventTypes",
+      "values": [
+        "agent_goal_alignment_configuration_change",
+        "agent_risk_configuration_change",
+        "agent_session",
+        "guardrail_change",
+        "invitation",
+        "member_management",
+        "policy_change",
+        "role_change",
+        "security_event",
+        "settings_update",
+        "team_management"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model ExportAuditLogsDto.result",
+      "values": [
+        "allowed",
+        "approved",
+        "denied",
+        "failed",
+        "success",
+        "warning"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto.drift_detection_action",
+      "values": [
+        "alert_only",
+        "constrain",
+        "terminate"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto.evaluation_frequency",
+      "values": [
+        "every_10_actions",
+        "every_5_actions",
+        "every_action",
+        "session_end_only"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model GoalAlignmentConfigDto.llama_firewall_model",
+      "values": [
+        "claude-3-haiku",
+        "gpt-4o",
+        "gpt-4o-mini"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model PreviewExportDto.eventTypes",
+      "values": [
+        "agent_goal_alignment_configuration_change",
+        "agent_risk_configuration_change",
+        "agent_session",
+        "guardrail_change",
+        "invitation",
+        "member_management",
+        "policy_change",
+        "role_change",
+        "security_event",
+        "settings_update",
+        "team_management"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model SendWelcomeEmailDto.type",
+      "values": [
+        "auto_password",
+        "welcome"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model SsoStatus.method",
+      "values": [
+        "oidc",
+        "saml"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateApiKeyDto.permissions",
+      "values": [
+        "create:agent",
+        "create:agent_behavior_rule",
+        "create:agent_guardrail",
+        "create:agent_policy",
+        "create:api_key",
+        "create:team",
+        "create:user",
+        "create:webhook",
+        "delete:agent",
+        "delete:agent_behavior_rule",
+        "delete:agent_guardrail",
+        "delete:agent_policy",
+        "delete:api_key",
+        "delete:team",
+        "delete:user",
+        "delete:webhook",
+        "manage:agent_session",
+        "manage:sso",
+        "read:agent",
+        "read:agent_behavior_rule",
+        "read:agent_guardrail",
+        "read:agent_log",
+        "read:agent_policy",
+        "read:agent_session",
+        "read:api_key",
+        "read:org",
+        "read:team",
+        "read:user",
+        "read:webhook",
+        "update:agent",
+        "update:agent_behavior_rule",
+        "update:agent_guardrail",
+        "update:agent_policy",
+        "update:api_key",
+        "update:team",
+        "update:user",
+        "update:webhook",
+        "write:org"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateBehavioralRuleDto.states",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateBehavioralRuleDto.trigger",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateBehavioralRuleDto.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateBehavioralRuleDto.verdict",
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateGuardrailDto.guardrail_type",
+      "values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateGuardrailDto.processing_stage",
+      "values": [
+        "0",
+        "1"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateGuardrailDto.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateOrganizationSettingsDto.timezone",
+      "values": [
+        "America/Los_Angeles (PST)",
+        "America/New_York (EST)",
+        "Europe/London (GMT)"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdatePolicyDto.trust_impact",
+      "values": [
+        "high",
+        "low",
+        "medium",
+        "none"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateWebhookDto.channel",
+      "values": [
+        "http",
+        "slack"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model UpdateWebhookDto.event_types",
+      "values": [
+        "approval.decided",
+        "approval.expired",
+        "compliance.attestation.expiring",
+        "compliance.export.ready",
+        "governance.verdict.block",
+        "governance.verdict.constrain",
+        "governance.verdict.halt",
+        "governance.verdict.require_approval",
+        "trust_score.decreased"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model Webhook.channel",
+      "values": [
+        "http",
+        "slack"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model Webhook.event_types",
+      "values": [
+        "approval.decided",
+        "approval.expired",
+        "compliance.attestation.expiring",
+        "compliance.export.ready",
+        "governance.verdict.block",
+        "governance.verdict.constrain",
+        "governance.verdict.halt",
+        "governance.verdict.require_approval",
+        "trust_score.decreased"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "model WebhookDelivery.event_type",
+      "values": [
+        "approval.decided",
+        "approval.expired",
+        "compliance.attestation.expiring",
+        "compliance.export.ready",
+        "governance.verdict.block",
+        "governance.verdict.constrain",
+        "governance.verdict.halt",
+        "governance.verdict.require_approval",
+        "trust_score.decreased"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_decideApproval.action",
+      "values": [
+        "approve",
+        "reject"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getAgentTrustHistories.duration",
+      "values": [
+        "1y",
+        "30d",
+        "7d",
+        "90d"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getApprovalHistory.status",
+      "values": [
+        "approved",
+        "expired",
+        "pending",
+        "rejected"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getBehaviorRuleList.trigger",
+      "values": [
+        "database_delete",
+        "database_insert",
+        "database_query",
+        "database_select",
+        "database_update",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "http_delete",
+        "http_get",
+        "http_patch",
+        "http_post",
+        "http_put",
+        "internal",
+        "llm_completion",
+        "llm_embedding",
+        "llm_tool_call"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getBehaviorRuleList.verdict",
+      "values": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getPendingApprovals.status",
+      "values": [
+        "approved",
+        "expired",
+        "pending",
+        "rejected"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getSessions.duration",
+      "values": [
+        "<1min",
+        ">15mins",
+        "1-5mins",
+        "5-15mins"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op AgentController_getSessions.status",
+      "values": [
+        "blocked",
+        "completed",
+        "failed",
+        "halted",
+        "pending"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getApprovals.status",
+      "values": [
+        "approved",
+        "expired",
+        "pending",
+        "rejected"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getAuditLogs.eventType",
+      "values": [
+        "agent_goal_alignment_configuration_change",
+        "agent_risk_configuration_change",
+        "agent_session",
+        "guardrail_change",
+        "invitation",
+        "member_management",
+        "policy_change",
+        "role_change",
+        "security_event",
+        "settings_update",
+        "team_management"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getAuditLogs.result",
+      "values": [
+        "allowed",
+        "approved",
+        "denied",
+        "failed",
+        "success",
+        "warning"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getExportHistory.status",
+      "values": [
+        "completed",
+        "failed",
+        "pending",
+        "processing"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getSessions.duration",
+      "values": [
+        "<1min",
+        ">15mins",
+        "1-5mins",
+        "5-15mins"
+      ]
+    },
+    {
+      "source": "specs/typespec/backend/main.tsp",
+      "selector": "op OrganizationController_getSessions.status",
+      "values": [
+        "blocked",
+        "completed",
+        "failed",
+        "halted",
+        "pending"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "enum EventType",
+      "values": [
+        "ActivityCompleted",
+        "ActivityStarted",
+        "Handoff",
+        "SignalReceived",
+        "WorkflowCompleted",
+        "WorkflowFailed",
+        "WorkflowStarted"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "enum LegacyAction",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "continue",
+        "halt",
+        "require_approval",
+        "stop"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "enum Verdict",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "halt",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model AgentValidationResponse.environment",
+      "values": [
+        "live",
+        "test",
+        "unknown"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model AGEResult.verdict",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "halt",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model ApprovalStatusResponse.action",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "continue",
+        "halt",
+        "require_approval",
+        "stop"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GovernanceEventPayload.event_type",
+      "values": [
+        "ActivityCompleted",
+        "ActivityStarted",
+        "Handoff",
+        "SignalReceived",
+        "WorkflowCompleted",
+        "WorkflowFailed",
+        "WorkflowStarted"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GovernanceVerdictResponse.action",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "continue",
+        "halt",
+        "require_approval",
+        "stop"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GovernanceVerdictResponse.verdict",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "halt",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GuardrailFieldResult.status",
+      "values": [
+        "allowed",
+        "blocked",
+        "redacted",
+        "skipped",
+        "transformed"
+      ]
+    },
+    {
+      "source": "specs/typespec/core/main.tsp",
+      "selector": "model GuardrailsResult.input_type",
+      "values": [
+        "activity_input",
+        "activity_output"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum ClaudeCodeGovernanceStatus",
+      "values": [
+        "diagnose_only",
+        "explicit_out_of_scope",
+        "implement_now",
+        "observe_only"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum GovernanceChecklistBoundaryOwner",
+      "values": [
+        "caller",
+        "host"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum GovernanceChecklistRowStatus",
+      "values": [
+        "done",
+        "limitation",
+        "missing",
+        "universal"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum GovernanceChecklistScope",
+      "values": [
+        "limitation",
+        "scored",
+        "universal"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalGovernanceOutcome",
+      "values": [
+        "allow",
+        "deny",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalGovernanceSpanType",
+      "values": [
+        "db",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "llm",
+        "llm_embedding",
+        "llm_tool_call",
+        "mcp",
+        "shell"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalGovernanceVerdict",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "halt",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackOutcomeSource",
+      "values": [
+        "local-stack-e2e",
+        "provider-guard-fixture"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackProofLevel",
+      "values": [
+        "behavioral",
+        "conformance",
+        "negative-path",
+        "none",
+        "smoke"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackScenarioAxisId",
+      "values": [
+        "approval",
+        "cost",
+        "dbquery",
+        "failure",
+        "goal",
+        "guardrails",
+        "happy",
+        "matrix",
+        "opa",
+        "order",
+        "rego",
+        "span",
+        "tool",
+        "usage"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackScenarioCategoryId",
+      "values": [
+        "approvals-hitl",
+        "behavioral",
+        "goal-drift",
+        "guardrails",
+        "opa",
+        "tracing",
+        "usage-cost",
+        "workflow"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum LocalStackUsageWireCaseId",
+      "values": [
+        "nonzero-tokens-nonzero-cost",
+        "zero-tokens-zero-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum OpenBoxCapabilityId",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum OpenBoxProviderId",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum OpenBoxSupportTier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum ReferenceProviderParityClosureStatus",
+      "values": [
+        "host-owned-observe-only",
+        "host-unsupported",
+        "implemented-through-wrapper",
+        "runtime-diagnostic-only"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum ReferenceProviderRuntimePromotionDecision",
+      "values": [
+        "implemented-runtime-diagnostic",
+        "max-through-wrapper",
+        "retain-host-owned-boundary",
+        "retain-package-boundary",
+        "retain-protocol-boundary"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "enum SdkSemanticGapClosureTarget",
+      "values": [
+        "python",
+        "typescript"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model BehaviorRuleCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model BehaviorRuleCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ClaudeCodeSdkCapabilityMatrixEntry.claudeCodeTreatment",
+      "values": [
+        "diagnose_only",
+        "explicit_out_of_scope",
+        "implement_now",
+        "observe_only"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ClaudeCodeSurfaceMatrixEntry.status",
+      "values": [
+        "diagnose_only",
+        "explicit_out_of_scope",
+        "implement_now",
+        "observe_only"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GoalSignalGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GoalSignalGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GovernanceChecklistLimitationEntry.boundaryOwner",
+      "values": [
+        "caller",
+        "host"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GovernanceChecklistLimitationEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GovernanceChecklistRowEntry.boundaryOwner",
+      "values": [
+        "caller",
+        "host"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GovernanceChecklistRowEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GovernanceChecklistRowEntry.status",
+      "values": [
+        "done",
+        "limitation",
+        "missing",
+        "universal"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GovernanceChecklistScoreEntry.scope",
+      "values": [
+        "limitation",
+        "scored",
+        "universal"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GuardrailCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model GuardrailCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model HitlCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model HitlCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model HookCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model HookCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model InstallDoctorCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model InstallDoctorCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalGovernanceVerdictMatrixCase.expectedOutcome",
+      "values": [
+        "allow",
+        "deny",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalGovernanceVerdictMatrixCase.expectedVerdict",
+      "values": [
+        "allow",
+        "block",
+        "constrain",
+        "halt",
+        "require_approval"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalGovernanceVerdictMatrixCase.spanType",
+      "values": [
+        "db",
+        "file_delete",
+        "file_open",
+        "file_read",
+        "file_write",
+        "http",
+        "llm",
+        "llm_embedding",
+        "llm_tool_call",
+        "mcp",
+        "shell"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackCategoryAxisSpec.axes",
+      "values": [
+        "approval",
+        "cost",
+        "dbquery",
+        "failure",
+        "goal",
+        "guardrails",
+        "happy",
+        "matrix",
+        "opa",
+        "order",
+        "rego",
+        "span",
+        "tool",
+        "usage"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackCategoryAxisSpec.category",
+      "values": [
+        "approvals-hitl",
+        "behavioral",
+        "goal-drift",
+        "guardrails",
+        "opa",
+        "tracing",
+        "usage-cost",
+        "workflow"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackObjectiveSpec.minimumProofLevel",
+      "values": [
+        "behavioral",
+        "conformance",
+        "negative-path",
+        "none",
+        "smoke"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackOutcomeSpec.minimumProofLevel",
+      "values": [
+        "behavioral",
+        "conformance",
+        "negative-path",
+        "none",
+        "smoke"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackOutcomeSpec.source",
+      "values": [
+        "local-stack-e2e",
+        "provider-guard-fixture"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioMatrixContract.requiredAxes",
+      "values": [
+        "approval",
+        "cost",
+        "dbquery",
+        "failure",
+        "goal",
+        "guardrails",
+        "happy",
+        "matrix",
+        "opa",
+        "order",
+        "rego",
+        "span",
+        "tool",
+        "usage"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioMatrixContract.requiredCapabilities",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioMatrixContract.requiredCategories",
+      "values": [
+        "approvals-hitl",
+        "behavioral",
+        "goal-drift",
+        "guardrails",
+        "opa",
+        "tracing",
+        "usage-cost",
+        "workflow"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioMatrixContract.requiredLocalStackAxes",
+      "values": [
+        "approval",
+        "cost",
+        "dbquery",
+        "failure",
+        "goal",
+        "guardrails",
+        "happy",
+        "matrix",
+        "opa",
+        "order",
+        "rego",
+        "span",
+        "tool",
+        "usage"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioMatrixContract.requiredSdkSemanticGapClosureTargets",
+      "values": [
+        "python",
+        "typescript"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioMatrixContract.requiredSharedProviderGuardProofCapabilities",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioPathSpec.axes",
+      "values": [
+        "approval",
+        "cost",
+        "dbquery",
+        "failure",
+        "goal",
+        "guardrails",
+        "happy",
+        "matrix",
+        "opa",
+        "order",
+        "rego",
+        "span",
+        "tool",
+        "usage"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioPathSpec.capability",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioPathSpec.category",
+      "values": [
+        "approvals-hitl",
+        "behavioral",
+        "goal-drift",
+        "guardrails",
+        "opa",
+        "tracing",
+        "usage-cost",
+        "workflow"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model LocalStackScenarioPathSpec.requiredProofLevel",
+      "values": [
+        "behavioral",
+        "conformance",
+        "negative-path",
+        "none",
+        "smoke"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model McpCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model McpCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model PluginCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model PluginCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model PolicyEvaluationGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model PolicyEvaluationGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ProviderCapabilityEntry.capability",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ProviderCapabilityEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ProviderCapabilityEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ProviderEventCatalogEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ProviderPluginComponentCatalogEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model PublicIntegrationSupportEntry.integration",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model PublicIntegrationSupportEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model RawBackendCoreSemanticGapSpec.sdkClosureTargets",
+      "values": [
+        "python",
+        "typescript"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderParityClosureEntry.capability",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderParityClosureEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderParityClosureEntry.status",
+      "values": [
+        "host-owned-observe-only",
+        "host-unsupported",
+        "implemented-through-wrapper",
+        "runtime-diagnostic-only"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderParityClosureEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderRuntimeAuditEntry.capability",
+      "values": [
+        "approvals-hitl",
+        "behavior-rules",
+        "goal-signals",
+        "guardrails",
+        "hooks",
+        "install-doctor",
+        "mcp",
+        "opa-rules",
+        "plugins",
+        "rules-instructions",
+        "skills",
+        "subagents-agents",
+        "tracing",
+        "usage-cost"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderRuntimeAuditEntry.promotionDecision",
+      "values": [
+        "implemented-runtime-diagnostic",
+        "max-through-wrapper",
+        "retain-host-owned-boundary",
+        "retain-package-boundary",
+        "retain-protocol-boundary"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderRuntimeAuditEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderRuntimeAuditEntry.status",
+      "values": [
+        "host-owned-observe-only",
+        "host-unsupported",
+        "implemented-through-wrapper",
+        "runtime-diagnostic-only"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model ReferenceProviderRuntimeAuditEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model RulesInstructionCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model RulesInstructionCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model SkillCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model SkillCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model SubagentsAgentsCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model SubagentsAgentsCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model TracingCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model TracingCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model UsageCostCapabilityGuardEntry.provider",
+      "values": [
+        "anthropic-agent-sdk",
+        "claude-code",
+        "codex",
+        "copilotkit",
+        "cursor",
+        "mcp",
+        "n8n",
+        "openai-agents-sdk"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/capabilities.tsp",
+      "selector": "model UsageCostCapabilityGuardEntry.tier",
+      "values": [
+        "diagnose-only",
+        "native",
+        "observe-only",
+        "out-of-scope",
+        "wrapped"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "enum RuleSeverity",
+      "values": [
+        "block",
+        "info",
+        "warn"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "enum RuleTrigger",
+      "values": [
+        "agentRequested",
+        "always",
+        "globMatch",
+        "manual"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "model ProjectedRule.severity",
+      "values": [
+        "block",
+        "info",
+        "warn"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "model ProjectedRule.source",
+      "values": [
+        "behavior-rule",
+        "guardrail",
+        "policy"
+      ]
+    },
+    {
+      "source": "specs/typespec/govern/rules-projection.tsp",
+      "selector": "model ProjectedRule.trigger",
+      "values": [
+        "agentRequested",
+        "always",
+        "globMatch",
+        "manual"
+      ]
+    }
+  ]
+}

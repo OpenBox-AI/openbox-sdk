@@ -17,18 +17,20 @@ import {
 } from '../../../governance/skip-patterns.js';
 import { sideEffects } from '../side-effects.js';
 import {
-  buildSpan,
   withOpenBoxActivityMetadata,
   type SpanType,
 } from '../../../governance/spans.js';
+import { buildCursorSpan } from './spans.js';
 import {
   buildActionKey,
   claimAction,
   awaitClaimDecision,
   publishClaimDecision,
   rememberCompletionActivity,
+  verdictUsesGovernanceFallback,
 } from '../dedup.js';
 import { stampSource } from '../../../approvals/source.js';
+import { ACTIVITY_TYPES } from '../activity-types.js';
 
 /**
  * preToolUse: Cursor 3.x's primary agent-action hook. Activity routing,
@@ -54,7 +56,7 @@ export async function handlePreToolUse(
   const toolInput = (env.tool_input ?? {}) as Record<string, unknown>;
   const filePath = (toolInput.file_path ?? toolInput.filePath ?? '') as string;
   const command = (toolInput.command ?? '') as string;
-  // For file-touching tools (Read/Write), in-workspace operations are
+  // For file-touching tools (Read/Write), in-project operations are
   // routine. Skip evaluate so the user's file_read / file_write rules
   // fire only on out-of-project paths. Metadata and secret-like paths
   // are governed even when they live inside the project.
@@ -91,6 +93,17 @@ export async function handlePreToolUse(
         riskScore: 1,
       };
     }
+    if (
+      decision.fallbackUsed &&
+      decision.arm !== 'block' &&
+      decision.arm !== 'halt'
+    ) {
+      return {
+        arm: 'block',
+        reason: '[OpenBox] OpenBox governance fallback used while processing Cursor tool hook',
+        riskScore: 1,
+      };
+    }
     if (decision.arm === 'allow' || decision.arm === 'constrain') return undefined;
     if (decision.arm === 'halt') markHalted(env.conversation_id, cfg);
     return { arm: decision.arm, reason: decision.reason, riskScore: 0 };
@@ -106,14 +119,14 @@ export async function handlePreToolUse(
   // which span shape we emit; the @activityVariant override (rm/unlink
   // patterns on Shell) reroutes to file_delete.
   const spanType: SpanType =
-    override?.activityType === 'FileDelete'
+    override?.activityType === ACTIVITY_TYPES.FILE_DELETE
       ? 'file_delete'
       : toolName === 'Read'
         ? 'file_read'
         : toolName === 'Write'
           ? 'file_write'
           : 'shell';
-  const span = buildSpan('cursor', spanType, {
+  const span = buildCursorSpan(spanType, {
     file_path: filePath || undefined,
     command: (toolInput.command as string) || undefined,
     cwd: (toolInput.cwd as string) || (env.cwd as string) || undefined,
@@ -153,7 +166,11 @@ export async function handlePreToolUse(
       );
     }
     if (claim?.won) {
-      publishClaimDecision(claim, { arm: verdict.arm, reason: verdict.reason ?? '' });
+      publishClaimDecision(claim, {
+        arm: verdict.arm,
+        reason: verdict.reason ?? '',
+        fallbackUsed: verdictUsesGovernanceFallback(verdict),
+      });
     }
     if (verdict.arm === 'halt') markHalted(env.conversation_id, cfg);
     return verdict;

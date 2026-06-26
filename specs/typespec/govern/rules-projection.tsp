@@ -34,7 +34,7 @@ enum RuleTrigger {
   globMatch,
   /** Read when the description matches the agent's current task semantically. */
   agentRequested,
-  /** Read only when explicitly @-mentioned. */
+  /** Read only when explicitly `@`-mentioned. */
   manual,
 }
 
@@ -59,8 +59,13 @@ model ProjectedRule {
   /** Stable identifier, e.g. `gr_pii_redaction` or `policy_123`. */
   id: string;
 
-  /** Source kind, so renderers can tag entries (e.g. "guardrail" vs "policy"). */
-  source: "guardrail" | "policy";
+  /**
+   * Source kind, so renderers can tag entries. Behavior rules are
+   * included because backend-owned behavior-rule evaluation is a
+   * first-class policy source and SDK renderers must not hand-author a
+   * separate shape per language.
+   */
+  source: "guardrail" | "policy" | "behavior-rule";
 
   /** One-line description shown to the agent. */
   description: string;

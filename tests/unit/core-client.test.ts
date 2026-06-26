@@ -10,6 +10,7 @@ import {
   signAgentIdentityRequest,
   validateAgentIdentityConfig,
 } from '../../ts/src/core-client/core-client.js';
+import { RequestPreflightError } from '../../ts/src/core-client/generated/request-preflight.js';
 
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
@@ -318,6 +319,71 @@ describe('OpenBoxCoreClient', () => {
       expect(result.verdict).toBe('ALLOW');
     });
 
+    it('rejects known Core request semantic gaps before fetch', async () => {
+      const client = createClient();
+
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        attempt: 0,
+      })).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'evaluateGovernance',
+        location: 'body.attempt',
+      });
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        attempt: 0.5,
+      })).rejects.toBeInstanceOf(RequestPreflightError);
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: 'not-a-date-time',
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+      })).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'evaluateGovernance',
+        location: 'body.timestamp',
+      });
+      await expect(client.evaluate({
+        event_type: 'ActivityStarted',
+        workflow_id: 'wf-1',
+        run_id: 'run-1',
+        workflow_type: 'unit-test',
+        task_queue: 'langchain',
+        source: 'workflow-telemetry',
+        timestamp: new Date().toISOString(),
+        activity_id: 'act-1',
+        activity_type: 'my-activity',
+        cost_usd: 'not-a-number',
+      } as any)).rejects.toMatchObject({
+        name: 'RequestPreflightError',
+        operationId: 'evaluateGovernance',
+        location: 'body.cost_usd',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('preserves an explicit SDK version payload value', async () => {
       const client = createClient();
       fetchMock.mockResolvedValueOnce(
@@ -458,7 +524,7 @@ describe('OpenBoxCoreClient', () => {
       expect(result.action).toBe('allow');
     });
 
-    it('marks approval responses expired when expiration is in the past', async () => {
+    it('does not derive expired approval status from past expiration timestamps', async () => {
       vi.useFakeTimers();
       try {
         vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
@@ -478,13 +544,13 @@ describe('OpenBoxCoreClient', () => {
         });
 
         const expired: boolean | undefined = result.expired;
-        expect(expired).toBe(true);
+        expect(expired).toBeUndefined();
       } finally {
         vi.useRealTimers();
       }
     });
 
-    it('parses DB-style approval expiration timestamps as UTC', async () => {
+    it('preserves DB-style approval expiration timestamps without local expiry', async () => {
       vi.useFakeTimers();
       try {
         vi.setSystemTime(new Date('2026-01-01T00:00:10.000Z'));
@@ -503,7 +569,11 @@ describe('OpenBoxCoreClient', () => {
           activity_id: 'act-1',
         });
 
-        expect(result).toMatchObject({ expired: true });
+        expect(result).toMatchObject({
+          action: 'require_approval',
+          approval_expiration_time: '2026-01-01 00:00:09',
+        });
+        expect(result.expired).toBeUndefined();
       } finally {
         vi.useRealTimers();
       }

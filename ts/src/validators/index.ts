@@ -28,6 +28,7 @@ export { parseJsonInput } from './input.js';
 
 import { EXIT, exitCodeForStatus } from '../cli/exit-codes.js';
 import { error as printError, warn } from '../cli/output.js';
+import { CANONICAL_ACTIVITY_TYPES as GENERATED_CANONICAL_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 export { EXIT, exitCodeForStatus, isRetryable, bailWith } from '../cli/exit-codes.js';
 export type { ExitCode } from '../cli/exit-codes.js';
 
@@ -352,25 +353,7 @@ export function validateGuardrailParams(typeId: string, params: unknown): void {
 }
 
 /** Canonical activity_type strings emitted or recommended by the SDK. */
-export const CANONICAL_ACTIVITY_TYPES = [
-  'PromptSubmission',
-  'LLMCompleted',
-  'ToolCompleted',
-  'FileRead',
-  'FileEdit',
-  'FileDelete',
-  'ShellExecution',
-  'HTTPRequest',
-  'MCPToolCall',
-  'MCPToolResponse',     // runtime/cursor
-  'AgentResponse',       // runtime/cursor
-  'AgentThinking',       // runtime/cursor
-  'ShellOutput',         // runtime/cursor
-  'AgentSpawn',          // runtime/claude-code
-  'ClaudeCodeSession',   // runtime/claude-code session marker
-  'CursorSession',       // runtime/cursor session marker
-  'DefaultActivity',     // openbox-sdk default fallback.
-] as const;
+export const CANONICAL_ACTIVITY_TYPES = [...GENERATED_CANONICAL_ACTIVITY_TYPES] as readonly string[];
 
 export function validateActivitiesConfig(_activities: unknown, _stage: '0' | '1'): void {
   // Compatibility no-op: backend/Core now apply guardrails by processing stage
@@ -435,8 +418,7 @@ export const API_KEY_GRANTABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
 /** Mirrors the live `BehaviorRuleTrigger` enum the backend persists. */
 export const BEHAVIOR_TRIGGER_ENUM = [
   'http_get', 'http_post', 'http_put', 'http_patch', 'http_delete', 'http',
-  'llm_completion', 'llm_embedding', 'llm_tool_call', 'llm_gen_ai',
-  'mcp_tool_call',
+  'llm_completion', 'llm_embedding', 'llm_tool_call',
   'database_select', 'database_insert', 'database_update', 'database_delete', 'database_query',
   'file_read', 'file_write', 'file_open', 'file_delete',
   'internal',
@@ -521,8 +503,8 @@ export function validateRegoSource(rego: string): void {
   // Decision values: core lowercases the string before switching, and accepts
   // several aliases:
   //   allow | continue          → ALLOW
-  //   block | stop              → BLOCK
-  //   halt                       → HALT
+  //   block                     → BLOCK
+  //   halt | stop               → HALT
   //   require_approval | require-approval → REQUIRE_APPROVAL
   //   anything else → falls through to ALLOW silently
   // We accept the case-insensitive set and flag anything outside it.

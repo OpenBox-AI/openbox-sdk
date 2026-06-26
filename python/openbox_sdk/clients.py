@@ -13,15 +13,20 @@ from ._utils import (
     compact_json_dumps,
     maybe_await,
     normalize_api_url,
-    parse_datetime,
     retry_backoff_seconds,
     run_blocking,
-    utc_now,
 )
 from ._version import __version__
 from .generated.backend_client import BackendOperationsMixin
 from .generated.core_client import CoreOperationsMixin
 from .generated.permissions import PATH_PERMISSION_RULES
+from .generated.request_preflight import (
+    RequestPreflightError as RequestPreflightError,
+)
+from .generated.request_preflight import (
+    validate_backend_request,
+    validate_core_request,
+)
 from .identity import AgentIdentityConfig, sign_agent_identity_request
 
 JsonMapping = Mapping[str, Any]
@@ -259,6 +264,7 @@ class AsyncOpenBoxClient(BackendOperationsMixin, _AsyncHttpRuntime):  # type: ig
     ) -> Any:
         del operation
         self.check_path_permissions(method, path)
+        validate_backend_request(method, path, params, data)
         headers = {
             "Accept": "application/json",
             "X-OpenBox-Client": f"openbox-python/{__version__}",
@@ -324,6 +330,7 @@ class AsyncOpenBoxCoreClient(CoreOperationsMixin, _AsyncHttpRuntime):  # type: i
     ) -> Any:
         if operation != "healthCheck":
             self._validate_runtime_key()
+        validate_core_request(method, path, params, data)
         body = _request_body_bytes(data)
         return await self._send(
             method=method,
@@ -445,17 +452,7 @@ def _normalize_agent_identity(
 def _normalize_approval_expiry(payload: Any) -> Any:
     if not isinstance(payload, dict):
         return payload
-    normalized = dict(payload)
-    expires_at = (
-        normalized.get("expires_at")
-        or normalized.get("approval_expiration_time")
-        or normalized.get("expiresAt")
-        or normalized.get("approvalExpiresAt")
-    )
-    parsed = parse_datetime(expires_at)
-    if parsed is not None and parsed <= utc_now():
-        normalized["expired"] = True
-    return normalized
+    return dict(payload)
 
 
 class OpenBoxClient:

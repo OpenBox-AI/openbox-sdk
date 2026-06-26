@@ -3,11 +3,11 @@
 | Workflow | Triggers | Purpose |
 |---|---|---|
 | `codegen.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | TypeSpec compile and emitter snapshots, codegen-drift assertion, Spectral lint, breaking-change diff |
-| `publish.yml` | semver tag push, `workflow_dispatch` from `main` only | Release governance, quality, security, optional SonarQube, npm packing, and npm publish |
+| `publish.yml` | semver tag push, `workflow_dispatch` from `main` only | Release governance, cross-language SDK quality, security, optional SonarQube, npm packing, and npm publish |
 | `pr-governance.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | Branch, PR title, optional commit convention, and sensitive path ownership checks |
-| `pr-quality.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | npm install, spec/type generation, lint, typecheck, coverage tests, build, optional Codecov and SonarQube |
+| `pr-quality.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | npm install, generic SDK validation for TypeScript and Python, coverage tests, build, optional Codecov and SonarQube |
 | `pr-security.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | Trivy filesystem scan and Gitleaks secret scan with SARIF artifacts |
-| `test.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | TypeScript compile, lint, generated spec/type checks, Vitest unit, contract, and hook integration tests |
+| `test.yml` | push to `main`, PR to `main`/`develop`, `workflow_dispatch` | Generic SDK validation across Node 20/22: TypeSpec generation, TypeScript lint/type/test, and Python lint/type/test/build |
 | `spec-drift.yml` | `workflow_dispatch` only | Reports drift between this repo's TypeSpec and the live deployments plus the upstream service repositories. PR and scheduled triggers are commented out until the secrets and first run validate clean |
 
 ## Required repo secrets

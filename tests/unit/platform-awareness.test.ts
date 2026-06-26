@@ -9,7 +9,7 @@
 //    so future cross-platform tooling has the metadata.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const SRC_ROOT = 'ts/src';
@@ -140,13 +140,42 @@ describe('platform / OS awareness contract', () => {
     expect(cursorSrc).not.toContain("from 'node:os'");
     expect(cursorSrc).not.toContain('os.homedir()');
     expect(cursorSrc).toContain("path.join(startDir, '.cursor-hooks')");
+
+    const codexSrc = readFileSync(`${SRC_ROOT}/runtime/codex/config.ts`, 'utf-8');
+    expect(codexSrc).not.toContain("from 'node:os'");
+    expect(codexSrc).not.toContain('os.homedir()');
+    expect(codexSrc).toContain("path.join(startDir, '.codex-hooks')");
+  });
+
+  it('does not track hook runtime session or log output', () => {
+    const ignored = readFileSync('.gitignore', 'utf-8');
+    for (const path of [
+      '.claude-hooks/sessions/',
+      '.claude-hooks/log/',
+      '.codex-hooks/sessions/',
+      '.codex-hooks/log/',
+      '.cursor-hooks/sessions/',
+      '.cursor-hooks/log/',
+    ]) {
+      expect(ignored).toContain(path);
+    }
+
+    const tracked = execSync('git ls-files -z', { encoding: 'utf-8' })
+      .split('\0')
+      .filter(Boolean);
+    const offenders = tracked.filter(
+      (file) =>
+        /^(?:\.claude-hooks|\.codex-hooks|\.cursor-hooks)\/(?:sessions|log)\//.test(file) &&
+        existsSync(file),
+    );
+    expect(offenders).toEqual([]);
   });
 
   it('hook adapters cap stdin at 10MB to prevent OOM on runaway pipes', () => {
     // The emitter writes defaultReadStdin into both runtime adapters.
     // A bug that drops the cap would expose every hook handler to an
     // unbounded buffer. Assert directly on the generated artifacts.
-    for (const f of ['claude-code', 'cursor']) {
+    for (const f of ['claude-code', 'codex', 'cursor']) {
       const src = readFileSync(`${SRC_ROOT}/core-client/generated/runtime/${f}.ts`, 'utf-8');
       expect(src, `runtime/${f} missing stdin size cap`).toMatch(/MAX_BYTES\s*=\s*10\s*\*\s*1024\s*\*\s*1024/);
       expect(src, `runtime/${f} missing stdin overflow throw`).toMatch(/total > MAX_BYTES/);

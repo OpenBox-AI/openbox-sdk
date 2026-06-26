@@ -16,6 +16,7 @@ import { registerApiCommands } from './commands/api.js';
 import { registerHealthCommands } from './commands/health.js';
 import { registerMcpCommands } from './commands/mcp.js';
 import { registerClaudeCodeCommands } from './commands/claude-code.js';
+import { registerCodexCommands } from './commands/codex.js';
 import { registerCursorCommands } from './commands/cursor.js';
 import { registerInstallCommands } from './commands/install.js';
 import { registerDoctorCommand } from './commands/doctor.js';
@@ -214,7 +215,9 @@ program
   )
   .hook('preAction', (thisCommand, actionCommand) => {
     const commandPath = buildCommandKey(actionCommand);
-    const projectScopedHook = commandPath === 'claude-code hook';
+    const projectScopedHook =
+      commandPath === 'claude-code hook' ||
+      commandPath === 'codex hook';
     if (!projectScopedHook) {
       applyEnvSource();
     }
@@ -254,6 +257,7 @@ registerApiCommands(program);
 registerHealthCommands(program);
 registerMcpCommands(program);
 registerClaudeCodeCommands(program);
+registerCodexCommands(program);
 registerCursorCommands(program);
 registerInstallCommands(program);
 registerDoctorCommand(program);

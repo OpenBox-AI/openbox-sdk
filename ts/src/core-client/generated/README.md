@@ -7,7 +7,7 @@ rationale. The rules below mirror it.
 | Source | Reproduces |
 |---|---|
 | `specs/typespec/core/main.tsp` | `endpoint-manifest.ts` (`CORE_ENDPOINT_MANIFEST`) |
-| `codegen/emitters/typespec-emitter-typescript/src/index.ts` | the emit logic |
+| `codegen/emitters/typespec-emitter/src/index.ts` | the emit logic |
 
 Regenerate with `npm run specs:compile`.
 

@@ -187,10 +187,11 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(completed?.args[2].input).toContainEqual({
       __openbox: { tool_type: 'shell' },
     });
-    expect(completed?.args[2].spans?.[0]).toMatchObject({
-      stage: 'completed',
-      semantic_type: 'internal',
-    });
+    expect(completed?.args[2].spans?.[0]).toMatchObject({ stage: 'completed' });
+    expect(completed?.args[2].spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completed?.args[2].spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
   });
 
   it('post tool failure marks the completed hook span as errored', async () => {
@@ -223,9 +224,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const span = completed?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
       stage: 'completed',
-      semantic_type: 'internal',
       status: { code: 'ERROR', description: expect.stringContaining('permission denied') },
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(String(span?.error)).toContain('permission denied');
   });
 
@@ -307,13 +309,14 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       name: 'openbox.claude-code.assistant_output',
       module: 'claude-code',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       attributes: {
         'gen_ai.system': 'claude-code',
         'http.url': 'https://api.anthropic.com/v1/messages',
         'openbox.claude_code.event': 'Stop',
       },
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(assistantContentFromSpan(span)).toBe('done');
   });
 
@@ -340,11 +343,12 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       module: 'claude-code',
       name: 'openbox.claude-code.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'claude-opus-4-8',
       input_tokens: 321,
       output_tokens: 54,
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(assistantContentFromSpan(span)).toBe('done');
     const usageSignal = session.calls.find(
       (c: any) => c.method === 'activity' && c.args[1] === 'claude_usage',
@@ -389,7 +393,6 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(message?.args[2]?.spans?.[0]).toMatchObject({
       name: 'openbox.claude-code.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'claude-opus-4-8',
       input_tokens: 321,
       output_tokens: 54,
@@ -398,6 +401,10 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         'openbox.claude_code.event': 'MessageDisplay',
       },
     });
+    expect(message?.args[2]?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(message?.args[2]?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
     expect(assistantContentFromSpan(message?.args[2]?.spans?.[0])).toBe(
       'full displayed answer',
     );
@@ -635,7 +642,7 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     const { handlePermissionRequest } = await import('../../ts/src/runtime/claude-code/mappers/permission-request');
     const session = recordingSession();
     await handlePermissionRequest(
-      { tool_name: 'Read', tool_input: { file_path: '/Users/me/x.ts' }, session_id: 'S' } as any,
+      { tool_name: 'Read', tool_input: { file_path: '/project/x.ts' }, session_id: 'S' } as any,
       session,
       { sessionDir: dir } as any,
     );
@@ -699,7 +706,6 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(span).toMatchObject({
       name: 'openbox.claude-code.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
       model: 'claude-opus-4-8',
       input_tokens: 321,
       output_tokens: 54,
@@ -708,6 +714,8 @@ describe('runtime/claude-code/mappers; every event handler', () => {
         'openbox.claude_code.event': 'SubagentStop',
       },
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(assistantContentFromSpan(span)).toBe('subagent final answer');
   });
 
@@ -775,12 +783,12 @@ describe('cli/commands; skill + install', () => {
     const targets = install!.commands.map((s) => s.name()).sort();
     // Bare `openbox install` is the selective meta-command (no
     // subcommand); the entries below are the per-target verbs only.
-    expect(targets).toEqual(['claude-code', 'cursor'].sort());
+    expect(targets).toEqual(['claude-code', 'codex', 'cursor'].sort());
 
     const uninstall = program.commands.find((c) => c.name() === 'uninstall');
     expect(uninstall).toBeDefined();
     const utargets = uninstall!.commands.map((s) => s.name()).sort();
-    expect(utargets).toEqual(['claude-code', 'cursor'].sort());
+    expect(utargets).toEqual(['claude-code', 'codex', 'cursor'].sort());
   });
 
 });

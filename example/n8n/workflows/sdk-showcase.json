@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Use case\nOpenBox-governed support triage for Slack and n8n Chat.\n\nInputs normalize into one ticket, then OpenBox checks run at four points:\n\n1. Prompt safety wall before lookup.\n2. Context privacy check after Postgres customer lookup.\n3. Governed LLM draft using the configured OpenAI-compatible provider.\n4. Channel output check before Slack, HubSpot, final webhook/chat response, and backend logs.\n\nSlack is both an input and a review surface. The card posts stage-specific actions:\n\n- Prompt wall block: Mark false positive / Keep blocked.\n- Draft governance: Approve draft / Reject draft.\n- Channel output: Approve send / Reject send / Request rewrite.\n\nEvery path emits a final result and logs to `demo.triage_events`. Approval actions post to the Slack actions webhook and record `approval-decision` rows with `approvalStage`.",
+        "content": "## Use case\nOpenBox-governed support triage for Slack and n8n Chat.\n\nInputs normalize into one ticket, then OpenBox checks run at four points:\n\n1. Prompt safety wall before lookup.\n2. Context privacy check after Postgres customer lookup.\n3. Governed LLM draft using the configured OpenAI-compatible provider.\n4. Channel output check before Slack, HubSpot, final chat response, and backend logs.\n\nSlack is both an input and a review surface. The card posts stage-specific actions:\n\n- Prompt wall block: Mark false positive / Keep blocked.\n- Draft governance: Approve draft / Reject draft.\n- Channel output: Approve send / Reject send / Request rewrite.\n\nEvery path emits a final result and logs to `demo.triage_events`. Approval actions post to the Slack actions webhook and record `approval-decision` rows with `approvalStage`.",
         "height": 520,
         "width": 560,
         "color": 7
@@ -56,12 +56,13 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are a prompt safety classifier for a support automation workflow. Do not solve the customer issue. Check the raw user prompt for PII, secrets, NSFW content, abuse, security risk, and policy-sensitive content. Return one concise line: PROMPT_SAFE, PROMPT_NEEDS_REVIEW, or PROMPT_BLOCKED with the reason.",
+        "apiEndpoint": "={{ $env.OPENBOX_API_URL || \"http://host.docker.internal:8086\" }}",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-input-wall",
       "name": "OpenBox: Prompt Safety Wall",
@@ -106,7 +107,7 @@
       "continueOnFail": false,
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -128,12 +129,13 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are a senior customer support operations analyst. Create concise escalation triage output. Do not invent account facts, payment outcomes, legal commitments, refunds, security conclusions, or SLA promises. When the issue touches billing, security, privacy, refunds, or blocked account access, require human review.",
+        "apiEndpoint": "={{ $env.OPENBOX_API_URL || \"http://host.docker.internal:8086\" }}",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-llm",
       "name": "OpenBox: Governed LLM Draft",
@@ -150,7 +152,7 @@
       "parameters": {
         "mode": "runOnceForEachItem",
         "language": "javaScript",
-        "jsCode": "const ticket = $json.ticket ?? {};\nconst customer = $json.customer ?? {};\nconst governance = $json.draftGovernance ?? $json._openbox ?? { governed: false };\nconst llmDraft = String($json.llmDraft ?? $json.output ?? $json.text ?? '').trim();\nconst review = ticket.needsHumanReview ? 'human-review-required' : 'auto-reply-candidate';\nconst summary = 'Ticket ' + ticket.id + ' -> ' + ticket.route + ' (' + ticket.severity + ')';\nconst slackEnabled = true;\nconst hubspotEnabled = Boolean($env.HUBSPOT_CRM_ENABLED === 'true');\nconst clip = (value, max = 2800) => String(value ?? '').slice(0, max);\nconst slackEscape = (value) => String(value ?? '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\nconst field = (label, value) => ({\n  type: 'mrkdwn',\n  text: '*' + label + '*\\n' + slackEscape(value || 'unknown')\n});\n\nconst notificationText = [\n  '*' + summary + '*',\n  'Customer: ' + (customer.name ?? 'unknown') + ' / ' + (customer.company ?? 'unknown company') + ' / ' + (customer.accountTier ?? 'unknown tier'),\n  'Review: ' + review,\n  'OpenBox draft: ' + (governance.governed ? 'governed' : 'not governed'),\n  '',\n  llmDraft.slice(0, 1400)\n].join('\\n');\n\nconst slackBlocks = {\n  blocks: [\n    {\n      type: 'header',\n      text: {\n        type: 'plain_text',\n        text: 'OpenBox triage: ' + (ticket.id ?? 'new ticket'),\n        emoji: true\n      }\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: '*' + slackEscape(ticket.route ?? 'support-queue') + '* route · *' + slackEscape(ticket.severity ?? 'normal') + '* severity · *' + slackEscape(review) + '*'\n      }\n    },\n    {\n      type: 'section',\n      fields: [\n        field('Customer', (customer.name ?? 'unknown') + ' / ' + (customer.company ?? 'unknown company')),\n        field('Tier', customer.accountTier ?? 'unknown'),\n        field('Lookup', customer.lookupSource ?? 'postgres-demo.customers'),\n        field('OpenBox draft', governance.governed ? 'governed' : 'not governed')\n      ]\n    },\n    { type: 'divider' },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: '*Customer message*\\n>' + slackEscape(clip($json.originalChatInput ?? '', 900)).replace(/\\n/g, '\\n>')\n      }\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: '*Governed draft excerpt*\\n' + slackEscape(clip(llmDraft || 'No draft returned.', 1800))\n      }\n    },\n    {\n      type: 'context',\n      elements: [\n        {\n          type: 'mrkdwn',\n          text: 'OpenBox checks passed before Slack delivery · backend log: demo.triage_events'\n        }\n      ]\n    }\n  ]\n};\n\nconst jiraDescription = [\n  summary,\n  'Customer: ' + (customer.name ?? 'unknown') + ' / ' + (customer.company ?? 'unknown company'),\n  'Review: ' + review,\n  '',\n  llmDraft.slice(0, 2000)\n].join('\\n');\n\nconst channelPayloads = {\n  chat: { text: notificationText },\n  slack: {\n    enabled: slackEnabled,\n    channelId: $env.SLACK_CHANNEL_ID ?? '',\n    text: notificationText,\n    blocks: slackBlocks\n  },\n  hubspot: {\n    enabled: hubspotEnabled,\n    email: customer.email ?? '',\n    firstName: String(customer.name ?? '').split(' ')[0] || 'Demo',\n    lastName: String(customer.name ?? '').split(' ').slice(1).join(' ') || 'Customer',\n    companyName: customer.company ?? '',\n    websiteUrl: customer.website ?? '',\n    city: customer.city ?? '',\n    message: jiraDescription,\n    leadStatus: ticket.needsHumanReview ? 'OPEN' : 'NEW',\n    lifeCycleStage: ticket.severity === 'high' ? 'customer' : 'lead'\n  },\n  backend: {\n    enabled: true,\n    table: 'demo.triage_events'\n  }\n};\n\nconst channelTripwire = String($json.originalChatInput ?? '').toLowerCase().includes('channelblock') ? 'Demo channel checkpoint tripwire: blockme' : '';\n\nconst channelAuditPrompt = [\n  'Review these outbound channel payloads before delivery.',\n  'Slack enabled: ' + channelPayloads.slack.enabled,\n  'Slack format: Block Kit blocks with fallback notification text',\n  'HubSpot CRM enabled: ' + channelPayloads.hubspot.enabled,\n  'Backend event log enabled: true',\n  'Chat excerpt: ' + channelPayloads.chat.text.slice(0, 900),\n  channelTripwire,\n  'Do not approve payloads that leak secrets, unnecessary PII, NSFW content, or unapproved account/payment/refund/security actions.'\n].join('\\n');\n\nreturn {\n  json: {\n    ...$json,\n    channelPayloads,\n    chatInput: channelAuditPrompt\n  }\n};"
+        "jsCode": "const ticket = $json.ticket ?? {};\nconst customer = $json.customer ?? {};\nconst governance = $json.draftGovernance ?? $json._openbox ?? { governed: false };\nconst llmDraft = String($json.llmDraft ?? $json.output ?? $json.text ?? '').trim();\nconst review = ticket.needsHumanReview ? 'human-review-required' : 'auto-reply-candidate';\nconst summary = 'Ticket ' + ticket.id + ' -> ' + ticket.route + ' (' + ticket.severity + ')';\nconst slackEnabled = true;\nconst hubspotEnabled = Boolean($env.HUBSPOT_CRM_ENABLED === 'true');\nconst clip = (value, max = 2800) => String(value ?? '').slice(0, max);\nconst slackEscape = (value) => String(value ?? '')\n  .replace(/&/g, '&amp;')\n  .replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;');\nconst field = (label, value) => ({\n  type: 'mrkdwn',\n  text: '*' + label + '*\\n' + slackEscape(value || 'unknown')\n});\n\nconst notificationText = [\n  '*' + summary + '*',\n  'Customer: ' + (customer.name ?? 'unknown') + ' / ' + (customer.company ?? 'unknown company') + ' / ' + (customer.accountTier ?? 'unknown tier'),\n  'Review: ' + review,\n  'OpenBox draft: ' + (governance.governed ? 'governed' : 'not governed'),\n  '',\n  llmDraft.slice(0, 1400)\n].join('\\n');\n\nconst slackBlocks = {\n  blocks: [\n    {\n      type: 'header',\n      text: {\n        type: 'plain_text',\n        text: 'OpenBox triage: ' + (ticket.id ?? 'new ticket'),\n        emoji: true\n      }\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: '*' + slackEscape(ticket.route ?? 'support-queue') + '* route · *' + slackEscape(ticket.severity ?? 'normal') + '* severity · *' + slackEscape(review) + '*'\n      }\n    },\n    {\n      type: 'section',\n      fields: [\n        field('Customer', (customer.name ?? 'unknown') + ' / ' + (customer.company ?? 'unknown company')),\n        field('Tier', customer.accountTier ?? 'unknown'),\n        field('Lookup', customer.lookupSource ?? 'postgres-demo.customers'),\n        field('OpenBox draft', governance.governed ? 'governed' : 'not governed')\n      ]\n    },\n    { type: 'divider' },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: '*Customer message*\\n>' + slackEscape(clip($json.originalChatInput ?? '', 900)).replace(/\\n/g, '\\n>')\n      }\n    },\n    {\n      type: 'section',\n      text: {\n        type: 'mrkdwn',\n        text: '*Governed draft excerpt*\\n' + slackEscape(clip(llmDraft || 'No draft returned.', 1800))\n      }\n    },\n    {\n      type: 'context',\n      elements: [\n        {\n          type: 'mrkdwn',\n          text: 'OpenBox checks passed before Slack delivery · backend log: demo.triage_events'\n        }\n      ]\n    }\n  ]\n};\n\nconst crmMessage = [\n  summary,\n  'Customer: ' + (customer.name ?? 'unknown') + ' / ' + (customer.company ?? 'unknown company'),\n  'Review: ' + review,\n  '',\n  llmDraft.slice(0, 2000)\n].join('\\n');\n\nconst channelPayloads = {\n  chat: { text: notificationText },\n  slack: {\n    enabled: slackEnabled,\n    channelId: $env.SLACK_CHANNEL_ID ?? '',\n    text: notificationText,\n    blocks: slackBlocks\n  },\n  hubspot: {\n    enabled: hubspotEnabled,\n    email: customer.email ?? '',\n    firstName: String(customer.name ?? '').split(' ')[0] || 'Demo',\n    lastName: String(customer.name ?? '').split(' ').slice(1).join(' ') || 'Customer',\n    companyName: customer.company ?? '',\n    websiteUrl: customer.website ?? '',\n    city: customer.city ?? '',\n    message: crmMessage,\n    leadStatus: ticket.needsHumanReview ? 'OPEN' : 'NEW',\n    lifeCycleStage: ticket.severity === 'high' ? 'customer' : 'lead'\n  },\n  backend: {\n    enabled: true,\n    table: 'demo.triage_events'\n  }\n};\n\nconst channelTripwire = String($json.originalChatInput ?? '').toLowerCase().includes('channelblock') ? 'Demo channel checkpoint tripwire: blockme' : '';\n\nconst channelAuditPrompt = [\n  'Review these outbound channel payloads before delivery.',\n  'Slack enabled: ' + channelPayloads.slack.enabled,\n  'Slack format: Block Kit blocks with fallback notification text',\n  'HubSpot CRM enabled: ' + channelPayloads.hubspot.enabled,\n  'Backend event log enabled: true',\n  'Chat excerpt: ' + channelPayloads.chat.text.slice(0, 900),\n  channelTripwire,\n  'Do not approve payloads that leak secrets, unnecessary PII, NSFW content, or unapproved account/payment/refund/security actions.'\n].join('\\n');\n\nreturn {\n  json: {\n    ...$json,\n    channelPayloads,\n    chatInput: channelAuditPrompt\n  }\n};"
       },
       "id": "build-channel-payloads",
       "name": "Build Channel Payloads",
@@ -189,7 +191,7 @@
       ],
       "credentials": {
         "slackApi": {
-          "id": "jGDU9PB4P0F9sEBQ",
+          "id": "demo-slack-api-placeholder",
           "name": "Demo Slack API Placeholder"
         }
       },
@@ -221,7 +223,7 @@
         },
         "options": {}
       },
-      "id": "webhook-configured",
+      "id": "hubspot-crm-configured",
       "name": "HubSpot CRM Configured?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -237,20 +239,20 @@
         "operation": "upsert",
         "email": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.email }}",
         "additionalFields": {
-          "firstName": "={{ $json.channelPayloads.hubspot.firstName }}",
-          "lastName": "={{ $json.channelPayloads.hubspot.lastName }}",
-          "companyName": "={{ $json.channelPayloads.hubspot.companyName }}",
-          "websiteUrl": "={{ $json.channelPayloads.hubspot.websiteUrl }}",
-          "city": "={{ $json.channelPayloads.hubspot.city }}",
-          "message": "={{ $json.channelPayloads.hubspot.message }}",
-          "leadStatus": "={{ $json.channelPayloads.hubspot.leadStatus }}",
-          "lifeCycleStage": "={{ $json.channelPayloads.hubspot.lifeCycleStage }}"
+          "firstName": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.firstName }}",
+          "lastName": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.lastName }}",
+          "companyName": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.companyName }}",
+          "websiteUrl": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.websiteUrl }}",
+          "city": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.city }}",
+          "message": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.message }}",
+          "leadStatus": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.leadStatus }}",
+          "lifeCycleStage": "={{ $('Build Final Log').item.json.channelPayloads.hubspot.lifeCycleStage }}"
         },
         "options": {
           "resolveData": true
         }
       },
-      "id": "post-webhook",
+      "id": "upsert-hubspot-contact",
       "name": "Upsert HubSpot Contact (Optional)",
       "type": "n8n-nodes-base.hubspot",
       "typeVersion": 2.1,
@@ -284,12 +286,13 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
         "systemPrompt": "You are a context privacy and data-minimization reviewer. Inspect the enriched support prompt before it is sent for drafting. Check for unnecessary PII, secrets, excessive account detail, NSFW content, and unsupported sensitive attributes. Return one concise line: CONTEXT_OK, CONTEXT_NEEDS_REVIEW, or CONTEXT_BLOCKED with the reason.",
+        "apiEndpoint": "={{ $env.OPENBOX_API_URL || \"http://host.docker.internal:8086\" }}",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-context-privacy-check",
       "type": "n8n-nodes-openbox-hook.openboxLlm",
@@ -334,12 +337,13 @@
     },
     {
       "parameters": {
-        "llmProvider": "openrouter",
-        "model": "={{ $env.LLM_PROVIDER_MODEL || $env.OPENROUTER_MODEL || \"default\" }}",
-        "systemPrompt": "You are an outbound channel policy reviewer. Inspect the prepared chat, Slack, and webhook payload summary before delivery. Check that optional channels are only used when configured and that outbound text does not leak secrets, unnecessary PII, unsafe claims, NSFW content, or unapproved account actions. Return one concise line: CHANNELS_OK, CHANNELS_NEED_REVIEW, or CHANNELS_BLOCKED with the reason.",
+        "llmProvider": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? \"openrouter\" : \"ollama\" }}",
+        "model": "={{ $env.LLM_PROVIDER_MODEL || ($env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY ? ($env.OPENROUTER_MODEL || \"liquid/lfm-2.5-1.2b-instruct:free\") : ($env.OLLAMA_MODEL || \"tinyllama\")) }}",
+        "systemPrompt": "You are an outbound channel policy reviewer. Inspect the prepared chat, Slack, and HubSpot CRM payload summary before delivery. Check that optional channels are only used when configured and that outbound text does not leak secrets, unnecessary PII, unsafe claims, NSFW content, or unapproved account actions. Return one concise line: CHANNELS_OK, CHANNELS_NEED_REVIEW, or CHANNELS_BLOCKED with the reason.",
+        "apiEndpoint": "={{ $env.OPENBOX_API_URL || \"http://host.docker.internal:8086\" }}",
         "apiKey": "={{ $env.OPENBOX_API_KEY }}",
         "openRouterApiKey": "={{ $env.LLM_PROVIDER_API_KEY || $env.LLM7_API_KEY || $env.OPENROUTER_API_KEY }}",
-        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://api.llm7.io/v1\" }}"
+        "openRouterBaseUrl": "={{ $env.LLM_PROVIDER_BASE_URL || $env.OPENROUTER_BASE_URL || \"https://openrouter.ai/api/v1\" }}"
       },
       "id": "openbox-channel-output-check",
       "type": "n8n-nodes-openbox-hook.openboxLlm",
@@ -382,7 +386,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       },
@@ -399,7 +403,7 @@
         "options": {},
         "channelId": {
           "mode": "id",
-          "value": "C0B48KNTJEB"
+          "value": "={{ $env.SLACK_CHANNEL_ID || \"\" }}"
         }
       },
       "id": "slack-agent-trigger",
@@ -411,7 +415,7 @@
       ],
       "credentials": {
         "slackApi": {
-          "id": "jGDU9PB4P0F9sEBQ",
+          "id": "demo-slack-api-placeholder",
           "name": "Demo Slack API Placeholder"
         }
       },
@@ -685,7 +689,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -706,7 +710,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -727,7 +731,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -748,7 +752,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -769,7 +773,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "u61urO4zdAMO6LAK",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }
@@ -857,7 +861,7 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "={{ $env.N8N_POSTGRES_CREDENTIAL_ID }}",
+          "id": "demo-postgres-placeholder",
           "name": "Demo Postgres"
         }
       }

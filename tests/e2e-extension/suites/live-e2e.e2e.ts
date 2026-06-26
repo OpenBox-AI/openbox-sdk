@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const WORKSPACE = join(HERE, '..', 'fixtures-workspace');
-const SAVE_TARGET = join(WORKSPACE, 'live-save-target.txt');
-const DELETE_TARGET = join(WORKSPACE, 'live-delete-target.txt');
+const PROJECT_DIR = join(HERE, '..', 'fixtures-project');
+const SAVE_TARGET = join(PROJECT_DIR, 'live-save-target.txt');
+const DELETE_TARGET = join(PROJECT_DIR, 'live-delete-target.txt');
 
 interface VerdictResult {
   outcome: 'allow' | 'require_approval' | 'deny' | 'unknown';
@@ -71,7 +71,7 @@ async function rejectPendingMatching(match: (approval: PendingApprovalDiag) => b
 before(() => {
   // Pre-populate the gate-test fixture files. Lives outside any
   // describe so it runs once per spec file, not per describe block.
-  mkdirSync(WORKSPACE, { recursive: true });
+  mkdirSync(PROJECT_DIR, { recursive: true });
   writeFileSync(SAVE_TARGET, 'before-save\n');
   writeFileSync(DELETE_TARGET, 'should-not-be-deleted\n');
 });
@@ -104,7 +104,7 @@ after(async () => {
     const input = JSON.stringify(row.input ?? []);
     return (
       input.includes('"summarize this"') ||
-      input.includes('"/etc/hostname"') ||
+      input.includes('"fixtures/hostname.txt"') ||
       input.includes('"lifecycle-test ')
     );
   });
@@ -112,8 +112,8 @@ after(async () => {
 
 // ─── 1. Verdict matrix ──────────────────────────────────────────────
 
-// Verdict matrix sourced from the shared fixture so the host
-// runtime tests stay aligned across hosts as more get added.
+// Verdict matrix is sourced from the generated governance capability surface
+// through the compatibility fixture so host runtimes stay aligned.
 import {
   VERDICT_MATRIX,
   type VerdictMatrixCase,
@@ -257,7 +257,7 @@ describe('LIVE; active gates against planted rules', () => {
   });
 
   it('TabObserver: large AI-shaped insert is reverted on require_approval', async () => {
-    const TARGET = join(WORKSPACE, 'live-tabobs-target.txt');
+    const TARGET = join(PROJECT_DIR, 'live-tabobs-target.txt');
     writeFileSync(TARGET, 'baseline\n');
     const result = await browser.executeWorkbench(
       async (vscode: any, target: string) => {

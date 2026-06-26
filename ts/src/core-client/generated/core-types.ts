@@ -25,7 +25,7 @@ export interface GovernanceEventPayload {
   timestamp: string;
   sdk_version?: string;
   parent_workflow_id?: string;
-  status?: "completed" | "failed" | "cancelled" | "terminated";
+  status?: string;
   activity_id?: string;
   activity_type?: string;
   attempt?: number;
@@ -36,6 +36,7 @@ export interface GovernanceEventPayload {
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
+  cost_usd?: number;
   has_tool_calls?: boolean;
   finish_reason?: string;
   prompt?: string;
@@ -72,9 +73,9 @@ export interface SpanData {
   request_body?: string;
   response_body?: string;
   semantic_type?: string;
-  stage?: "started" | "completed";
+  stage?: string;
   data?: unknown;
-  hook_type?: "http_request" | "db_query" | "file_operation" | "function_call";
+  hook_type?: string;
   attribute_key_identifiers?: string[];
   error?: string;
   http_method?: string;
@@ -99,7 +100,7 @@ export interface SpanData {
   result?: unknown;
 }
 export interface SpanStatus {
-  code: "OK" | "ERROR" | "UNSET";
+  code: string;
   description?: string;
 }
 export interface SpanEvent {
@@ -134,12 +135,13 @@ export interface GovernanceVerdictResponse {
   age_result?: AGEResult;
 }
 export interface GuardrailsResult {
-  input_type: "activity_input" | "activity_output" | "signal_args";
-  redacted_input: unknown;
+  input_type: "activity_input" | "activity_output";
+  redacted_input?: unknown;
   raw_logs?: Record<string, unknown>;
-  validation_passed: boolean;
-  reasons: GuardrailReason[];
-  results: GuardrailsVerdictResult[];
+  validation_passed?: boolean;
+  reasons?: GuardrailReason[];
+  results?: GuardrailsVerdictResult[];
+  field_results?: GuardrailFieldResult[];
 }
 export interface GuardrailReason {
   type: string;
@@ -147,12 +149,12 @@ export interface GuardrailReason {
   reason: string;
 }
 export interface GuardrailsVerdictResult {
-  guardrail_type: string;
-  results: GuardrailFieldResult[];
+  guardrail_type?: string;
+  results?: GuardrailFieldResult[];
 }
 export interface GuardrailFieldResult {
   field: string;
-  order: number;
+  order?: number;
   status: "allowed" | "blocked" | "redacted" | "transformed" | "skipped";
   reason?: string;
 }

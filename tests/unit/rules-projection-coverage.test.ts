@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import type { RulesProjection } from '../../ts/src/governance/rules-projection.js';
 
 const apiState = vi.hoisted(() => ({
   responses: new Map<string, unknown>(),
@@ -16,6 +18,34 @@ describe('governance rules projection coverage', () => {
   beforeEach(() => {
     apiState.responses.clear();
     apiState.calls.length = 0;
+  });
+
+  it('uses the TypeSpec-emitted projection contract instead of local output shapes', () => {
+    const generated = readFileSync(
+      'ts/src/governance/generated/rules-projection.ts',
+      'utf-8',
+    );
+    expect(generated).toContain('AUTO-GENERATED');
+    expect(generated).toContain('export type RuleTrigger');
+    expect(generated).toContain('export type RuleSeverity');
+    expect(generated).toContain('export interface ProjectedRule');
+    expect(generated).toContain('export interface RulesProjection');
+
+    const runtime = readFileSync('ts/src/governance/rules-projection.ts', 'utf-8');
+    expect(runtime).toContain("from './generated/rules-projection.js'");
+    expect(runtime).not.toMatch(/export\s+interface\s+ProjectedRule/);
+    expect(runtime).not.toMatch(/export\s+interface\s+RulesProjection/);
+    expect(runtime).not.toMatch(/export\s+type\s+RuleTrigger\s*=/);
+    expect(runtime).not.toMatch(/export\s+type\s+RuleSeverity\s*=/);
+    expect(runtime).not.toContain('hand-mirrored from the TypeSpec model');
+  });
+
+  it('emits Python rules projection from the shared namespace type emitter', () => {
+    const emitter = readFileSync('codegen/emitters/typespec-emitter/src/python.ts', 'utf-8');
+    expect(emitter).toContain('function emitPythonNamespaceTypes');
+    expect(emitter).toContain("namespaceName: 'OpenboxGovern.RulesProjection'");
+    expect(emitter).toContain("resolvePath(outDir, 'rules_projection.py')");
+    expect(emitter).not.toContain('function emitRulesProjection');
   });
 
   it('projects active guardrails and policies from backend envelopes', async () => {
@@ -169,5 +199,85 @@ describe('governance rules projection coverage', () => {
       severity: 'block',
       description: 'No description policy',
     });
+  });
+
+  it('renders instruction projections and exact Codex command rules without local policy evaluation', async () => {
+    const {
+      renderClaudeInstructionsMarkdown,
+      renderCodexAgentsMarkdown,
+      renderCodexCommandRules,
+    } = await import(
+      '../../ts/src/governance/rules-projection.ts'
+    );
+    const projection: RulesProjection = {
+      agentId: 'agent-1',
+      fetchedAt: '2026-05-04T00:00:00Z',
+      version: 1,
+      rules: [
+        {
+          id: 'guardrail/gr-a',
+          source: 'guardrail',
+          description: 'Prompt guard',
+          body: 'guardrail body',
+          trigger: 'always',
+          severity: 'warn',
+        },
+        {
+          id: 'policy/pol-a',
+          source: 'policy',
+          description: 'Transfer policy',
+          body: 'policy body',
+          trigger: 'agentRequested',
+          severity: 'block',
+        },
+        {
+          id: 'behavior-rule/br-publish',
+          source: 'behavior-rule',
+          description: 'Block package publish',
+          body: 'behavior rule body',
+          trigger: 'always',
+          severity: 'block',
+          rendererHints: {
+            exactShellPrefix: ['npm', 'publish'],
+          },
+        },
+        {
+          id: 'behavior-rule/br-no-prefix',
+          source: 'behavior-rule',
+          description: 'No local command prefix',
+          body: 'behavior rule body',
+          trigger: 'always',
+          severity: 'warn',
+        },
+      ],
+    };
+
+    const agents = renderCodexAgentsMarkdown(projection);
+    expect(agents).toContain('OpenBox Core is the source of truth');
+    expect(agents).toContain('Do not locally reimplement policy decisions');
+    expect(agents).toContain('- Guardrails: 1');
+    expect(agents).toContain('- Policies: 1');
+    expect(agents).toContain('- Behavior rules: 2');
+
+    const claude = renderClaudeInstructionsMarkdown(projection);
+    expect(claude).toContain('OpenBox Governance for Claude Code');
+    expect(claude).toContain('Use the OpenBox Claude Code plugin, MCP tools, or slash commands');
+    expect(claude).toContain('Do not evaluate OPA/Rego, behavior-rule predicates');
+    expect(claude).toContain('## Guardrails');
+    expect(claude).toContain('- [warn] Prompt guard (guardrail/gr-a)');
+    expect(claude).toContain('## Behavior Rules');
+    expect(claude).toContain('- [block] Block package publish (behavior-rule/br-publish)');
+    expect(claude).toContain('`/openbox-check`');
+    expect(claude).not.toContain('prefix_rule(');
+    expect(claude).not.toContain('pattern = ["npm", "publish"]');
+
+    const commandRules = renderCodexCommandRules(projection);
+    expect(commandRules).toContain('Only exact shell command-prefix execution policy is projected here');
+    expect(commandRules).toContain('prefix_rule(');
+    expect(commandRules).toContain('pattern = ["npm", "publish"]');
+    expect(commandRules).toContain('decision = "forbidden"');
+    expect(commandRules).not.toContain('guardrail/gr-a');
+    expect(commandRules).not.toContain('policy/pol-a');
+    expect(commandRules).not.toContain('br-no-prefix');
   });
 });

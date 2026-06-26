@@ -84,6 +84,22 @@ interface CoverageCase {
   allowlist: ReadonlySet<string>;
 }
 
+function readSdkManifestFixture(): {
+  generatedBy: string;
+  sources: string[];
+  backendEndpointManifest: Entry[];
+  coreEndpointManifest: Entry[];
+} {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), 'codegen/fixtures/sdk-manifests.json'), 'utf8'),
+  ) as {
+    generatedBy: string;
+    sources: string[];
+    backendEndpointManifest: Entry[];
+    coreEndpointManifest: Entry[];
+  };
+}
+
 const repoRoot = resolve(import.meta.dirname, '..', '..');
 
 // Spec-driven wrapper methods now live in the generated base class
@@ -114,6 +130,22 @@ const cases: CoverageCase[] = [
     allowlist: new Set<string>(),
   },
 ];
+
+describe('TypeSpec endpoint manifest conformance fixture', () => {
+  test('generated endpoint manifests match the SDK fixture', () => {
+    const fixture = readSdkManifestFixture();
+
+    expect(fixture.generatedBy).toBe('codegen/emitters/typespec-emitter');
+    expect(fixture.sources).toEqual(
+      expect.arrayContaining([
+        'specs/typespec/backend/main.tsp',
+        'specs/typespec/core/main.tsp',
+      ]),
+    );
+    expect(BACKEND_ENDPOINT_MANIFEST).toEqual(fixture.backendEndpointManifest);
+    expect(CORE_ENDPOINT_MANIFEST).toEqual(fixture.coreEndpointManifest);
+  });
+});
 
 describe.each(cases)('$serviceName covers every spec endpoint', ({ manifest, source, allowlist }) => {
   const covered = extractCoveredEndpoints(source);

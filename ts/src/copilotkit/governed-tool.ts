@@ -43,6 +43,13 @@ import {
   toolSpan,
   withCopilotToolActivityMetadata,
 } from './workflow-session.js';
+import { EVENT } from '../governance/events.js';
+import { stripServerComputedSemantic } from '../governance/spans.js';
+
+type HaltedCopilotSession = Extract<
+  OpenBoxCopilotSessionState,
+  { status: 'halted' }
+>;
 
 export function createGovernedCopilotTool<
   TInput extends OpenBoxCopilotActionInput,
@@ -52,7 +59,7 @@ export function createGovernedCopilotTool<
 ): GovernedCopilotTool<TInput, TArtifact> {
   const haltedSessions = new Map<
     string,
-    Extract<OpenBoxCopilotSessionState, { status: 'halted' }>
+    HaltedCopilotSession
   >();
   const workflowType = DEFAULT_WORKFLOW_TYPE;
   const taskQueue = DEFAULT_TASK_QUEUE;
@@ -187,8 +194,7 @@ export function createGovernedCopilotTool<
         if (ridesSharedWorkflow)
           clearActiveWorkflow(definition.adapter, key, ids.workflowId);
         const result = stoppedResult(normalizedInput, ids, started);
-        if (result.status === 'halted')
-          haltedSessions.set(key, result.session as any);
+        rememberHaltedSession(haltedSessions, key, result.session);
         return withTimings(
           result as OpenBoxCopilotActionResult<TArtifact>,
           timings.finish(),
@@ -222,7 +228,7 @@ export function createGovernedCopilotTool<
                   spans: [
                     toolSpan(definition, startedRedaction.input, 'completed'),
                   ],
-                  hookSpanParentEventType: 'ActivityStarted',
+                  hookSpanParentEventType: EVENT.START,
                 },
                 definition.toolName,
               );
@@ -253,7 +259,7 @@ export function createGovernedCopilotTool<
               spans: [
                 toolSpan(definition, startedRedaction.input, 'completed'),
               ],
-              hookSpanParentEventType: 'ActivityStarted',
+              hookSpanParentEventType: EVENT.START,
             },
             definition.toolName,
           ),
@@ -281,8 +287,7 @@ export function createGovernedCopilotTool<
           completed,
           provisional.executed,
         );
-        if (stopped.status === 'halted')
-          haltedSessions.set(key, stopped.session as any);
+        rememberHaltedSession(haltedSessions, key, stopped.session);
         return withTimings(
           stopped as OpenBoxCopilotActionResult<TArtifact>,
           timings.finish(),
@@ -410,8 +415,7 @@ export function createGovernedCopilotTool<
             timings.finish(),
           );
         const stopped = stoppedResult(normalizedInput, ids, polled);
-        if (stopped.status === 'halted')
-          haltedSessions.set(key, stopped.session as any);
+        rememberHaltedSession(haltedSessions, key, stopped.session);
         return withTimings(
           stopped as OpenBoxCopilotActionResult<TArtifact>,
           timings.finish(),
@@ -444,14 +448,14 @@ export function createGovernedCopilotTool<
             workflowType,
             taskQueue,
             { attached: true, inlineApproval: true },
-          ).activity('ActivityCompleted', definition.toolName, {
+          ).activity(EVENT.COMPLETE, definition.toolName, {
             activityId: ids.activityId,
             input: withCopilotToolActivityMetadata([
               approvalResumeToolInput(definition, normalizedInput),
             ]),
             output: toolOutputForGovernance(result),
             spans: [approvalResumeSpan(definition, normalizedInput)],
-            hookSpanParentEventType: 'ActivityStarted',
+            hookSpanParentEventType: EVENT.START,
           }),
       );
 
@@ -478,8 +482,7 @@ export function createGovernedCopilotTool<
           completed,
           result.executed,
         );
-        if (stopped.status === 'halted')
-          haltedSessions.set(key, stopped.session as any);
+        rememberHaltedSession(haltedSessions, key, stopped.session);
         return withTimings(
           stopped as OpenBoxCopilotActionResult<TArtifact>,
           timings.finish(),
@@ -604,8 +607,7 @@ export function createGovernedCopilotTool<
           ),
       );
       const stopped = stoppedResult(input, ids, verdict);
-      if (stopped.status === 'halted')
-        haltedSessions.set(key, stopped.session as any);
+      rememberHaltedSession(haltedSessions, key, stopped.session);
       return withTimings(
         stopped as OpenBoxCopilotActionResult<TArtifact>,
         timings.finish(),
@@ -659,7 +661,7 @@ function approvalResumeSpan<
   input: TInput,
 ) {
   const now = nowUnixNano();
-  return {
+  return stripServerComputedSemantic({
     span_id: `approval-${randomUUID().replaceAll('-', '').slice(0, 8)}`,
     trace_id: randomUUID().replaceAll('-', ''),
     name: `${definition.toolName}.approval_resume`,
@@ -670,11 +672,9 @@ function approvalResumeSpan<
     end_time: now,
     duration_ns: 0,
     stage: 'completed',
-    semantic_type: 'llm_tool_call',
     status: { code: 'UNSET' },
     events: [],
     attributes: {
-      'openbox.semantic_type': 'llm_tool_call',
       'openbox.span_type': 'function',
       'openbox.tool.name': definition.toolName,
       'openbox.approval.resume': true,
@@ -682,7 +682,7 @@ function approvalResumeSpan<
       tool_name: definition.toolName,
     },
     data: approvalResumeMetadata(input),
-  };
+  });
 }
 
 function approvalResumeMetadata(input: OpenBoxCopilotResumeInput) {
@@ -773,14 +773,23 @@ function withTimings<TArtifact>(
   return { ...result, timings };
 }
 
+function rememberHaltedSession(
+  haltedSessions: Map<string, HaltedCopilotSession>,
+  key: string,
+  session: OpenBoxCopilotSessionState | undefined,
+) {
+  if (session?.status === 'halted') haltedSessions.set(key, session);
+}
+
 function sharedWorkflowFromConfig(
   runtimeConfig: unknown,
 ): { workflowId: string; runId: string; owned: boolean } | undefined {
   if (!runtimeConfig || typeof runtimeConfig !== 'object') return undefined;
-  const configurable = (runtimeConfig as Record<string, any>).configurable;
+  const configurable = (runtimeConfig as Record<string, unknown>).configurable;
   if (!configurable || typeof configurable !== 'object') return undefined;
-  const workflowId = configurable.openboxWorkflowId;
-  const runId = configurable.openboxRunId;
+  const configurableRecord = configurable as Record<string, unknown>;
+  const workflowId = configurableRecord.openboxWorkflowId;
+  const runId = configurableRecord.openboxRunId;
   if (typeof workflowId !== 'string' || typeof runId !== 'string')
     return undefined;
   return { workflowId, runId, owned: false };

@@ -1,0 +1,640 @@
+Area,Group,ID,Status,Scored,Provider,Boundary Owner,Requirement
+Universal contract requirements,Verdicts,REQ-001,universal,false,,,allow
+Universal contract requirements,Verdicts,REQ-002,universal,false,,,constrain
+Universal contract requirements,Verdicts,REQ-003,universal,false,,,require_approval
+Universal contract requirements,Verdicts,REQ-004,universal,false,,,block
+Universal contract requirements,Verdicts,REQ-005,universal,false,,,halt
+Universal contract requirements,Lifecycle / Events,REQ-006,universal,false,,,WorkflowStarted
+Universal contract requirements,Lifecycle / Events,REQ-007,universal,false,,,WorkflowCompleted
+Universal contract requirements,Lifecycle / Events,REQ-008,universal,false,,,WorkflowFailed
+Universal contract requirements,Lifecycle / Events,REQ-009,universal,false,,,ActivityStarted
+Universal contract requirements,Lifecycle / Events,REQ-010,universal,false,,,ActivityCompleted
+Universal contract requirements,Lifecycle / Events,REQ-011,universal,false,,,SignalReceived
+Universal contract requirements,Lifecycle / Events,REQ-012,universal,false,,,Handoff
+Universal contract requirements,Content / Span Types,REQ-013,universal,false,,,llm
+Universal contract requirements,Content / Span Types,REQ-014,universal,false,,,llm_embedding
+Universal contract requirements,Content / Span Types,REQ-015,universal,false,,,llm_tool_call
+Universal contract requirements,Content / Span Types,REQ-016,universal,false,,,file_read
+Universal contract requirements,Content / Span Types,REQ-017,universal,false,,,file_open
+Universal contract requirements,Content / Span Types,REQ-018,universal,false,,,file_write
+Universal contract requirements,Content / Span Types,REQ-019,universal,false,,,file_delete
+Universal contract requirements,Content / Span Types,REQ-020,universal,false,,,shell
+Universal contract requirements,Content / Span Types,REQ-021,universal,false,,,http
+Universal contract requirements,Content / Span Types,REQ-022,universal,false,,,db
+Universal contract requirements,Content / Span Types,REQ-023,universal,false,,,mcp
+Universal contract requirements,Behavior / Rule Triggers,REQ-024,universal,false,,,http_get
+Universal contract requirements,Behavior / Rule Triggers,REQ-025,universal,false,,,http_post
+Universal contract requirements,Behavior / Rule Triggers,REQ-026,universal,false,,,http_put
+Universal contract requirements,Behavior / Rule Triggers,REQ-027,universal,false,,,http_patch
+Universal contract requirements,Behavior / Rule Triggers,REQ-028,universal,false,,,http_delete
+Universal contract requirements,Behavior / Rule Triggers,REQ-029,universal,false,,,http
+Universal contract requirements,Behavior / Rule Triggers,REQ-030,universal,false,,,llm_completion
+Universal contract requirements,Behavior / Rule Triggers,REQ-031,universal,false,,,llm_embedding
+Universal contract requirements,Behavior / Rule Triggers,REQ-032,universal,false,,,llm_tool_call
+Universal contract requirements,Behavior / Rule Triggers,REQ-033,universal,false,,,database_select
+Universal contract requirements,Behavior / Rule Triggers,REQ-034,universal,false,,,database_insert
+Universal contract requirements,Behavior / Rule Triggers,REQ-035,universal,false,,,database_update
+Universal contract requirements,Behavior / Rule Triggers,REQ-036,universal,false,,,database_delete
+Universal contract requirements,Behavior / Rule Triggers,REQ-037,universal,false,,,database_query
+Universal contract requirements,Behavior / Rule Triggers,REQ-038,universal,false,,,file_read
+Universal contract requirements,Behavior / Rule Triggers,REQ-039,universal,false,,,file_write
+Universal contract requirements,Behavior / Rule Triggers,REQ-040,universal,false,,,file_open
+Universal contract requirements,Behavior / Rule Triggers,REQ-041,universal,false,,,file_delete
+Universal contract requirements,Behavior / Rule Triggers,REQ-042,universal,false,,,internal
+Universal contract requirements,Governance Subsystems,REQ-043,universal,false,,,OPA/Rego policy
+Universal contract requirements,Governance Subsystems,REQ-044,universal,false,,,Guardrails
+Universal contract requirements,Governance Subsystems,REQ-045,universal,false,,,PII/redaction
+Universal contract requirements,Governance Subsystems,REQ-046,universal,false,,,Behavior rules
+Universal contract requirements,Governance Subsystems,REQ-047,universal,false,,,Goal alignment
+Universal contract requirements,Governance Subsystems,REQ-048,universal,false,,,Approval/HITL
+Universal contract requirements,Governance Subsystems,REQ-049,universal,false,,,Usage
+Universal contract requirements,Governance Subsystems,REQ-050,universal,false,,,Cost
+Universal contract requirements,Governance Subsystems,REQ-051,universal,false,,,Tracing/spans
+Universal contract requirements,Governance Subsystems,REQ-052,universal,false,,,Audit logs
+Universal contract requirements,Governance Subsystems,REQ-053,universal,false,,,Session state
+Universal contract requirements,Governance Subsystems,REQ-054,universal,false,,,Fault handling
+Universal contract requirements,Governance Subsystems,REQ-055,universal,false,,,Storage/artifacts
+Universal contract requirements,Governance Subsystems,REQ-056,universal,false,,,KMS/local signing/attestation
+SDK Direct Governance,,SDK-001,done,true,,,Create governance sessions
+SDK Direct Governance,,SDK-002,done,true,,,Send governance requests to backend/core
+SDK Direct Governance,,SDK-003,done,true,,,Receive backend/core verdicts
+SDK Direct Governance,,SDK-004,done,true,,,Enforce allow
+SDK Direct Governance,,SDK-005,done,true,,,Enforce constrain
+SDK Direct Governance,,SDK-006,done,true,,,Enforce require_approval
+SDK Direct Governance,,SDK-007,done,true,,,Enforce block
+SDK Direct Governance,,SDK-008,done,true,,,Enforce halt
+SDK Direct Governance,,SDK-009,done,true,,,Capture WorkflowStarted
+SDK Direct Governance,,SDK-010,done,true,,,Capture WorkflowCompleted
+SDK Direct Governance,,SDK-011,done,true,,,Capture WorkflowFailed
+SDK Direct Governance,,SDK-012,done,true,,,Capture ActivityStarted
+SDK Direct Governance,,SDK-013,done,true,,,Capture ActivityCompleted
+SDK Direct Governance,,SDK-014,done,true,,,Capture SignalReceived
+SDK Direct Governance,,SDK-015,done,true,,,Capture Handoff
+SDK Direct Governance,,SDK-016,done,true,,,Capture llm spans
+SDK Direct Governance,,SDK-017,done,true,,,Capture shell spans
+SDK Direct Governance,,SDK-018,done,true,,,Capture mcp spans
+SDK Direct Governance,,SDK-019,done,true,,,Capture file_read spans
+SDK Direct Governance,,SDK-020,done,true,,,Capture file_write spans
+SDK Direct Governance,,SDK-021,done,true,,,Capture file_delete spans
+SDK Direct Governance,,SDK-022,done,true,,,Capture http spans
+SDK Direct Governance,,SDK-023,done,true,,,Capture db spans
+SDK Direct Governance,,SDK-024,done,true,,,Capture http_get triggers
+SDK Direct Governance,,SDK-025,done,true,,,Capture http_post triggers
+SDK Direct Governance,,SDK-026,done,true,,,Capture http_put triggers
+SDK Direct Governance,,SDK-027,done,true,,,Capture http_patch triggers
+SDK Direct Governance,,SDK-028,done,true,,,Capture http_delete triggers
+SDK Direct Governance,,SDK-029,done,true,,,Capture generic http triggers
+SDK Direct Governance,,SDK-030,done,true,,,Capture llm_completion triggers
+SDK Direct Governance,,SDK-031,done,true,,,Capture llm_embedding triggers
+SDK Direct Governance,,SDK-032,done,true,,,Capture llm_tool_call as its own trigger
+SDK Direct Governance,,SDK-033,done,true,,,Capture database_select triggers
+SDK Direct Governance,,SDK-034,done,true,,,Capture database_insert triggers
+SDK Direct Governance,,SDK-035,done,true,,,Capture database_update triggers
+SDK Direct Governance,,SDK-036,done,true,,,Capture database_delete triggers
+SDK Direct Governance,,SDK-037,done,true,,,Capture database_query triggers
+SDK Direct Governance,,SDK-038,done,true,,,Capture file_read triggers
+SDK Direct Governance,,SDK-039,done,true,,,Capture file_write triggers
+SDK Direct Governance,,SDK-040,done,true,,,Capture file_open as its own trigger
+SDK Direct Governance,,SDK-041,done,true,,,Capture file_delete triggers
+SDK Direct Governance,,SDK-042,done,true,,,Capture internal triggers
+SDK Direct Governance,,SDK-043,done,true,,,Send and enforce OPA/Rego-governed verdicts
+SDK Direct Governance,,SDK-044,done,true,,,Send and enforce guardrail-governed verdicts
+SDK Direct Governance,,SDK-045,done,true,,,Send and apply PII/redaction verdicts
+SDK Direct Governance,,SDK-046,done,true,,,Send and enforce behavior-rule verdicts
+SDK Direct Governance,,SDK-047,done,true,,,Send and enforce goal-alignment verdicts
+SDK Direct Governance,,SDK-048,done,true,,,Send and enforce approval/HITL verdicts
+SDK Direct Governance,,SDK-049,done,true,,,Report usage metadata
+SDK Direct Governance,,SDK-050,done,true,,,Forward runtime token/cost telemetry; Core owns cost estimation
+SDK Direct Governance,,SDK-051,done,true,,,Create tracing spans
+SDK Direct Governance,,SDK-052,done,true,,,Send audit-log events
+SDK Direct Governance,,SDK-053,done,true,,,Maintain session state
+SDK Direct Governance,,SDK-054,done,true,,,Fail closed when governance cannot answer
+SDK Direct Governance,,SDK-055,done,true,,,Report storage/artifact activity
+SDK Direct Governance,,SDK-056,done,true,,,Send KMS/local signing/attestation data when applicable
+Claude Code Governance,,CLAUDE-001,done,true,claude-code,,Install through the official Claude Code plugin surface
+Claude Code Governance,,CLAUDE-002,done,true,claude-code,,Read Claude Code hook input from stdin
+Claude Code Governance,,CLAUDE-003,done,true,claude-code,,Write Claude Code hook output to stdout
+Claude Code Governance,,CLAUDE-004,done,true,claude-code,,Expose Claude Code plugin commands
+Claude Code Governance,,CLAUDE-005,done,true,claude-code,,Expose Claude Code MCP tools
+Claude Code Governance,,CLAUDE-006,done,true,claude-code,,Expose Claude Code skill assets
+Claude Code Governance,,CLAUDE-007,done,true,claude-code,,Expose Claude Code agent/subagent assets
+Claude Code Governance,,CLAUDE-008,done,true,claude-code,,Project OpenBox instructions into Claude Code plugin content
+Claude Code Governance,,CLAUDE-009,done,true,claude-code,,Capture Claude Code session events
+Claude Code Governance,,CLAUDE-010,done,true,claude-code,,Capture Claude Code lifecycle events
+Claude Code Governance,,CLAUDE-011,done,true,claude-code,,Capture PreToolUse events
+Claude Code Governance,,CLAUDE-012,done,true,claude-code,,Capture PostToolUse events
+Claude Code Governance,,CLAUDE-013,done,true,claude-code,,Capture PermissionRequest events
+Claude Code Governance,,CLAUDE-014,done,true,claude-code,,Capture UserPromptSubmit events
+Claude Code Governance,,CLAUDE-015,done,true,claude-code,,Capture stop/finalization events
+Claude Code Governance,,CLAUDE-016,done,true,claude-code,,Capture WorkflowStarted
+Claude Code Governance,,CLAUDE-017,done,true,claude-code,,Capture WorkflowCompleted
+Claude Code Governance,,CLAUDE-018,done,true,claude-code,,Capture WorkflowFailed
+Claude Code Governance,,CLAUDE-019,done,true,claude-code,,Capture ActivityStarted
+Claude Code Governance,,CLAUDE-020,done,true,claude-code,,Capture ActivityCompleted
+Claude Code Governance,,CLAUDE-021,done,true,claude-code,,Capture SignalReceived
+Claude Code Governance,,CLAUDE-022,done,true,claude-code,,Capture Handoff
+Claude Code Governance,,CLAUDE-023,done,true,claude-code,,Capture llm spans from Claude Code transcript/assistant payloads
+Claude Code Governance,,CLAUDE-024,done,true,claude-code,,Capture shell spans
+Claude Code Governance,,CLAUDE-025,done,true,claude-code,,Capture mcp spans
+Claude Code Governance,,CLAUDE-026,done,true,claude-code,,Capture file_read spans
+Claude Code Governance,,CLAUDE-027,done,true,claude-code,,Capture file_write spans
+Claude Code Governance,,CLAUDE-028,done,true,claude-code,,Capture file_delete spans
+Claude Code Governance,,CLAUDE-029,done,true,claude-code,,Capture http spans through web-tool activity
+Claude Code Governance,,CLAUDE-030,done,true,claude-code,,Capture db spans through MCP/tool/shell/HTTP metadata
+Claude Code Governance,,CLAUDE-031,done,true,claude-code,,Capture http_get triggers
+Claude Code Governance,,CLAUDE-032,done,true,claude-code,,Capture http_post triggers
+Claude Code Governance,,CLAUDE-033,done,true,claude-code,,Capture http_put triggers
+Claude Code Governance,,CLAUDE-034,done,true,claude-code,,Capture http_patch triggers
+Claude Code Governance,,CLAUDE-035,done,true,claude-code,,Capture http_delete triggers
+Claude Code Governance,,CLAUDE-036,done,true,claude-code,,Capture generic http triggers
+Claude Code Governance,,CLAUDE-037,done,true,claude-code,,Capture llm_completion triggers
+Claude Code Governance,,CLAUDE-038,done,true,claude-code,,Capture llm_embedding triggers via official MCP
+Claude Code Governance,,CLAUDE-039,done,true,claude-code,,Capture llm_tool_call triggers via official MCP
+Claude Code Governance,,CLAUDE-040,done,true,claude-code,,Capture database_select triggers
+Claude Code Governance,,CLAUDE-041,done,true,claude-code,,Capture database_insert triggers
+Claude Code Governance,,CLAUDE-042,done,true,claude-code,,Capture database_update triggers
+Claude Code Governance,,CLAUDE-043,done,true,claude-code,,Capture database_delete triggers
+Claude Code Governance,,CLAUDE-044,done,true,claude-code,,Capture database_query triggers
+Claude Code Governance,,CLAUDE-045,done,true,claude-code,,Capture file_read triggers
+Claude Code Governance,,CLAUDE-046,done,true,claude-code,,Capture file_write triggers
+Claude Code Governance,,CLAUDE-047,done,true,claude-code,,Capture file_open as its own trigger via official MCP
+Claude Code Governance,,CLAUDE-048,done,true,claude-code,,Capture file_delete triggers
+Claude Code Governance,,CLAUDE-049,done,true,claude-code,,Capture internal triggers
+Claude Code Governance,,CLAUDE-050,done,true,claude-code,,Send and enforce OPA/Rego-governed verdicts
+Claude Code Governance,,CLAUDE-051,done,true,claude-code,,Send and enforce guardrail-governed verdicts
+Claude Code Governance,,CLAUDE-052,done,true,claude-code,,Send and apply PII/redaction verdicts
+Claude Code Governance,,CLAUDE-053,done,true,claude-code,,Send and enforce behavior-rule verdicts
+Claude Code Governance,,CLAUDE-054,done,true,claude-code,,Send and enforce goal-alignment verdicts
+Claude Code Governance,,CLAUDE-055,done,true,claude-code,,Send and enforce approval/HITL verdicts
+Claude Code Governance,,CLAUDE-056,done,true,claude-code,,Collect Claude Code token usage from transcript/final usage telemetry
+Claude Code Governance,,CLAUDE-057,done,true,claude-code,,Forward tokens for Core cost estimation; no local Claude spend calculation
+Claude Code Governance,,CLAUDE-058,done,true,claude-code,,Create tracing spans
+Claude Code Governance,,CLAUDE-059,done,true,claude-code,,Send audit-log events
+Claude Code Governance,,CLAUDE-060,done,true,claude-code,,Maintain session state
+Claude Code Governance,,CLAUDE-061,done,true,claude-code,,Fail closed when governance cannot answer
+Claude Code Governance,,CLAUDE-062,limitation,false,claude-code,host,raw Claude host artifacts outside the OpenBox artifact evidence contract are host-owned
+Claude Code Governance,,CLAUDE-063,done,true,claude-code,,Pass signed agent identity to Core through the official Claude Code plugin runtime config
+Claude Code Governance,,CLAUDE-064,done,true,claude-code,,Enforce allow
+Claude Code Governance,,CLAUDE-065,done,true,claude-code,,Enforce constrain
+Claude Code Governance,,CLAUDE-066,done,true,claude-code,,Enforce require_approval
+Claude Code Governance,,CLAUDE-067,done,true,claude-code,,Enforce block
+Claude Code Governance,,CLAUDE-068,done,true,claude-code,,Enforce halt
+Codex Governance,,CODEX-001,done,true,codex,,Install through the official Codex plugin/config surface
+Codex Governance,,CODEX-002,done,true,codex,,Read Codex event input through the Codex integration path
+Codex Governance,,CODEX-003,done,true,codex,,Return Codex-compatible enforcement output
+Codex Governance,,CODEX-004,done,true,codex,,Expose Codex MCP tools
+Codex Governance,,CODEX-005,done,true,codex,,Expose Codex skill assets
+Codex Governance,,CODEX-006,done,true,codex,,Project OpenBox instructions into Codex-compatible content
+Codex Governance,,CODEX-007,done,true,codex,,Keep each Codex governance session isolated
+Codex Governance,,CODEX-008,done,true,codex,,Capture UserPromptSubmit events
+Codex Governance,,CODEX-009,done,true,codex,,Capture PreToolUse events
+Codex Governance,,CODEX-010,done,true,codex,,Capture PermissionRequest events
+Codex Governance,,CODEX-011,done,true,codex,,Capture PostToolUse events
+Codex Governance,,CODEX-012,done,true,codex,,Capture Stop events
+Codex Governance,,CODEX-013,done,true,codex,,Capture WorkflowStarted
+Codex Governance,,CODEX-014,done,true,codex,,Capture WorkflowCompleted
+Codex Governance,,CODEX-015,limitation,false,codex,host,arbitrary Codex host crashes outside OpenBox-governed failure events are host-owned
+Codex Governance,,CODEX-016,done,true,codex,,Capture ActivityStarted
+Codex Governance,,CODEX-017,done,true,codex,,Capture ActivityCompleted
+Codex Governance,,CODEX-018,done,true,codex,,Capture SignalReceived
+Codex Governance,,CODEX-019,limitation,false,codex,host,arbitrary Codex task or agent routing outside OpenBox MCP/tool handoff metadata is host-owned
+Codex Governance,,CODEX-020,done,true,codex,,Capture llm spans from Codex assistant payload fields accepted by the integration contract
+Codex Governance,,CODEX-021,done,true,codex,,Capture shell spans
+Codex Governance,,CODEX-022,done,true,codex,,Capture mcp spans
+Codex Governance,,CODEX-023,done,true,codex,,Capture file_read spans
+Codex Governance,,CODEX-024,done,true,codex,,Capture file_write spans
+Codex Governance,,CODEX-025,done,true,codex,,Capture file_delete spans
+Codex Governance,,CODEX-026,done,true,codex,,Capture http spans through web-tool activity
+Codex Governance,,CODEX-027,done,true,codex,,Capture db spans through MCP/tool/shell/HTTP metadata
+Codex Governance,,CODEX-028,done,true,codex,,Capture http_get triggers
+Codex Governance,,CODEX-029,done,true,codex,,Capture http_post triggers
+Codex Governance,,CODEX-030,done,true,codex,,Capture http_put triggers
+Codex Governance,,CODEX-031,done,true,codex,,Capture http_patch triggers
+Codex Governance,,CODEX-032,done,true,codex,,Capture http_delete triggers
+Codex Governance,,CODEX-033,done,true,codex,,Capture generic http triggers
+Codex Governance,,CODEX-034,done,true,codex,,Capture llm_completion triggers
+Codex Governance,,CODEX-035,done,true,codex,,Capture llm_embedding triggers via official MCP
+Codex Governance,,CODEX-036,done,true,codex,,Capture llm_tool_call triggers via official MCP
+Codex Governance,,CODEX-037,done,true,codex,,Capture database_select triggers
+Codex Governance,,CODEX-038,done,true,codex,,Capture database_insert triggers
+Codex Governance,,CODEX-039,done,true,codex,,Capture database_update triggers
+Codex Governance,,CODEX-040,done,true,codex,,Capture database_delete triggers
+Codex Governance,,CODEX-041,done,true,codex,,Capture database_query triggers
+Codex Governance,,CODEX-042,done,true,codex,,Capture file_read triggers
+Codex Governance,,CODEX-043,done,true,codex,,Capture file_write triggers
+Codex Governance,,CODEX-044,done,true,codex,,Capture file_open as its own trigger via official MCP
+Codex Governance,,CODEX-045,done,true,codex,,Capture file_delete triggers
+Codex Governance,,CODEX-046,done,true,codex,,Capture internal triggers
+Codex Governance,,CODEX-047,done,true,codex,,Send and enforce OPA/Rego-governed verdicts
+Codex Governance,,CODEX-048,done,true,codex,,Send and enforce guardrail-governed verdicts
+Codex Governance,,CODEX-049,done,true,codex,,Send and apply PII/redaction verdicts
+Codex Governance,,CODEX-050,done,true,codex,,Send and enforce behavior-rule verdicts
+Codex Governance,,CODEX-051,done,true,codex,,Send and enforce goal-alignment verdicts
+Codex Governance,,CODEX-052,done,true,codex,,Send and enforce approval/HITL verdicts
+Codex Governance,,CODEX-053,done,true,codex,,Collect Codex token usage from official event telemetry
+Codex Governance,,CODEX-054,done,true,codex,,Forward tokens for Core cost estimation; no local Codex spend calculation
+Codex Governance,,CODEX-055,done,true,codex,,Create tracing spans
+Codex Governance,,CODEX-056,done,true,codex,,Send audit-log events
+Codex Governance,,CODEX-057,done,true,codex,,Maintain session state
+Codex Governance,,CODEX-058,done,true,codex,,Fail closed when governance cannot answer
+Codex Governance,,CODEX-059,done,true,codex,,Report storage/artifact metadata carried by OpenBox tool/evidence payloads
+Codex Governance,,CODEX-060,done,true,codex,,Pass signed agent identity to Core through the official Codex plugin runtime config
+Codex Governance,,CODEX-061,done,true,codex,,Enforce allow
+Codex Governance,,CODEX-062,done,true,codex,,Enforce constrain
+Codex Governance,,CODEX-063,done,true,codex,,Enforce require_approval
+Codex Governance,,CODEX-064,done,true,codex,,Enforce block
+Codex Governance,,CODEX-065,done,true,codex,,Enforce halt
+Cursor Governance,,CURSOR-001,done,true,cursor,,Install through the official Cursor project-local config surface
+Cursor Governance,,CURSOR-002,done,true,cursor,,Read Cursor hook input through generated Cursor adapter code
+Cursor Governance,,CURSOR-003,done,true,cursor,,Return Cursor-compatible enforcement output
+Cursor Governance,,CURSOR-004,done,true,cursor,,Expose Cursor MCP tools
+Cursor Governance,,CURSOR-005,done,true,cursor,,Expose Cursor project-local config assets
+Cursor Governance,,CURSOR-006,done,true,cursor,,Expose Cursor .mdc rule files as instructional content
+Cursor Governance,,CURSOR-007,done,true,cursor,,Keep each Cursor governance session isolated
+Cursor Governance,,CURSOR-008,done,true,cursor,,Capture beforeSubmitPrompt events
+Cursor Governance,,CURSOR-009,done,true,cursor,,Capture beforeReadFile events
+Cursor Governance,,CURSOR-010,done,true,cursor,,Capture beforeShellExecution events
+Cursor Governance,,CURSOR-011,done,true,cursor,,Capture beforeMCPExecution events
+Cursor Governance,,CURSOR-012,done,true,cursor,,Capture preToolUse events
+Cursor Governance,,CURSOR-013,done,true,cursor,,Capture afterAgentResponse events
+Cursor Governance,,CURSOR-014,done,true,cursor,,Capture afterAgentThought events
+Cursor Governance,,CURSOR-015,done,true,cursor,,Capture afterShellExecution events
+Cursor Governance,,CURSOR-016,done,true,cursor,,Capture afterFileEdit events
+Cursor Governance,,CURSOR-017,done,true,cursor,,Capture afterMCPExecution events
+Cursor Governance,,CURSOR-018,done,true,cursor,,Capture postToolUse events
+Cursor Governance,,CURSOR-019,done,true,cursor,,Capture postToolUseFailure events
+Cursor Governance,,CURSOR-020,done,true,cursor,,Capture sessionStart events
+Cursor Governance,,CURSOR-021,done,true,cursor,,Capture stop events
+Cursor Governance,,CURSOR-022,done,true,cursor,,Capture beforeTabFileRead events
+Cursor Governance,,CURSOR-023,done,true,cursor,,Capture afterTabFileEdit events
+Cursor Governance,,CURSOR-024,done,true,cursor,,Capture sessionEnd events
+Cursor Governance,,CURSOR-025,done,true,cursor,,Capture preCompact events
+Cursor Governance,,CURSOR-026,done,true,cursor,,Capture subagentStart events
+Cursor Governance,,CURSOR-027,done,true,cursor,,Capture subagentStop events
+Cursor Governance,,CURSOR-028,done,true,cursor,,Capture WorkflowStarted
+Cursor Governance,,CURSOR-029,done,true,cursor,,Capture WorkflowCompleted
+Cursor Governance,,CURSOR-030,done,true,cursor,,Capture WorkflowFailed
+Cursor Governance,,CURSOR-031,done,true,cursor,,Capture ActivityStarted
+Cursor Governance,,CURSOR-032,done,true,cursor,,Capture ActivityCompleted
+Cursor Governance,,CURSOR-033,done,true,cursor,,Capture SignalReceived
+Cursor Governance,,CURSOR-034,done,true,cursor,,Capture Handoff
+Cursor Governance,,CURSOR-035,done,true,cursor,,Capture llm spans from Cursor assistant payload fields accepted by the integration contract
+Cursor Governance,,CURSOR-036,done,true,cursor,,Capture shell spans
+Cursor Governance,,CURSOR-037,done,true,cursor,,Capture mcp spans
+Cursor Governance,,CURSOR-038,done,true,cursor,,Capture file_read spans
+Cursor Governance,,CURSOR-039,done,true,cursor,,Capture file_write spans
+Cursor Governance,,CURSOR-040,done,true,cursor,,Capture file_delete spans through shell/tool metadata
+Cursor Governance,,CURSOR-041,done,true,cursor,,Capture http spans through tool/shell/MCP payloads
+Cursor Governance,,CURSOR-042,done,true,cursor,,Capture db spans through MCP/tool/shell/HTTP metadata
+Cursor Governance,,CURSOR-043,done,true,cursor,,Capture http_get triggers
+Cursor Governance,,CURSOR-044,done,true,cursor,,Capture http_post triggers
+Cursor Governance,,CURSOR-045,done,true,cursor,,Capture http_put triggers
+Cursor Governance,,CURSOR-046,done,true,cursor,,Capture http_patch triggers
+Cursor Governance,,CURSOR-047,done,true,cursor,,Capture http_delete triggers
+Cursor Governance,,CURSOR-048,done,true,cursor,,Capture generic http triggers
+Cursor Governance,,CURSOR-049,done,true,cursor,,Capture llm_completion triggers
+Cursor Governance,,CURSOR-050,done,true,cursor,,Capture llm_embedding triggers via official MCP
+Cursor Governance,,CURSOR-051,done,true,cursor,,Capture llm_tool_call triggers via official MCP
+Cursor Governance,,CURSOR-052,done,true,cursor,,Capture database_select triggers
+Cursor Governance,,CURSOR-053,done,true,cursor,,Capture database_insert triggers
+Cursor Governance,,CURSOR-054,done,true,cursor,,Capture database_update triggers
+Cursor Governance,,CURSOR-055,done,true,cursor,,Capture database_delete triggers
+Cursor Governance,,CURSOR-056,done,true,cursor,,Capture database_query triggers
+Cursor Governance,,CURSOR-057,done,true,cursor,,Capture file_read triggers
+Cursor Governance,,CURSOR-058,done,true,cursor,,Capture file_write triggers
+Cursor Governance,,CURSOR-059,done,true,cursor,,Capture file_open as its own trigger
+Cursor Governance,,CURSOR-060,done,true,cursor,,Capture file_delete triggers from delete-classified shell/tool metadata
+Cursor Governance,,CURSOR-061,done,true,cursor,,Capture internal triggers
+Cursor Governance,,CURSOR-062,done,true,cursor,,Send and enforce OPA/Rego-governed verdicts
+Cursor Governance,,CURSOR-063,done,true,cursor,,Send and enforce guardrail-governed verdicts
+Cursor Governance,,CURSOR-064,done,true,cursor,,Send and apply PII/redaction verdicts
+Cursor Governance,,CURSOR-065,done,true,cursor,,Send and enforce behavior-rule verdicts
+Cursor Governance,,CURSOR-066,done,true,cursor,,Send and enforce goal-alignment verdicts
+Cursor Governance,,CURSOR-067,done,true,cursor,,Send and enforce approval/HITL verdicts
+Cursor Governance,,CURSOR-068,done,true,cursor,,Collect Cursor token usage from official assistant telemetry
+Cursor Governance,,CURSOR-069,done,true,cursor,,Forward tokens for Core cost estimation; no local Cursor spend calculation
+Cursor Governance,,CURSOR-070,done,true,cursor,,Create tracing spans
+Cursor Governance,,CURSOR-071,done,true,cursor,,Send audit-log events
+Cursor Governance,,CURSOR-072,done,true,cursor,,Maintain session state
+Cursor Governance,,CURSOR-073,done,true,cursor,,Fail closed when governance cannot answer
+Cursor Governance,,CURSOR-074,limitation,false,cursor,host,raw Cursor host artifacts outside the OpenBox artifact evidence contract are host-owned
+Cursor Governance,,CURSOR-075,done,true,cursor,,Pass signed agent identity to Core through the official Cursor plugin runtime config
+Cursor Governance,,CURSOR-076,done,true,cursor,,Enforce allow
+Cursor Governance,,CURSOR-077,limitation,false,cursor,host,Cursor outputs with no native safe transform shape cannot be mutated; OpenBox must fail closed
+Cursor Governance,,CURSOR-078,done,true,cursor,,Enforce require_approval
+Cursor Governance,,CURSOR-079,done,true,cursor,,Enforce block
+Cursor Governance,,CURSOR-080,done,true,cursor,,Enforce halt
+Cursor Governance,,CURSOR-081,done,true,cursor,,Use Cursor-native permission deny output for blocked tools
+Cursor Governance,,CURSOR-082,done,true,cursor,,Use Cursor-native prompt stop output for blocked prompts
+OpenAI Agent SDK Governance,,OAI-001,done,true,openai-agents-sdk,,Integrate through the official OpenAI Agent SDK wrapper path
+OpenAI Agent SDK Governance,,OAI-002,done,true,openai-agents-sdk,,Capture OpenAI Agent SDK run/session events
+OpenAI Agent SDK Governance,,OAI-003,done,true,openai-agents-sdk,,Capture model-call events
+OpenAI Agent SDK Governance,,OAI-004,done,true,openai-agents-sdk,,Capture tool-call events
+OpenAI Agent SDK Governance,,OAI-005,done,true,openai-agents-sdk,,Capture WorkflowStarted
+OpenAI Agent SDK Governance,,OAI-006,done,true,openai-agents-sdk,,Capture WorkflowCompleted
+OpenAI Agent SDK Governance,,OAI-007,done,true,openai-agents-sdk,,Capture WorkflowFailed
+OpenAI Agent SDK Governance,,OAI-008,done,true,openai-agents-sdk,,Capture ActivityStarted
+OpenAI Agent SDK Governance,,OAI-009,done,true,openai-agents-sdk,,Capture ActivityCompleted
+OpenAI Agent SDK Governance,,OAI-010,limitation,false,openai-agents-sdk,host,generic OpenAI Agents signal events outside OpenBox run goal/signal input are not OpenBox-controlled
+OpenAI Agent SDK Governance,,OAI-011,done,true,openai-agents-sdk,,Capture Handoff
+OpenAI Agent SDK Governance,,OAI-012,done,true,openai-agents-sdk,,Capture llm spans
+OpenAI Agent SDK Governance,,OAI-013,done,true,openai-agents-sdk,,Capture shell spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-014,done,true,openai-agents-sdk,,Capture mcp spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-015,done,true,openai-agents-sdk,,Capture file_read spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-016,done,true,openai-agents-sdk,,Capture file_write spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-017,done,true,openai-agents-sdk,,Capture file_delete spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-018,done,true,openai-agents-sdk,,Capture http spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-019,done,true,openai-agents-sdk,,Capture generic db spans from OpenBox-classified SDK tools
+OpenAI Agent SDK Governance,,OAI-020,done,true,openai-agents-sdk,,Capture dedicated database events through database tool classification
+OpenAI Agent SDK Governance,,OAI-021,done,true,openai-agents-sdk,,Capture http_get triggers
+OpenAI Agent SDK Governance,,OAI-022,done,true,openai-agents-sdk,,Capture http_post triggers
+OpenAI Agent SDK Governance,,OAI-023,done,true,openai-agents-sdk,,Capture http_put triggers
+OpenAI Agent SDK Governance,,OAI-024,done,true,openai-agents-sdk,,Capture http_patch triggers
+OpenAI Agent SDK Governance,,OAI-025,done,true,openai-agents-sdk,,Capture http_delete triggers
+OpenAI Agent SDK Governance,,OAI-026,done,true,openai-agents-sdk,,Capture generic http triggers
+OpenAI Agent SDK Governance,,OAI-027,done,true,openai-agents-sdk,,Capture llm_completion triggers
+OpenAI Agent SDK Governance,,OAI-028,done,true,openai-agents-sdk,,Capture llm_embedding triggers through MCP-required check_governance; no host-native embedding claim
+OpenAI Agent SDK Governance,,OAI-029,done,true,openai-agents-sdk,,Capture llm_tool_call triggers
+OpenAI Agent SDK Governance,,OAI-030,done,true,openai-agents-sdk,,Capture database_select triggers
+OpenAI Agent SDK Governance,,OAI-031,done,true,openai-agents-sdk,,Capture database_insert triggers
+OpenAI Agent SDK Governance,,OAI-032,done,true,openai-agents-sdk,,Capture database_update triggers
+OpenAI Agent SDK Governance,,OAI-033,done,true,openai-agents-sdk,,Capture database_delete triggers
+OpenAI Agent SDK Governance,,OAI-034,done,true,openai-agents-sdk,,Capture database_query triggers
+OpenAI Agent SDK Governance,,OAI-035,done,true,openai-agents-sdk,,Capture file_read triggers through SDK tool classification
+OpenAI Agent SDK Governance,,OAI-036,done,true,openai-agents-sdk,,Capture file_write triggers through SDK tool classification
+OpenAI Agent SDK Governance,,OAI-037,done,true,openai-agents-sdk,,Capture file_open as its own trigger
+OpenAI Agent SDK Governance,,OAI-038,done,true,openai-agents-sdk,,Capture file_delete triggers through SDK tool classification
+OpenAI Agent SDK Governance,,OAI-039,done,true,openai-agents-sdk,,Capture internal triggers
+OpenAI Agent SDK Governance,,OAI-040,done,true,openai-agents-sdk,,Send and enforce OPA/Rego-governed verdicts
+OpenAI Agent SDK Governance,,OAI-041,done,true,openai-agents-sdk,,Send and enforce guardrail-governed verdicts
+OpenAI Agent SDK Governance,,OAI-042,done,true,openai-agents-sdk,,Send and apply PII/redaction verdicts
+OpenAI Agent SDK Governance,,OAI-043,done,true,openai-agents-sdk,,Send and enforce behavior-rule verdicts
+OpenAI Agent SDK Governance,,OAI-044,done,true,openai-agents-sdk,,Send and enforce goal-alignment verdicts
+OpenAI Agent SDK Governance,,OAI-045,done,true,openai-agents-sdk,,Send and enforce approval/HITL verdicts
+OpenAI Agent SDK Governance,,OAI-046,done,true,openai-agents-sdk,,Report usage metadata
+OpenAI Agent SDK Governance,,OAI-047,done,true,openai-agents-sdk,,Forward runtime token/cost telemetry; Core owns cost estimation
+OpenAI Agent SDK Governance,,OAI-048,done,true,openai-agents-sdk,,Create tracing spans
+OpenAI Agent SDK Governance,,OAI-049,done,true,openai-agents-sdk,,Send audit-log events
+OpenAI Agent SDK Governance,,OAI-050,done,true,openai-agents-sdk,,Maintain session state
+OpenAI Agent SDK Governance,,OAI-051,done,true,openai-agents-sdk,,Fail closed when governance cannot answer
+OpenAI Agent SDK Governance,,OAI-052,done,true,openai-agents-sdk,,Report storage/artifact metadata carried by SDK payload contract
+OpenAI Agent SDK Governance,,OAI-053,done,true,openai-agents-sdk,,Send KMS/local signing/attestation metadata when configured
+OpenAI Agent SDK Governance,,OAI-054,done,true,openai-agents-sdk,,Enforce allow
+OpenAI Agent SDK Governance,,OAI-055,done,true,openai-agents-sdk,,Enforce constrain
+OpenAI Agent SDK Governance,,OAI-056,done,true,openai-agents-sdk,,Enforce require_approval
+OpenAI Agent SDK Governance,,OAI-057,done,true,openai-agents-sdk,,Enforce block
+OpenAI Agent SDK Governance,,OAI-058,done,true,openai-agents-sdk,,Enforce halt
+Anthropic Agent SDK Governance,,ANTH-001,done,true,anthropic-agent-sdk,,Integrate through the official Anthropic Agent SDK wrapper path
+Anthropic Agent SDK Governance,,ANTH-002,done,true,anthropic-agent-sdk,,Capture Anthropic Agent SDK session/message events
+Anthropic Agent SDK Governance,,ANTH-003,done,true,anthropic-agent-sdk,,Capture model-call events
+Anthropic Agent SDK Governance,,ANTH-004,done,true,anthropic-agent-sdk,,Capture tool-call events
+Anthropic Agent SDK Governance,,ANTH-005,done,true,anthropic-agent-sdk,,Capture WorkflowStarted
+Anthropic Agent SDK Governance,,ANTH-006,done,true,anthropic-agent-sdk,,Capture WorkflowCompleted
+Anthropic Agent SDK Governance,,ANTH-007,done,true,anthropic-agent-sdk,,Capture WorkflowFailed
+Anthropic Agent SDK Governance,,ANTH-008,done,true,anthropic-agent-sdk,,Capture ActivityStarted
+Anthropic Agent SDK Governance,,ANTH-009,done,true,anthropic-agent-sdk,,Capture ActivityCompleted
+Anthropic Agent SDK Governance,,ANTH-010,done,true,anthropic-agent-sdk,,Capture SignalReceived
+Anthropic Agent SDK Governance,,ANTH-011,done,true,anthropic-agent-sdk,,Capture Handoff
+Anthropic Agent SDK Governance,,ANTH-012,done,true,anthropic-agent-sdk,,Capture llm spans
+Anthropic Agent SDK Governance,,ANTH-013,done,true,anthropic-agent-sdk,,Capture shell spans through Anthropic tool activity
+Anthropic Agent SDK Governance,,ANTH-014,done,true,anthropic-agent-sdk,,Capture mcp spans through Anthropic tool activity
+Anthropic Agent SDK Governance,,ANTH-015,done,true,anthropic-agent-sdk,,Capture file_read spans through Anthropic tool activity
+Anthropic Agent SDK Governance,,ANTH-016,done,true,anthropic-agent-sdk,,Capture file_write spans through Anthropic tool activity
+Anthropic Agent SDK Governance,,ANTH-017,done,true,anthropic-agent-sdk,,Capture file_delete spans through Anthropic tool activity
+Anthropic Agent SDK Governance,,ANTH-018,done,true,anthropic-agent-sdk,,Capture http spans through Anthropic web-tool activity
+Anthropic Agent SDK Governance,,ANTH-019,done,true,anthropic-agent-sdk,,Capture db spans through MCP/tool/shell/HTTP metadata
+Anthropic Agent SDK Governance,,ANTH-020,done,true,anthropic-agent-sdk,,Capture http_get triggers
+Anthropic Agent SDK Governance,,ANTH-021,done,true,anthropic-agent-sdk,,Capture http_post triggers
+Anthropic Agent SDK Governance,,ANTH-022,done,true,anthropic-agent-sdk,,Capture http_put triggers
+Anthropic Agent SDK Governance,,ANTH-023,done,true,anthropic-agent-sdk,,Capture http_patch triggers
+Anthropic Agent SDK Governance,,ANTH-024,done,true,anthropic-agent-sdk,,Capture http_delete triggers
+Anthropic Agent SDK Governance,,ANTH-025,done,true,anthropic-agent-sdk,,Capture generic http triggers
+Anthropic Agent SDK Governance,,ANTH-026,done,true,anthropic-agent-sdk,,Capture llm_completion triggers
+Anthropic Agent SDK Governance,,ANTH-027,done,true,anthropic-agent-sdk,,Capture llm_embedding triggers through MCP-required check_governance; no host-native embedding claim
+Anthropic Agent SDK Governance,,ANTH-028,done,true,anthropic-agent-sdk,,Capture llm_tool_call triggers
+Anthropic Agent SDK Governance,,ANTH-029,done,true,anthropic-agent-sdk,,Capture database_select triggers
+Anthropic Agent SDK Governance,,ANTH-030,done,true,anthropic-agent-sdk,,Capture database_insert triggers
+Anthropic Agent SDK Governance,,ANTH-031,done,true,anthropic-agent-sdk,,Capture database_update triggers
+Anthropic Agent SDK Governance,,ANTH-032,done,true,anthropic-agent-sdk,,Capture database_delete triggers
+Anthropic Agent SDK Governance,,ANTH-033,done,true,anthropic-agent-sdk,,Capture database_query triggers
+Anthropic Agent SDK Governance,,ANTH-034,done,true,anthropic-agent-sdk,,Capture file_read triggers
+Anthropic Agent SDK Governance,,ANTH-035,done,true,anthropic-agent-sdk,,Capture file_write triggers
+Anthropic Agent SDK Governance,,ANTH-036,done,true,anthropic-agent-sdk,,Capture file_open as its own trigger
+Anthropic Agent SDK Governance,,ANTH-037,done,true,anthropic-agent-sdk,,Capture file_delete triggers
+Anthropic Agent SDK Governance,,ANTH-038,done,true,anthropic-agent-sdk,,Capture internal triggers
+Anthropic Agent SDK Governance,,ANTH-039,done,true,anthropic-agent-sdk,,Capture agent/task events
+Anthropic Agent SDK Governance,,ANTH-040,done,true,anthropic-agent-sdk,,Capture project/config events through Anthropic Agent SDK payload contract
+Anthropic Agent SDK Governance,,ANTH-041,done,true,anthropic-agent-sdk,,Capture MCP elicitation events through Anthropic Agent SDK hook payload contract
+Anthropic Agent SDK Governance,,ANTH-042,done,true,anthropic-agent-sdk,,Send and enforce OPA/Rego-governed verdicts
+Anthropic Agent SDK Governance,,ANTH-043,done,true,anthropic-agent-sdk,,Send and enforce guardrail-governed verdicts
+Anthropic Agent SDK Governance,,ANTH-044,done,true,anthropic-agent-sdk,,Send and apply PII/redaction verdicts
+Anthropic Agent SDK Governance,,ANTH-045,done,true,anthropic-agent-sdk,,Send and enforce behavior-rule verdicts
+Anthropic Agent SDK Governance,,ANTH-046,done,true,anthropic-agent-sdk,,Send and enforce goal-alignment verdicts
+Anthropic Agent SDK Governance,,ANTH-047,done,true,anthropic-agent-sdk,,Send and enforce approval/HITL verdicts
+Anthropic Agent SDK Governance,,ANTH-048,done,true,anthropic-agent-sdk,,Report usage metadata
+Anthropic Agent SDK Governance,,ANTH-049,done,true,anthropic-agent-sdk,,Forward runtime token/cost telemetry; Core owns cost estimation
+Anthropic Agent SDK Governance,,ANTH-050,done,true,anthropic-agent-sdk,,Create tracing spans
+Anthropic Agent SDK Governance,,ANTH-051,done,true,anthropic-agent-sdk,,Send audit-log events
+Anthropic Agent SDK Governance,,ANTH-052,done,true,anthropic-agent-sdk,,Maintain session state
+Anthropic Agent SDK Governance,,ANTH-053,done,true,anthropic-agent-sdk,,Fail closed when governance cannot answer
+Anthropic Agent SDK Governance,,ANTH-054,done,true,anthropic-agent-sdk,,Report storage/artifact metadata carried by SDK payload contract
+Anthropic Agent SDK Governance,,ANTH-055,done,true,anthropic-agent-sdk,,Pass signed agent identity to Core through the official Anthropic Agent SDK config
+Anthropic Agent SDK Governance,,ANTH-056,done,true,anthropic-agent-sdk,,Enforce allow
+Anthropic Agent SDK Governance,,ANTH-057,done,true,anthropic-agent-sdk,,Enforce constrain
+Anthropic Agent SDK Governance,,ANTH-058,done,true,anthropic-agent-sdk,,Enforce require_approval
+Anthropic Agent SDK Governance,,ANTH-059,done,true,anthropic-agent-sdk,,Enforce block
+Anthropic Agent SDK Governance,,ANTH-060,done,true,anthropic-agent-sdk,,Enforce halt
+MCP Protocol Governance,,MCP-001,done,true,mcp,,Accept MCP initialize requests
+MCP Protocol Governance,,MCP-002,done,true,mcp,,Accept MCP list_tools requests
+MCP Protocol Governance,,MCP-003,done,true,mcp,,Accept MCP call_tool requests
+MCP Protocol Governance,,MCP-004,done,true,mcp,,Expose governance check tool
+MCP Protocol Governance,,MCP-005,done,true,mcp,,Expose evidence/reporting tool
+MCP Protocol Governance,,MCP-006,done,true,mcp,,Expose approval tool
+MCP Protocol Governance,,MCP-007,done,true,mcp,,Expose agent list/get tools
+MCP Protocol Governance,,MCP-008,done,true,mcp,,Expose status/doctor tools
+MCP Protocol Governance,,MCP-009,done,true,mcp,,Return protocol errors for invalid requests
+MCP Protocol Governance,,MCP-010,done,true,mcp,,Fail closed when governance cannot answer
+MCP Protocol Governance,,MCP-011,done,true,mcp,,Capture MCP session events
+MCP Protocol Governance,,MCP-012,done,true,mcp,,Capture WorkflowStarted
+MCP Protocol Governance,,MCP-013,done,true,mcp,,Capture WorkflowCompleted
+MCP Protocol Governance,,MCP-014,done,true,mcp,,Capture WorkflowFailed
+MCP Protocol Governance,,MCP-015,done,true,mcp,,Capture ActivityStarted
+MCP Protocol Governance,,MCP-016,done,true,mcp,,Capture ActivityCompleted
+MCP Protocol Governance,,MCP-017,done,true,mcp,,Capture SignalReceived
+MCP Protocol Governance,,MCP-018,limitation,false,mcp,caller,arbitrary caller handoffs outside explicit OpenBox MCP handoff arguments are caller-owned
+MCP Protocol Governance,,MCP-019,done,true,mcp,,Capture llm spans from explicit OpenBox MCP LLM arguments
+MCP Protocol Governance,,MCP-020,done,true,mcp,,Capture shell spans through governance check input
+MCP Protocol Governance,,MCP-021,done,true,mcp,,Capture mcp spans through governance check input
+MCP Protocol Governance,,MCP-022,done,true,mcp,,Capture file_read spans through governance check input
+MCP Protocol Governance,,MCP-023,done,true,mcp,,Capture file_write spans through governance check input
+MCP Protocol Governance,,MCP-024,done,true,mcp,,Capture file_delete spans through governance check input
+MCP Protocol Governance,,MCP-025,done,true,mcp,,Capture http spans through governance check input
+MCP Protocol Governance,,MCP-026,done,true,mcp,,Capture db spans through governance check input
+MCP Protocol Governance,,MCP-027,done,true,mcp,,Capture http_get triggers
+MCP Protocol Governance,,MCP-028,done,true,mcp,,Capture http_post triggers
+MCP Protocol Governance,,MCP-029,done,true,mcp,,Capture http_put triggers
+MCP Protocol Governance,,MCP-030,done,true,mcp,,Capture http_patch triggers
+MCP Protocol Governance,,MCP-031,done,true,mcp,,Capture http_delete triggers
+MCP Protocol Governance,,MCP-032,done,true,mcp,,Capture generic http triggers
+MCP Protocol Governance,,MCP-033,done,true,mcp,,Capture llm_completion triggers from explicit OpenBox MCP LLM arguments
+MCP Protocol Governance,,MCP-034,done,true,mcp,,Capture llm_embedding triggers
+MCP Protocol Governance,,MCP-035,done,true,mcp,,Capture llm_tool_call triggers from explicit OpenBox MCP tool-call arguments
+MCP Protocol Governance,,MCP-036,done,true,mcp,,Capture database_select triggers
+MCP Protocol Governance,,MCP-037,done,true,mcp,,Capture database_insert triggers
+MCP Protocol Governance,,MCP-038,done,true,mcp,,Capture database_update triggers
+MCP Protocol Governance,,MCP-039,done,true,mcp,,Capture database_delete triggers
+MCP Protocol Governance,,MCP-040,done,true,mcp,,Capture database_query triggers
+MCP Protocol Governance,,MCP-041,done,true,mcp,,Capture file_read triggers
+MCP Protocol Governance,,MCP-042,done,true,mcp,,Capture file_write triggers
+MCP Protocol Governance,,MCP-043,done,true,mcp,,Capture file_open as its own trigger
+MCP Protocol Governance,,MCP-044,done,true,mcp,,Capture file_delete triggers
+MCP Protocol Governance,,MCP-045,done,true,mcp,,Capture internal triggers
+MCP Protocol Governance,,MCP-046,done,true,mcp,,Send and enforce OPA/Rego-governed verdicts
+MCP Protocol Governance,,MCP-047,done,true,mcp,,Send and enforce guardrail-governed verdicts
+MCP Protocol Governance,,MCP-048,done,true,mcp,,Send and apply PII/redaction verdicts
+MCP Protocol Governance,,MCP-049,done,true,mcp,,Send and enforce behavior-rule verdicts
+MCP Protocol Governance,,MCP-050,limitation,false,mcp,caller,MCP goal alignment cannot run when the caller omits required OpenBox goal context
+MCP Protocol Governance,,MCP-051,done,true,mcp,,Send and enforce approval/HITL verdicts
+MCP Protocol Governance,,MCP-052,done,true,mcp,,Report token usage metadata carried by OpenBox MCP arguments
+MCP Protocol Governance,,MCP-053,done,true,mcp,,Forward OpenBox MCP cost telemetry; Core owns cost estimation
+MCP Protocol Governance,,MCP-054,done,true,mcp,,Create tracing spans
+MCP Protocol Governance,,MCP-055,done,true,mcp,,Send audit-log events
+MCP Protocol Governance,,MCP-056,done,true,mcp,,Maintain session state
+MCP Protocol Governance,,MCP-057,done,true,mcp,,Report storage/artifact activity through reporting tools
+MCP Protocol Governance,,MCP-058,done,true,mcp,,Pass signed agent identity from MCP runtime config
+MCP Protocol Governance,,MCP-059,done,true,mcp,,Enforce allow
+MCP Protocol Governance,,MCP-060,done,true,mcp,,Enforce constrain
+MCP Protocol Governance,,MCP-061,done,true,mcp,,Enforce require_approval
+MCP Protocol Governance,,MCP-062,done,true,mcp,,Enforce block
+MCP Protocol Governance,,MCP-063,done,true,mcp,,Enforce halt
+CopilotKit Governance,,COPILOT-001,done,true,copilotkit,,Integrate through the official CopilotKit runtime adapter path
+CopilotKit Governance,,COPILOT-002,done,true,copilotkit,,Expose public CopilotKit exports and React governance helpers
+CopilotKit Governance,,COPILOT-003,done,true,copilotkit,,Wrap CopilotKit runtime agent routes without host file mutation
+CopilotKit Governance,,COPILOT-004,done,true,copilotkit,,Provide LangChain/LangGraph middleware governance gates
+CopilotKit Governance,,COPILOT-005,done,true,copilotkit,,Provide governed tool wrappers
+CopilotKit Governance,,COPILOT-006,done,true,copilotkit,,Provide AG-UI event bridge
+CopilotKit Governance,,COPILOT-007,done,true,copilotkit,,Keep each CopilotKit governance session isolated
+CopilotKit Governance,,COPILOT-008,done,true,copilotkit,,Capture prompt governance events
+CopilotKit Governance,,COPILOT-009,done,true,copilotkit,,Capture tool input/output governance events
+CopilotKit Governance,,COPILOT-010,done,true,copilotkit,,Capture AG-UI run/message/tool/state/error/interrupt events
+CopilotKit Governance,,COPILOT-011,done,true,copilotkit,,Capture WorkflowStarted
+CopilotKit Governance,,COPILOT-012,done,true,copilotkit,,Capture WorkflowCompleted
+CopilotKit Governance,,COPILOT-013,done,true,copilotkit,,Capture WorkflowFailed
+CopilotKit Governance,,COPILOT-014,done,true,copilotkit,,Capture ActivityStarted
+CopilotKit Governance,,COPILOT-015,done,true,copilotkit,,Capture ActivityCompleted
+CopilotKit Governance,,COPILOT-016,done,true,copilotkit,,Capture SignalReceived
+CopilotKit Governance,,COPILOT-017,limitation,false,copilotkit,host,arbitrary CopilotKit/a2a routing outside explicit AG-UI/OpenBox handoff metadata is host-owned
+CopilotKit Governance,,COPILOT-018,done,true,copilotkit,,Capture llm spans
+CopilotKit Governance,,COPILOT-019,done,true,copilotkit,,Capture shell spans through tool classification
+CopilotKit Governance,,COPILOT-020,done,true,copilotkit,,Capture mcp spans through tool classification
+CopilotKit Governance,,COPILOT-021,done,true,copilotkit,,Capture file_read spans
+CopilotKit Governance,,COPILOT-022,done,true,copilotkit,,Capture file_write spans
+CopilotKit Governance,,COPILOT-023,done,true,copilotkit,,Capture file_delete spans
+CopilotKit Governance,,COPILOT-024,done,true,copilotkit,,Capture http spans
+CopilotKit Governance,,COPILOT-025,done,true,copilotkit,,Capture db spans
+CopilotKit Governance,,COPILOT-026,done,true,copilotkit,,Capture llm_embedding triggers through MCP-required check_governance; no host-native embedding claim
+CopilotKit Governance,,COPILOT-027,done,true,copilotkit,,Capture llm_tool_call triggers
+CopilotKit Governance,,COPILOT-028,done,true,copilotkit,,Capture file_open triggers
+CopilotKit Governance,,COPILOT-029,done,true,copilotkit,,Capture mcp spans that classify as mcp_tool_call
+CopilotKit Governance,,COPILOT-030,done,true,copilotkit,,Capture http_get triggers
+CopilotKit Governance,,COPILOT-031,done,true,copilotkit,,Capture http_post triggers
+CopilotKit Governance,,COPILOT-032,done,true,copilotkit,,Capture http_put triggers
+CopilotKit Governance,,COPILOT-033,done,true,copilotkit,,Capture http_patch triggers
+CopilotKit Governance,,COPILOT-034,done,true,copilotkit,,Capture http_delete triggers
+CopilotKit Governance,,COPILOT-035,done,true,copilotkit,,Capture generic http triggers
+CopilotKit Governance,,COPILOT-036,done,true,copilotkit,,Capture llm_completion triggers
+CopilotKit Governance,,COPILOT-037,done,true,copilotkit,,Capture database_select triggers
+CopilotKit Governance,,COPILOT-038,done,true,copilotkit,,Capture database_insert triggers
+CopilotKit Governance,,COPILOT-039,done,true,copilotkit,,Capture database_update triggers
+CopilotKit Governance,,COPILOT-040,done,true,copilotkit,,Capture database_delete triggers
+CopilotKit Governance,,COPILOT-041,done,true,copilotkit,,Capture database_query triggers
+CopilotKit Governance,,COPILOT-042,done,true,copilotkit,,Capture file_read triggers
+CopilotKit Governance,,COPILOT-043,done,true,copilotkit,,Capture file_write triggers
+CopilotKit Governance,,COPILOT-044,done,true,copilotkit,,Capture file_delete triggers
+CopilotKit Governance,,COPILOT-045,done,true,copilotkit,,Capture internal triggers
+CopilotKit Governance,,COPILOT-046,done,true,copilotkit,,Send and enforce OPA/Rego-governed verdicts
+CopilotKit Governance,,COPILOT-047,done,true,copilotkit,,Send and enforce guardrail-governed verdicts
+CopilotKit Governance,,COPILOT-048,done,true,copilotkit,,Send and apply PII/redaction verdicts
+CopilotKit Governance,,COPILOT-049,done,true,copilotkit,,Send and enforce behavior-rule verdicts
+CopilotKit Governance,,COPILOT-050,done,true,copilotkit,,Send and enforce goal-alignment verdicts
+CopilotKit Governance,,COPILOT-051,done,true,copilotkit,,Send and enforce approval/HITL verdicts
+CopilotKit Governance,,COPILOT-052,done,true,copilotkit,,Report CopilotKit token usage metadata
+CopilotKit Governance,,COPILOT-053,done,true,copilotkit,,Forward runtime token/cost telemetry; Core owns cost estimation
+CopilotKit Governance,,COPILOT-054,done,true,copilotkit,,Create tracing spans
+CopilotKit Governance,,COPILOT-055,done,true,copilotkit,,Send audit-log events
+CopilotKit Governance,,COPILOT-056,done,true,copilotkit,,Maintain session state
+CopilotKit Governance,,COPILOT-057,done,true,copilotkit,,Fail closed when governance cannot answer
+CopilotKit Governance,,COPILOT-058,done,true,copilotkit,,Report storage/artifact activity through governed artifacts
+CopilotKit Governance,,COPILOT-059,done,true,copilotkit,,Send signed agent identity metadata when configured
+CopilotKit Governance,,COPILOT-060,done,true,copilotkit,,Enforce allow
+CopilotKit Governance,,COPILOT-061,done,true,copilotkit,,Enforce constrain
+CopilotKit Governance,,COPILOT-062,done,true,copilotkit,,Enforce require_approval
+CopilotKit Governance,,COPILOT-063,done,true,copilotkit,,Enforce block
+CopilotKit Governance,,COPILOT-064,done,true,copilotkit,,Enforce halt
+n8n Governance,,N8N-001,done,true,n8n,,Integrate through the official n8n runtime helper path
+n8n Governance,,N8N-002,done,true,n8n,,Expose the runtime/n8n public package subpath
+n8n Governance,,N8N-003,done,true,n8n,,Declare the generated n8n integration descriptor
+n8n Governance,,N8N-004,done,true,n8n,,"Ship credentials, nodes, workflow templates, and examples"
+n8n Governance,,N8N-005,done,true,n8n,,Capture governance-check helper events
+n8n Governance,,N8N-006,done,true,n8n,,Capture node pre-execute gates
+n8n Governance,,N8N-007,done,true,n8n,,Capture node post-execute observations
+n8n Governance,,N8N-008,done,true,n8n,,Capture LLM completion observations
+n8n Governance,,N8N-009,done,true,n8n,,Keep each n8n governance session isolated
+n8n Governance,,N8N-010,done,true,n8n,,Capture WorkflowStarted
+n8n Governance,,N8N-011,done,true,n8n,,Capture WorkflowCompleted
+n8n Governance,,N8N-012,limitation,false,n8n,host,arbitrary n8n workflow crashes outside the OpenBox n8n failure helper/template metadata are host-owned
+n8n Governance,,N8N-013,done,true,n8n,,Capture ActivityStarted
+n8n Governance,,N8N-014,done,true,n8n,,Capture ActivityCompleted
+n8n Governance,,N8N-015,done,true,n8n,,Capture SignalReceived
+n8n Governance,,N8N-016,limitation,false,n8n,host,arbitrary n8n routing outside OpenBox n8n workflow or AI Agent handoff metadata is host-owned
+n8n Governance,,N8N-017,done,true,n8n,,Capture llm spans
+n8n Governance,,N8N-018,done,true,n8n,,Capture shell spans
+n8n Governance,,N8N-019,done,true,n8n,,Capture mcp spans
+n8n Governance,,N8N-020,done,true,n8n,,Capture file_read spans
+n8n Governance,,N8N-021,done,true,n8n,,Capture file_write spans
+n8n Governance,,N8N-022,done,true,n8n,,Capture file_delete spans
+n8n Governance,,N8N-023,done,true,n8n,,Capture http spans
+n8n Governance,,N8N-024,done,true,n8n,,Capture db spans
+n8n Governance,,N8N-025,done,true,n8n,,Capture llm_embedding spans
+n8n Governance,,N8N-026,done,true,n8n,,Capture llm_tool_call spans
+n8n Governance,,N8N-027,done,true,n8n,,Capture file_open spans
+n8n Governance,,N8N-028,done,true,n8n,,Capture mcp spans that classify as mcp_tool_call
+n8n Governance,,N8N-029,done,true,n8n,,Capture http_get triggers
+n8n Governance,,N8N-030,done,true,n8n,,Capture http_post triggers
+n8n Governance,,N8N-031,done,true,n8n,,Capture http_put triggers
+n8n Governance,,N8N-032,done,true,n8n,,Capture http_patch triggers
+n8n Governance,,N8N-033,done,true,n8n,,Capture http_delete triggers
+n8n Governance,,N8N-034,done,true,n8n,,Capture generic http triggers
+n8n Governance,,N8N-035,done,true,n8n,,Capture llm_completion triggers
+n8n Governance,,N8N-036,done,true,n8n,,Capture llm_embedding triggers
+n8n Governance,,N8N-037,done,true,n8n,,Capture llm_tool_call triggers
+n8n Governance,,N8N-038,done,true,n8n,,Capture mcp spans that classify as mcp_tool_call
+n8n Governance,,N8N-039,done,true,n8n,,Capture database_select triggers
+n8n Governance,,N8N-040,done,true,n8n,,Capture database_insert triggers
+n8n Governance,,N8N-041,done,true,n8n,,Capture database_update triggers
+n8n Governance,,N8N-042,done,true,n8n,,Capture database_delete triggers
+n8n Governance,,N8N-043,done,true,n8n,,Capture database_query triggers
+n8n Governance,,N8N-044,done,true,n8n,,Capture file_read triggers
+n8n Governance,,N8N-045,done,true,n8n,,Capture file_write triggers
+n8n Governance,,N8N-046,done,true,n8n,,Capture file_open triggers
+n8n Governance,,N8N-047,done,true,n8n,,Capture file_delete triggers
+n8n Governance,,N8N-048,done,true,n8n,,Capture internal triggers
+n8n Governance,,N8N-049,done,true,n8n,,Send and enforce OPA/Rego-governed verdicts
+n8n Governance,,N8N-050,done,true,n8n,,Send and enforce guardrail-governed verdicts
+n8n Governance,,N8N-051,done,true,n8n,,Send and apply PII/redaction verdicts
+n8n Governance,,N8N-052,done,true,n8n,,Send and enforce behavior-rule verdicts
+n8n Governance,,N8N-053,done,true,n8n,,Send and enforce goal-alignment verdicts
+n8n Governance,,N8N-054,done,true,n8n,,Send and enforce approval/HITL verdicts
+n8n Governance,,N8N-055,done,true,n8n,,Report usage metadata
+n8n Governance,,N8N-056,done,true,n8n,,Forward runtime token/cost telemetry; Core owns cost estimation
+n8n Governance,,N8N-057,done,true,n8n,,Create tracing spans
+n8n Governance,,N8N-058,done,true,n8n,,Send audit-log events
+n8n Governance,,N8N-059,done,true,n8n,,Maintain session state
+n8n Governance,,N8N-060,done,true,n8n,,Fail closed when governance cannot answer
+n8n Governance,,N8N-061,done,true,n8n,,Report storage/artifact activity through workflow templates
+n8n Governance,,N8N-062,done,true,n8n,,Pass signed agent identity when configured through the n8n runtime helper Core client
+n8n Governance,,N8N-063,done,true,n8n,,Enforce allow
+n8n Governance,,N8N-064,done,true,n8n,,Enforce constrain
+n8n Governance,,N8N-065,done,true,n8n,,Enforce require_approval
+n8n Governance,,N8N-066,done,true,n8n,,Enforce block
+n8n Governance,,N8N-067,done,true,n8n,,Enforce halt

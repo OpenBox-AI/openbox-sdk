@@ -8,6 +8,7 @@ import type {
   Interface,
   Model,
   ModelProperty,
+  Namespace,
   Operation,
   Program,
 } from '@typespec/compiler';
@@ -578,6 +579,45 @@ export function getRecipe(
   target: Operation,
 ): RecipeStep[] | undefined {
   return program.stateMap(stateKeys.recipe).get(target);
+}
+
+// ─── CLI conformance fixture ────────────────────────────────────────
+// Cross-language CLI scenarios belong in TypeSpec so each target's CLI
+// runner can consume the same fixture emitted by generate:sdks.
+
+export type CliConformanceFixtureBinding = Record<string, unknown>;
+
+export function $cli_conformance(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-cli-conformance',
+      format: { reason: 'expected a record literal' },
+      target,
+    });
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.cases) || record.cases.length === 0) {
+    reportDiagnostic(context.program, {
+      code: 'invalid-cli-conformance',
+      format: { reason: 'cases must be a non-empty array' },
+      target,
+    });
+    return;
+  }
+  context.program.stateMap(stateKeys.cliConformance).set(target, record);
+}
+
+export function getCliConformance(
+  program: Program,
+  target: Namespace,
+): CliConformanceFixtureBinding | undefined {
+  return program.stateMap(stateKeys.cliConformance).get(target);
 }
 
 // `unwrapTspValue` lives next to the decorators it serves. Inline

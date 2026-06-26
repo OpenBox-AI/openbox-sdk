@@ -1,33 +1,34 @@
-// Claude Code-specific activity_type vocabulary. PascalCase strings
-// matching the `default` preset in openbox-sdk; production governance
-// rules (guardrails, policies, behavior rules) target these names.
-//
-// Why this isn't generated: the *standard* tool routing IS generated
-// (see PRE_TOOL_USE_ROUTING in core-client/generated/runtime/claude-code).
-// This file names the activity-types we fire for non-routed
-// events (session lifecycle, prompts, and the `mcp__*` fallback)
-// so mappers reference symbolic constants instead of bare strings.
+// Claude Code-specific activity_type vocabulary. Values are sourced from
+// the generated TypeSpec preset manifest so host runtime mappers cannot
+// drift from the shared SDK contract.
 //
 // EVENT (ActivityStarted/Completed/SignalReceived) is shared across
 // adapters; it's re-exported from `governance/events.ts`.
 
+import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
+
 export { EVENT } from '../../governance/events.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const claudeCodeActivity = PRESET_ACTIVITY_TYPES['claude-code'];
+
 export const ACTIVITY_TYPES = {
-  PROMPT: 'PromptSubmission',
-  FILE_READ: 'FileRead',
-  FILE_EDIT: 'FileEdit',
-  FILE_DELETE: 'FileDelete',
-  SHELL: 'ShellExecution',
-  HTTP_REQUEST: 'HTTPRequest',
-  DB_QUERY: 'DatabaseQuery',
-  MCP_CALL: 'MCPToolCall',
-  AGENT_SPAWN: 'AgentSpawn',
-  AGENT_ACTION: 'AgentAction',
-  SESSION: 'ClaudeCodeSession',
-  CONFIG_CHANGE: 'ClaudeCodeConfigChange',
-  WORKSPACE_CHANGE: 'ClaudeCodeWorkspaceChange',
-  MCP_ELICITATION: 'MCPElicitation',
-  TASK: 'ClaudeCodeTask',
-  MESSAGE: 'ClaudeCodeMessage',
+  PROMPT: defaultActivity.prompt,
+  FILE_READ: defaultActivity.read,
+  FILE_EDIT: defaultActivity.write,
+  FILE_DELETE: defaultActivity.fileDelete,
+  SHELL: defaultActivity.shell,
+  HTTP_REQUEST: defaultActivity.httpRequest,
+  DB_QUERY: defaultActivity.databaseQuery,
+  MCP_CALL: defaultActivity.mcpToolCall,
+  AGENT_SPAWN: defaultActivity.agentSpawn,
+  AGENT_ACTION: defaultActivity.agentAction,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
+  SESSION: claudeCodeActivity.sessionActivityStarted,
+  CONFIG_CHANGE: claudeCodeActivity.configChangeActivity,
+  WORKSPACE_CHANGE: claudeCodeActivity.workspaceChangeSignal,
+  MCP_ELICITATION: claudeCodeActivity.mcpElicitationStarted,
+  TASK: claudeCodeActivity.taskActivityStarted,
+  MESSAGE: claudeCodeActivity.messageActivityStarted,
+  USAGE_SIGNAL: claudeCodeActivity.claudeUsageSignal,
 } as const;

@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type {
@@ -8,8 +11,11 @@ import type {
   SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import {
+  OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS,
+  OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS,
   createOpenBoxAnthropicAgentHooks,
   createOpenBoxAnthropicAgentSDK,
+  verifyOpenBoxAnthropicAgentSDKConfig,
   withOpenBoxAnthropicAgentOptions,
 } from '@openbox-ai/openbox-sdk/anthropic-agent-sdk';
 import type {
@@ -19,6 +25,12 @@ import type {
 } from '../../ts/src/core-client/index.js';
 
 type VerdictArm = NonNullable<GovernanceVerdictResponse['verdict']>;
+const RUNTIME_ENV_KEYS = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+] as const;
 
 function createMockCore(
   resolve: (payload: GovernanceEventPayload) => Partial<GovernanceVerdictResponse>,
@@ -54,6 +66,29 @@ function verdict(
   };
 }
 
+function withRuntimeEnv<T>(
+  values: Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>,
+  fn: () => T,
+): T {
+  const previous = Object.fromEntries(
+    RUNTIME_ENV_KEYS.map((key) => [key, process.env[key]]),
+  ) as Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>;
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = values[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const key of RUNTIME_ENV_KEYS) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 async function runHook(
   hooks: ReturnType<typeof createOpenBoxAnthropicAgentHooks>,
   event: keyof ReturnType<typeof createOpenBoxAnthropicAgentHooks>,
@@ -77,6 +112,48 @@ const baseInput = {
 };
 
 describe('Anthropic Agent SDK OpenBox adapter', () => {
+  it('diagnoses runtime-only Anthropic Agent SDK configuration without host file mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-anthropic-agent-sdk-doctor-'));
+
+    const checks = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'obx_live_runtime',
+        OPENBOX_CORE_URL: 'https://core.openbox.test',
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAnthropicAgentSDKConfig({ worktreeRoot: join(cwd, 'worktrees') }),
+    );
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'runtime-enabled', status: 'pass' }),
+        expect.objectContaining({ name: 'api-key', status: 'pass' }),
+        expect.objectContaining({ name: 'core-url', status: 'pass' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'skip' }),
+        expect.objectContaining({ name: 'runtime-defaults', status: 'pass' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, 'worktrees'))).toBe(false);
+
+    const failures = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'not-a-runtime-key',
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAnthropicAgentSDKConfig({ worktreeRoot: join(cwd, 'worktrees') }),
+    );
+    expect(failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'api-key', status: 'fail' }),
+        expect.objectContaining({ name: 'core-url', status: 'fail' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'fail' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, 'worktrees'))).toBe(false);
+  });
+
   it('prepends OpenBox hooks without mutating user options', () => {
     const mock = createMockCore(() => verdict('allow'));
     const userHook = vi.fn(async () => ({}));
@@ -104,17 +181,68 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(wrapped.hooks?.PreToolUse?.[1]).toBe(userMatcher);
   });
 
-  it('registers every official Agent SDK hook except WorktreeCreate', () => {
+  it('registers every official Agent SDK hook except WorktreeCreate by default', () => {
     const mock = createMockCore(() => verdict('allow'));
     const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
     const registered = Object.keys(hooks).sort();
-    const expected = ANTHROPIC_AGENT_HOOK_EVENTS
-      .filter((event) => event !== 'WorktreeCreate')
-      .slice()
-      .sort();
+    const expectedDefaultEvents = ANTHROPIC_AGENT_HOOK_EVENTS.filter(
+      (event) => event !== 'WorktreeCreate',
+    );
 
-    expect(registered).toEqual(expected);
+    expect(OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS).toEqual(expectedDefaultEvents);
+    expect(registered).toEqual(expectedDefaultEvents.slice().sort());
+    expect(registered).toEqual(
+      [...OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS].sort(),
+    );
+    expect(OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS).toEqual([
+      'WorktreeCreate',
+    ]);
     expect((hooks as Record<string, unknown>).WorktreeCreate).toBeUndefined();
+  });
+
+  it('registers WorktreeCreate only when opt-in and returns a managed path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'openbox-anthropic-worktrees-'));
+    try {
+      const mock = createMockCore(() => verdict('allow'));
+      const hooks = createOpenBoxAnthropicAgentHooks({
+        core: mock.core,
+        includeOptInHooks: true,
+        worktreeRoot: root,
+      });
+
+      expect(Object.keys(hooks).sort()).toEqual(
+        [...OPENBOX_ANTHROPIC_AGENT_DEFAULT_HOOK_EVENTS, ...OPENBOX_ANTHROPIC_AGENT_OPT_IN_HOOK_EVENTS].sort(),
+      );
+
+      const output = await runHook(hooks, 'WorktreeCreate', {
+        ...baseInput,
+        hook_event_name: 'WorktreeCreate',
+        name: 'feature/test branch',
+      });
+      const hookOutput = (output as Record<string, unknown>).hookSpecificOutput as Record<string, unknown>;
+      const worktreePath = String(hookOutput.worktreePath);
+
+      expect(hookOutput.hookEventName).toBe('WorktreeCreate');
+      expect(worktreePath).toContain(root);
+      expect(worktreePath).toContain('feature-test-branch');
+      expect(existsSync(worktreePath)).toBe(true);
+      expect(mock.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event_type: 'ActivityStarted',
+            activity_type: 'AnthropicAgentSDKWorkspaceChange',
+            activity_input: [
+              expect.objectContaining({
+                event_category: 'worktree_create',
+                worktree_path: worktreePath,
+              }),
+            ],
+          }),
+        ]),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('observes generic Agent SDK hooks without decision output', async () => {
@@ -160,7 +288,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
   });
 
-  it('emits prompt submit gate after the goal signal without prompt spans', async () => {
+  it('emits prompt submit gate after the goal signal with LLM hook spans', async () => {
     const mock = createMockCore(() => verdict('allow'));
     const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
 
@@ -198,23 +326,46 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'PromptSubmission',
     );
-    expect(promptEvents).toHaveLength(1);
-    const [parent] = promptEvents;
-    expect(parent.hook_trigger).toBe(false);
-    expect(parent.spans).toBeUndefined();
-    expect(parent.span_count).toBeUndefined();
-    expect(parent.prompt).toBe('Summarize this repository.');
-    expect(mock.events.indexOf(signalEvent!)).toBeLessThan(mock.events.indexOf(parent));
-    expect(parent.activity_input).toEqual([
+    expect(promptEvents).toHaveLength(2);
+    const parent = promptEvents.find((event) => event.hook_trigger !== true);
+    const hook = promptEvents.find((event) => event.hook_trigger === true);
+    expect(parent).toBeDefined();
+    expect(hook).toBeDefined();
+    expect(parent!.hook_trigger).toBe(false);
+    expect(parent!.spans).toBeUndefined();
+    expect(parent!.span_count).toBeUndefined();
+    expect(parent!.prompt).toBe('Summarize this repository.');
+    expect(mock.events.indexOf(signalEvent!)).toBeLessThan(mock.events.indexOf(parent!));
+    expect(parent!.activity_input).toEqual([
       expect.objectContaining({
         event_category: 'llm_prompt',
         prompt: 'Summarize this repository.',
         _openbox_source: 'anthropic-agent-sdk',
       }),
     ]);
+    expect(hook).toMatchObject({
+      workflow_id: parent!.workflow_id,
+      run_id: parent!.run_id,
+      activity_id: parent!.activity_id,
+      activity_type: parent!.activity_type,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(hook?.spans?.[0]).toMatchObject({
+      name: 'llm.chat.completion',
+      module: 'anthropic-agent-sdk',
+      stage: 'started',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'anthropic-agent-sdk',
+        'http.method': 'POST',
+      }),
+    });
+    expect(JSON.parse(String((hook?.spans?.[0] as any)?.request_body)).messages[0].content).toBe(
+      'Summarize this repository.',
+    );
   });
 
-  it('gates prompt expansions without prompt spans', async () => {
+  it('gates prompt expansions with LLM hook spans', async () => {
     const mock = createMockCore((payload) =>
       payload.event_type === 'ActivityStarted' &&
       payload.activity_type === 'PromptSubmission' &&
@@ -242,9 +393,12 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'PromptSubmission',
     );
-    expect(promptEvents).toHaveLength(1);
-    const [parent] = promptEvents;
-    expect(parent.activity_input).toEqual([
+    expect(promptEvents).toHaveLength(2);
+    const parent = promptEvents.find((event) => event.hook_trigger !== true);
+    const hook = promptEvents.find((event) => event.hook_trigger === true);
+    expect(parent).toBeDefined();
+    expect(hook).toBeDefined();
+    expect(parent!.activity_input).toEqual([
       expect.objectContaining({
         event_category: 'llm_prompt_expansion',
         command_name: 'deploy',
@@ -252,8 +406,28 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         prompt: 'Deploy production now.',
       }),
     ]);
-    expect(parent.spans).toBeUndefined();
-    expect(parent.span_count).toBeUndefined();
+    expect(parent!.spans).toBeUndefined();
+    expect(parent!.span_count).toBeUndefined();
+    expect(hook).toMatchObject({
+      workflow_id: parent!.workflow_id,
+      run_id: parent!.run_id,
+      activity_id: parent!.activity_id,
+      activity_type: parent!.activity_type,
+      hook_trigger: true,
+      span_count: 1,
+    });
+    expect(hook?.spans?.[0]).toMatchObject({
+      name: 'llm.chat.completion',
+      module: 'anthropic-agent-sdk',
+      stage: 'started',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'anthropic-agent-sdk',
+        'http.method': 'POST',
+      }),
+    });
+    expect(JSON.parse(String((hook?.spans?.[0] as any)?.request_body)).messages[0].content).toBe(
+      'Deploy production now.',
+    );
   });
 
   it('fails closed when prompt redaction cannot be applied by the host', async () => {
@@ -268,6 +442,35 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
               validation_passed: true,
               reasons: [],
               results: [],
+              raw_logs: {},
+            },
+          })
+        : verdict('allow'),
+    );
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'UserPromptSubmit', {
+      ...baseInput,
+      prompt: 'Summarize secret.',
+    });
+
+    expect(output).toEqual({
+      decision: 'block',
+      reason: '[OpenBox] prompt redacted',
+    });
+  });
+
+  it('fails closed on field-only prompt redaction without replacement input', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'PromptSubmission'
+        ? verdict('constrain', {
+            reason: 'prompt redacted',
+            guardrails_result: {
+              input_type: 'activity_input',
+              validation_passed: true,
+              reasons: [],
+              field_results: [{ field: 'prompt', status: 'redacted' }],
               raw_logs: {},
             },
           })
@@ -322,6 +525,41 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
   });
 
+  it('denies constrained PreToolUse when field-only input redaction has no replacement', async () => {
+    const mock = createMockCore((payload) => {
+      if (payload.event_type === 'ActivityStarted') {
+        return verdict('constrain', {
+          reason: 'redacted shell command',
+          guardrails_result: {
+            input_type: 'activity_input',
+            validation_passed: true,
+            reasons: [],
+            field_results: [{ field: 'command', status: 'redacted' }],
+            raw_logs: {},
+          },
+        });
+      }
+      return verdict('allow');
+    });
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'PreToolUse', {
+      ...baseInput,
+      tool_name: 'Bash',
+      tool_input: { command: 'cat secret.txt' },
+      tool_use_id: 'tool_field_only',
+    });
+
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          '[OpenBox] redacted shell command. OpenBox did not provide replacement input, so the original action was blocked.',
+      },
+    });
+  });
+
   it('maps approval-required PreToolUse verdicts to ask or defer', async () => {
     const createApprovalCore = () =>
       createMockCore((payload) =>
@@ -356,8 +594,20 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       },
     );
 
-    expect((askOutput as any).hookSpecificOutput.permissionDecision).toBe('ask');
-    expect((deferOutput as any).hookSpecificOutput.permissionDecision).toBe('defer');
+    expect(askOutput).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: '[OpenBox] needs reviewer',
+      },
+    });
+    expect(deferOutput).toMatchObject({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'defer',
+        permissionDecisionReason: '[OpenBox] needs reviewer',
+      },
+    });
   });
 
   it('pairs post-tool telemetry with the approval-required pre-tool activity', async () => {
@@ -520,7 +770,6 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
     expect(permissionHook?.spans?.[0]).toMatchObject({
       name: 'ShellExecution',
-      semantic_type: 'internal',
       module: 'anthropic-agent-sdk',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
@@ -528,6 +777,10 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         'tool.name': 'Bash',
       }),
     });
+    expect(permissionHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(permissionHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
   });
 
   it('maps task, config, and elicitation verdicts to Agent SDK outputs', async () => {
@@ -645,7 +898,81 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     );
     expect(completedHook?.spans?.[0]).toMatchObject({
       stage: 'completed',
-      semantic_type: 'internal',
+    });
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
+
+    const fallbackMock = createMockCore(() => verdict('allow'));
+    const fallbackHooks = createOpenBoxAnthropicAgentHooks({ core: fallbackMock.core });
+    await runHook(fallbackHooks, 'PostToolUse', {
+      ...baseInput,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      tool_response: { stdout: 'ok' },
+      tool_use_id: 'missing_pre_tool',
+      duration_ms: 42,
+    });
+    const fallbackCompleted = fallbackMock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'ShellExecution',
+    );
+    const fallbackEvents = fallbackMock.events.filter(
+      (event) => event.activity_id === fallbackCompleted?.activity_id,
+    );
+    expect(fallbackEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(fallbackEvents[0].spans).toBeUndefined();
+    expect(fallbackEvents[2].spans?.[0]).toMatchObject({
+      activity_id: fallbackCompleted?.activity_id,
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
+      }),
+    });
+    expect(fallbackEvents[2].spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(fallbackEvents[2].spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
+
+    const failureMock = createMockCore(() => verdict('allow'));
+    const failureHooks = createOpenBoxAnthropicAgentHooks({ core: failureMock.core });
+    await runHook(failureHooks, 'PostToolUseFailure', {
+      ...baseInput,
+      hook_event_name: 'PostToolUseFailure',
+      tool_name: 'Bash',
+      tool_input: { command: 'npm test' },
+      error: 'exit 1',
+      tool_use_id: 'missing_pre_failure',
+      duration_ms: 42,
+    });
+    const failureCompleted = failureMock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'PostToolUseFailure',
+    );
+    const failureEvents = failureMock.events.filter(
+      (event) => event.activity_id === failureCompleted?.activity_id,
+    );
+    expect(failureEvents.map((event) => [event.event_type, event.hook_trigger])).toEqual([
+      ['ActivityStarted', false],
+      ['ActivityCompleted', false],
+      ['ActivityStarted', true],
+    ]);
+    expect(failureEvents[2].spans?.[0]).toMatchObject({
+      activity_id: failureCompleted?.activity_id,
+      stage: 'completed',
+      attributes: expect.objectContaining({
+        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
+      }),
     });
   });
 
@@ -719,6 +1046,42 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       tool_input: { command: 'cat secret.txt' },
       tool_response: { stdout: 'secret' },
       tool_use_id: 'tool_output',
+    });
+
+    expect(output).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PostToolUse',
+        updatedToolOutput: { stdout: '[redacted]' },
+      },
+    });
+  });
+
+  it('prefers compatibility redacted_output for constrained Anthropic tool output', async () => {
+    const mock = createMockCore((payload) => {
+      if (payload.event_type === 'ActivityCompleted') {
+        return verdict('constrain', {
+          guardrails_result: {
+            input_type: 'activity_output',
+            redacted_input: { output: { stdout: 'legacy' } },
+            redacted_output: { output: { stdout: '[redacted]' } },
+            validation_passed: true,
+            reasons: [],
+            field_results: [{ field: 'output.stdout', status: 'redacted' }],
+            raw_logs: {},
+          } as never,
+        });
+      }
+      return verdict('allow');
+    });
+    const hooks = createOpenBoxAnthropicAgentHooks({ core: mock.core });
+
+    const output = await runHook(hooks, 'PostToolUse', {
+      ...baseInput,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'cat secret.txt' },
+      tool_response: { stdout: 'secret' },
+      tool_use_id: 'tool_output_current',
     });
 
     expect(output).toEqual({
@@ -813,8 +1176,9 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(span).toMatchObject({
       name: 'openbox.anthropic-agent-sdk.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
     });
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(JSON.parse(span.response_body).choices[0].message.content).toBe(
       'partial assistant answer',
     );
@@ -988,8 +1352,11 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(assistantHook?.spans?.[0]).toMatchObject({
       name: 'openbox.anthropic-agent-sdk.assistant_output',
       stage: 'completed',
-      semantic_type: 'llm_completion',
     });
+    expect(assistantHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(assistantHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
     expect(
       mock.events.some((event) => event.event_type === 'WorkflowCompleted'),
     ).toBe(true);
@@ -1017,7 +1384,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
             cacheReadInputTokens: 3,
             cacheCreationInputTokens: 2,
             webSearchRequests: 1,
-            costUSD: 0.006,
+            cost_usd: '0.006',
             contextWindow: 200000,
             maxOutputTokens: 8192,
           },
@@ -1027,7 +1394,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             webSearchRequests: 0,
-            costUSD: 0.015,
+            costUsd: '0.015',
             contextWindow: 200000,
             maxOutputTokens: 8192,
           },
@@ -1071,8 +1438,11 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(contentHook?.activity_id).toBe(assistantParent.activity_id);
     expect(contentHook?.spans?.[0]).toMatchObject({
       name: 'openbox.anthropic-agent-sdk.assistant_output',
-      semantic_type: 'llm_completion',
     });
+    expect(contentHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(contentHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
     expect((contentHook.spans?.[0] as any).input_tokens).toBeUndefined();
 
     expect(syntheticHooks).toHaveLength(2);

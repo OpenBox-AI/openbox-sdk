@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import inspect
+import math
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 from openbox_sdk._govern_runtime import BaseGovernedSession, WorkflowVerdict
 from openbox_sdk.clients import AsyncOpenBoxCoreClient
-from openbox_sdk.generated.govern import presets
+from openbox_sdk.generated.capability_matrix import USAGE_NORMALIZATION_SURFACE
+from openbox_sdk.generated.govern import PRESET_ACTIVITY_TYPES, presets
+from openbox_sdk.generated.runtime_contract import (
+    ACTIVITY_COMPLETED_EVENT_TYPE,
+    ACTIVITY_STARTED_EVENT_TYPE,
+)
 
 T = TypeVar("T")
+R = TypeVar("R")
+DEFAULT_ACTIVITY_TYPES = PRESET_ACTIVITY_TYPES["default"]
 
 
 class OpenBoxLangGraphMiddleware:
@@ -44,7 +52,7 @@ class OpenBoxLangGraphMiddleware:
         activity_id: str | None = None,
     ) -> WorkflowVerdict:
         return await self.session.observe_activity(
-            "ActivityStarted",
+            ACTIVITY_STARTED_EVENT_TYPE,
             activity_type,
             _with_activity_id(payload, activity_id),
         )
@@ -57,7 +65,7 @@ class OpenBoxLangGraphMiddleware:
         activity_id: str | None = None,
     ) -> WorkflowVerdict:
         return await self.session.observe_activity(
-            "ActivityCompleted",
+            ACTIVITY_COMPLETED_EVENT_TYPE,
             activity_type,
             _with_activity_id(payload, activity_id),
         )
@@ -68,7 +76,7 @@ class OpenBoxLangGraphMiddleware:
         activity_id: str,
         activity_type: str,
         span: Mapping[str, Any],
-        event_type: str = "ActivityStarted",
+        event_type: str = ACTIVITY_STARTED_EVENT_TYPE,
     ) -> WorkflowVerdict:
         payload = {
             "event_type": event_type,
@@ -79,45 +87,116 @@ class OpenBoxLangGraphMiddleware:
         }
         return await self.session.emit(payload)
 
+    @overload
     async def wrap_tool_call(
         self,
-        request: Any,
-        handler: Callable[[Any], Awaitable[T] | T],
+        request: R,
+        handler: Callable[[R], Awaitable[T]],
+    ) -> T: ...
+
+    @overload
+    async def wrap_tool_call(
+        self,
+        request: R,
+        handler: Callable[[R], T],
+    ) -> T: ...
+
+    async def wrap_tool_call(
+        self,
+        request: R,
+        handler: Callable[[R], Awaitable[T] | T],
     ) -> T:
         activity_id = _request_id(request)
-        activity_type = _request_name(request, "ToolCall")
+        activity_type = _request_name(request, DEFAULT_ACTIVITY_TYPES["agentAction"])
+        plain_request = _plain_request(request)
+        tool_input = _tool_input(request)
         opened = await self.session.open_activity(
             activity_type,
-            {"activity_id": activity_id, "input": [_plain_request(request)]},
+            {
+                "activity_id": activity_id,
+                "input": [plain_request],
+                "tool_name": activity_type,
+                "tool_type": _span_type_for(activity_type, tool_input),
+                "spans": [_tool_span(activity_type, tool_input, stage="started")],
+            },
         )
         self._enforce_verdict(opened.verdict)
         try:
             result = await _maybe_await(handler(request))
         except BaseException as exc:
             await opened.complete(
-                {"input": [_plain_request(request)], "output": {"error": str(exc)}},
+                {
+                    "input": [plain_request],
+                    "output": {"error": str(exc)},
+                    "tool_name": activity_type,
+                    "tool_type": _span_type_for(activity_type, tool_input),
+                    "spans": [
+                        _tool_span(
+                            activity_type,
+                            tool_input,
+                            tool_output={"error": str(exc)},
+                            stage="completed",
+                        )
+                    ],
+                },
             )
             raise
         completed = await opened.complete(
-            {"input": [_plain_request(request)], "output": result},
+            {
+                "input": [plain_request],
+                "output": result,
+                "tool_name": activity_type,
+                "tool_type": _span_type_for(activity_type, tool_input),
+                "spans": [
+                    _tool_span(
+                        activity_type,
+                        tool_input,
+                        tool_output=result,
+                        stage="completed",
+                    )
+                ],
+            },
         )
         self._enforce_verdict(completed)
         return result
 
+    @overload
     async def wrap_model_call(
         self,
-        request: Any,
-        handler: Callable[[Any], Awaitable[T] | T],
+        request: R,
+        handler: Callable[[R], Awaitable[T]],
+    ) -> T: ...
+
+    @overload
+    async def wrap_model_call(
+        self,
+        request: R,
+        handler: Callable[[R], T],
+    ) -> T: ...
+
+    async def wrap_model_call(
+        self,
+        request: R,
+        handler: Callable[[R], Awaitable[T] | T],
     ) -> T:
         activity_id = _request_id(request)
+        plain_request = _plain_request(request)
         opened = await self.session.open_activity(
             "on_chat_model_start",
-            {"activity_id": activity_id, "input": [_plain_request(request)]},
+            {
+                "activity_id": activity_id,
+                "input": [plain_request],
+                **_model_request_fields(request),
+            },
         )
         self._enforce_verdict(opened.verdict)
         result = await _maybe_await(handler(request))
         completed = await opened.complete(
-            {"input": [_plain_request(request)], "output": result},
+            {
+                "input": [plain_request],
+                "output": result,
+                **_model_completion_fields(request, result),
+            },
             "on_chat_model_end",
         )
         self._enforce_verdict(completed)
@@ -208,6 +287,252 @@ def _value(request: Any, key: str) -> Any:
     if isinstance(request, Mapping):
         return request.get(key)
     return getattr(request, key, None)
+
+
+def _tool_input(request: Any) -> dict[str, Any]:
+    value = _value(request, "input") or _value(request, "args") or _value(request, "arguments")
+    if isinstance(value, Mapping):
+        return dict(value)
+    plain = _plain_request(request)
+    return dict(plain) if isinstance(plain, Mapping) else {}
+
+
+def _span_type_for(tool_name: str, tool_input: Mapping[str, Any]) -> str:
+    lower = tool_name.lower()
+    if "read" in lower or tool_input.get("read") is True:
+        return "file_read"
+    if "write" in lower or "edit" in lower:
+        return "file_write"
+    if "delete" in lower or "remove" in lower:
+        return "file_delete"
+    if "bash" in lower or "shell" in lower or isinstance(tool_input.get("command"), str):
+        return "shell"
+    if (
+        "web" in lower
+        or isinstance(tool_input.get("url"), str)
+        or isinstance(tool_input.get("uri"), str)
+    ):
+        return "http"
+    if lower.startswith("mcp") or "mcp" in lower:
+        return "mcp"
+    return "internal"
+
+
+def _tool_span(
+    tool_name: str,
+    tool_input: Mapping[str, Any],
+    *,
+    tool_output: Any | None = None,
+    stage: str,
+) -> dict[str, Any]:
+    span_type = _span_type_for(tool_name, tool_input)
+    attributes: dict[str, Any] = {
+        "openbox.tool.name": tool_name,
+        "tool.name": tool_name,
+        "tool_name": tool_name,
+        "openbox.semantic_type": span_type,
+        "openbox.span_type": "function" if span_type in {"internal", "shell"} else span_type,
+    }
+    if span_type == "shell" and isinstance(tool_input.get("command"), str):
+        attributes["shell.command"] = tool_input["command"]
+    if span_type == "http":
+        attributes["http.method"] = str(tool_input.get("method") or "GET").upper()
+        target = _first_string(tool_input.get("url"), tool_input.get("uri"), tool_input.get("href"))
+        if target:
+            attributes["http.url"] = target
+    if span_type.startswith("file_"):
+        path = _first_string(
+            tool_input.get("file_path"),
+            tool_input.get("filePath"),
+            tool_input.get("path"),
+        )
+        if path:
+            attributes["file.path"] = path
+        attributes["file.operation"] = span_type.removeprefix("file_")
+    if span_type == "mcp":
+        attributes["mcp.method"] = "callTool"
+
+    return {
+        "name": tool_name,
+        "kind": "INTERNAL",
+        "span_type": "function" if span_type in {"internal", "shell"} else span_type,
+        "hook_type": "function_call",
+        "semantic_type": "internal" if span_type == "shell" else span_type,
+        "stage": stage,
+        "attributes": attributes,
+        "function": tool_name,
+        "args": dict(tool_input),
+        "result": tool_output,
+    }
+
+
+def _model_request_fields(request: Any) -> dict[str, Any]:
+    model = _model_from(request)
+    prompt = _prompt_from(request)
+    return {
+        **({"llm_model": model} if model else {}),
+        **({"prompt": prompt} if prompt else {}),
+    }
+
+
+def _model_completion_fields(request: Any, result: Any) -> dict[str, Any]:
+    usage = _usage_from(result) or _usage_from(request)
+    input_tokens = _token_value(usage, _usage_aliases("inputTokenAliases"))
+    output_tokens = _token_value(usage, _usage_aliases("outputTokenAliases"))
+    total_tokens = _token_value(usage, _usage_aliases("totalTokenAliases"))
+    if total_tokens is None and (input_tokens is not None or output_tokens is not None):
+        total_tokens = (input_tokens or 0) + (output_tokens or 0)
+    cost_usd = _number_value(usage, _usage_aliases("costUsdAliases"))
+    model = _model_from(result) or _model_from(request)
+    finish_reason = _first_string(
+        *(_field_value(result, field) for field in _usage_aliases("providerFinishReasonFields"))
+    )
+    completion = _completion_from(result)
+    return {
+        **({"llm_model": model} if model else {}),
+        **({"input_tokens": input_tokens} if input_tokens is not None else {}),
+        **({"output_tokens": output_tokens} if output_tokens is not None else {}),
+        **({"total_tokens": total_tokens} if total_tokens is not None else {}),
+        **({"cost_usd": cost_usd} if cost_usd is not None else {}),
+        "has_tool_calls": _has_tool_calls(result),
+        **({"finish_reason": finish_reason} if finish_reason else {}),
+        **({"completion": completion} if completion else {}),
+    }
+
+
+def _usage_from(value: Any) -> Mapping[str, Any] | None:
+    for field in _usage_aliases("providerUsageContainers"):
+        candidate = _field_value(value, field)
+        if isinstance(candidate, Mapping):
+            return candidate
+    return None
+
+
+def _model_from(value: Any) -> str | None:
+    return _first_string(
+        *(_field_value(value, field) for field in _usage_aliases("providerModelFields"))
+    )
+
+
+def _prompt_from(value: Any) -> str | None:
+    prompt = _value(value, "prompt")
+    if isinstance(prompt, str) and prompt.strip():
+        return prompt
+    messages = _value(value, "messages")
+    if isinstance(messages, list):
+        parts = []
+        for message in messages:
+            content = _value(message, "content")
+            if isinstance(content, str) and content.strip():
+                parts.append(content.strip())
+        if parts:
+            return "\n".join(parts)
+    return None
+
+
+def _completion_from(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value
+    direct = _first_string(_value(value, "content"), _value(value, "text"))
+    if direct:
+        return direct
+    message = _value(value, "message")
+    if isinstance(message, Mapping):
+        return _first_string(message.get("content"))
+    choices = _value(value, "choices")
+    if isinstance(choices, list) and choices:
+        first = choices[0]
+        if isinstance(first, Mapping):
+            return _first_string(
+                first.get("text"),
+                _nested_value(first, "message", "content"),
+            )
+    return None
+
+
+def _has_tool_calls(value: Any) -> bool:
+    candidates = (
+        _value(value, "tool_calls"),
+        _value(value, "toolCalls"),
+        _nested_value(value, "additional_kwargs", "tool_calls"),
+        _nested_value(value, "message", "tool_calls"),
+    )
+    return any(isinstance(candidate, list) and len(candidate) > 0 for candidate in candidates)
+
+
+def _usage_aliases(key: str) -> list[str]:
+    aliases = USAGE_NORMALIZATION_SURFACE.get(key, [])
+    return [alias for alias in aliases if isinstance(alias, str)]
+
+
+def _usage_minimum_value() -> float:
+    value = USAGE_NORMALIZATION_SURFACE.get("minimumValue", 0)
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        return 0
+    return float(value)
+
+
+def _token_value(source: Mapping[str, Any] | None, keys: list[str]) -> int | None:
+    if source is None:
+        return None
+    minimum = _usage_minimum_value()
+    for key in keys:
+        number_value = _usage_number_value(_field_value(source, key))
+        if (
+            number_value is not None
+            and number_value >= minimum
+            and (
+                not USAGE_NORMALIZATION_SURFACE.get("tokenValuesRequireIntegers", True)
+                or number_value.is_integer()
+            )
+        ):
+            return int(number_value)
+    return None
+
+
+def _number_value(source: Mapping[str, Any] | None, keys: list[str]) -> float | None:
+    if source is None:
+        return None
+    minimum = _usage_minimum_value()
+    for key in keys:
+        value = _usage_number_value(_field_value(source, key))
+        if value is not None and value >= minimum:
+            return value
+    return None
+
+
+def _usage_number_value(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value) if math.isfinite(value) else None
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = float(value)
+        except ValueError:
+            return None
+        return parsed if math.isfinite(parsed) else None
+    return None
+
+
+def _field_value(value: Any, field: str) -> Any:
+    current = value
+    for part in field.split("."):
+        current = _value(current, part)
+        if current is None:
+            return None
+    return current
+
+
+def _nested_value(value: Any, first: str, second: str) -> Any:
+    return _field_value(value, f"{first}.{second}")
+
+
+def _first_string(*values: Any) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 async def _maybe_await(value: Awaitable[T] | T) -> T:

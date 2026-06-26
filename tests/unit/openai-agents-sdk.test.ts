@@ -1,0 +1,1274 @@
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { AgentHooks as OpenAIAgentHooks } from '@openai/agents';
+import {
+  OpenBoxAgentsSDKError,
+  createOpenBoxAgentHooks,
+  createOpenBoxTracingProcessor,
+  createOpenBoxAgentsTool,
+  openBoxInputGuardrail,
+  openBoxOutputGuardrail,
+  openBoxToolInputGuardrail,
+  openBoxToolOutputGuardrail,
+  runWithOpenBox,
+  verifyOpenBoxAgentsSDKConfig,
+} from '@openbox-ai/openbox-sdk/openai-agents-sdk';
+import type {
+  GovernanceEventPayload,
+  GovernanceVerdictResponse,
+  OpenBoxCoreClient,
+} from '../../ts/src/core-client/index.js';
+import {
+  runAssistantOutputSpan,
+  runTelemetryFields,
+} from '../../ts/src/openai-agents-sdk/payloads.js';
+
+type VerdictArm = NonNullable<GovernanceVerdictResponse['verdict']>;
+const RUNTIME_ENV_KEYS = [
+  'OPENBOX_API_KEY',
+  'OPENBOX_CORE_URL',
+  'OPENBOX_AGENT_DID',
+  'OPENBOX_AGENT_PRIVATE_KEY',
+] as const;
+
+function createMockCore(
+  resolve: (
+    payload: GovernanceEventPayload,
+  ) => Partial<GovernanceVerdictResponse>,
+) {
+  const events: GovernanceEventPayload[] = [];
+  return {
+    events,
+    core: {
+      evaluate: vi.fn(async (payload: GovernanceEventPayload) => {
+        events.push(payload);
+        return {
+          governance_event_id: `evt_${events.length}`,
+          verdict: 'allow',
+          action: 'allow',
+          risk_score: 0,
+          ...resolve(payload),
+        } satisfies Partial<GovernanceVerdictResponse>;
+      }),
+      pollApproval: vi.fn(),
+    } as unknown as OpenBoxCoreClient,
+  };
+}
+
+function verdict(
+  arm: VerdictArm,
+  extra: Partial<GovernanceVerdictResponse> = {},
+): Partial<GovernanceVerdictResponse> {
+  return {
+    verdict: arm,
+    action: arm,
+    risk_score: 0,
+    ...extra,
+  };
+}
+
+function withRuntimeEnv<T>(
+  values: Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>,
+  fn: () => T,
+): T {
+  const previous = Object.fromEntries(
+    RUNTIME_ENV_KEYS.map((key) => [key, process.env[key]]),
+  ) as Partial<Record<(typeof RUNTIME_ENV_KEYS)[number], string | undefined>>;
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = values[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const key of RUNTIME_ENV_KEYS) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+function nativeHookEventNames(hooks: unknown): string[] {
+  const emitter = (hooks as {
+    eventEmitter?: { eventNames?: () => Array<string | symbol> };
+  }).eventEmitter;
+  return (emitter?.eventNames?.() ?? []).map(String).sort();
+}
+
+describe('OpenAI Agents SDK OpenBox adapter', () => {
+  it('diagnoses runtime-only OpenAI Agents SDK configuration without host file mutation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'openbox-openai-agents-sdk-doctor-'));
+
+    const checks = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'obx_test_runtime',
+        OPENBOX_CORE_URL: 'https://core.openbox.test',
+        OPENBOX_AGENT_DID: undefined,
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAgentsSDKConfig({ cwd }),
+    );
+    expect(checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'runtime-enabled', status: 'pass' }),
+        expect.objectContaining({ name: 'api-key', status: 'pass' }),
+        expect.objectContaining({ name: 'core-url', status: 'pass' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'skip' }),
+        expect.objectContaining({ name: 'runtime-defaults', status: 'pass' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, '.openbox'))).toBe(false);
+
+    const failures = withRuntimeEnv(
+      {
+        OPENBOX_API_KEY: 'obx_key_backend',
+        OPENBOX_CORE_URL: undefined,
+        OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
+        OPENBOX_AGENT_PRIVATE_KEY: undefined,
+      },
+      () => verifyOpenBoxAgentsSDKConfig({ cwd }),
+    );
+    expect(failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'api-key', status: 'fail' }),
+        expect.objectContaining({ name: 'core-url', status: 'fail' }),
+        expect.objectContaining({ name: 'signed-agent-identity', status: 'fail' }),
+      ]),
+    );
+    expect(existsSync(join(cwd, '.openbox'))).toBe(false);
+  });
+
+  it('wraps tool execution and emits source-stamped tool events', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const toolFactory = vi.fn((config) => config);
+    const execute = vi.fn(async (input) => ({ ok: true, input }));
+    const details = {
+      toolCall: {
+        type: 'function_call',
+        callId: 'call-shell-1',
+        name: 'Shell',
+        namespace: 'local',
+        arguments: '{"command":"ls","cwd":"/tmp"}',
+      },
+    };
+    const runContext = { traceId: 'run-context' };
+
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        description: 'run shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'openai-agent-session',
+        toolFactory,
+      },
+    ) as {
+      execute: (
+        input: unknown,
+        context?: unknown,
+        details?: unknown,
+      ) => Promise<unknown>;
+    };
+
+    await expect(
+      wrapped.execute({ command: 'ls', cwd: '/tmp' }, runContext, details),
+    ).resolves.toEqual({
+      ok: true,
+      input: { command: 'ls', cwd: '/tmp' },
+    });
+    expect(execute).toHaveBeenCalledWith(
+      { command: 'ls', cwd: '/tmp' },
+      runContext,
+      details,
+    );
+
+    expect(toolFactory).toHaveBeenCalled();
+    const parent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger !== true,
+    );
+    expect(parent).toMatchObject({
+      activity_id: 'call-shell-1',
+      session_id: 'openai-agent-session',
+      tool_name: 'Shell',
+      tool_type: 'shell',
+    });
+    expect(parent?.hook_trigger).toBe(false);
+    const activityInput = parent?.activity_input as unknown[] | undefined;
+    expect(activityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      tool_name: 'Shell',
+      tool_call_id: 'call-shell-1',
+      tool_namespace: 'local',
+      event_category: 'tool_input',
+    });
+    const hookEvent = mock.events.find(
+      (event) =>
+        event.activity_id === 'call-shell-1' && event.hook_trigger === true,
+    );
+    expect(hookEvent?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      name: 'ShellExecution',
+      attributes: {
+        'openbox.tool.call_id': 'call-shell-1',
+        'openbox.tool.namespace': 'local',
+      },
+    });
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'ToolCompleted' &&
+        event.hook_trigger !== true,
+    );
+    expect(completed).toMatchObject({
+      activity_id: 'call-shell-1',
+      activity_type: 'ToolCompleted',
+    });
+    expect(completed?.hook_trigger).toBe(false);
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ToolCompleted' &&
+        event.activity_id === 'call-shell-1' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.stage === 'completed',
+    );
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      stage: 'completed',
+    });
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
+  });
+
+  it('maps database MCP tools to DatabaseQuery governance spans', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'mcp__postgres__query',
+        description: 'query postgres',
+        execute: vi.fn(async (input) => ({ rows: [], input })),
+      },
+      {
+        core: mock.core,
+        sessionId: 'openai-db-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown, context?: unknown, details?: unknown) => Promise<unknown> };
+
+    await expect(
+      wrapped.execute({ statement: 'SELECT 1' }, undefined, {
+        toolCall: {
+          callId: 'call-db-1',
+          name: 'mcp__postgres__query',
+          arguments: '{"statement":"SELECT 1"}',
+        },
+      }),
+    ).resolves.toMatchObject({ rows: [] });
+
+    const parent = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'DatabaseQuery' &&
+        event.hook_trigger !== true,
+    );
+    expect(parent).toMatchObject({
+      activity_id: 'call-db-1',
+      tool_name: 'mcp__postgres__query',
+      tool_type: 'db',
+    });
+    const hook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'DatabaseQuery' &&
+        event.hook_trigger === true,
+    );
+    expect(hook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      attributes: expect.objectContaining({
+        'db.system': 'postgresql',
+        'db.operation': 'SELECT',
+        'db.statement': 'SELECT 1',
+      }),
+    });
+  });
+
+  it('throws a typed error when a tool is blocked', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'ShellExecution'
+        ? verdict('block', { reason: 'shell blocked' })
+        : verdict('allow'),
+    );
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute: vi.fn(async () => 'should not run'),
+      },
+      {
+        core: mock.core,
+        sessionId: 'blocked-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    await expect(wrapped.execute({ command: 'rm -rf /tmp/x' })).rejects.toThrow(
+      OpenBoxAgentsSDKError,
+    );
+  });
+
+  it('surfaces OpenBox approval through the official OpenAI needsApproval interruption hook', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'ShellExecution' &&
+      payload.hook_trigger === false
+        ? verdict('require_approval', { reason: 'needs OpenAI approval' })
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async (input) => ({ ok: true, input }));
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        description: 'run shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'openai-interrupt-session',
+        approvalMode: 'interrupt',
+        toolFactory: (config) => config,
+      },
+    ) as {
+      execute: (input: unknown, context?: unknown, details?: unknown) => Promise<unknown>;
+      needsApproval: (context: unknown, input: unknown, callId?: string) => Promise<boolean>;
+    };
+
+    await expect(
+      wrapped.needsApproval(
+        { isToolApproved: () => undefined },
+        { command: 'deploy' },
+        'call-openai-interrupt',
+      ),
+    ).resolves.toBe(true);
+
+    await expect(
+      wrapped.execute(
+        { command: 'deploy' },
+        { isToolApproved: () => true },
+        {
+          toolCall: {
+            callId: 'call-openai-interrupt',
+            name: 'Shell',
+            arguments: '{"command":"deploy"}',
+          },
+        },
+      ),
+    ).resolves.toEqual({ ok: true, input: { command: 'deploy' } });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    const started = mock.events.filter(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'ShellExecution' &&
+        event.hook_trigger === false,
+    );
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({
+      activity_id: 'call-openai-interrupt',
+      session_id: 'openai-interrupt-session',
+    });
+  });
+
+  it('uses constrained tool input when Core returns redacted args', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'ShellExecution'
+        ? verdict('constrain', {
+            reason: 'redacted',
+            guardrails_result: {
+              input_type: 'activity_input',
+              redacted_input: [{ command: 'echo [redacted]' }],
+              validation_passed: true,
+              reasons: [],
+              field_results: [],
+            },
+          } as any)
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async (input) => input);
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'constrain-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    await expect(
+      wrapped.execute({ command: 'cat secret.txt' }),
+    ).resolves.toEqual({
+      command: 'echo [redacted]',
+    });
+    expect(execute).toHaveBeenCalledWith(
+      { command: 'echo [redacted]' },
+      undefined,
+      undefined,
+    );
+  });
+
+  it('fails closed when constrained tool input has field-only redaction', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityStarted' &&
+      payload.activity_type === 'ShellExecution'
+        ? verdict('constrain', {
+            reason: 'redacted',
+            guardrails_result: {
+              input_type: 'activity_input',
+              validation_passed: true,
+              reasons: [],
+              field_results: [{ field: 'command', status: 'redacted' }],
+            },
+          })
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async (input) => input);
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'field-only-redaction-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    const blockedExecution = wrapped.execute({ command: 'cat secret.txt' });
+    await expect(blockedExecution).rejects.toMatchObject({
+      name: 'OpenBoxAgentsSDKError',
+      message: '[OpenBox] redacted',
+    });
+    await expect(blockedExecution).rejects.toThrow(OpenBoxAgentsSDKError);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('uses constrained tool output when Core returns redacted output', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityCompleted' &&
+      payload.activity_type === 'ToolCompleted'
+        ? verdict('constrain', {
+            reason: 'redacted output',
+            guardrails_result: {
+              input_type: 'activity_output',
+              redacted_output: { output: { stdout: '[redacted]' } },
+              validation_passed: true,
+              reasons: [],
+              field_results: [{ field: 'output.stdout', status: 'redacted' }],
+            },
+          } as never)
+        : verdict('allow'),
+    );
+    const execute = vi.fn(async () => ({ stdout: 'secret' }));
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'constrain-output-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    await expect(wrapped.execute({ command: 'cat secret.txt' })).resolves.toEqual({
+      stdout: '[redacted]',
+    });
+  });
+
+  it('keeps concurrent same-name tool calls isolated by OpenAI tool call id', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    let releaseTools: () => void = () => undefined;
+    const toolGate = new Promise<void>((resolve) => {
+      releaseTools = resolve;
+    });
+    const execute = vi.fn(async (input) => {
+      await toolGate;
+      return { input };
+    });
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute,
+      },
+      {
+        core: mock.core,
+        sessionId: 'parallel-session',
+        toolFactory: (config) => config,
+      },
+    ) as {
+      execute: (
+        input: unknown,
+        context?: unknown,
+        details?: unknown,
+      ) => Promise<unknown>;
+    };
+
+    const first = wrapped.execute({ command: 'echo one' }, undefined, {
+      toolCall: {
+        type: 'function_call',
+        callId: 'call-one',
+        name: 'Shell',
+        arguments: '{}',
+      },
+    });
+    const second = wrapped.execute({ command: 'echo two' }, undefined, {
+      toolCall: {
+        type: 'function_call',
+        callId: 'call-two',
+        name: 'Shell',
+        arguments: '{}',
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    releaseTools();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { input: { command: 'echo one' } },
+      { input: { command: 'echo two' } },
+    ]);
+
+    const completedIds = mock.events
+      .filter(
+        (event) =>
+          event.event_type === 'ActivityCompleted' &&
+          event.activity_type === 'ToolCompleted' &&
+          event.hook_trigger === false,
+      )
+      .map((event) => event.activity_id);
+    expect(completedIds).toEqual(
+      expect.arrayContaining(['call-one', 'call-two']),
+    );
+    expect(completedIds).toHaveLength(2);
+  });
+
+  it('returns constrained tool output when Core redacts completion output', async () => {
+    const mock = createMockCore((payload) =>
+      payload.event_type === 'ActivityCompleted' &&
+      payload.activity_type === 'ToolCompleted'
+        ? verdict('constrain', {
+            guardrails_result: {
+              input_type: 'activity_output',
+              redacted_input: { output: { stdout: '[redacted]' } },
+              validation_passed: true,
+              reasons: [],
+              field_results: [],
+            },
+          } as any)
+        : verdict('allow'),
+    );
+    const wrapped = createOpenBoxAgentsTool(
+      {
+        name: 'Shell',
+        execute: vi.fn(async () => ({ stdout: 'secret' })),
+      },
+      {
+        core: mock.core,
+        sessionId: 'output-redaction-session',
+        toolFactory: (config) => config,
+      },
+    ) as { execute: (input: unknown) => Promise<unknown> };
+
+    await expect(
+      wrapped.execute({ command: 'cat secret.txt' }),
+    ).resolves.toEqual({
+      stdout: '[redacted]',
+    });
+  });
+
+  it('wraps run() with workflow lifecycle and usage events', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const result = {
+      output: 'done',
+      runContext: {
+        usage: {
+          inputTokens: 12,
+          outputTokens: 7,
+          totalTokens: 19,
+        },
+      },
+      rawResponses: [
+        {
+          providerData: { model: 'gpt-4.1-mini' },
+          output: [{ type: 'function_call', name: 'Shell' }],
+          finishReason: 'tool_calls',
+        },
+      ],
+    };
+    const runFunction = vi.fn(async () => result);
+
+    await expect(
+      runWithOpenBox({ name: 'agent' }, 'hello', {
+        core: mock.core,
+        sessionId: 'run-session',
+        input: 'not-forwarded',
+        runFunction,
+      }),
+    ).resolves.toEqual(result);
+
+    expect(runFunction).toHaveBeenCalledWith(
+      { name: 'agent' },
+      'hello',
+      undefined,
+    );
+    const workflowStarted = mock.events.find(
+      (event) => event.event_type === 'WorkflowStarted',
+    );
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    const runStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger !== true,
+    );
+    expect(goalSignal).toMatchObject({
+      event_type: 'SignalReceived',
+      activity_type: 'user_prompt',
+      signal_name: 'user_prompt',
+      signal_args: 'hello',
+      session_id: 'run-session',
+      prompt: 'hello',
+    });
+    const goalActivityInput = goalSignal?.activity_input as
+      | unknown[]
+      | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      event_category: 'agent_goal',
+      session_id: 'run-session',
+      input: 'hello',
+    });
+    expect(mock.events.indexOf(goalSignal!)).toBeGreaterThan(
+      mock.events.indexOf(workflowStarted!),
+    );
+    expect(mock.events.indexOf(goalSignal!)).toBeLessThan(
+      mock.events.indexOf(runStarted!),
+    );
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: 'WorkflowStarted' }),
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'user_prompt',
+        }),
+        expect.objectContaining({
+          event_type: 'ActivityStarted',
+          activity_type: 'OpenAIAgentsSDKRun',
+        }),
+        expect.objectContaining({
+          event_type: 'ActivityCompleted',
+          activity_type: 'OpenAIAgentsSDKRun',
+        }),
+        expect.objectContaining({ event_type: 'WorkflowCompleted' }),
+      ]),
+    );
+    const completed = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityCompleted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun',
+    );
+    expect(completed).toMatchObject({
+      llm_model: 'gpt-4.1-mini',
+      input_tokens: 12,
+      output_tokens: 7,
+      total_tokens: 19,
+      has_tool_calls: true,
+      finish_reason: 'tool_calls',
+    });
+    expect(completed?.spans).toBeUndefined();
+    const startedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.module === 'openai-agents-sdk' &&
+        event.spans?.[0]?.name === 'llm.chat.completion',
+    );
+    expect(startedHook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      name: 'llm.chat.completion',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'openai-agents-sdk',
+        'http.method': 'POST',
+      }),
+    });
+    const completedHook = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger === true &&
+        event.spans?.[0]?.name === 'openbox.openai-agents-sdk.assistant_output',
+    );
+    expect(completedHook?.spans?.[0]).toMatchObject({
+      module: 'openai-agents-sdk',
+      name: 'openbox.openai-agents-sdk.assistant_output',
+      model: 'gpt-4.1-mini',
+      input_tokens: 12,
+      output_tokens: 7,
+      total_tokens: 19,
+    });
+    expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
+    expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
+      'openbox.semantic_type',
+    );
+  });
+
+  it('pre-gates run input as an LLM completion before invoking the official run function', async () => {
+    const mock = createMockCore((payload) =>
+      payload.hook_trigger === true &&
+      payload.spans?.[0]?.name === 'llm.chat.completion'
+        ? verdict('require_approval', { reason: 'llm approval required' })
+        : verdict('allow'),
+    );
+    const runFunction = vi.fn(async () => ({ output: 'should not run' }));
+
+    await expect(
+      runWithOpenBox({ name: 'agent' }, 'summarize this', {
+        core: mock.core,
+        sessionId: 'llm-gated-run-session',
+        approvalMode: 'error',
+        runFunction,
+      }),
+    ).rejects.toMatchObject({
+      name: 'OpenBoxAgentsSDKError',
+      message: '[OpenBox] llm approval required',
+    });
+
+    expect(runFunction).not.toHaveBeenCalled();
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'ActivityStarted',
+          activity_type: 'OpenAIAgentsSDKRun',
+          hook_trigger: true,
+          spans: expect.arrayContaining([
+            expect.objectContaining({
+              module: 'openai-agents-sdk',
+              name: 'llm.chat.completion',
+            }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it('extracts goal prompt text from structured OpenAI run input', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const runFunction = vi.fn(async () => ({ output: 'ok' }));
+    const input = [
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Review the deployment plan' },
+          { type: 'input_text', text: 'and list risky commands' },
+        ],
+      },
+    ];
+
+    await expect(
+      runWithOpenBox({ name: 'agent' }, input, {
+        core: mock.core,
+        sessionId: 'structured-goal-session',
+        runFunction,
+      }),
+    ).resolves.toEqual({ output: 'ok' });
+
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    expect(goalSignal).toMatchObject({
+      signal_args: 'Review the deployment plan and list risky commands',
+      prompt: 'Review the deployment plan and list risky commands',
+      session_id: 'structured-goal-session',
+    });
+    const goalActivityInput = goalSignal?.activity_input as unknown[] | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      event_category: 'agent_goal',
+      input,
+    });
+  });
+
+  it('creates native AgentHooks lifecycle handlers backed by OpenBox sessions', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const hooks = createOpenBoxAgentHooks({
+      core: mock.core,
+      sessionId: 'hooks-session',
+    });
+
+    expect(hooks).toBeInstanceOf(OpenAIAgentHooks);
+    expect(nativeHookEventNames(hooks)).toEqual([
+      'agent_end',
+      'agent_handoff',
+      'agent_start',
+      'agent_tool_end',
+      'agent_tool_start',
+    ]);
+
+    await hooks.onAgentStart({}, { name: 'Planner' }, [{ role: 'user', content: 'hi' }]);
+    await hooks.onAgentToolStart(
+      {},
+      { name: 'Planner' },
+      { name: 'Shell' },
+      {
+        toolCall: {
+          callId: 'hook-call-1',
+          name: 'Shell',
+          namespace: 'local',
+          arguments: '{"command":"pwd"}',
+        },
+      },
+    );
+    await hooks.onAgentToolEnd(
+      {},
+      { name: 'Planner' },
+      { name: 'Shell' },
+      'ok',
+      {
+        toolCall: {
+          callId: 'hook-call-1',
+          name: 'Shell',
+          arguments: '{"command":"pwd"}',
+        },
+      },
+    );
+    await hooks.onAgentHandoff({}, { name: 'Planner' }, { name: 'Reviewer' });
+    await hooks.onAgentEnd({}, { name: 'Planner' }, { output: 'done' });
+
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    const runStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger !== true,
+    );
+    expect(goalSignal?.signal_name).toBe('user_prompt');
+    expect(goalSignal?.signal_args).toBe('hi');
+    expect(goalSignal?.prompt).toBe('hi');
+    const goalActivityInput = goalSignal?.activity_input as
+      | unknown[]
+      | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      event_category: 'agent_goal',
+      session_id: 'hooks-session',
+      input: [{ role: 'user', content: 'hi' }],
+    });
+    expect(mock.events.indexOf(goalSignal!)).toBeLessThan(
+      mock.events.indexOf(runStarted!),
+    );
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: 'WorkflowStarted' }),
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'user_prompt',
+        }),
+        expect.objectContaining({
+          activity_id: 'hook-call-1',
+          activity_type: 'ShellExecution',
+        }),
+        expect.objectContaining({
+          activity_type: 'AgentHandoff',
+          from_agent_did: 'Planner',
+        }),
+        expect.objectContaining({ event_type: 'WorkflowCompleted' }),
+      ]),
+    );
+  });
+
+  it('observes OpenAI trace spans for generations, handoffs, guardrails, and tools', async () => {
+    const mock = createMockCore(() => verdict('allow'));
+    const processor = createOpenBoxTracingProcessor({
+      core: mock.core,
+      sessionId: 'trace-session',
+    });
+    const trace = {
+      traceId: 'trace-1',
+      name: 'agent trace',
+      toJSON: () => ({ traceId: 'trace-1', name: 'agent trace' }),
+    };
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanEnd({
+      spanId: 'gen-span',
+      traceId: 'trace-1',
+      spanData: {
+        type: 'generation',
+        providerData: {
+          response: {
+            model: 'gpt-4.1-mini',
+            finish_reason: 'stop',
+            usage: { input_tokens: 4, output_tokens: 6, cost_usd: 0.01 },
+          },
+        },
+      },
+    });
+    await processor.onSpanEnd({
+      spanId: 'handoff-span',
+      traceId: 'trace-1',
+      spanData: { type: 'handoff', from_agent: 'Planner', to_agent: 'Reviewer' },
+    });
+    await processor.onSpanEnd({
+      spanId: 'guardrail-span',
+      traceId: 'trace-1',
+      spanData: { type: 'guardrail', name: 'safety', triggered: false },
+    });
+    await processor.onSpanEnd({
+      spanId: 'tool-span',
+      traceId: 'trace-1',
+      spanData: {
+        type: 'function',
+        name: 'MCPFetch',
+        input: '{"url":"https://example.test"}',
+        output: '{"ok":true}',
+        mcp_data: '{"server":"demo"}',
+      },
+    });
+    await processor.onSpanEnd({
+      spanId: 'mcp-tools-span',
+      traceId: 'trace-1',
+      spanData: {
+        type: 'mcp_tools',
+        server: 'customer-crm',
+        result: ['lookup_contact', 'create_ticket'],
+      },
+    });
+    await processor.onTraceEnd(trace);
+
+    const goalSignal = mock.events.find(
+      (event) =>
+        event.event_type === 'SignalReceived' &&
+        event.activity_type === 'user_prompt',
+    );
+    const runStarted = mock.events.find(
+      (event) =>
+        event.event_type === 'ActivityStarted' &&
+        event.activity_type === 'OpenAIAgentsSDKRun' &&
+        event.hook_trigger !== true,
+    );
+    expect(goalSignal).toMatchObject({
+      signal_name: 'user_prompt',
+      session_id: 'trace-session',
+      signal_args: expect.objectContaining({
+        trace_id: 'trace-1',
+        name: 'agent trace',
+      }),
+    });
+    const goalActivityInput = goalSignal?.activity_input as
+      | unknown[]
+      | undefined;
+    expect(goalActivityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      event_category: 'agent_goal',
+      session_id: 'trace-session',
+      input: expect.objectContaining({
+        trace_id: 'trace-1',
+        name: 'agent trace',
+      }),
+    });
+    expect(mock.events.indexOf(goalSignal!)).toBeLessThan(
+      mock.events.indexOf(runStarted!),
+    );
+    expect(mock.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'SignalReceived',
+          activity_type: 'user_prompt',
+        }),
+        expect.objectContaining({
+          activity_type: 'AgentHandoff',
+          from_agent_did: 'Planner',
+        }),
+        expect.objectContaining({
+          activity_type: 'GuardrailEvaluation',
+        }),
+        expect.objectContaining({
+          activity_id: 'tool-span',
+          activity_type: 'HTTPRequest',
+          tool_name: 'MCPFetch',
+        }),
+        expect.objectContaining({
+          activity_id: 'mcp-tools-span',
+          event_type: 'ActivityStarted',
+          activity_type: 'MCPToolCall',
+          tool_name: 'MCPListTools',
+          tool_type: 'mcp',
+          activity_input: expect.arrayContaining([
+            expect.objectContaining({
+              tool_input: { server: 'customer-crm' },
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          activity_id: 'mcp-tools-span',
+          event_type: 'ActivityCompleted',
+          activity_type: 'ToolCompleted',
+          tool_name: 'MCPListTools',
+          tool_type: 'mcp',
+          activity_output: { tools: ['lookup_contact', 'create_ticket'] },
+        }),
+        expect.objectContaining({
+          event_type: 'ActivityCompleted',
+          activity_type: 'OpenAIAgentsSDKRun',
+          llm_model: 'gpt-4.1-mini',
+          input_tokens: 4,
+          output_tokens: 6,
+          total_tokens: 10,
+          cost_usd: 0.01,
+          finish_reason: 'stop',
+        }),
+      ]),
+    );
+  });
+
+  it('normalizes raw response usage through the shared usage facade', () => {
+    const result = {
+      rawResponses: [
+        {
+          providerData: {
+            response: {
+              model: 'gpt-4o-mini',
+              usage: { input_tokens: 4, output_tokens: 6, cost_usd: 0.01 },
+            },
+          },
+          output: [{ type: 'message', text: 'first response' }],
+        },
+        {
+          providerData: {
+            response: {
+              usage: { promptTokens: 3, completionTokens: 2, costUSD: 0.02 },
+              finishReason: 'stop',
+            },
+          },
+        },
+      ],
+    };
+
+    expect(runTelemetryFields(result)).toMatchObject({
+      llmModel: 'gpt-4o-mini',
+      inputTokens: 7,
+      outputTokens: 8,
+      totalTokens: 15,
+      costUsd: 0.03,
+      hasToolCalls: false,
+      finishReason: 'stop',
+    });
+
+    const span = runAssistantOutputSpan(result, 'usage-session')?.[0] as
+      | Record<string, any>
+      | undefined;
+    expect(span).toMatchObject({
+      model: 'gpt-4o-mini',
+      input_tokens: 7,
+      output_tokens: 8,
+      total_tokens: 15,
+      cost_usd: 0.03,
+    });
+    expect(span?.attributes).toMatchObject({
+      'openbox.usage.cost_usd': 0.03,
+      'openbox.cost.usd': 0.03,
+    });
+  });
+
+  it('maps OpenBox guardrail verdicts to native OpenAI guardrail shapes', async () => {
+    const mock = createMockCore(() =>
+      verdict('block', {
+        reason: 'unsafe input',
+      }),
+    );
+    const inputGuardrail = openBoxInputGuardrail({
+      core: mock.core,
+      sessionId: 'input-guardrail-session',
+    });
+
+    const result = await inputGuardrail.execute({ input: 'unsafe' });
+    expect(result).toMatchObject({
+      tripwireTriggered: true,
+      outputInfo: {
+        openbox: {
+          arm: 'block',
+          reason: 'unsafe input',
+        },
+      },
+    });
+  });
+
+  it('maps OpenBox output guardrail verdicts through the generated guardrail activity', async () => {
+    const mock = createMockCore((payload) =>
+      payload.activity_type === 'GuardrailEvaluation'
+        ? verdict('halt', {
+            reason: 'unsafe output',
+          })
+        : verdict('allow'),
+    );
+    const outputGuardrail = openBoxOutputGuardrail({
+      core: mock.core,
+      sessionId: 'output-guardrail-session',
+    });
+    expect(outputGuardrail).toMatchObject({
+      type: 'output',
+      name: 'openbox-output-guardrail',
+    });
+    expect(typeof (outputGuardrail as any).run).toBe('function');
+    expect(typeof (outputGuardrail as any).guardrailFunction).toBe('function');
+
+    const result = await outputGuardrail.execute({ agentOutput: 'unsafe answer' });
+    expect(result).toMatchObject({
+      tripwireTriggered: true,
+      outputInfo: {
+        openbox: {
+          arm: 'halt',
+          reason: 'unsafe output',
+        },
+      },
+    });
+
+    const guardrailEvent = mock.events.find(
+      (event) => event.activity_type === 'GuardrailEvaluation',
+    );
+    expect(guardrailEvent).toMatchObject({
+      event_type: 'ActivityStarted',
+      session_id: 'output-guardrail-session',
+    });
+    const activityInput = guardrailEvent?.activity_input as
+      | Array<{ input?: { stage?: string; payload?: unknown }; _openbox_source?: string }>
+      | undefined;
+    expect(activityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      input: {
+        stage: 'output',
+        payload: 'unsafe answer',
+      },
+    });
+  });
+
+  it('maps OpenBox tool guardrail verdicts to fail-closed tool behavior', async () => {
+    const mock = createMockCore(() =>
+      verdict('require_approval', {
+        reason: 'needs review',
+      }),
+    );
+    const guardrail = openBoxToolInputGuardrail({
+      core: mock.core,
+      sessionId: 'tool-guardrail-session',
+    });
+    expect(guardrail).toMatchObject({
+      type: 'tool_input',
+      name: 'openbox-tool-input-guardrail',
+    });
+
+    const result = await guardrail.run({
+      context: {} as any,
+      agent: {} as any,
+      toolCall: {
+        type: 'function_call',
+        callId: 'tool-input-guardrail-call',
+        name: 'Shell',
+        arguments: '{"command":"deploy"}',
+      },
+    });
+    expect(result).toMatchObject({
+      behavior: { type: 'throwException' },
+      outputInfo: {
+        openbox: {
+          arm: 'require_approval',
+          reason: 'needs review',
+        },
+      },
+    });
+  });
+
+  it('maps OpenBox tool output guardrail verdicts to fail-closed tool behavior', async () => {
+    const mock = createMockCore((payload) =>
+      payload.activity_type === 'GuardrailEvaluation'
+        ? verdict('constrain', {
+            reason: 'redacted tool output',
+          })
+        : verdict('allow'),
+    );
+    const guardrail = openBoxToolOutputGuardrail({
+      core: mock.core,
+      sessionId: 'tool-output-guardrail-session',
+    });
+    expect(guardrail).toMatchObject({
+      type: 'tool_output',
+      name: 'openbox-tool-output-guardrail',
+    });
+
+    const result = await guardrail.run({
+      context: {} as any,
+      agent: {} as any,
+      toolCall: {
+        type: 'function_call',
+        callId: 'tool-output-guardrail-call',
+        name: 'Lookup',
+        arguments: '{}',
+      },
+      output: { secret: 'token' },
+    });
+    expect(result).toMatchObject({
+      behavior: {
+        type: 'rejectContent',
+        message: '[OpenBox] redacted tool output',
+      },
+      outputInfo: {
+        openbox: {
+          arm: 'constrain',
+          reason: 'redacted tool output',
+        },
+      },
+    });
+
+    const guardrailEvent = mock.events.find(
+      (event) => event.activity_type === 'GuardrailEvaluation',
+    );
+    const activityInput = guardrailEvent?.activity_input as
+      | Array<{ input?: { stage?: string; payload?: Record<string, unknown> }; _openbox_source?: string }>
+      | undefined;
+    expect(activityInput?.[0]).toMatchObject({
+      _openbox_source: 'openai-agents-sdk',
+      input: {
+        stage: 'tool_output',
+        payload: {
+          toolCall: { name: 'Lookup' },
+          output: { secret: 'token' },
+        },
+      },
+    });
+  });
+});

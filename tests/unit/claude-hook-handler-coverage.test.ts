@@ -1,3 +1,4 @@
+import { existsSync, rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let adapterOptions: any;
@@ -5,6 +6,10 @@ let coreClientOptions: any;
 let stdinIteratorSpy: any;
 let mockHitlMaxWait = 2;
 let mockApprovalMode: 'remote' | 'inline' | 'defer' = 'remote';
+let mockWorktreeRoot = '/tmp/openbox-claude-hook-handler-test/worktrees';
+let mockRequireGoalContext = false;
+let mockDefaultGoal: string | undefined;
+let mockPeekGoal: unknown = { goal: 'existing goal' };
 // Mock-only raw 32-byte Ed25519 key encoded at runtime; not a real credential.
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
 
@@ -65,6 +70,9 @@ vi.mock('../../ts/src/runtime/claude-code/config.js', () => ({
     sendStartEvent: true,
     sendActivityStartEvent: true,
     maxBodySize: null,
+    requireGoalContext: mockRequireGoalContext,
+    defaultGoal: mockDefaultGoal,
+    worktreeRoot: mockWorktreeRoot,
   })),
 }));
 
@@ -76,6 +84,9 @@ vi.mock('../../ts/src/runtime/claude-code/session-resolver.js', () => ({
     workflowCompleted: vi.fn(async () => undefined),
   })),
   lastResolveCreatedFreshSession: vi.fn(() => true),
+  peekGoal: vi.fn(() => mockPeekGoal),
+  recordGoal: vi.fn(),
+  markStarted: vi.fn(),
   markHalted: vi.fn(),
   clearSession: vi.fn(),
 }));
@@ -86,6 +97,11 @@ beforeEach(() => {
   coreClientOptions = undefined;
   mockHitlMaxWait = 2;
   mockApprovalMode = 'remote';
+  mockWorktreeRoot = '/tmp/openbox-claude-hook-handler-test/worktrees';
+  mockRequireGoalContext = false;
+  mockDefaultGoal = undefined;
+  mockPeekGoal = { goal: 'existing goal' };
+  rmSync(mockWorktreeRoot, { recursive: true, force: true });
   process.env.OPENBOX_API_KEY = 'obx_test_claude_handler';
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
@@ -98,6 +114,7 @@ afterEach(() => {
   delete process.env.OPENBOX_API_KEY;
   delete process.env.OPENBOX_AGENT_DID;
   delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
+  rmSync(mockWorktreeRoot, { recursive: true, force: true });
 });
 
 describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
@@ -162,10 +179,75 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
       'configChange',
       'cwdChanged',
       'fileChanged',
+      'worktreeCreate',
       'worktreeRemove',
       'elicitation',
       'elicitationResult',
     ]));
+  });
+
+  it('creates an opt-in managed WorktreeCreate path after Core allows it', async () => {
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const env: Record<string, any> = {
+      ...baseEnv,
+      hook_event_name: 'WorktreeCreate',
+      name: 'Feature Auth!*',
+    };
+    const session = {
+      activity: vi.fn(async () => ({ arm: 'allow', riskScore: 0 })),
+    };
+
+    await expect(
+      adapterOptions.handlers.worktreeCreate(env, session),
+    ).resolves.toMatchObject({ arm: 'allow' });
+
+    expect(env.worktree_path).toMatch(
+      /^\/tmp\/openbox-claude-hook-handler-test\/worktrees\/Feature-Auth-[a-z0-9]+$/,
+    );
+    expect(existsSync(env.worktree_path)).toBe(true);
+    expect(session.activity).toHaveBeenCalledWith(
+      'ActivityStarted',
+      'ClaudeCodeWorkspaceChange',
+      expect.objectContaining({
+        input: [
+          expect.objectContaining({
+            _openbox_source: 'claude-code',
+            event_category: 'worktree_create',
+            name: 'Feature Auth!*',
+            worktree_path: env.worktree_path,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('does not create a WorktreeCreate path when Core blocks it', async () => {
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const env: Record<string, any> = {
+      ...baseEnv,
+      hook_event_name: 'WorktreeCreate',
+      name: 'blocked-worktree',
+    };
+    const session = {
+      activity: vi.fn(async () => ({
+        arm: 'block',
+        reason: 'blocked',
+        riskScore: 1,
+      })),
+    };
+
+    await expect(
+      adapterOptions.handlers.worktreeCreate(env, session),
+    ).resolves.toMatchObject({ arm: 'block' });
+
+    expect(env.worktree_path).toBeUndefined();
+    expect(existsSync(mockWorktreeRoot)).toBe(false);
   });
 
   it('decision-capable handler errors return a fail-closed verdict', async () => {
@@ -174,6 +256,7 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
 
     await runClaudeHook();
     const session = {
+      workflowStarted: vi.fn(async () => undefined),
       activity: vi.fn(async () => {
         throw new Error('mapper failed');
       }),
@@ -185,6 +268,75 @@ describe('runtime/claude-code/hook-handler; adapter orchestration', () => {
       arm: 'block',
       reason: expect.stringContaining('mapper failed'),
     });
+  });
+
+  it('starts the workflow before decision-capable tool gates', async () => {
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const session = {
+      workflowStarted: vi.fn(async () => undefined),
+      openActivity: vi.fn(async () => ({
+        activityId: 'activity-test',
+        verdict: { arm: 'block', reason: 'blocked' },
+      })),
+    };
+
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
+      arm: 'block',
+      reason: 'blocked',
+    });
+    expect(session.workflowStarted).toHaveBeenCalledTimes(1);
+    expect(session.openActivity).toHaveBeenCalledTimes(1);
+    expect(session.workflowStarted.mock.invocationCallOrder[0]).toBeLessThan(
+      session.openActivity.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('fails closed when a decision-capable hook gets a fallback allow', async () => {
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const session = {
+      workflowStarted: vi.fn(async () => undefined),
+      openActivity: vi.fn(async () => ({
+        activityId: 'activity-test',
+        verdict: {
+          arm: 'allow',
+          riskScore: 0,
+          fallbackUsed: true,
+        },
+      })),
+    };
+
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('governance fallback used'),
+    });
+  });
+
+  it('fails closed in strict goal mode when a tool gate has no session goal', async () => {
+    mockRequireGoalContext = true;
+    mockPeekGoal = null;
+    mockHookStdin();
+    const { runClaudeHook } = await import('../../ts/src/runtime/claude-code/hook-handler.ts');
+
+    await runClaudeHook();
+    const session = {
+      workflowStarted: vi.fn(async () => undefined),
+      openActivity: vi.fn(async () => ({
+        activityId: 'activity-test',
+        verdict: { arm: 'allow' },
+      })),
+    };
+
+    await expect(adapterOptions.handlers.preToolUse(baseEnv, session)).resolves.toMatchObject({
+      arm: 'block',
+      reason: expect.stringContaining('goal context is required'),
+    });
+    expect(session.openActivity).not.toHaveBeenCalled();
   });
 
   it('passes signed agent identity through to the Core client', async () => {

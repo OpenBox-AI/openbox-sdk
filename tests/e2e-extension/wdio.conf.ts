@@ -63,7 +63,7 @@ function isLocalUrl(raw: string | undefined): boolean {
 // Pull the e2e-agent's runtime key from project `.openbox/agent-keys` (the
 // canonical store openbox-local's bootstrap writes to). Same pattern
 // as tests/setup-creds.ts; lets the extension e2e harness work
-// after `cd ~/workspace/openbox-local && npm run bootstrap`.
+// after running the local stack bootstrap for the target checkout.
 
 const E2E_AGENT_NAME = 'e2e-agent';
 const explicitApiUrl = process.env.OPENBOX_API_URL;
@@ -321,7 +321,7 @@ export const config = {
       'wdio:vscodeOptions': {
         extensionPath: EXTENSION_DIR,
         userSettings,
-        workspacePath: resolve(HERE, 'fixtures-workspace'),
+        workspacePath: resolve(HERE, 'fixtures-project'),
         ...(vscodeBinary ? { binary: vscodeBinary } : {}),
         ...(headless ? { vscodeArgs: ['--no-sandbox'] } : {}),
       },

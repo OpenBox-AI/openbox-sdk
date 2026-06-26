@@ -108,8 +108,8 @@ describe('validators/index; extra surface', () => {
     expect(v.validateInt('42', 'n')).toBe(42);
     expect(v.validateEnum('a', ['a', 'b'] as const, 'mode')).toBe('a');
     expect(v.validateBehaviorTrigger('http_post')).toBe('http_post');
-    expect(v.validateBehaviorTrigger('llm_gen_ai')).toBe('llm_gen_ai');
-    expect(v.validateBehaviorTrigger('mcp_tool_call')).toBe('mcp_tool_call');
+    expect(() => v.validateBehaviorTrigger('llm_gen_ai')).toThrow(ValidationError);
+    expect(() => v.validateBehaviorTrigger('mcp_tool_call')).toThrow(ValidationError);
     // validateRegoSource requires both a package decl AND a `result := {...}`
     // assignment (core reads only result.decision / result.reason).
     expect(() =>
@@ -226,8 +226,17 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     expect(promptGate?.args[2]).toMatchObject({
       sessionId: 'C',
       prompt: 'hi',
+      toolType: 'llm',
     });
-    expect(promptGate?.args[2].spans).toBeUndefined();
+    expect(promptGate?.args[2].spans?.[0]).toMatchObject({
+      module: 'cursor',
+      name: 'llm.chat.completion',
+      semantic_type: 'llm_completion',
+      attributes: expect.objectContaining({
+        'gen_ai.system': 'cursor',
+        'http.method': 'POST',
+      }),
+    });
     expect(session.calls.indexOf(promptGate)).toBeGreaterThan(session.calls.indexOf(goalSignal));
     if (typeof shellMod.handleBeforeShellExecution === 'function') {
       await shellMod.handleBeforeShellExecution(
@@ -257,7 +266,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     });
   });
 
-  it('beforeTabFileRead skips routine workspace files but gates sensitive workspace files', async () => {
+  it('beforeTabFileRead skips routine project files but gates sensitive project files', async () => {
     const fileReadMod: any = await import('../../ts/src/runtime/cursor/mappers/file-read');
     const cfg = { sessionDir: dir } as any;
 
@@ -278,6 +287,19 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     );
     expect(sensitiveVerdict).toMatchObject({ arm: 'block' });
     expect(sensitive.calls.some((c: { method: string }) => c.method === 'activity')).toBe(true);
+    const gate = sensitive.calls.find(
+      (call: any) => call.method === 'activity' && call.args[1] === 'FileRead',
+    );
+    expect(gate?.args[2].input).toContainEqual({
+      __openbox: { tool_type: 'file_open' },
+    });
+    expect(gate?.args[2].spans?.[0]).toMatchObject({
+      semantic_type: 'file_open',
+      attributes: expect.objectContaining({
+        'file.operation': 'open',
+        'openbox.tool.name': 'TabRead',
+      }),
+    });
   });
 
   it('mcp + mcp-response handlers process MCP-shaped envelopes', async () => {
@@ -287,6 +309,7 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     const cfg = { sessionDir: dir } as any;
     const env = {
       conversation_id: 'C',
+      generation_id: `${dir}:mcp-marker`,
       server_name: 'fs',
       tool_name: 'read_file',
       tool_input: { path: '/tmp/x' },

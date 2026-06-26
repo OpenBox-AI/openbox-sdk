@@ -111,6 +111,7 @@ export const HOOK_EVENT_LABELS: Record<string, string> = {
   "ConfigChange": "Config change",
   "CwdChanged": "CWD changed",
   "FileChanged": "File changed",
+  "WorktreeCreate": "Worktree create",
   "WorktreeRemove": "Worktree remove",
   "Elicitation": "MCP elicitation",
   "ElicitationResult": "MCP elicitation result"
@@ -119,10 +120,10 @@ export const HOOK_EVENT_LABELS: Record<string, string> = {
 export interface HookSpec {
   file: string;
   key: string;
-  style: 'claude-array' | 'cursor-keyed';
+  style: 'claude-array' | 'codex-array' | 'cursor-keyed';
   command: string;
   configDir: string;
-  events: Array<{ name: string; timeout?: number; installDefault?: boolean }>;
+  events: Array<{ name: string; timeout?: number; installDefault?: boolean; verdictShape: string }>;
 }
 
 /** Hook metadata for this adapter. Host-specific installers and
@@ -136,97 +137,132 @@ export const HOOK_SPEC: HookSpec = {
   "events": [
     {
       "name": "PreToolUse",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "permission-decision"
     },
     {
-      "name": "PostToolUse"
+      "name": "PostToolUse",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "PostToolUseFailure"
+      "name": "PostToolUseFailure",
+      "verdictShape": "additional-context"
     },
     {
-      "name": "PostToolBatch"
+      "name": "PostToolBatch",
+      "verdictShape": "decision-block"
     },
     {
       "name": "UserPromptSubmit",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "decision-block"
     },
     {
       "name": "UserPromptExpansion",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "decision-block"
     },
     {
       "name": "PermissionRequest",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "permission-request"
     },
     {
-      "name": "PermissionDenied"
+      "name": "PermissionDenied",
+      "verdictShape": "permission-denied-retry"
     },
     {
-      "name": "Setup"
+      "name": "Setup",
+      "verdictShape": "none"
     },
     {
-      "name": "InstructionsLoaded"
+      "name": "InstructionsLoaded",
+      "verdictShape": "none"
     },
     {
-      "name": "PreCompact"
+      "name": "PreCompact",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "PostCompact"
+      "name": "PostCompact",
+      "verdictShape": "none"
     },
     {
-      "name": "SessionStart"
+      "name": "SessionStart",
+      "verdictShape": "none"
     },
     {
       "name": "SessionEnd",
       "timeout": 86400,
-      "installDefault": false
+      "installDefault": false,
+      "verdictShape": "none"
     },
     {
-      "name": "SubagentStart"
+      "name": "SubagentStart",
+      "verdictShape": "none"
     },
     {
-      "name": "SubagentStop"
+      "name": "SubagentStop",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "TaskCreated"
+      "name": "TaskCreated",
+      "verdictShape": "continue-block"
     },
     {
-      "name": "TaskCompleted"
+      "name": "TaskCompleted",
+      "verdictShape": "continue-block"
     },
     {
-      "name": "Stop"
+      "name": "Stop",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "StopFailure"
+      "name": "StopFailure",
+      "verdictShape": "none"
     },
     {
-      "name": "TeammateIdle"
+      "name": "TeammateIdle",
+      "verdictShape": "continue-block"
     },
     {
-      "name": "Notification"
+      "name": "Notification",
+      "verdictShape": "none"
     },
     {
-      "name": "MessageDisplay"
+      "name": "MessageDisplay",
+      "verdictShape": "none"
     },
     {
-      "name": "ConfigChange"
+      "name": "ConfigChange",
+      "verdictShape": "decision-block"
     },
     {
-      "name": "CwdChanged"
+      "name": "CwdChanged",
+      "verdictShape": "none"
     },
     {
-      "name": "FileChanged"
+      "name": "FileChanged",
+      "verdictShape": "none"
     },
     {
-      "name": "WorktreeRemove"
+      "name": "WorktreeCreate",
+      "timeout": 86400,
+      "installDefault": false,
+      "verdictShape": "worktree-path"
+    },
+    {
+      "name": "WorktreeRemove",
+      "verdictShape": "none"
     },
     {
       "name": "Elicitation",
-      "timeout": 86400
+      "timeout": 86400,
+      "verdictShape": "elicitation-response"
     },
     {
-      "name": "ElicitationResult"
+      "name": "ElicitationResult",
+      "verdictShape": "elicitation-response"
     }
   ]
 };
@@ -692,12 +728,24 @@ export function buildFileChangedPayload(env: ClaudeCodeEnvelope): Record<string,
     };
 }
 
+export function buildWorktreeCreatePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
+  /* no side effects */
+
+  return {
+      "name": (getPath(env, "name") ?? getPath(env, "worktree_name")),
+      "cwd": getPath(env, "cwd"),
+      "worktree_path": getPath(env, "worktree_path"),
+      "event_category": "worktree_create",
+    };
+}
+
 export function buildWorktreeRemovePayload(env: ClaudeCodeEnvelope): Record<string, unknown> {
   /* no side effects */
 
   return {
       "name": getPath(env, "name"),
       "cwd": getPath(env, "cwd"),
+      "worktree_path": getPath(env, "worktree_path"),
       "event_category": "workspace_change",
     };
 }
@@ -762,6 +810,7 @@ export interface ClaudeCodeAdapterHandlers {
   configChange?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   cwdChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   fileChanged?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
+  worktreeCreate?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   worktreeRemove?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   elicitation?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
   elicitationResult?: (input: ClaudeCodeEnvelope, session: ClaudeCodeSession) => Promise<WorkflowVerdict | undefined | void>;
@@ -783,7 +832,7 @@ export interface ClaudeCodeAdapterConfig {
   exit?: (code: number) => never;
   /**
    * @deprecated Compatibility no-op. Approval expiration is controlled
-   * by the server-supplied approvalExpiresAt value.
+   * by the server-owned approval row state.
    */
   approvalMaxWaitMs?: number;
   /**
@@ -1135,6 +1184,15 @@ async function dispatch(
       writeVerdict("none", verdict, env);
       return;
     }
+    case "WorktreeCreate": {
+      if (!handlers.worktreeCreate) {
+        writeFallback("worktree-path", undefined, env);
+        return;
+      }
+      const verdict = await handlers.worktreeCreate(env, session);
+      writeVerdict("worktree-path", verdict, env);
+      return;
+    }
     case "WorktreeRemove": {
       if (!handlers.worktreeRemove) {
         writeFallback("none", undefined, env);
@@ -1202,6 +1260,7 @@ type Shape =
   | 'elicitation-response'
   | 'continue-block'
   | 'additional-context'
+  | 'worktree-path'
   | 'cursor-permission'
   | 'cursor-observe'
   | 'cursor-continue'
@@ -1236,15 +1295,16 @@ function redactedOutputValue(
   env: Record<string, unknown>,
 ): unknown {
   const guardrails = v?.guardrailsResult;
+  const redactedOutput = guardrails?.redactedOutput ?? guardrails?.redactedInput;
   if (
     !guardrails ||
     guardrails.inputType !== 'activity_output' ||
-    guardrails.redactedInput === undefined ||
-    guardrails.redactedInput === null
+    redactedOutput === undefined ||
+    redactedOutput === null
   ) {
     return undefined;
   }
-  return unwrapOutputRedaction(guardrails.redactedInput, originalOutputFor(env));
+  return unwrapOutputRedaction(redactedOutput, originalOutputFor(env));
 }
 
 function redactedInputRecord(v: WorkflowVerdict | undefined): Record<string, unknown> | undefined {
@@ -1276,11 +1336,15 @@ function originalOutputFor(env: Record<string, unknown>): unknown {
 
 function hasInputRedaction(v: WorkflowVerdict | undefined): boolean {
   const guardrails = v?.guardrailsResult;
+  const hasRedactedField = guardrails?.fieldResults?.some((field) =>
+    field.status === 'redacted' || field.status === 'transformed'
+  );
   return Boolean(
     guardrails &&
       (guardrails.inputType === 'activity_input' || guardrails.inputType === 'signal_args') &&
-      guardrails.redactedInput !== undefined &&
-      guardrails.redactedInput !== null,
+      (hasRedactedField ||
+        guardrails.redactedInput !== undefined &&
+        guardrails.redactedInput !== null),
   );
 }
 
@@ -1300,6 +1364,13 @@ function cursorInputRedactionBlockReason(reason: string): string {
   return detail
     ? detail + '. Cursor cannot replace this hook input, so OpenBox blocked the original action.'
     : '[OpenBox] redacted this action input, but Cursor cannot replace this hook input. Rewrite the action with redacted content and retry.';
+}
+
+function missingInputReplacementBlockReason(reason: string): string {
+  const detail = reason.replace(/[.]+$/, '');
+  return detail
+    ? detail + '. OpenBox did not provide replacement input, so the original action was blocked.'
+    : '[OpenBox] redacted this action input but did not provide replacement input, so OpenBox blocked the original action.';
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
@@ -1337,7 +1408,17 @@ function renderVerdictOutput(
           permissionDecision: 'allow',
         };
         if (arm === 'constrain') {
-          addIfDefined(hookSpecificOutput, 'updatedInput', redactedInputRecord(v));
+          const updatedInput = redactedInputRecord(v);
+          if (hasInputRedaction(v) && updatedInput === undefined) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: eventName,
+                permissionDecision: 'deny',
+                permissionDecisionReason: missingInputReplacementBlockReason(reason),
+              },
+            };
+          }
+          addIfDefined(hookSpecificOutput, 'updatedInput', updatedInput);
           if (reason) hookSpecificOutput.additionalContext = reason;
         }
         return {
@@ -1403,7 +1484,19 @@ function renderVerdictOutput(
       if (arm === 'allow' || arm === 'constrain') {
         const decision: Record<string, unknown> = { behavior: 'allow' };
         if (arm === 'constrain') {
-          addIfDefined(decision, 'updatedInput', redactedInputRecord(v));
+          const updatedInput = redactedInputRecord(v);
+          if (hasInputRedaction(v) && updatedInput === undefined) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: eventName,
+                decision: {
+                  behavior: 'deny',
+                  message: missingInputReplacementBlockReason(reason),
+                },
+              },
+            };
+          }
+          addIfDefined(decision, 'updatedInput', updatedInput);
         }
         return {
           hookSpecificOutput: {
@@ -1443,11 +1536,21 @@ function renderVerdictOutput(
       const eventName = env.hook_event_name ?? 'Elicitation';
       if (arm === 'allow') return {};
       if (arm === 'constrain') {
+        const content = redactedInputRecord(v);
+        if (hasInputRedaction(v) && content === undefined) {
+          return {
+            hookSpecificOutput: {
+              hookEventName: eventName,
+              action: 'decline',
+              content: {},
+            },
+          };
+        }
         return {
           hookSpecificOutput: {
             hookEventName: eventName,
             action: 'accept',
-            content: redactedInputRecord(v) ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
+            content: content ?? objectRecord(env.response) ?? objectRecord(env.content) ?? {},
           },
         };
       }
@@ -1473,6 +1576,26 @@ function renderVerdictOutput(
           hookEventName: env.hook_event_name ?? 'PostToolUseFailure',
           additionalContext: reason || '[OpenBox] blocked by policy',
         },
+      };
+    }
+    case 'worktree-path': {
+      const eventName = env.hook_event_name ?? 'WorktreeCreate';
+      const worktreePath = typeof (env as Record<string, unknown>).worktree_path === 'string'
+        ? ((env as Record<string, unknown>).worktree_path as string).trim()
+        : '';
+      if ((arm === 'allow' || arm === 'constrain') && worktreePath) {
+        return {
+          hookSpecificOutput: {
+            hookEventName: eventName,
+            worktreePath,
+          },
+        };
+      }
+      return {
+        hookSpecificOutput: {
+          hookEventName: eventName,
+        },
+        systemMessage: reason || '[OpenBox] worktree creation blocked.',
       };
     }
     case 'cursor-permission': {
@@ -1506,8 +1629,7 @@ function renderVerdictOutput(
       }
       if (arm === 'require_approval') {
         const r = reason.replace(/^\[OpenBox\] /, '').trim();
-        // Reaching this branch means Core still reports
-        // require_approval, or the server-side approval window expired.
+        // Reaching this branch means Core still reports require_approval.
         // The host blocks this tool attempt; the user can approve and retry.
         return {
           permission: 'deny',

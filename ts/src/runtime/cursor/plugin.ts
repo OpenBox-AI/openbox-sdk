@@ -13,6 +13,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/cursor.js';
+import {
+  validateAgentIdentityConfig,
+  type AgentIdentityConfig,
+} from '../../core-client/index.js';
+import { normalizeServiceUrl } from '../../env/connection.js';
+import { validateApiKeyFormat } from '../../env/index.js';
+import { recallAgentKey } from '../../file-tokens/agent-keys.js';
+import type { RulesProjection } from '../../governance/rules-projection.js';
+import {
+  OPENBOX_CURSOR_RULE_HEADER_MARKER,
+  renderRulesProjection,
+} from './rules.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,8 +37,10 @@ const EXPECTED_COMMAND_FILES = [
 ] as const;
 const EXPECTED_RULE_FILES = ['openbox.mdc'] as const;
 const EXPECTED_AGENT_FILES = ['openbox-reviewer.md'] as const;
+const EXPECTED_REPO_RULE_FILES = ['openbox-governance.mdc'] as const;
 
 export type CursorPluginCheckStatus = 'pass' | 'fail' | 'skip';
+export type CursorApprovalMode = 'inline' | 'remote';
 
 export interface CursorPluginCheck {
   name: string;
@@ -42,6 +56,8 @@ export interface ExportCursorPluginOptions {
   force?: boolean;
   /** Optional per-event hook matchers copied into hooks/hooks.json. */
   matchers?: Record<string, string>;
+  /** Optional live rules projection rendered into plugin rules/openbox-*.mdc. */
+  rulesProjection?: RulesProjection;
 }
 
 export interface InstallCursorPluginOptions {
@@ -53,8 +69,12 @@ export interface InstallCursorPluginOptions {
   symlink?: string;
   /** Optional per-event hook matchers copied into hooks/hooks.json. */
   matchers?: Record<string, string>;
+  /** Optional live rules projection rendered into plugin rules/openbox-*.mdc. */
+  rulesProjection?: RulesProjection;
   /** Skip creating the hook runtime config template. Defaults to false. */
   skipRuntimeConfig?: boolean;
+  /** Optional project-local runtime configuration for the installed plugin. */
+  runtime?: ConfigureCursorRuntimeOptions;
 }
 
 export interface VerifyCursorPluginOptions {
@@ -62,6 +82,47 @@ export interface VerifyCursorPluginOptions {
   cwd?: string;
   /** Cursor project-local plugin target. Defaults to <cwd>/.cursor/plugins/local/openbox. */
   target?: string;
+}
+
+export interface InstallCursorRepoOptions {
+  /** Project root for repo-scoped install. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Optional per-event hook matchers copied into .cursor/hooks.json. */
+  matchers?: Record<string, string>;
+  /** Optional live rules projection rendered into .cursor/rules/openbox-*.mdc. */
+  rulesProjection?: RulesProjection;
+  /** Skip creating the hook runtime config template. Defaults to false. */
+  skipRuntimeConfig?: boolean;
+  /** Optional project-local runtime configuration for the installed repo mode. */
+  runtime?: ConfigureCursorRuntimeOptions;
+}
+
+export interface ConfigureCursorRuntimeOptions {
+  /** Project root for the Cursor runtime config. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Agent runtime key written as OPENBOX_API_KEY. */
+  apiKey?: string;
+  /** Resolve the runtime key from the project-local agent-key cache. */
+  agentId?: string;
+  /** Core/runtime policy endpoint written as OPENBOX_CORE_URL. */
+  coreUrl?: string;
+  /** Signed agent identity written as OPENBOX_AGENT_DID/OPENBOX_AGENT_PRIVATE_KEY. */
+  agentIdentity?: AgentIdentityConfig;
+  approvalMode?: CursorApprovalMode;
+  governanceTimeout?: number;
+  hitlMaxWait?: number;
+  hitlPollInterval?: number;
+  hitlEnabled?: boolean;
+  verbose?: boolean;
+}
+
+export interface VerifyCursorRepoOptions {
+  cwd?: string;
+}
+
+export interface UninstallCursorRepoOptions {
+  cwd?: string;
+  removeSkill?: boolean;
 }
 
 export interface UninstallCursorPluginOptions {
@@ -77,6 +138,14 @@ export function cursorPluginTargetDir(cwd = process.cwd()): string {
 
 export function cursorRuntimeConfigDir(cwd = process.cwd()): string {
   return path.join(cwd, '.cursor-hooks');
+}
+
+export function cursorRuntimeConfigFile(cwd = process.cwd()): string {
+  return path.join(cursorRuntimeConfigDir(cwd), 'config.json');
+}
+
+export function cursorRepoSkillTargetDir(cwd = process.cwd()): string {
+  return path.join(cwd, '.agents', 'skills', 'openbox');
 }
 
 function readJson(file: string): Record<string, unknown> | undefined {
@@ -135,7 +204,9 @@ function safeOutDir(out: string): string {
   const resolved = path.resolve(out);
   const root = path.parse(resolved).root;
   if (resolved === root || resolved === os.homedir()) {
-    throw new Error(`Refusing to overwrite unsafe plugin output path: ${resolved}`);
+    throw new Error(
+      `Refusing to overwrite unsafe plugin output path: ${resolved}`,
+    );
   }
   return resolved;
 }
@@ -145,7 +216,9 @@ function assertProjectTarget(target: string, cwd: string): string {
   const resolvedProject = path.resolve(cwd);
   const rel = path.relative(resolvedProject, resolvedTarget);
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error(`Cursor plugin install target must be inside the project: ${resolvedProject}`);
+    throw new Error(
+      `Cursor plugin install target must be inside the project: ${resolvedProject}`,
+    );
   }
   return resolvedTarget;
 }
@@ -159,18 +232,96 @@ function writeRuntimeConfigTemplate(configDir: string): void {
   mkdirSync(configDir, { recursive: true });
   const file = path.join(configDir, 'config.json');
   if (existsSync(file)) return;
-  const example = {
-    hitlEnabled: true,
-    hitlMaxWait: 300,
-    verbose: false,
-  };
-  writeFileSync(file, JSON.stringify(example, null, 2) + '\n', {
+  writeFileSync(file, JSON.stringify(defaultRuntimeConfig(), null, 2) + '\n', {
     mode: 0o600,
     encoding: 'utf-8',
   });
 }
 
-function cursorHooksJson(matchers?: Record<string, string>): Record<string, unknown> {
+function defaultRuntimeConfig(): Record<string, unknown> {
+  return {
+    hitlEnabled: true,
+    hitlMaxWait: 300,
+    verbose: false,
+  };
+}
+
+function requirePositiveInteger(value: number | undefined, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive integer`);
+  }
+  return value;
+}
+
+function normalizeApprovalMode(value: CursorApprovalMode | undefined): CursorApprovalMode | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'inline' || value === 'remote') return value;
+  throw new Error('approvalMode must be one of: inline, remote');
+}
+
+function resolveRuntimeKey(options: ConfigureCursorRuntimeOptions): string | undefined {
+  if (options.apiKey) return options.apiKey;
+  if (!options.agentId) return undefined;
+  const record = recallAgentKey(options.agentId);
+  if (!record?.runtimeKey) {
+    throw new Error(`No cached runtime key for agent ${options.agentId}`);
+  }
+  return record.runtimeKey;
+}
+
+export function configureCursorRuntime(options: ConfigureCursorRuntimeOptions = {}): string {
+  const cwd = options.cwd ?? process.cwd();
+  const configFile = cursorRuntimeConfigFile(cwd);
+  const existing = existsSync(configFile) ? (readJson(configFile) ?? {}) : {};
+  const next: Record<string, unknown> = {
+    ...defaultRuntimeConfig(),
+    ...existing,
+  };
+
+  const apiKey = resolveRuntimeKey(options);
+  if (apiKey !== undefined) {
+    const format = validateApiKeyFormat(apiKey);
+    if (format !== true) throw new Error(format);
+    next.OPENBOX_API_KEY = apiKey;
+  }
+
+  if (options.coreUrl !== undefined) {
+    next.OPENBOX_CORE_URL = normalizeServiceUrl('OPENBOX_CORE_URL', options.coreUrl);
+  }
+
+  if (options.agentIdentity !== undefined) {
+    const agentIdentity = validateAgentIdentityConfig(options.agentIdentity);
+    next.OPENBOX_AGENT_DID = agentIdentity.did;
+    next.OPENBOX_AGENT_PRIVATE_KEY = agentIdentity.privateKey;
+  }
+
+  const approvalMode = normalizeApprovalMode(options.approvalMode);
+  if (approvalMode !== undefined) next.approvalMode = approvalMode;
+
+  const governanceTimeout = requirePositiveInteger(options.governanceTimeout, 'governanceTimeout');
+  if (governanceTimeout !== undefined) next.governanceTimeout = String(governanceTimeout);
+
+  const hitlMaxWait = requirePositiveInteger(options.hitlMaxWait, 'hitlMaxWait');
+  if (hitlMaxWait !== undefined) next.hitlMaxWait = hitlMaxWait;
+
+  const hitlPollInterval = requirePositiveInteger(options.hitlPollInterval, 'hitlPollInterval');
+  if (hitlPollInterval !== undefined) next.hitlPollInterval = hitlPollInterval;
+
+  if (options.hitlEnabled !== undefined) next.hitlEnabled = options.hitlEnabled;
+  if (options.verbose !== undefined) next.verbose = options.verbose;
+
+  mkdirSync(path.dirname(configFile), { recursive: true });
+  writeFileSync(configFile, JSON.stringify(next, null, 2) + '\n', {
+    mode: 0o600,
+    encoding: 'utf-8',
+  });
+  return configFile;
+}
+
+function cursorHooksJson(
+  matchers?: Record<string, string>,
+): Record<string, unknown> {
   const hooks: Record<string, Array<Record<string, unknown>>> = {};
   for (const event of HOOK_SPEC.events) {
     const entry: Record<string, unknown> = { command: HOOK_SPEC.command };
@@ -248,6 +399,20 @@ function marketplaceManifest(version: string): Record<string, unknown> {
   };
 }
 
+function workspaceOpenManifest(): Record<string, unknown> {
+  return {
+    workspaceOpen: {
+      plugins: [
+        {
+          name: 'openbox',
+          path: '.cursor/plugins/local/openbox',
+          activation: 'workspaceOpen',
+        },
+      ],
+    },
+  };
+}
+
 function copyDir(src: string, dst: string): void {
   rmSync(dst, { recursive: true, force: true });
   mkdirSync(path.dirname(dst), { recursive: true });
@@ -265,21 +430,43 @@ export function exportCursorPlugin(options: ExportCursorPluginOptions): string {
   mkdirSync(out, { recursive: true });
 
   const version = packageVersion();
-  writeJson(path.join(out, '.cursor-plugin', 'plugin.json'), pluginManifest(version));
-  writeJson(path.join(out, '.cursor-plugin', 'marketplace.json'), marketplaceManifest(version));
+  writeJson(
+    path.join(out, '.cursor-plugin', 'plugin.json'),
+    pluginManifest(version),
+  );
+  writeJson(
+    path.join(out, '.cursor-plugin', 'marketplace.json'),
+    marketplaceManifest(version),
+  );
   copyDir(findSkillDir(), path.join(out, 'skills', 'openbox'));
   copyDir(findTemplateDir('commands'), path.join(out, 'commands'));
-  copyDir(findTemplateDir('rules'), path.join(out, 'rules'));
+  if (options.rulesProjection) {
+    renderRulesProjection(options.rulesProjection, {
+      rulesDir: path.join(out, 'rules'),
+      noPrune: true,
+    });
+  } else {
+    copyDir(findTemplateDir('rules'), path.join(out, 'rules'));
+  }
   copyDir(findTemplateDir('agents'), path.join(out, 'agents'));
-  writeJson(path.join(out, 'hooks', 'hooks.json'), cursorHooksJson(options.matchers));
+  writeJson(
+    path.join(out, 'hooks', 'hooks.json'),
+    cursorHooksJson(options.matchers),
+  );
   writeJson(path.join(out, 'mcp.json'), mcpJson());
+  writeJson(path.join(out, 'workspaceOpen.json'), workspaceOpenManifest());
 
   return out;
 }
 
-export function installCursorPlugin(options: InstallCursorPluginOptions = {}): string {
+export function installCursorPlugin(
+  options: InstallCursorPluginOptions = {},
+): string {
   const cwd = options.cwd ?? process.cwd();
-  const target = assertProjectTarget(options.target ?? cursorPluginTargetDir(cwd), cwd);
+  const target = assertProjectTarget(
+    options.target ?? cursorPluginTargetDir(cwd),
+    cwd,
+  );
   if (options.symlink) {
     const source = safeOutDir(options.symlink);
     if (!existsSync(source)) {
@@ -291,22 +478,77 @@ export function installCursorPlugin(options: InstallCursorPluginOptions = {}): s
     if (!options.skipRuntimeConfig) {
       writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
     }
+    if (options.runtime) {
+      configureCursorRuntime({ ...options.runtime, cwd });
+    }
     return target;
   }
   const out = exportCursorPlugin({
     out: target,
     matchers: options.matchers,
+    rulesProjection: options.rulesProjection,
   });
   if (!options.skipRuntimeConfig) {
     writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
   }
+  if (options.runtime) {
+    configureCursorRuntime({ ...options.runtime, cwd });
+  }
   return out;
 }
 
-export function uninstallCursorPlugin(options: UninstallCursorPluginOptions = {}): void {
+export function uninstallCursorPlugin(
+  options: UninstallCursorPluginOptions = {},
+): void {
   const cwd = options.cwd ?? process.cwd();
-  const target = assertProjectTarget(options.target ?? cursorPluginTargetDir(cwd), cwd);
+  const target = assertProjectTarget(
+    options.target ?? cursorPluginTargetDir(cwd),
+    cwd,
+  );
   rmSync(target, { recursive: true, force: true });
+}
+
+export function installCursorRepoMode(
+  options: InstallCursorRepoOptions = {},
+): string {
+  const cwd = options.cwd ?? process.cwd();
+  writeJson(
+    path.join(cwd, '.cursor', 'hooks.json'),
+    cursorHooksJson(options.matchers),
+  );
+  writeJson(path.join(cwd, '.cursor', 'mcp.json'), mcpJson());
+  if (options.rulesProjection) {
+    renderRulesProjection(options.rulesProjection, { workspace: cwd });
+  } else {
+    mkdirSync(path.join(cwd, '.cursor', 'rules'), { recursive: true });
+    cpSync(
+      path.join(findTemplateDir('rules'), 'openbox.mdc'),
+      path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'),
+    );
+  }
+  copyDir(findSkillDir(), cursorRepoSkillTargetDir(cwd));
+  if (!options.skipRuntimeConfig) {
+    writeRuntimeConfigTemplate(cursorRuntimeConfigDir(cwd));
+  }
+  if (options.runtime) {
+    configureCursorRuntime({ ...options.runtime, cwd });
+  }
+  return path.join(cwd, '.cursor');
+}
+
+export function uninstallCursorRepoMode(
+  options: UninstallCursorRepoOptions = {},
+): void {
+  const cwd = options.cwd ?? process.cwd();
+  rmSync(path.join(cwd, '.cursor', 'hooks.json'), { force: true });
+  rmSync(path.join(cwd, '.cursor', 'mcp.json'), { force: true });
+  rmSync(path.join(cwd, '.cursor', 'rules', 'openbox-governance.mdc'), {
+    force: true,
+  });
+  removeManagedRenderedRules(path.join(cwd, '.cursor', 'rules'));
+  if (options.removeSkill) {
+    rmSync(cursorRepoSkillTargetDir(cwd), { recursive: true, force: true });
+  }
 }
 
 function checkFile(name: string, file: string): CursorPluginCheck {
@@ -318,23 +560,86 @@ function checkFile(name: string, file: string): CursorPluginCheck {
   };
 }
 
-function checkDirFiles(name: string, dir: string, expected: readonly string[]): CursorPluginCheck {
+function checkDirFiles(
+  name: string,
+  dir: string,
+  expected: readonly string[],
+): CursorPluginCheck {
   if (!existsSync(dir)) {
     return { name, status: 'fail', path: dir, detail: 'directory missing' };
   }
-  const present = new Set(readdirSync(dir).filter((file) => expected.includes(file)));
+  const present = new Set(
+    readdirSync(dir).filter((file) => expected.includes(file)),
+  );
   const missing = expected.filter((file) => !present.has(file));
   return {
     name,
     status: missing.length === 0 ? 'pass' : 'fail',
     path: dir,
-    detail: missing.length === 0 ? `${expected.length} file(s)` : `missing: ${missing.join(', ')}`,
+    detail:
+      missing.length === 0
+        ? `${expected.length} file(s)`
+        : `missing: ${missing.join(', ')}`,
+  };
+}
+
+function isManagedRenderedRule(file: string): boolean {
+  if (!path.basename(file).startsWith('openbox-') || !file.endsWith('.mdc'))
+    return false;
+  try {
+    return readFileSync(file, 'utf-8').startsWith(
+      OPENBOX_CURSOR_RULE_HEADER_MARKER,
+    );
+  } catch {
+    return false;
+  }
+}
+
+function removeManagedRenderedRules(dir: string): void {
+  if (!existsSync(dir)) return;
+  for (const file of readdirSync(dir)) {
+    const full = path.join(dir, file);
+    if (isManagedRenderedRule(full)) rmSync(full, { force: true });
+  }
+}
+
+function checkRulesDir(
+  name: string,
+  dir: string,
+  expectedStatic: readonly string[],
+): CursorPluginCheck {
+  if (!existsSync(dir)) {
+    return { name, status: 'fail', path: dir, detail: 'directory missing' };
+  }
+  const files = readdirSync(dir);
+  const staticMissing = expectedStatic.filter((file) => !files.includes(file));
+  if (staticMissing.length === 0) {
+    return {
+      name,
+      status: 'pass',
+      path: dir,
+      detail: `${expectedStatic.length} static file(s)`,
+    };
+  }
+  const rendered = files
+    .map((file) => path.join(dir, file))
+    .filter(isManagedRenderedRule);
+  return {
+    name,
+    status: rendered.length > 0 ? 'pass' : 'fail',
+    path: dir,
+    detail:
+      rendered.length > 0
+        ? `${rendered.length} rendered OpenBox rule file(s)`
+        : `missing: ${staticMissing.join(', ')}`,
   };
 }
 
 function checkHooks(file: string): CursorPluginCheck {
   const hooksJson = readJson(file);
-  const hooks = hooksJson?.[HOOK_SPEC.key] as Record<string, unknown> | undefined;
+  const hooks = hooksJson?.[HOOK_SPEC.key] as
+    | Record<string, unknown>
+    | undefined;
   const problems: string[] = [];
   if (!hooks || typeof hooks !== 'object') {
     problems.push('hooks block missing');
@@ -350,7 +655,9 @@ function checkHooks(file: string): CursorPluginCheck {
         problems.push(`${event.name}: command drift`);
       }
       if (event.timeout !== undefined && entry.timeout !== event.timeout) {
-        problems.push(`${event.name}: timeout ${String(entry.timeout)} != ${event.timeout}`);
+        problems.push(
+          `${event.name}: timeout ${String(entry.timeout)} != ${event.timeout}`,
+        );
       }
     }
   }
@@ -358,15 +665,17 @@ function checkHooks(file: string): CursorPluginCheck {
     name: 'plugin-hooks',
     status: problems.length === 0 ? 'pass' : 'fail',
     path: file,
-    detail: problems.length === 0 ? `${HOOK_SPEC.events.length} event(s)` : problems.join('; '),
+    detail:
+      problems.length === 0
+        ? `${HOOK_SPEC.events.length} event(s)`
+        : problems.join('; '),
   };
 }
 
 function checkMcp(file: string): CursorPluginCheck {
   const json = readJson(file);
-  const openbox = (json?.mcpServers as Record<string, unknown> | undefined)?.openbox as
-    | { command?: unknown; args?: unknown }
-    | undefined;
+  const openbox = (json?.mcpServers as Record<string, unknown> | undefined)
+    ?.openbox as { command?: unknown; args?: unknown } | undefined;
   const ok =
     openbox?.command === 'openbox' &&
     Array.isArray(openbox.args) &&
@@ -376,12 +685,18 @@ function checkMcp(file: string): CursorPluginCheck {
     name: 'plugin-mcp',
     status: ok ? 'pass' : 'fail',
     path: file,
-    detail: ok ? 'openbox mcp serve' : 'openbox server entry missing or malformed',
+    detail: ok
+      ? 'openbox mcp serve'
+      : 'openbox server entry missing or malformed',
   };
 }
 
-export function verifyCursorPlugin(options: VerifyCursorPluginOptions = {}): CursorPluginCheck[] {
-  const target = safeOutDir(options.target ?? cursorPluginTargetDir(options.cwd));
+export function verifyCursorPlugin(
+  options: VerifyCursorPluginOptions = {},
+): CursorPluginCheck[] {
+  const target = safeOutDir(
+    options.target ?? cursorPluginTargetDir(options.cwd),
+  );
   const checks: CursorPluginCheck[] = [];
   if (existsSync(target)) {
     const stat = lstatSync(target);
@@ -392,15 +707,85 @@ export function verifyCursorPlugin(options: VerifyCursorPluginOptions = {}): Cur
       detail: stat.isSymbolicLink() ? 'symlink installed' : 'installed',
     });
   } else {
-    checks.push({ name: 'plugin', status: 'fail', path: target, detail: 'missing' });
+    checks.push({
+      name: 'plugin',
+      status: 'fail',
+      path: target,
+      detail: 'missing',
+    });
   }
-  checks.push(checkFile('plugin-manifest', path.join(target, '.cursor-plugin', 'plugin.json')));
-  checks.push(checkFile('plugin-marketplace', path.join(target, '.cursor-plugin', 'marketplace.json')));
-  checks.push(checkFile('plugin-skill', path.join(target, 'skills', 'openbox', 'SKILL.md')));
-  checks.push(checkDirFiles('plugin-commands', path.join(target, 'commands'), EXPECTED_COMMAND_FILES));
-  checks.push(checkDirFiles('plugin-rules', path.join(target, 'rules'), EXPECTED_RULE_FILES));
-  checks.push(checkDirFiles('plugin-agents', path.join(target, 'agents'), EXPECTED_AGENT_FILES));
+  checks.push(
+    checkFile(
+      'plugin-manifest',
+      path.join(target, '.cursor-plugin', 'plugin.json'),
+    ),
+  );
+  checks.push(
+    checkFile(
+      'plugin-marketplace',
+      path.join(target, '.cursor-plugin', 'marketplace.json'),
+    ),
+  );
+  checks.push(
+    checkFile('plugin-workspace-open', path.join(target, 'workspaceOpen.json')),
+  );
+  checks.push(
+    checkFile(
+      'plugin-skill',
+      path.join(target, 'skills', 'openbox', 'SKILL.md'),
+    ),
+  );
+  checks.push(
+    checkDirFiles(
+      'plugin-commands',
+      path.join(target, 'commands'),
+      EXPECTED_COMMAND_FILES,
+    ),
+  );
+  checks.push(
+    checkRulesDir(
+      'plugin-rules',
+      path.join(target, 'rules'),
+      EXPECTED_RULE_FILES,
+    ),
+  );
+  checks.push(
+    checkDirFiles(
+      'plugin-agents',
+      path.join(target, 'agents'),
+      EXPECTED_AGENT_FILES,
+    ),
+  );
   checks.push(checkHooks(path.join(target, 'hooks', 'hooks.json')));
   checks.push(checkMcp(path.join(target, 'mcp.json')));
+  return checks;
+}
+
+export function verifyCursorRepoMode(
+  options: VerifyCursorRepoOptions = {},
+): CursorPluginCheck[] {
+  const cwd = options.cwd ?? process.cwd();
+  const checks: CursorPluginCheck[] = [];
+  checks.push(checkHooks(path.join(cwd, '.cursor', 'hooks.json')));
+  checks.push(checkMcp(path.join(cwd, '.cursor', 'mcp.json')));
+  checks.push(
+    checkRulesDir(
+      'repo-rules',
+      path.join(cwd, '.cursor', 'rules'),
+      EXPECTED_REPO_RULE_FILES,
+    ),
+  );
+  checks.push(
+    checkFile(
+      'repo-skill',
+      path.join(cursorRepoSkillTargetDir(cwd), 'SKILL.md'),
+    ),
+  );
+  checks.push(
+    checkFile(
+      'runtime-config',
+      path.join(cursorRuntimeConfigDir(cwd), 'config.json'),
+    ),
+  );
   return checks;
 }

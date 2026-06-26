@@ -6,6 +6,7 @@ const sdkAliasMap = {
   '@openbox-ai/openbox-sdk': src('./ts/src/index.ts'),
   '@openbox-ai/openbox-sdk/agent-trace': src('./ts/src/agent-trace/index.ts'),
   '@openbox-ai/openbox-sdk/anthropic-agent-sdk': src('./ts/src/anthropic-agent-sdk/index.ts'),
+  '@openbox-ai/openbox-sdk/openai-agents-sdk': src('./ts/src/openai-agents-sdk/index.ts'),
   '@openbox-ai/openbox-sdk/approvals': src('./ts/src/approvals/index.ts'),
   '@openbox-ai/openbox-sdk/client': src('./ts/src/client/index.ts'),
   '@openbox-ai/openbox-sdk/client-factory': src('./ts/src/client-factory/index.ts'),
@@ -20,6 +21,7 @@ const sdkAliasMap = {
   '@openbox-ai/openbox-sdk/os-paths': src('./ts/src/env/os-paths.ts'),
   '@openbox-ai/openbox-sdk/polling': src('./ts/src/polling/index.ts'),
   '@openbox-ai/openbox-sdk/runtime/claude-code': src('./ts/src/runtime/claude-code/index.ts'),
+  '@openbox-ai/openbox-sdk/runtime/codex': src('./ts/src/runtime/codex/index.ts'),
   '@openbox-ai/openbox-sdk/runtime/cursor': src('./ts/src/runtime/cursor/index.ts'),
   '@openbox-ai/openbox-sdk/runtime/mcp': src('./ts/src/runtime/mcp/index.ts'),
   '@openbox-ai/openbox-sdk/session': src('./ts/src/session/index.ts'),
@@ -112,6 +114,24 @@ export default defineConfig({
           alias: sdkAliases,
           include: ['tests/e2e/**/*.test.ts'],
           setupFiles: ['./tests/setup.ts', './tests/setup-creds.ts'],
+          testTimeout: 30000,
+          sequence: { concurrent: false },
+          fileParallelism: false,
+        },
+      },
+      {
+        plugins: [sdkSelfReferencePlugin()],
+        resolve: { alias: sdkAliases },
+        test: {
+          // OpenAPI mock contract: starts an in-process mock backend/core
+          // from specs/generated/openapi3 and drives every generated SDK
+          // endpoint against deterministic 2xx responses. This is CI-safe
+          // Stoplight/Prism-style response coverage without requiring the
+          // real local stack.
+          name: 'openapi-mock',
+          alias: sdkAliases,
+          include: ['tests/openapi-mock/**/*.test.ts'],
+          setupFiles: ['./tests/setup.ts'],
           testTimeout: 30000,
           sequence: { concurrent: false },
           fileParallelism: false,

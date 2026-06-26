@@ -2,31 +2,36 @@
 // policies, and behavior rules and normalizes them into the `ProjectedRule` shape
 // declared in specs/typespec/govern/rules-projection.tsp.
 //
-// The projection output shape is hand-mirrored from the TypeSpec model.
-// Backend behavior-rule inputs use generated types so v2 state predicates
-// stay aligned with the API contract.
+// The projection output shape is generated from TypeSpec. Backend
+// behavior-rule inputs also use generated types so v2 state predicates stay
+// aligned with the API contract.
 import { createApi } from '../runtime/mcp/config.js';
 import type { components } from '../types/generated/backend.js';
+import type {
+  ProjectedRule,
+  RulesProjection,
+  RuleSeverity,
+} from './generated/rules-projection.js';
 
-export type RuleTrigger = 'always' | 'globMatch' | 'agentRequested' | 'manual';
-export type RuleSeverity = 'block' | 'warn' | 'info';
+export type {
+  ProjectedRule,
+  RulesProjection,
+  RuleSeverity,
+  RuleTrigger,
+} from './generated/rules-projection.js';
 
-export interface ProjectedRule {
-  id: string;
-  source: 'guardrail' | 'policy' | 'behavior-rule';
-  description: string;
-  body: string;
-  trigger: RuleTrigger;
-  severity: RuleSeverity;
-  globs?: string[];
-  rendererHints?: Record<string, unknown>;
+export interface CodexInstructionRenderOptions {
+  skillName?: string;
+  title?: string;
 }
 
-export interface RulesProjection {
-  agentId: string;
-  fetchedAt: string;
-  version: number;
-  rules: ProjectedRule[];
+export interface CodexCommandRulesRenderOptions {
+  header?: string;
+}
+
+export interface ClaudeInstructionsRenderOptions {
+  commandPrefix?: string;
+  title?: string;
 }
 
 const PROJECTION_VERSION = 1;
@@ -146,10 +151,9 @@ function projectBehaviorRule(rule: BackendBehaviorRule): ProjectedRule | null {
     description: rule.description ?? rule.rule_name,
     body: renderBehaviorRuleBody(rule),
     trigger: 'always',
-    severity: severityFromBehaviorRule(rule),
+      severity: severityFromBehaviorRule(rule),
     rendererHints: {
       trigger: rule.trigger,
-      triggerMatch: rule.trigger_match,
       states: rule.states,
       priority: rule.priority,
       verdict: rule.verdict,
@@ -191,9 +195,6 @@ function renderBehaviorRuleBody(rule: BackendBehaviorRule): string {
     rule.description ?? '_No description provided._',
   ];
   if (rule.trigger) lines.push('', `Trigger: \`${rule.trigger}\``);
-  if (rule.trigger_match && rule.trigger_match.length > 0) {
-    lines.push(`Trigger match: ${renderMatchConditions(rule.trigger_match)}`);
-  }
   if (rule.states && rule.states.length > 0) {
     lines.push(`States: ${rule.states.map(renderBehaviorState).join(', ')}`);
   }
@@ -203,25 +204,7 @@ function renderBehaviorRuleBody(rule: BackendBehaviorRule): string {
 }
 
 function renderBehaviorState(state: BehaviorRuleState): string {
-  if (typeof state === 'string') return `\`${state}\``;
-  const semanticType = state.semantic_type;
-  const match =
-    state.match && state.match.length > 0
-      ? ` where ${renderMatchConditions(state.match)}`
-      : '';
-  return `\`${semanticType}\`${match}`;
-}
-
-function renderMatchConditions(
-  conditions: components['schemas']['BehaviorRuleMatchCondition'][],
-): string {
-  return conditions
-    .map((condition) => {
-      const value =
-        condition.value === undefined ? '' : ` ${JSON.stringify(condition.value)}`;
-      return `\`${condition.field} ${condition.op}${value}\``;
-    })
-    .join(', ');
+  return `\`${state}\``;
 }
 
 export interface FetchProjectionOpts {
@@ -263,6 +246,154 @@ export async function fetchRulesProjection(opts: FetchProjectionOpts): Promise<R
     version: PROJECTION_VERSION,
     rules,
   };
+}
+
+export function renderCodexAgentsMarkdown(
+  projection: RulesProjection,
+  options: CodexInstructionRenderOptions = {},
+): string {
+  const skillName = options.skillName ?? 'openbox';
+  const title = options.title ?? 'OpenBox Governance';
+  const counts = projectionCounts(projection);
+  return [
+    `# ${title}`,
+    '',
+    'OpenBox Core is the source of truth for guardrails, OPA/Rego policies, behavior rules, trust, approvals, cost, usage, and goal alignment.',
+    '',
+    `Use the \`$${skillName}\` skill when reviewing or explaining OpenBox governance in this repository.`,
+    '',
+    'Do not locally reimplement policy decisions. Send complete spans and source-attributed inputs to OpenBox Core and enforce returned verdicts fail-closed.',
+    '',
+    'Projection summary:',
+    '',
+    `- Agent: \`${projection.agentId}\``,
+    `- Fetched: \`${projection.fetchedAt}\``,
+    `- Guardrails: ${counts.guardrail}`,
+    `- Policies: ${counts.policy}`,
+    `- Behavior rules: ${counts['behavior-rule']}`,
+    '',
+  ].join('\n');
+}
+
+export function renderClaudeInstructionsMarkdown(
+  projection: RulesProjection,
+  options: ClaudeInstructionsRenderOptions = {},
+): string {
+  const title = options.title ?? 'OpenBox Governance for Claude Code';
+  const commandPrefix = options.commandPrefix ?? '/openbox';
+  const counts = projectionCounts(projection);
+  return [
+    `# ${title}`,
+    '',
+    'OpenBox Core/backend is the source of truth for guardrails, OPA/Rego policies, behavior rules, trust, approvals, cost, usage, and goal alignment.',
+    '',
+    'Use the OpenBox Claude Code plugin, MCP tools, or slash commands before advising or executing governed work:',
+    '',
+    `- \`${commandPrefix}-status\`: inspect backend, MCP, and plugin readiness.`,
+    `- \`${commandPrefix}-check\`: send a proposed action to Core before execution.`,
+    `- \`${commandPrefix}-pending\`: inspect HITL approvals and preserve source attribution.`,
+    '',
+    'Do not evaluate OPA/Rego, behavior-rule predicates, guardrail logic, or approval policy locally. Send complete spans and source-attributed inputs to OpenBox Core and enforce the returned verdict fail-closed.',
+    '',
+    'Projection summary:',
+    '',
+    `- Agent: \`${projection.agentId}\``,
+    `- Fetched: \`${projection.fetchedAt}\``,
+    `- Guardrails: ${counts.guardrail}`,
+    `- Policies: ${counts.policy}`,
+    `- Behavior rules: ${counts['behavior-rule']}`,
+    '',
+    ...renderClaudeRuleSection('Guardrails', rulesBySource(projection, 'guardrail')),
+    ...renderClaudeRuleSection('Policies', rulesBySource(projection, 'policy')),
+    ...renderClaudeRuleSection('Behavior Rules', rulesBySource(projection, 'behavior-rule')),
+    '',
+  ].join('\n');
+}
+
+export function renderCodexCommandRules(
+  projection: RulesProjection,
+  options: CodexCommandRulesRenderOptions = {},
+): string {
+  const entries = projection.rules
+    .map(commandRuleFromProjection)
+    .filter((entry): entry is { pattern: string[]; decision: string; justification: string } => Boolean(entry));
+  const header =
+    options.header ??
+    'Generated by OpenBox. Only exact shell command-prefix execution policy is projected here; Core remains canonical for governance.';
+  const lines = [`# ${header}`, ''];
+  for (const entry of entries) {
+    lines.push('prefix_rule(');
+    lines.push(`    pattern = ${starlarkStringList(entry.pattern)},`);
+    lines.push(`    decision = ${JSON.stringify(entry.decision)},`);
+    lines.push(`    justification = ${JSON.stringify(entry.justification)},`);
+    lines.push(')');
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function projectionCounts(projection: RulesProjection): Record<ProjectedRule['source'], number> {
+  return projection.rules.reduce<Record<ProjectedRule['source'], number>>(
+    (acc, rule) => {
+      acc[rule.source] += 1;
+      return acc;
+    },
+    { guardrail: 0, policy: 0, 'behavior-rule': 0 },
+  );
+}
+
+function rulesBySource(
+  projection: RulesProjection,
+  source: ProjectedRule['source'],
+): ProjectedRule[] {
+  return projection.rules.filter((rule) => rule.source === source);
+}
+
+function renderClaudeRuleSection(title: string, rules: ProjectedRule[]): string[] {
+  const lines = [`## ${title}`, ''];
+  if (rules.length === 0) {
+    lines.push('- None projected.');
+    return lines;
+  }
+  for (const rule of rules) {
+    lines.push(`- [${rule.severity}] ${rule.description} (${rule.id})`);
+    if (rule.trigger === 'globMatch' && rule.globs?.length) {
+      lines.push(`  - Files: ${rule.globs.map((glob) => `\`${glob}\``).join(', ')}`);
+    }
+    lines.push(`  - Trigger: \`${rule.trigger}\``);
+  }
+  return lines;
+}
+
+function commandRuleFromProjection(
+  rule: ProjectedRule,
+): { pattern: string[]; decision: string; justification: string } | null {
+  if (rule.source !== 'behavior-rule') return null;
+  const hints = rule.rendererHints ?? {};
+  const rawPrefix =
+    hints.codexCommandPrefix ??
+    hints.commandPrefix ??
+    hints.exactShellPrefix;
+  const pattern =
+    Array.isArray(rawPrefix) && rawPrefix.every((part) => typeof part === 'string')
+      ? rawPrefix as string[]
+      : undefined;
+  if (!pattern || pattern.length === 0) return null;
+  return {
+    pattern,
+    decision: codexDecisionFor(rule.severity),
+    justification: rule.description || rule.id,
+  };
+}
+
+function codexDecisionFor(severity: RuleSeverity): 'allow' | 'prompt' | 'forbidden' {
+  if (severity === 'block') return 'forbidden';
+  if (severity === 'warn') return 'prompt';
+  return 'allow';
+}
+
+function starlarkStringList(values: string[]): string {
+  return `[${values.map((value) => JSON.stringify(value)).join(', ')}]`;
 }
 
 function listFromEnvelope<T>(value: unknown): T[] {

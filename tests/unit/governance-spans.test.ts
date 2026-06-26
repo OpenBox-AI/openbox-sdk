@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import type { SpanData } from '../../ts/src/core-client/index.js';
 import { assistantOutputTelemetryFields } from '../../ts/src/governance/assistant-output.js';
+import { USAGE_NORMALIZATION_SURFACE } from '../../ts/src/governance/capability-matrix.js';
+import {
+  combineOpenBoxUsage,
+  normalizeOpenBoxUsage,
+  openBoxUsageTelemetryFields,
+} from '../../ts/src/governance/usage.js';
 import {
   buildLLMCompletionResponseBody,
   buildLLMCompletionSpan,
@@ -16,7 +22,6 @@ function extractAssistantContentLikeCore(spans: SpanData[]): string {
   const latest = spans[spans.length - 1];
   if (
     latest.stage !== 'completed' ||
-    latest.semantic_type !== 'llm_completion' ||
     !latest.response_body
   ) {
     return '';
@@ -29,6 +34,192 @@ function extractAssistantContentLikeCore(spans: SpanData[]): string {
 }
 
 describe('LLM completion spans', () => {
+  test('CONFORMANCE: normalizes token, cache, web-search, and cost usage through the shared facade', () => {
+    expect(USAGE_NORMALIZATION_SURFACE.minimumValue).toBe(0);
+    expect(USAGE_NORMALIZATION_SURFACE.tokenValuesRequireIntegers).toBe(true);
+    expect(
+      normalizeOpenBoxUsage({
+        prompt_tokens: 3,
+        completionTokens: 4,
+        cache_read_input_tokens: 2,
+        webSearchRequests: 1,
+        total_cost_usd: 0.012,
+      }),
+    ).toMatchObject({
+      inputTokens: 3,
+      outputTokens: 4,
+      totalTokens: 7,
+      cacheReadInputTokens: 2,
+      webSearchRequests: 1,
+      costUsd: 0.012,
+    });
+    expect(
+      openBoxUsageTelemetryFields({
+        inputTokenCount: 5,
+        outputTokenCount: 6,
+      }),
+    ).toEqual({
+      inputTokens: 5,
+      outputTokens: 6,
+      totalTokens: 11,
+      costUsd: undefined,
+    });
+    expect(USAGE_NORMALIZATION_SURFACE.costUsdAliases).toContain('total_cost_usd');
+    expect(
+      combineOpenBoxUsage(
+        { input_tokens: 1, output_tokens: 2, cost_usd: 0.1 },
+        { promptTokens: 3, completionTokens: 4, costUSD: 0.2 },
+      ),
+    ).toMatchObject({
+      inputTokens: 4,
+      outputTokens: 6,
+      totalTokens: 10,
+      costUsd: 0.30000000000000004,
+    });
+    expect(
+      normalizeOpenBoxUsage({
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        web_search_requests: 0,
+        cost_usd: 0,
+      }),
+    ).toMatchObject({
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheCreationInputTokens: 0,
+      webSearchRequests: 0,
+      costUsd: 0,
+    });
+    expect(normalizeOpenBoxUsage({ input_tokens: -1, cost_usd: -0.01 })).toBeUndefined();
+    expect(normalizeOpenBoxUsage({ input_tokens: 1.5 })).toBeUndefined();
+    expect(
+      combineOpenBoxUsage(
+        { input_tokens: 1, output_tokens: 2, total_tokens: 1 },
+        { promptTokens: 3, completionTokens: 4 },
+      )?.raw,
+    ).toMatchObject({
+      inputTokens: 4,
+      outputTokens: 6,
+      totalTokens: 10,
+    });
+  });
+
+  test('CONFORMANCE: normalizes nested provider usage containers and dotted aliases', () => {
+    expect(USAGE_NORMALIZATION_SURFACE.providerUsageContainers).toContain(
+      'response_metadata.token_usage',
+    );
+    expect(USAGE_NORMALIZATION_SURFACE.cacheReadInputTokenAliases).toContain(
+      'input_tokens_details.cached_tokens',
+    );
+
+    const usage = normalizeOpenBoxUsage({
+      response_metadata: {
+        token_usage: {
+          prompt_tokens: 8,
+          completion_tokens: 5,
+          input_tokens_details: {
+            cached_tokens: 3,
+          },
+          total_cost_usd: 0.02,
+        },
+      },
+    });
+
+    expect(usage).toMatchObject({
+      inputTokens: 8,
+      outputTokens: 5,
+      totalTokens: 13,
+      cacheReadInputTokens: 3,
+      costUsd: 0.02,
+    });
+
+    const span = buildSpan('mcp', 'llm', {
+      response: 'Nested usage works.',
+      usage: {
+        response_metadata: {
+          token_usage: {
+            prompt_tokens: 8,
+            completion_tokens: 5,
+            input_tokens_details: {
+              cached_tokens: 3,
+            },
+            total_cost_usd: 0.02,
+          },
+        },
+      } as any,
+    });
+
+    expect(span).toMatchObject({
+      input_tokens: 8,
+      output_tokens: 5,
+      total_tokens: 13,
+      cache_read_input_tokens: 3,
+      cost_usd: 0.02,
+      attributes: expect.objectContaining({
+        'gen_ai.usage.input_tokens': 8,
+        'gen_ai.usage.output_tokens': 5,
+        'gen_ai.usage.total_tokens': 13,
+        'gen_ai.usage.cache_read_input_tokens': 3,
+        'openbox.usage.cost_usd': 0.02,
+      }),
+    });
+    expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
+      input_tokens: 8,
+      output_tokens: 5,
+      total_tokens: 13,
+      cache_read_input_tokens: 3,
+      cost_usd: 0.02,
+    });
+  });
+
+  test('preserves explicit zero usage in completed and generic LLM spans', () => {
+    const usage = {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      web_search_requests: 0,
+      cost_usd: 0,
+    };
+    const completed = buildLLMCompletionSpan({
+      content: 'No billable usage.',
+      model: 'gpt-4o-mini',
+      usage,
+    });
+    const generic = buildSpan('mcp', 'llm', {
+      response: 'No billable usage.',
+      model: 'gpt-4o-mini',
+      usage,
+    });
+
+    for (const span of [completed, generic]) {
+      expect(span).toMatchObject({
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        web_search_requests: 0,
+        cost_usd: 0,
+        attributes: expect.objectContaining({
+          'gen_ai.usage.input_tokens': 0,
+          'gen_ai.usage.output_tokens': 0,
+          'gen_ai.usage.total_tokens': 0,
+          'gen_ai.usage.cache_read_input_tokens': 0,
+          'gen_ai.usage.cache_creation_input_tokens': 0,
+          'gen_ai.usage.web_search_requests': 0,
+          'openbox.usage.cost_usd': 0,
+        }),
+      });
+      expect(JSON.parse(String(span.response_body)).usage).toMatchObject(usage);
+    }
+  });
+
   test('response body matches Core goal-alignment assistant extraction', () => {
     expect(
       extractAssistantContentLikeCore([
@@ -66,6 +257,8 @@ describe('LLM completion spans', () => {
       kind: 'llm',
     });
 
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
       span_id: 'span-1',
       trace_id: 'trace-1',
@@ -76,7 +269,6 @@ describe('LLM completion spans', () => {
       end_time: 200_000_000,
       duration_ns: 100,
       stage: 'completed',
-      semantic_type: 'llm_completion',
       status: { code: 'UNSET', description: null },
       events: [],
       error: null,
@@ -185,6 +377,8 @@ describe('LLM completion spans', () => {
     expect(observed.input_tokens).toBe(120);
     expect(observed.output_tokens).toBe(35);
     expect(observed.total_tokens).toBe(155);
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.attributes).toMatchObject({
       'gen_ai.request.model': 'gpt-4o-mini',
       'gen_ai.response.model': 'gpt-4o-mini',
@@ -193,7 +387,6 @@ describe('LLM completion spans', () => {
       'gen_ai.usage.input_tokens': 120,
       'gen_ai.usage.output_tokens': 35,
       'gen_ai.usage.total_tokens': 155,
-      'openbox.semantic_type': 'llm_completion',
       'openbox.span_type': 'function',
     });
   });
@@ -209,8 +402,9 @@ describe('LLM completion spans', () => {
       },
     });
 
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
-      semantic_type: 'llm_completion',
       model: 'gemini-2.5-flash',
       model_id: 'gemini-2.5-flash',
       provider: 'google',
@@ -454,7 +648,8 @@ describe('LLM completion spans', () => {
       tool_input: { path: 'customer.md' },
     });
 
-    expect(span.semantic_type).toBe('mcp_tool_call');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.span_type).toBe('mcp_tool_call');
     expect(span.name).toBe('MCP callTool read_customer_file');
     expect(span.attributes).toMatchObject({
@@ -462,11 +657,99 @@ describe('LLM completion spans', () => {
       'mcp.operation': 'read_customer_file',
       'mcp.server_id': 'unknown',
       'mcp.input': { path: 'customer.md' },
-      'openbox.semantic_type': 'mcp_tool_call',
       'openbox.span_type': 'mcp_tool_call',
       'openbox.tool.name': 'read_customer_file',
       'tool.name': 'read_customer_file',
       tool_name: 'read_customer_file',
+    });
+  });
+
+  test('embedding spans expose Core classifier fields without client-forged semantic type', () => {
+    const span = buildSpan('mcp', 'llm_embedding', {
+      model: 'text-embedding-3-small',
+      prompt: 'govern this embedding',
+      usage: { input_tokens: 12, total_tokens: 12, cost_usd: 0.001 },
+    });
+
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span).toMatchObject({
+      name: 'openai.EMBEDDING.create',
+      span_type: 'function',
+      http_method: 'POST',
+      http_url: 'https://api.openai.com/v1/embeddings',
+      input_tokens: 12,
+      total_tokens: 12,
+      cost_usd: 0.001,
+    });
+    expect(span.attributes).toMatchObject({
+      'gen_ai.system': 'mcp',
+      'gen_ai.request.model': 'text-embedding-3-small',
+      'http.method': 'POST',
+      'http.url': 'https://api.openai.com/v1/embeddings',
+      'gen_ai.usage.input_tokens': 12,
+      'gen_ai.usage.total_tokens': 12,
+    });
+    expect(JSON.parse(String(span.request_body))).toMatchObject({
+      model: 'text-embedding-3-small',
+      input: 'govern this embedding',
+    });
+  });
+
+  test('LLM tool-call spans expose Core classifier fields and tool telemetry', () => {
+    const span = buildSpan('openai-agents-sdk', 'llm_tool_call', {
+      model: 'gpt-5.4',
+      tool_name: 'lookup_queue',
+      tool_input: { queue: 'payments' },
+      usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
+    });
+
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span).toMatchObject({
+      name: 'openai.TOOL.call',
+      span_type: 'function',
+      http_method: 'POST',
+      http_url: 'https://api.openai.com/v1/chat/completions',
+      function: 'ToolCall:lookup_queue',
+      input_tokens: 5,
+      output_tokens: 2,
+      total_tokens: 7,
+    });
+    expect(span.attributes).toMatchObject({
+      'gen_ai.system': 'openai-agents-sdk',
+      'http.method': 'POST',
+      'http.url': 'https://api.openai.com/v1/chat/completions',
+      'openbox.tool.name': 'lookup_queue',
+      'tool.name': 'lookup_queue',
+      tool_name: 'lookup_queue',
+    });
+    expect(JSON.parse(String(span.response_body))).toMatchObject({
+      tool_calls: [{ name: 'lookup_queue', arguments: { queue: 'payments' } }],
+    });
+  });
+
+  test('file_open spans expose Core file.open classifier fields', () => {
+    const span = buildSpan('cursor', 'file_open', {
+      file_path: '/project/.env',
+      tool_name: 'TabRead',
+    });
+
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    expect(span).toMatchObject({
+      name: 'file.open',
+      kind: 'INTERNAL',
+      span_type: 'file_io',
+      file_path: '/project/.env',
+      file_mode: 'r',
+      file_operation: 'open',
+    });
+    expect(span.attributes).toMatchObject({
+      'file.path': '/project/.env',
+      'file.operation': 'open',
+      'openbox.tool.name': 'TabRead',
+      'tool.name': 'TabRead',
     });
   });
 
@@ -476,7 +759,8 @@ describe('LLM completion spans', () => {
       command: 'npm test',
     });
 
-    expect(span.semantic_type).toBe('internal');
+    expect(span).not.toHaveProperty('semantic_type');
+    expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.attributes).toMatchObject({
       'shell.command': 'npm test',
       'openbox.tool.name': 'Shell',

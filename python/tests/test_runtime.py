@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast, get_args
 
 import httpx
 import pytest
@@ -30,8 +30,74 @@ from openbox_sdk import (
 from openbox_sdk._govern_runtime import SessionAlreadyTerminatedError, map_verdict
 from openbox_sdk._utils import normalize_api_url, parse_datetime, render_path, retry_backoff_seconds
 from openbox_sdk.generated.backend_client import BACKEND_ENDPOINT_MANIFEST
+from openbox_sdk.generated.capability_matrix import (
+    CLAUDE_CODE_GOVERNANCE_AUDIT,
+    CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE,
+    CLAUDE_CODE_SDK_CAPABILITY_MATRIX,
+    CLAUDE_CODE_SURFACE_MATRIX,
+    GOAL_SIGNAL_GUARDS,
+    GUARDRAIL_CAPABILITY_GUARDS,
+    GUARDRAILS_HUB_RECORDING_SURFACE,
+    HITL_CAPABILITY_GUARDS,
+    HOOK_CAPABILITY_GUARDS,
+    INSTALL_DOCTOR_CAPABILITY_GUARDS,
+    LOCAL_STACK_SCENARIO_MATRIX,
+    LOCAL_STACK_SCENARIO_PATHS,
+    MCP_CAPABILITY_GUARDS,
+    MCP_PROMPT_SURFACES,
+    MCP_RESOURCE_TEMPLATE_SURFACES,
+    MCP_SKILL_REFERENCE_SURFACES,
+    MCP_TOOL_SURFACES,
+    N8N_INTEGRATION_SURFACE,
+    OPENBOX_CAPABILITY_IDS,
+    OPENBOX_PROVIDER_IDS,
+    OPENBOX_SUPPORT_TIERS,
+    PLUGIN_CAPABILITY_GUARDS,
+    POLICY_EVALUATION_GUARDS,
+    PROVIDER_CAPABILITY_MATRIX,
+    PROVIDER_EVENT_CATALOG,
+    PROVIDER_PLUGIN_COMPONENTS,
+    PUBLIC_INTEGRATION_SUPPORT,
+    RULES_INSTRUCTION_CAPABILITY_GUARDS,
+    SKILL_CAPABILITY_GUARDS,
+    SUBAGENTS_AGENTS_CAPABILITY_GUARDS,
+    TRACING_CAPABILITY_GUARDS,
+    USAGE_COST_CAPABILITY_GUARDS,
+    USAGE_NORMALIZATION_SURFACE,
+)
 from openbox_sdk.generated.core_client import CORE_ENDPOINT_MANIFEST
 from openbox_sdk.generated.govern import PRESET_MANIFEST
+from openbox_sdk.generated.permissions import PATH_PERMISSION_RULES
+from openbox_sdk.generated.rules_projection import (
+    ProjectedRule,
+    RuleSeverity,
+    RulesProjection,
+    RuleTrigger,
+)
+from openbox_sdk.generated.runtime_contract import (
+    DEFAULT_SDK_SOURCE,
+    SOURCE_INPUT_KEY,
+    WORKFLOW_EVENT_SOURCE,
+)
+from openbox_sdk.generated.sdk_targets import (
+    BUNDLE_BUILD,
+    CLEAN_ARTIFACTS,
+    CODEGEN_BUILD,
+    GENERATED_ARTIFACTS,
+    GENERATED_CHECKS,
+    LOCAL_CI,
+    PACKAGE_SCRIPTS,
+    PACKAGE_SURFACE,
+    QUALITY_COMMANDS,
+    ROOT_PIPELINES,
+    SDK_GENERATION,
+    SDK_TARGET_IDS,
+    SDK_TARGET_MANIFEST,
+    SDK_TARGETS,
+    SECURITY_AUDIT,
+    SPEC_COMMANDS,
+    TEST_SUITES,
+)
 from openbox_sdk.integrations.copilotkit import openbox_copilotkit_middleware
 from openbox_sdk.integrations.langgraph import (
     OpenBoxLangGraphMiddleware,
@@ -71,11 +137,72 @@ def _future_iso(seconds: int = 30) -> str:
     return (datetime.now(tz=UTC) + timedelta(seconds=seconds)).isoformat().replace("+00:00", "Z")
 
 
-def _ts_array(file: Path, const_name: str) -> list[dict[str, Any]]:
-    source = file.read_text()
-    match = re.search(rf"const {const_name}\s*=\s*(\[.*?\])\s+as const", source, re.S)
-    assert match is not None
-    return json.loads(match.group(1))
+def _provider_capability_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/provider-capabilities.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
+def _sdk_manifest_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/sdk-manifests.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
+def _sdk_targets_fixture() -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    fixture = json.loads((repo / "codegen/fixtures/sdk-targets.json").read_text())
+    assert isinstance(fixture, dict)
+    return cast(dict[str, Any], fixture)
+
+
+def _endpoint_manifest_for_fixture(manifest: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "operationId": item["operation_id"],
+            "path": item["path"],
+            "verb": item["verb"],
+            "pathPattern": item["path_pattern"],
+        }
+        for item in manifest
+    ]
+
+
+def _codegen_json(name: str) -> dict[str, Any]:
+    repo = Path(__file__).parents[2]
+    data = json.loads((repo / "codegen" / name).read_text())
+    assert isinstance(data, dict)
+    return cast(dict[str, Any], data)
+
+
+def _permission_regex_for_path_pattern(path_pattern: str) -> str:
+    escaped = re.sub(r"([.*+?^${}()|\[\]\\])", r"\\\1", path_pattern)
+    escaped = escaped.replace("\\{x\\}", "[^/]+")
+    return f"^{escaped}$"
+
+
+def _expected_python_permission_rules() -> list[list[Any]]:
+    permissions_by_operation = _codegen_json("method-permissions.json")
+    operations = {entry["operation_id"] for entry in BACKEND_ENDPOINT_MANIFEST}
+    missing_operations = sorted(set(permissions_by_operation) - operations)
+    assert missing_operations == []
+
+    expected: list[list[Any]] = []
+    for entry in BACKEND_ENDPOINT_MANIFEST:
+        permissions = permissions_by_operation.get(entry["operation_id"])
+        if not isinstance(permissions, list) or not permissions:
+            continue
+        expected.append(
+            [
+                entry["verb"],
+                _permission_regex_for_path_pattern(str(entry["path_pattern"])),
+                entry["method_name"],
+                permissions,
+            ]
+        )
+    return expected
 
 
 @pytest.mark.asyncio
@@ -195,7 +322,7 @@ async def test_core_client_validation_no_retry_signing_and_approval_expiry() -> 
     assert seen[0].headers["x-openbox-internal"] == "true"
     assert seen[0].headers["X-OpenBox-Agent-DID"] == "did:openbox:agent-1"
     assert b'"sdk_version"' in seen[0].content
-    assert approval["expired"] is True
+    assert "expired" not in approval
 
     with pytest.raises(ValueError):
         AsyncOpenBoxCoreClient(
@@ -237,7 +364,7 @@ def test_signing_redaction_and_utility_helpers() -> None:
             agent_private_key=seed,
         )
 
-    original = {"nested": {"secret": "raw"}, "items": [{"x": 1}]}
+    original: dict[str, Any] = {"nested": {"secret": "raw"}, "items": [{"x": 1}]}
     verdict = {
         "guardrailsResult": {
             "redactedInput": {"nested": {"secret": "[redacted]"}},
@@ -247,6 +374,23 @@ def test_signing_redaction_and_utility_helpers() -> None:
     assert apply_input_redaction(original, verdict)["nested"]["secret"] == "[redacted]"
     assert apply_output_redaction(original, verdict)["items"] == [{"x": 2}, {"x": 3}]
     assert original["nested"]["secret"] == "raw"
+    snake_verdict = {
+        "guardrails_result": {
+            "input_type": "activity_input",
+            "redacted_input": {"input": [{"nested": {"secret": "[snake]"}}]},
+        }
+    }
+    assert apply_input_redaction([original], snake_verdict)[0]["nested"]["secret"] == "[snake]"
+    output_fallback_verdict = {
+        "guardrails_result": {
+            "input_type": "activity_output",
+            "redacted_input": {"output": {"nested": {"secret": "[output]"}}},
+        }
+    }
+    assert (
+        apply_output_redaction(original, output_fallback_verdict)["nested"]["secret"]
+        == "[output]"
+    )
     assert normalize_api_url("https://api.example/") == "https://api.example"
     with pytest.raises(ValueError):
         normalize_api_url("")
@@ -278,33 +422,139 @@ def test_signing_redaction_and_utility_helpers() -> None:
     }
     assert has_guardrail_redaction(redaction_verdict) is True
     assert summarize_guardrail_redaction(redaction_verdict) == ["secret"]
+    assert (
+        has_guardrail_redaction(
+            {"guardrails_result": {"input_type": "activity_input", "redacted_input": []}}
+        )
+        is True
+    )
     assert apply_input_redaction({"a": 1}, {}) == {"a": 1}
     assert apply_output_redaction({"a": 1}, {"guardrailsResult": {}}) == {"a": 1}
 
 
-def test_generated_python_matches_typescript_manifests() -> None:
-    repo = Path(__file__).parents[2]
-    backend_ts = _ts_array(
-        repo / "ts/src/client/generated/endpoint-manifest.ts",
-        "BACKEND_ENDPOINT_MANIFEST",
-    )
-    core_ts = _ts_array(
-        repo / "ts/src/core-client/generated/endpoint-manifest.ts",
-        "CORE_ENDPOINT_MANIFEST",
-    )
-    govern_ts = _ts_array(repo / "ts/src/core-client/generated/govern.ts", "PRESET_MANIFEST")
+def test_generated_python_matches_typespec_sdk_manifest_fixture() -> None:
+    fixture = _sdk_manifest_fixture()
 
-    assert [item["operationId"] for item in backend_ts] == [
-        item["operation_id"] for item in BACKEND_ENDPOINT_MANIFEST
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert "specs/typespec/backend/main.tsp" in fixture["sources"]
+    assert _endpoint_manifest_for_fixture(BACKEND_ENDPOINT_MANIFEST) == fixture[
+        "backendEndpointManifest"
     ]
-    assert [item["operationId"] for item in core_ts] == [
-        item["operation_id"] for item in CORE_ENDPOINT_MANIFEST
+    assert _endpoint_manifest_for_fixture(CORE_ENDPOINT_MANIFEST) == fixture[
+        "coreEndpointManifest"
     ]
-    assert [item["preset"] for item in govern_ts] == [item["preset"] for item in PRESET_MANIFEST]
+    assert PRESET_MANIFEST == fixture["governPresetManifest"]
     assert hasattr(AsyncOpenBoxClient, "list_agents")
     assert hasattr(AsyncOpenBoxCoreClient, "evaluate_governance")
     assert hasattr(presets.claude_code, "pre_tool_use")
     assert hasattr(presets.langgraph, "node_start")
+
+
+def test_generated_python_matches_typespec_capability_fixture() -> None:
+    fixture = _provider_capability_fixture()
+
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert fixture["source"] == "specs/typespec/govern/capabilities.tsp"
+    assert OPENBOX_CAPABILITY_IDS == fixture["capabilityIds"]
+    assert OPENBOX_PROVIDER_IDS == fixture["providerIds"]
+    assert OPENBOX_SUPPORT_TIERS == fixture["supportTiers"]
+    assert PROVIDER_CAPABILITY_MATRIX == fixture["providerCapabilityMatrix"]
+    assert PROVIDER_EVENT_CATALOG == fixture["providerEventCatalog"]
+    assert PROVIDER_PLUGIN_COMPONENTS == fixture["providerPluginComponents"]
+    assert CLAUDE_CODE_GOVERNANCE_AUDIT_SURFACE == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]
+    assert CLAUDE_CODE_GOVERNANCE_AUDIT == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]["audit"]
+    assert CLAUDE_CODE_SURFACE_MATRIX == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]["surfaces"]
+    assert CLAUDE_CODE_SDK_CAPABILITY_MATRIX == fixture[
+        "claudeCodeGovernanceAuditSurface"
+    ]["sdkCapabilities"]
+    assert PUBLIC_INTEGRATION_SUPPORT == fixture["publicIntegrationSupport"]
+    assert GOAL_SIGNAL_GUARDS == fixture["goalSignalGuards"]
+    assert USAGE_COST_CAPABILITY_GUARDS == fixture["usageCostCapabilityGuards"]
+    assert USAGE_NORMALIZATION_SURFACE == fixture["usageNormalizationSurface"]
+    assert TRACING_CAPABILITY_GUARDS == fixture["tracingCapabilityGuards"]
+    assert HITL_CAPABILITY_GUARDS == fixture["hitlCapabilityGuards"]
+    assert GUARDRAIL_CAPABILITY_GUARDS == fixture["guardrailCapabilityGuards"]
+    assert GUARDRAILS_HUB_RECORDING_SURFACE == fixture["guardrailsHubRecordingSurface"]
+    assert POLICY_EVALUATION_GUARDS == fixture["policyEvaluationGuards"]
+    assert RULES_INSTRUCTION_CAPABILITY_GUARDS == fixture["rulesInstructionCapabilityGuards"]
+    assert HOOK_CAPABILITY_GUARDS == fixture["hookCapabilityGuards"]
+    assert SUBAGENTS_AGENTS_CAPABILITY_GUARDS == fixture["subagentsAgentsCapabilityGuards"]
+    assert PLUGIN_CAPABILITY_GUARDS == fixture["pluginCapabilityGuards"]
+    assert SKILL_CAPABILITY_GUARDS == fixture["skillCapabilityGuards"]
+    assert MCP_CAPABILITY_GUARDS == fixture["mcpCapabilityGuards"]
+    assert INSTALL_DOCTOR_CAPABILITY_GUARDS == fixture["installDoctorCapabilityGuards"]
+    assert LOCAL_STACK_SCENARIO_PATHS == fixture["localStackScenarioPaths"]
+    assert LOCAL_STACK_SCENARIO_MATRIX == fixture["localStackScenarioMatrix"]
+    assert MCP_TOOL_SURFACES == fixture["mcpToolSurfaces"]
+    assert MCP_PROMPT_SURFACES == fixture["mcpPromptSurfaces"]
+    assert MCP_RESOURCE_TEMPLATE_SURFACES == fixture["mcpResourceTemplateSurfaces"]
+    assert MCP_SKILL_REFERENCE_SURFACES == fixture["mcpSkillReferenceSurfaces"]
+    assert N8N_INTEGRATION_SURFACE == fixture["n8nIntegrationSurface"]
+
+
+def test_generated_python_matches_typespec_sdk_target_fixture() -> None:
+    fixture = _sdk_targets_fixture()
+
+    assert fixture["generatedBy"] == "codegen/emitters/typespec-emitter"
+    assert fixture["source"] == "specs/typespec/sdk/main.tsp"
+    expected_manifest = {
+        key: value
+        for key, value in fixture.items()
+        if key not in {"generatedBy", "source", "regenerate"}
+    }
+    assert SDK_TARGET_MANIFEST == expected_manifest
+    assert BUNDLE_BUILD == fixture["bundleBuild"]
+    assert CLEAN_ARTIFACTS == fixture["cleanArtifacts"]
+    assert CODEGEN_BUILD == fixture["codegenBuild"]
+    assert GENERATED_ARTIFACTS == fixture["generatedArtifacts"]
+    assert GENERATED_CHECKS == fixture["generatedChecks"]
+    assert LOCAL_CI == fixture["localCi"]
+    assert PACKAGE_SCRIPTS == fixture["packageScripts"]
+    assert PACKAGE_SURFACE == fixture["packageSurface"]
+    assert QUALITY_COMMANDS == fixture["qualityCommands"]
+    assert ROOT_PIPELINES == fixture["rootPipelines"]
+    assert SECURITY_AUDIT == fixture["securityAudit"]
+    assert SDK_GENERATION == fixture["sdkGeneration"]
+    assert SPEC_COMMANDS == fixture["specCommands"]
+    assert TEST_SUITES == fixture["testSuites"]
+    assert SDK_TARGETS == fixture["targets"]
+    assert SDK_TARGET_IDS == [target["id"] for target in fixture["targets"]]
+
+
+def test_generated_python_rules_projection_contract_matches_typespec_shape() -> None:
+    assert get_args(RuleTrigger) == (
+        "always",
+        "globMatch",
+        "agentRequested",
+        "manual",
+    )
+    assert get_args(RuleSeverity) == ("block", "warn", "info")
+    assert set(ProjectedRule.__annotations__) == {
+        "id",
+        "source",
+        "description",
+        "body",
+        "trigger",
+        "severity",
+        "globs",
+        "rendererHints",
+    }
+    assert set(RulesProjection.__annotations__) == {
+        "agentId",
+        "fetchedAt",
+        "version",
+        "rules",
+    }
+
+
+def test_generated_python_permission_rules_match_backend_permission_map() -> None:
+    assert PATH_PERMISSION_RULES == _expected_python_permission_rules()
 
 
 @pytest.mark.asyncio
@@ -334,7 +584,11 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert failed_core.events[-1]["error"]["message"] == "boom"
 
     blocked_core = FakeCore(evals=[{"verdict": "allow"}, {"verdict": "block", "reason": "no"}])
-    await govern({"core": blocked_core, "preset": presets.default}, lambda s: s.tool({"input": []}))
+
+    async def blocked_body(session: Any) -> Mapping[str, Any]:
+        return cast(Mapping[str, Any], await session.tool({"input": []}))
+
+    await govern({"core": blocked_core, "preset": presets.default}, blocked_body)
     assert [event["event_type"] for event in blocked_core.events].count("ActivityCompleted") == 0
 
     pending: list[Mapping[str, Any]] = []
@@ -356,8 +610,12 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
         approval_poll_interval_seconds=0,
         on_pending_approval=lambda info: pending.append(dict(info)),
         on_approval_resolved=lambda info: resolved.append(dict(info)),
+        source="python-test",
     )
     await session.tool({"input": []})
+    approval_started = approval_core.events[1]
+    assert approval_started["source"] == WORKFLOW_EVENT_SOURCE
+    assert approval_started["activity_input"] == [{SOURCE_INPUT_KEY: "python-test"}]
     assert approval_core.polls == [
         {
             "workflow_id": session.workflow_id,
@@ -365,7 +623,9 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
             "activity_id": pending[0]["activityId"],
         }
     ]
+    assert pending[0]["source"] == "python-test"
     assert resolved[0]["arm"] == "allow"
+    assert resolved[0]["source"] == "python-test"
 
     span_core = FakeCore()
     span_session = presets.default(core=span_core)
@@ -374,10 +634,22 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
         "ToolStarted",
         {
             "activity_id": "act_1",
+            "start_time": 1_700_000_000_000,
             "spans": [
                 {
                     "stage": "started",
-                    "semantic_type": "http_get",
+                    "semanticType": "http_get",
+                    "startTime": 1_700_000_000_000,
+                    "durationNs": 0,
+                    "events": [
+                        {
+                            "attributes": {"keep": "yes"},
+                            "name": 42,
+                            "timestamp": "bad",
+                        }
+                    ],
+                    "status": {"code": 42},
+                    "requestHeaders": {"authorization": "Bearer test", "n": 1},
                     "attributes": {"url.full": "https://example.com"},
                 }
             ],
@@ -389,8 +661,18 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert span_core.events[-1]["hook_trigger"] is True
     assert span_core.events[-1]["span_count"] == 1
     assert span_core.events[-1]["activity_id"] == "act_1"
-    assert span_core.events[-1]["spans"][0]["activity_id"] == "act_1"
-    assert span_core.events[-1]["spans"][0]["attributes"]["http.url"] == "https://example.com"
+    started_hook_span = span_core.events[-1]["spans"][0]
+    assert started_hook_span["activity_id"] == "act_1"
+    assert started_hook_span["semantic_type"] == "http_get"
+    assert started_hook_span["start_time"] == 1_700_000_000_000_000_000
+    assert started_hook_span["end_time"] is None
+    assert started_hook_span["duration_ns"] is None
+    assert "status" not in started_hook_span
+    assert started_hook_span["events"] == [
+        {"attributes": {"keep": "yes"}, "name": "", "timestamp": 0}
+    ]
+    assert started_hook_span["request_headers"] == {"authorization": "Bearer test"}
+    assert started_hook_span["attributes"]["http.url"] == "https://example.com"
 
     handle = await span_session.open_activity(
         "ToolStarted",
@@ -419,8 +701,47 @@ async def test_govern_lifecycle_pairing_approvals_hook_spans_and_terminal_sessio
     assert "span_count" not in completed_parent
     assert completed_hook["span_count"] == 1
 
-    attached = govern.attach(
-        {"core": FakeCore(), "preset": presets.default, "workflow_id": "w", "run_id": "r"}
+    camel_handle = await span_session.open_activity(
+        "ToolStarted",
+        {
+            "activityId": "act_camel",
+            "startTime": 1_700_000_000_000,
+            "spans": [{"stage": "started", "semantic_type": "internal"}],
+        },
+    )
+    await camel_handle.complete(
+        {
+            "endTime": 1_700_000_000_025,
+            "durationMs": 25,
+            "hookSpanParentEventType": "ActivityStarted",
+            "spans": [{"stage": "completed", "semantic_type": "internal"}],
+        }
+    )
+    camel_completed_parent = next(
+        event
+        for event in span_core.events
+        if event.get("activity_id") == "act_camel"
+        and event["event_type"] == "ActivityCompleted"
+        and event["hook_trigger"] is False
+    )
+    camel_completed_hook = next(
+        event
+        for event in span_core.events
+        if event.get("activity_id") == "act_camel"
+        and event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is True
+        and event["spans"][0]["stage"] == "completed"
+    )
+    assert camel_completed_parent["start_time"] == 1_700_000_000_000
+    assert camel_completed_parent["end_time"] == 1_700_000_000_025
+    assert camel_completed_parent["duration_ms"] == 25
+    assert camel_completed_hook["span_count"] == 1
+
+    attached = cast(
+        Any,
+        govern.attach(
+            {"core": FakeCore(), "preset": presets.default, "workflow_id": "w", "run_id": "r"}
+        ),
     )
     await attached.workflow_completed()
     with pytest.raises(SessionAlreadyTerminatedError):
@@ -450,6 +771,19 @@ async def test_govern_runtime_edge_paths() -> None:
     assert session.is_terminated is True
     assert await session.complete() is None
     assert await session.fail(RuntimeError("ignored")) is None
+    signal_event = next(event for event in core.events if event["event_type"] == "SignalReceived")
+    handoff_event = next(event for event in core.events if event["event_type"] == "Handoff")
+    manual_started = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "manual" and event["event_type"] == "ActivityStarted"
+    )
+    assert signal_event["source"] == WORKFLOW_EVENT_SOURCE
+    assert signal_event["activity_input"] == [{SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}]
+    assert handoff_event["activity_input"] == [
+        {"to": "agent", SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}
+    ]
+    assert manual_started["activity_input"] == [{"a": 1, SOURCE_INPUT_KEY: DEFAULT_SDK_SOURCE}]
 
     inline_core = FakeCore(evals=[{"verdict": "allow"}, {"verdict": "require_approval"}])
     inline = presets.default(core=inline_core, inline_approval=True)
@@ -460,10 +794,17 @@ async def test_govern_runtime_edge_paths() -> None:
     external_core = FakeCore(
         approvals=[{"action": "reject", "reason": "no", "approval_expiration_time": _future_iso()}]
     )
+    external_infos: list[dict[str, Any]] = []
+
+    def external_decision(info: Mapping[str, Any]) -> str:
+        external_infos.append(dict(info))
+        return "approve"
+
     external = presets.default(
         core=external_core,
         approval_poll_interval_seconds=10,
-        await_external_decision=lambda _info: "approve",
+        await_external_decision=external_decision,
+        source="external-python",
     )
     rejected = await external.poll_approval(
         "activity",
@@ -471,13 +812,14 @@ async def test_govern_runtime_edge_paths() -> None:
         {"arm": "require_approval", "approvalExpiresAt": _future_iso()},
     )
     assert rejected["arm"] == "block"
+    assert external_infos[0]["source"] == "external-python"
 
-    expired = await external.poll_approval(
+    approved_after_elapsed_timestamp = await external.poll_approval(
         "activity",
         "Manual",
         {"arm": "require_approval", "approvalExpiresAt": "2000-01-01T00:00:00Z"},
     )
-    assert expired["arm"] == "block"
+    assert approved_after_elapsed_timestamp["arm"] == "allow"
 
     guardrail = map_verdict(
         {
@@ -499,6 +841,63 @@ async def test_govern_runtime_edge_paths() -> None:
         ]
         is True
     )
+    alias_verdict = map_verdict(
+        {
+            "verdict": "constrain",
+            "risk_score": 0,
+            "trust_tier": 0,
+            "alignment_score": 0,
+            "behavioral_violations": [],
+            "fallback_used": False,
+            "age_result": {},
+            "guardrails_result": {
+                "input_type": "activity_input",
+                "redacted_output": {},
+                "raw_logs": {},
+                "field_results": [
+                    {"field": "direct_cmd", "status": "transformed", "reason": "direct row"}
+                ],
+                "results": [
+                    {
+                        "guardrail_type": "pii",
+                        "results": [
+                            {"field": "cmd", "order": 0, "status": "block", "reason": "token"}
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+    assert alias_verdict["riskScore"] == 0
+    assert alias_verdict["trustTier"] == 0
+    assert alias_verdict["alignmentScore"] == 0
+    assert alias_verdict["behavioralViolations"] == []
+    assert alias_verdict["fallbackUsed"] is False
+    assert alias_verdict["ageResult"] == {}
+    assert alias_verdict["guardrailsResult"]["redactedOutput"] == {}
+    assert alias_verdict["guardrailsResult"]["rawLogs"] == {}
+    assert alias_verdict["guardrailsResult"]["fieldResults"] == [
+        {"field": "direct_cmd", "status": "transformed", "reason": "direct row"},
+        {
+            "field": "cmd",
+            "status": "blocked",
+            "reason": "token",
+            "guardrailType": "pii",
+            "order": 0,
+        },
+    ]
+    output_guardrail = map_verdict(
+        {
+            "verdict": "allow",
+            "guardrails_result": {
+                "validation_passed": False,
+                "input_type": "activity_output",
+                "reasons": [{"reason": "first"}, {"reason": "second"}],
+            },
+        }
+    )
+    assert output_guardrail["arm"] == "block"
+    assert output_guardrail["reason"] == "first; second"
 
 
 @pytest.mark.asyncio
@@ -517,10 +916,139 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     async def handler(request: Mapping[str, Any]) -> Mapping[str, Any]:
         return {"handled": request["name"]}
 
-    result = await middleware.wrap_tool_call({"id": "tool-1", "name": "lookup"}, handler)
+    tool_request: Mapping[str, Any] = {"id": "tool-1", "name": "lookup"}
+    result: Mapping[str, Any] = await middleware.wrap_tool_call(tool_request, handler)
     assert result == {"handled": "lookup"}
-    model_result = await middleware.wrap_model_call({"run_id": "model-1"}, lambda _req: "answer")
-    assert model_result == "answer"
+    tool_events = [event for event in core.events if event.get("activity_id") == "tool-1"]
+    assert tool_events[0]["event_type"] == "ActivityStarted"
+    assert tool_events[0]["hook_trigger"] is False
+    assert "spans" not in tool_events[0]
+    assert tool_events[1]["event_type"] == "ActivityStarted"
+    assert tool_events[1]["hook_trigger"] is True
+    assert tool_events[1]["spans"][0]["stage"] == "started"
+    assert tool_events[1]["spans"][0]["attributes"]["openbox.tool.name"] == "lookup"
+    assert tool_events[1]["spans"][0]["attributes"]["tool.name"] == "lookup"
+    completed_tool_hook = next(
+        event
+        for event in tool_events
+        if event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is True
+        and event["spans"][0]["stage"] == "completed"
+    )
+    assert completed_tool_hook["span_count"] == 1
+
+    unnamed_request: Mapping[str, Any] = {"id": "tool-unnamed"}
+    unnamed_result = await middleware.wrap_tool_call(
+        unnamed_request,
+        lambda _req: {"ok": True},
+    )
+    assert unnamed_result == {"ok": True}
+    unnamed_parent = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "tool-unnamed"
+        and event["event_type"] == "ActivityStarted"
+        and event["hook_trigger"] is False
+    )
+    assert unnamed_parent["activity_type"] == "AgentAction"
+
+    model_payload = {
+        "content": "answer",
+        "usage_metadata": {"input_tokens": 8, "output_tokens": 3, "total_cost_usd": 0.025},
+        "response_metadata": {"model_name": "gpt-4.1-mini", "finish_reason": "stop"},
+    }
+    model_request: Mapping[str, Any] = {
+        "run_id": "model-1",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "say hi"}],
+    }
+    model_result = await middleware.wrap_model_call(
+        model_request,
+        lambda _req: model_payload,
+    )
+    assert model_result == model_payload
+    model_events = [event for event in core.events if event.get("activity_id") == "model-1"]
+    assert not [event for event in model_events if event["hook_trigger"] is True]
+    model_completed = next(
+        event for event in model_events if event["event_type"] == "ActivityCompleted"
+    )
+    assert model_completed["llm_model"] == "gpt-4.1-mini"
+    assert model_completed["input_tokens"] == 8
+    assert model_completed["output_tokens"] == 3
+    assert model_completed["total_tokens"] == 11
+    assert model_completed["cost_usd"] == 0.025
+    assert model_completed["has_tool_calls"] is False
+    assert model_completed["finish_reason"] == "stop"
+    assert model_completed["completion"] == "answer"
+
+    nested_usage_payload = {
+        "content": "nested answer",
+        "response_metadata": {
+            "model_name": "gpt-4.1-mini",
+            "token_usage": {
+                "prompt_tokens": "8",
+                "completion_tokens": "3",
+                "input_tokens_details": {"cached_tokens": "2"},
+                "total_cost_usd": "0.025",
+            },
+        },
+    }
+    nested_usage_request: Mapping[str, Any] = {
+        "run_id": "model-nested-usage",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "nested usage"}],
+    }
+    await middleware.wrap_model_call(
+        nested_usage_request,
+        lambda _req: nested_usage_payload,
+    )
+    nested_usage_completed = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "model-nested-usage"
+        and event["event_type"] == "ActivityCompleted"
+    )
+    assert "response_metadata.token_usage" in USAGE_NORMALIZATION_SURFACE[
+        "providerUsageContainers"
+    ]
+    assert "input_tokens_details.cached_tokens" in USAGE_NORMALIZATION_SURFACE[
+        "cacheReadInputTokenAliases"
+    ]
+    assert nested_usage_completed["input_tokens"] == 8
+    assert nested_usage_completed["output_tokens"] == 3
+    assert nested_usage_completed["total_tokens"] == 11
+    assert nested_usage_completed["cost_usd"] == 0.025
+
+    zero_usage_payload = {
+        "content": "cached answer",
+        "usage_metadata": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "total_cost_usd": 0,
+        },
+    }
+    zero_usage_request: Mapping[str, Any] = {
+        "run_id": "model-zero",
+        "model": "gpt-4.1-mini",
+        "messages": [{"role": "user", "content": "use cache"}],
+    }
+    await middleware.wrap_model_call(
+        zero_usage_request,
+        lambda _req: zero_usage_payload,
+    )
+    zero_usage_completed = next(
+        event
+        for event in core.events
+        if event.get("activity_id") == "model-zero"
+        and event["event_type"] == "ActivityCompleted"
+    )
+    assert USAGE_NORMALIZATION_SURFACE["minimumValue"] == 0
+    assert USAGE_NORMALIZATION_SURFACE["tokenValuesRequireIntegers"] is True
+    assert zero_usage_completed["input_tokens"] == 0
+    assert zero_usage_completed["output_tokens"] == 0
+    assert zero_usage_completed["total_tokens"] == 0
+    assert zero_usage_completed["cost_usd"] == 0
 
     approval_core = FakeCore(
         evals=[
@@ -538,8 +1066,9 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
         workflow_id="aw",
         run_id="ar",
     )
+    approval_tool_request: Mapping[str, Any] = {"id": "tool-approval", "name": "lookup"}
     assert await approval_middleware.wrap_tool_call(
-        {"id": "tool-approval", "name": "lookup"},
+        approval_tool_request,
         handler,
     ) == {"handled": "lookup"}
     assert approval_core.polls == [
@@ -558,9 +1087,10 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
         nonlocal called
         called = True
 
+    blocked_tool_request: Mapping[str, Any] = {"id": "tool-blocked", "name": "lookup"}
     with pytest.raises(RuntimeError, match="denied"):
         await blocked_middleware.wrap_tool_call(
-            {"id": "tool-blocked", "name": "lookup"},
+            blocked_tool_request,
             blocked_handler,
         )
     assert called is False
@@ -568,8 +1098,9 @@ async def test_langgraph_and_copilotkit_integrations() -> None:
     async def failing_handler(_request: Mapping[str, Any]) -> None:
         raise RuntimeError("tool failed")
 
+    failing_tool_request: Mapping[str, Any] = {"id": "tool-2", "name": "lookup"}
     with pytest.raises(RuntimeError, match="tool failed"):
-        await middleware.wrap_tool_call({"id": "tool-2", "name": "lookup"}, failing_handler)
+        await middleware.wrap_tool_call(failing_tool_request, failing_handler)
 
     class Graph:
         async def ainvoke(self, value: str) -> str:

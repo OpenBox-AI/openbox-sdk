@@ -1,14 +1,22 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { OpenBoxCoreClient, type AgentIdentityConfig } from '../../ts/src/core-client/index.js';
 import { withSpanActivityId } from '../../ts/src/governance/spans.js';
+import {
+  VERDICT_MATRIX,
+  type SpanType,
+  type VerdictMatrixCase,
+} from '../hook-integration/fixtures/verdict-matrix.js';
 
 const BACKEND_KEY_PREFIX = /^obx_key_/;
 const RUNTIME_KEY_PREFIX = /^obx_(?:test|live)_/;
 const POLICY_NAME = 'openbox-sdk-live-e2e-policy';
 const POLICY_MARKER = 'openbox-sdk-live-e2e verdict matrix v1';
 
-type SpanType = 'llm' | 'file_read' | 'file_write' | 'shell' | 'http' | 'db';
-type ExpectedVerdict = 'allow' | 'require_approval' | 'block' | 'halt';
+type ExpectedBackendVerdict = 'allow' | 'require_approval' | 'block' | 'halt';
+type LiveVerdictMatrixCase = VerdictMatrixCase & {
+  expectedBackendVerdict: ExpectedBackendVerdict;
+  expectedReason?: string;
+};
 
 interface BackendEnvelope<T = any> {
   data?: T;
@@ -21,20 +29,14 @@ interface PolicyRecord {
   rego_code?: string;
 }
 
-const MATRIX: Array<{
-  name: string;
-  spanType: SpanType;
-  input: Record<string, unknown>;
-  verdict: ExpectedVerdict;
-  reason?: string;
-}> = [
-  { name: 'db', spanType: 'db', input: { query: 'SELECT 1' }, verdict: 'allow' },
-  { name: 'llm', spanType: 'llm', input: { prompt: 'summarize this' }, verdict: 'require_approval', reason: 'e2e-approve-llm' },
-  { name: 'file_read', spanType: 'file_read', input: { file_path: '/etc/hostname' }, verdict: 'require_approval', reason: 'e2e-approve-read' },
-  { name: 'shell', spanType: 'shell', input: { command: 'echo hello' }, verdict: 'block', reason: 'e2e-deny-shell' },
-  { name: 'file_write', spanType: 'file_write', input: { file_path: '/tmp/blocked.txt' }, verdict: 'block', reason: 'e2e-deny-write' },
-  { name: 'http', spanType: 'http', input: { method: 'POST', url: 'https://example.com/blocked' }, verdict: 'halt', reason: 'e2e-halt-http' },
-];
+const LIVE_VERDICT_MATRIX: readonly LiveVerdictMatrixCase[] = VERDICT_MATRIX.map((entry) => ({
+  ...entry,
+  expectedBackendVerdict:
+    entry.expectedVerdict === 'constrain'
+      ? 'allow'
+      : entry.expectedVerdict,
+  expectedReason: entry.expectedVerdict === 'constrain' ? undefined : entry.expectedRule,
+}));
 
 function isLocalUrl(raw: string | undefined): boolean {
   if (!raw) return false;
@@ -58,16 +60,26 @@ function activityType(spanType: SpanType): string {
   switch (spanType) {
     case 'llm':
       return 'PromptSubmission';
+    case 'llm_embedding':
+      return 'EMBEDDING';
+    case 'llm_tool_call':
+      return 'ToolCallRequestEvent';
     case 'file_read':
+      return 'FileRead';
+    case 'file_open':
       return 'FileRead';
     case 'file_write':
       return 'FileEdit';
+    case 'file_delete':
+      return 'FileDelete';
     case 'shell':
       return 'ShellExecution';
     case 'http':
       return 'HTTPRequest';
     case 'db':
       return 'DatabaseQuery';
+    case 'mcp':
+      return 'MCPToolCall';
   }
 }
 
@@ -95,6 +107,16 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
       attributes: { 'file.path': input.file_path, 'file.operation': 'read' },
     };
   }
+  if (spanType === 'file_open') {
+    return {
+      ...base,
+      name: 'file.open',
+      hook_type: 'file_operation',
+      semantic_type: 'file_open',
+      file_path: input.file_path,
+      attributes: { 'file.path': input.file_path, 'file.operation': 'open' },
+    };
+  }
   if (spanType === 'file_write') {
     return {
       ...base,
@@ -103,6 +125,16 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
       semantic_type: 'file_write',
       file_path: input.file_path,
       attributes: { 'file.path': input.file_path, 'file.operation': 'write' },
+    };
+  }
+  if (spanType === 'file_delete') {
+    return {
+      ...base,
+      name: 'file.delete',
+      hook_type: 'file_operation',
+      semantic_type: 'file_delete',
+      file_path: input.file_path,
+      attributes: { 'file.path': input.file_path, 'file.operation': 'delete' },
     };
   }
   if (spanType === 'shell') {
@@ -135,6 +167,39 @@ function span(spanType: SpanType, input: Record<string, unknown>): Record<string
       attributes: { 'db.system': 'postgresql', 'db.operation': 'SELECT' },
     };
   }
+  if (spanType === 'mcp') {
+    return {
+      ...base,
+      name: String(input.tool ?? 'mcp.tool'),
+      hook_type: 'function_call',
+      semantic_type: 'mcp_tool_call',
+      attributes: { 'mcp.tool': input.tool ?? '' },
+    };
+  }
+  if (spanType === 'llm_embedding') {
+    return {
+      ...base,
+      name: 'openai.EMBEDDING.create',
+      hook_type: 'function_call',
+      semantic_type: 'llm_embedding',
+      attributes: {
+        'http.method': 'POST',
+        'http.url': 'https://api.openai.com/v1/embeddings',
+      },
+    };
+  }
+  if (spanType === 'llm_tool_call') {
+    return {
+      ...base,
+      name: 'openai.TOOL.call',
+      hook_type: 'function_call',
+      semantic_type: 'llm_tool_call',
+      attributes: {
+        'http.method': 'POST',
+        'http.url': 'https://api.openai.com/v1/chat/completions',
+      },
+    };
+  }
   return {
     ...base,
     name: 'llm.chat.completion',
@@ -165,31 +230,27 @@ function governancePayload(spanType: SpanType, input: Record<string, unknown>): 
 }
 
 function e2eRego(policyPath: string): string {
-  return `package ${policyPath.replaceAll('/', '.')}
+  const rules = LIVE_VERDICT_MATRIX
+    .filter((entry) => entry.expectedVerdict !== 'constrain')
+    .map((entry) => [
+      `result := {"decision": "${regoDecision(entry.expectedBackendVerdict)}", "reason": ${JSON.stringify(entry.expectedRule)}} if {`,
+      `  input.activity_type == ${JSON.stringify(activityType(entry.spanType))}`,
+      '}',
+    ].join('\n'));
 
-# ${POLICY_MARKER}
-default result := {"decision": "CONTINUE", "reason": "openbox-sdk-live-e2e default allow"}
-
-result := {"decision": "REQUIRE_APPROVAL", "reason": "e2e-approve-llm"} if {
-  input.activity_type == "PromptSubmission"
+  return [
+    `package ${policyPath.replaceAll('/', '.')}`,
+    '',
+    `# ${POLICY_MARKER}`,
+    'default result := {"decision": "ALLOW", "reason": "openbox-sdk-live-e2e default allow"}',
+    '',
+    ...rules,
+    '',
+  ].join('\n\n');
 }
 
-result := {"decision": "REQUIRE_APPROVAL", "reason": "e2e-approve-read"} if {
-  input.activity_type == "FileRead"
-}
-
-result := {"decision": "BLOCK", "reason": "e2e-deny-shell"} if {
-  input.activity_type == "ShellExecution"
-}
-
-result := {"decision": "BLOCK", "reason": "e2e-deny-write"} if {
-  input.activity_type == "FileEdit"
-}
-
-result := {"decision": "HALT", "reason": "e2e-halt-http"} if {
-  input.activity_type == "HTTPRequest"
-}
-`;
+function regoDecision(verdict: ExpectedBackendVerdict): string {
+  return verdict.toUpperCase();
 }
 
 function bootstrapAgentIdentity(): AgentIdentityConfig | undefined {
@@ -278,10 +339,10 @@ async function evaluate(spanType: SpanType, input: Record<string, unknown>): Pro
 }
 
 async function verifyMatrix(): Promise<boolean> {
-  for (const c of MATRIX) {
-    const result = await evaluate(c.spanType, c.input);
-    if (result.verdict !== c.verdict) return false;
-    if (c.reason && !result.reason?.includes(c.reason)) return false;
+  for (const c of LIVE_VERDICT_MATRIX) {
+    const result = await evaluate(c.spanType, c.activityInput);
+    if (result.verdict !== c.expectedBackendVerdict) return false;
+    if (c.expectedReason && !result.reason?.includes(c.expectedReason)) return false;
   }
   return true;
 }

@@ -4,18 +4,36 @@
 //   2. Method with required perms + missing → throws
 //      MissingPermissionError BEFORE any network call, so we can
 //      trust no fetch happened.
-//   3. Method with no `@Permissions` decorator, such as login or
-//      csrf, never throws regardless of cached permissions.
+//   3. Method with no `@Permissions` decorator, such as login,
+//      never throws regardless of cached permissions.
 //   4. Permissions undefined → check skipped entirely. Legacy
 //      behavior.
 //   5. `setPermissions()` updates the cache mid-session.
 
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, test, vi } from 'vitest';
 import {
   OpenBoxClient,
   MissingPermissionError,
   METHOD_PERMISSIONS,
 } from '../../ts/src/client/index.js';
+import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
+import { PATH_PERMISSION_RULES } from '../../ts/src/client/generated/wrapper-methods.js';
+
+interface BackendEndpointEntry {
+  operationId: string;
+  path: string;
+  verb: string;
+}
+
+const METHOD_NAMES = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'codegen/method-names.json'), 'utf8'),
+) as Record<string, string>;
+
+const METHOD_PERMISSIONS_BY_OPERATION = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'codegen/method-permissions.json'), 'utf8'),
+) as Record<string, string[]>;
 
 function noFetch() {
   return vi.fn(async () => {
@@ -23,7 +41,101 @@ function noFetch() {
   });
 }
 
+function methodNameForOperation(operationId: string): string {
+  const mapped = METHOD_NAMES[operationId];
+  if (mapped) return mapped;
+  const match = operationId.match(/^([A-Z][a-zA-Z]*Controller)_(.+)$/);
+  return match ? match[2] : operationId;
+}
+
+function regexForPath(path: string): string {
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped.replace(/\\\{[^/]+\\\}/g, '[^/]+')}$`).source;
+}
+
+function normalizeRegexSource(source: string): string {
+  return source.replace(/\\\//g, '/');
+}
+
+function expectedMethodPermissions(): Record<string, string[]> {
+  const byOperation = new Map(
+    (BACKEND_ENDPOINT_MANIFEST as readonly BackendEndpointEntry[]).map((entry) => [
+      entry.operationId,
+      entry,
+    ]),
+  );
+  const missingOperations = Object.keys(METHOD_PERMISSIONS_BY_OPERATION).filter(
+    (operationId) => !byOperation.has(operationId),
+  );
+  expect(missingOperations, 'method-permissions.json keys missing from TypeSpec backend endpoints').toEqual([]);
+
+  return Object.fromEntries(
+    Object.entries(METHOD_PERMISSIONS_BY_OPERATION)
+      .map<[string, string[]]>(([operationId, permissions]) => [
+        methodNameForOperation(operationId),
+        [...permissions].sort(),
+      ])
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+}
+
+function expectedPathPermissionRules(): Array<{
+  verb: string;
+  pattern: string;
+  methodName: string;
+  perms: string[];
+}> {
+  const methodsWithPerms = (BACKEND_ENDPOINT_MANIFEST as readonly BackendEndpointEntry[])
+    .map((entry) => ({
+      ...entry,
+      methodName: methodNameForOperation(entry.operationId),
+      perms: METHOD_PERMISSIONS_BY_OPERATION[entry.operationId],
+    }))
+    .filter((entry): entry is BackendEndpointEntry & { methodName: string; perms: string[] } =>
+      Array.isArray(entry.perms) && entry.perms.length > 0,
+    );
+
+  return methodsWithPerms
+    .sort((a, b) =>
+      b.path.replace(/\{[^}]+\}/g, '').length - a.path.replace(/\{[^}]+\}/g, '').length,
+    )
+    .map((entry) => ({
+      verb: entry.verb.toUpperCase(),
+      pattern: normalizeRegexSource(regexForPath(entry.path)),
+      methodName: entry.methodName,
+      perms: [...entry.perms].sort(),
+    }));
+}
+
 describe('OpenBoxClient permission pre-flight', () => {
+  test('TypeSpec-emitted method name map only references backend endpoints', () => {
+    const operationIds = new Set(
+      (BACKEND_ENDPOINT_MANIFEST as readonly BackendEndpointEntry[]).map(
+        (entry) => entry.operationId,
+      ),
+    );
+    const missingOperations = Object.keys(METHOD_NAMES).filter(
+      (operationId) => !operationIds.has(operationId),
+    );
+
+    expect(
+      missingOperations,
+      'method-names.json keys missing from TypeSpec backend endpoints',
+    ).toEqual([]);
+  });
+
+  test('TypeSpec-emitted permission map matches generated TypeScript permission surfaces', () => {
+    expect(METHOD_PERMISSIONS).toEqual(expectedMethodPermissions());
+    expect(
+      PATH_PERMISSION_RULES.map((rule) => ({
+        verb: rule.verb,
+        pattern: normalizeRegexSource(rule.pattern.source),
+        methodName: rule.methodName,
+        perms: [...rule.perms],
+      })),
+    ).toEqual(expectedPathPermissionRules());
+  });
+
   test('METHOD_PERMISSIONS export covers core endpoints', () => {
     // Sanity; the spec→generated→exported chain delivers a non-empty map.
     expect(Object.keys(METHOD_PERMISSIONS).length).toBeGreaterThan(50);

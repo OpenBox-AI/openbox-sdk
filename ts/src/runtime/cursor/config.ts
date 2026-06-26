@@ -58,6 +58,10 @@ export interface CursorConfig {
   sendStartEvent: boolean;
   sendActivityStartEvent: boolean;
   maxBodySize: number | null;
+  /** Strict AGE compliance: every governed action must resolve a session goal. */
+  requireGoalContext: boolean;
+  /** Background/scheduled workflow objective used when no prompt event exists. */
+  defaultGoal?: string;
 }
 
 /** Load config: env vars > config.json > .env > defaults */
@@ -107,6 +111,16 @@ export function loadConfig(): CursorConfig {
     maxBodySize: getSetting('maxBodySize')
       ? (parseInt(getSetting('maxBodySize'), 10) || null)
       : null,
+    requireGoalContext: asBoolean(
+      getRuntime('OPENBOX_REQUIRE_GOAL_CONTEXT') ||
+      getRuntime('OPENBOX_GOAL_ALIGNMENT_REQUIRED') ||
+      getRuntime('ENABLE_ALIGNMENT_CHECK') ||
+      getSetting('requireGoalContext', 'false'),
+    ),
+    defaultGoal: getRuntime('OPENBOX_SESSION_GOAL') ||
+      getRuntime('OPENBOX_WORKFLOW_GOAL') ||
+      getSetting('defaultGoal') ||
+      undefined,
   };
 }
 

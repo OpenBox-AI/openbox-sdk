@@ -5,15 +5,15 @@
 #   - json-schema/             : standalone JSON Schemas (used by the
 #                                cross-language conformance fixtures)
 #
-# The hand-written specs/backend.json and specs/core.yaml stay the
-# source of truth until codegen reaches the emitter outputs into the
-# downstream codegen pipeline. Until then this config exists so we can
-# round-trip TypeSpec -> OpenAPI and diff against the originals.
+# TypeSpec is the canonical OpenBox contract source. OpenAPI3,
+# JSON Schema, SDK artifacts, and contract metadata maps are generated
+# from these sources. Drift checks compare the emitted contracts against
+# live/upstream services; generated artifacts are not hand-authored.
 
 emit:
   - "@typespec/openapi3"
   - "@typespec/json-schema"
-  - "typespec-emitter-typescript"
+  - "typespec-emitter"
 
 options:
   "@typespec/openapi3":
@@ -22,7 +22,7 @@ options:
     file-type: "json"
   "@typespec/json-schema":
     emitter-output-dir: "{project-root}/../generated/json-schema"
-  "typespec-emitter-typescript":
+  "typespec-emitter":
     # The emitter ignores its emitter-output-dir and writes directly
     # to ts/<package>/src/generated/. We still set it so the runtime
     # has a sane base path; the emitter walks back to repo root.

@@ -1,38 +1,42 @@
 import type { SDKAssistantMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/index.js';
+import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { stampSource } from '../approvals/source.js';
 import {
   buildLLMCompletionSpan,
   buildSpan,
-  llmTokenUsageFromRecord,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,
   type LLMTokenUsage,
   type SpanType,
 } from '../governance/spans.js';
+import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../governance/assistant-output.js';
 
+const defaultActivity = PRESET_ACTIVITY_TYPES.default;
+const anthropicAgentActivity = PRESET_ACTIVITY_TYPES['anthropic-agent-sdk'];
+
 export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
-  PROMPT: 'PromptSubmission',
-  TOOL_INPUT: 'PreToolUse',
-  TOOL_OUTPUT: 'PostToolUse',
-  TOOL_BATCH: 'PostToolBatch',
-  TOOL_FAILURE: 'PostToolUseFailure',
-  PERMISSION: 'PermissionRequest',
-  SESSION: 'AnthropicAgentSDKSession',
-  ASSISTANT_OUTPUT: 'LLMCompleted',
-  SUBAGENT: 'AgentSpawn',
-  COMPACT: 'PreCompact',
-  MESSAGE: 'AnthropicAgentSDKMessage',
-  CONFIG_CHANGE: 'AnthropicAgentSDKConfigChange',
-  WORKSPACE_CHANGE: 'AnthropicAgentSDKWorkspaceChange',
-  MCP_ELICITATION: 'MCPElicitation',
-  TASK: 'AnthropicAgentSDKTask',
-  USAGE_SIGNAL: 'anthropic_agent_sdk_usage',
-  GOAL_SIGNAL: 'user_prompt',
+  PROMPT: defaultActivity.prompt,
+  TOOL_INPUT: anthropicAgentActivity.preToolUse,
+  TOOL_OUTPUT: anthropicAgentActivity.postToolUse,
+  TOOL_BATCH: anthropicAgentActivity.postToolBatch,
+  TOOL_FAILURE: anthropicAgentActivity.postToolUseFailure,
+  PERMISSION: anthropicAgentActivity.permissionRequest,
+  SESSION: anthropicAgentActivity.sessionActivityStarted,
+  ASSISTANT_OUTPUT: defaultActivity.llm,
+  SUBAGENT: defaultActivity.agentSpawn,
+  COMPACT: anthropicAgentActivity.preCompact,
+  MESSAGE: anthropicAgentActivity.messageActivityStarted,
+  CONFIG_CHANGE: anthropicAgentActivity.configChangeActivity,
+  WORKSPACE_CHANGE: anthropicAgentActivity.workspaceChangeSignal,
+  MCP_ELICITATION: anthropicAgentActivity.mcpElicitationStarted,
+  TASK: anthropicAgentActivity.taskActivityStarted,
+  USAGE_SIGNAL: anthropicAgentActivity.usageSignal,
+  GOAL_SIGNAL: defaultActivity.goalSignal,
 } as const;
 
 export function objectRecord(value: unknown): Record<string, unknown> {
@@ -53,15 +57,16 @@ export function compactPayload(
 }
 
 export function toolActivityType(toolName: string, toolInput: Record<string, unknown>): string {
-  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'FileRead';
-  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'FileEdit';
-  if (toolName === 'Delete') return 'FileDelete';
-  if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'ShellExecution';
-  if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'HTTPRequest';
-  if (isDatabaseMcpTool(toolName, toolInput)) return 'DatabaseQuery';
-  if (toolName.startsWith('mcp__')) return 'MCPToolCall';
-  if (toolName === 'Agent' || toolName === 'Task') return 'AgentSpawn';
-  return 'AgentAction';
+  if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return defaultActivity.read;
+  if ((toolName === 'Open' || toolName === 'FileOpen') && filePathFor(toolInput)) return defaultActivity.read;
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return defaultActivity.write;
+  if (toolName === 'Delete') return defaultActivity.fileDelete;
+  if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return defaultActivity.shell;
+  if (toolName === 'WebFetch' || toolName === 'WebSearch') return defaultActivity.httpRequest;
+  if (isDatabaseMcpTool(toolName, toolInput)) return defaultActivity.databaseQuery;
+  if (toolName.startsWith('mcp__')) return defaultActivity.mcpToolCall;
+  if (toolName === 'Agent' || toolName === 'Task') return defaultActivity.agentSpawn;
+  return defaultActivity.agentAction;
 }
 
 export function toolSpan(
@@ -166,6 +171,19 @@ export function assistantOutputSpan(
   });
 }
 
+export function promptSpan(
+  input: {
+    prompt?: string;
+  },
+): SpanData[] {
+  return [
+    buildSpan('anthropic-agent-sdk', 'llm', {
+      stage: 'started',
+      prompt: input.prompt,
+    }) as unknown as SpanData,
+  ];
+}
+
 export function assistantOutputTelemetry(
   input: {
     content?: string;
@@ -210,7 +228,7 @@ export function assistantContentAndUsage(
   return {
     content: textFromContent(apiMessage.content),
     model: apiMessage.model,
-    usage: usageFrom(apiMessage.usage),
+    usage: normalizeOpenBoxUsage(apiMessage.usage)?.raw,
     hasToolCalls: hasToolCallsFromContent(apiMessage.content),
   };
 }
@@ -234,11 +252,14 @@ export function usagePayloadFromResult(
 
 export function modelUsageSpansFromResult(message: SDKResultMessage): SpanData[] {
   const entries = Object.entries(objectRecord(message.modelUsage))
-    .map(([model, usage]) => ({
-      model: model.trim(),
-      usage: usageFrom(usage),
-      costUsd: numberFrom(objectRecord(usage).costUSD),
-    }))
+    .map(([model, usage]) => {
+      const normalizedUsage = normalizeOpenBoxUsage(usage);
+      return {
+        model: model.trim(),
+        usage: normalizedUsage?.raw,
+        costUsd: normalizedUsage?.costUsd,
+      };
+    })
     .filter(
       (
         entry,
@@ -284,7 +305,7 @@ export function resultAssistantOutput(
   return {
     content: message.subtype === 'success' ? message.result : undefined,
     model: singleResultModel(message.modelUsage),
-    usage: usageFrom(message.usage),
+    usage: normalizeOpenBoxUsage(message.usage)?.raw,
     hasToolCalls: false,
   };
 }
@@ -312,15 +333,16 @@ export function redactedOutputValue(
   originalOutput?: unknown,
 ): unknown {
   const guardrails = verdict?.guardrailsResult;
+  const redactedOutput = guardrails?.redactedOutput ?? guardrails?.redactedInput;
   if (
     !guardrails ||
     guardrails.inputType !== 'activity_output' ||
-    guardrails.redactedInput === null ||
-    guardrails.redactedInput === undefined
+    redactedOutput === null ||
+    redactedOutput === undefined
   ) {
     return undefined;
   }
-  return unwrapOutputRedaction(guardrails.redactedInput, originalOutput);
+  return unwrapOutputRedaction(redactedOutput, originalOutput);
 }
 
 function unwrapInputRedaction(value: unknown): unknown {
@@ -356,14 +378,16 @@ function spanTypeFor(
   toolName: string,
   toolInput: Record<string, unknown>,
 ): SpanType | null {
+  if (toolName === 'Agent' || toolName === 'Task') return null;
   if (toolName === 'Read' || toolName === 'NotebookRead' || toolName === 'Glob' || toolName === 'Grep') return 'file_read';
+  if ((toolName === 'Open' || toolName === 'FileOpen') && filePathFor(toolInput)) return 'file_open';
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') return 'file_write';
   if (toolName === 'Delete') return 'file_delete';
   if (toolName === 'Bash' || toolName === 'PowerShell' || toolName === 'Monitor') return 'shell';
   if (toolName === 'WebFetch' || toolName === 'WebSearch') return 'http';
   if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (toolName.startsWith('mcp__')) return 'mcp';
-  return null;
+  return 'llm_tool_call';
 }
 
 function subagentNameForTool(
@@ -404,26 +428,10 @@ function hasToolCallsFromContent(value: unknown): boolean {
   });
 }
 
-function usageFrom(value: unknown): LLMTokenUsage | undefined {
-  return llmTokenUsageFromRecord(value);
-}
-
 function singleResultModel(value: unknown): string | undefined {
   const record = objectRecord(value);
   const models = Object.keys(record).filter((key) => key.trim());
   return models.length === 1 ? models[0] : undefined;
-}
-
-function numberFrom(value: unknown): number | undefined {
-  const numberValue =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : undefined;
-  return numberValue !== undefined && Number.isFinite(numberValue)
-    ? numberValue
-    : undefined;
 }
 
 function stringFrom(value: unknown): string | undefined {
@@ -465,6 +473,27 @@ function dbStatementFor(toolInput: Record<string, unknown>): string | undefined 
   );
 }
 
+const SQL_VERBS = [
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+] as const;
+
+function dbOperationFromStatement(statement: string | undefined): string | undefined {
+  if (!statement) return undefined;
+  const normalized = statement.trim().toUpperCase();
+  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
+}
+
 function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
   const explicit = firstString(
     toolInput.db_system,
@@ -481,7 +510,20 @@ function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): stri
 }
 
 function dbOperationFor(toolInput: Record<string, unknown>): string {
-  return firstString(toolInput.db_operation, toolInput.dbOperation, toolInput.operation)?.toUpperCase() ?? 'QUERY';
+  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
+  const explicitOperation = firstString(
+    toolInput.db_operation,
+    toolInput.dbOperation,
+    toolInput.operation,
+  )?.toUpperCase();
+  if (
+    explicitOperation &&
+    explicitOperation !== 'QUERY' &&
+    explicitOperation !== 'UNKNOWN'
+  ) {
+    return explicitOperation;
+  }
+  return statementOperation ?? explicitOperation ?? 'QUERY';
 }
 
 function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {

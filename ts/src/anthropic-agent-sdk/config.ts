@@ -25,8 +25,21 @@ export interface OpenBoxAnthropicRuntimeContext {
   workflowType: string;
   taskQueue: string;
   approvalMode: OpenBoxAnthropicApprovalMode;
+  requireGoalContext: boolean;
+  defaultGoal?: string;
   hookTimeoutSeconds?: number;
+  includeOptInHooks: boolean;
+  worktreeRoot?: string;
   getCoreClient(): OpenBoxCoreClient;
+}
+
+export type OpenBoxAnthropicAgentSDKDiagnosticStatus = 'pass' | 'fail' | 'skip';
+
+export interface OpenBoxAnthropicAgentSDKDiagnosticCheck {
+  name: string;
+  status: OpenBoxAnthropicAgentSDKDiagnosticStatus;
+  detail: string;
+  remediation?: string;
 }
 
 export function createOpenBoxAnthropicRuntimeContext(
@@ -79,9 +92,61 @@ export function createOpenBoxAnthropicRuntimeContext(
       config.workflowType ?? DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE,
     taskQueue: config.taskQueue ?? DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE,
     approvalMode: config.approvalMode ?? 'ask',
+    requireGoalContext: config.requireGoalContext ??
+      ['1', 'true', 'yes'].includes(String(process.env.OPENBOX_REQUIRE_GOAL_CONTEXT ?? process.env.OPENBOX_GOAL_ALIGNMENT_REQUIRED ?? process.env.ENABLE_ALIGNMENT_CHECK ?? 'false').trim().toLowerCase()),
+    defaultGoal: config.defaultGoal ??
+      process.env.OPENBOX_SESSION_GOAL ??
+      process.env.OPENBOX_WORKFLOW_GOAL ??
+      undefined,
     hookTimeoutSeconds: config.hookTimeoutSeconds,
+    includeOptInHooks: config.includeOptInHooks === true,
+    worktreeRoot: config.worktreeRoot,
     getCoreClient,
   };
+}
+
+export function verifyOpenBoxAnthropicAgentSDKConfig(
+  config: OpenBoxAnthropicAgentSDKConfig = {},
+): OpenBoxAnthropicAgentSDKDiagnosticCheck[] {
+  const enabled = config.enabled ?? true;
+  const checks: OpenBoxAnthropicAgentSDKDiagnosticCheck[] = [
+    {
+      name: 'runtime-enabled',
+      status: enabled ? 'pass' : 'skip',
+      detail: enabled
+        ? 'OpenBox Anthropic Agent SDK runtime governance is enabled.'
+        : 'OpenBox Anthropic Agent SDK runtime governance is disabled by config.',
+    },
+  ];
+
+  if (config.core) {
+    checks.push({
+      name: 'core-client',
+      status: 'pass',
+      detail: 'A caller-provided OpenBox Core client will be used.',
+    });
+    checks.push({
+      name: 'api-key',
+      status: 'skip',
+      detail: 'OPENBOX_API_KEY is not required when a Core client is provided.',
+    });
+    checks.push({
+      name: 'core-url',
+      status: 'skip',
+      detail: 'OPENBOX_CORE_URL is not required when a Core client is provided.',
+    });
+  } else {
+    checks.push(apiKeyCheck(config.apiKey ?? process.env.OPENBOX_API_KEY));
+    checks.push(coreUrlCheck(config.coreUrl ?? process.env.OPENBOX_CORE_URL));
+  }
+
+  checks.push(agentIdentityCheck(config.agentIdentity));
+  checks.push({
+    name: 'runtime-defaults',
+    status: 'pass',
+    detail: `workflowType=${config.workflowType ?? DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE}; taskQueue=${config.taskQueue ?? DEFAULT_ANTHROPIC_AGENT_TASK_QUEUE}; approvalMode=${config.approvalMode ?? 'ask'}; includeOptInHooks=${config.includeOptInHooks === true}`,
+  });
+  return checks;
 }
 
 function getAgentIdentity(
@@ -94,5 +159,86 @@ function getAgentIdentity(
     throw new OpenBoxAnthropicAgentSDKError(
       'OpenBox signed agent identity requires both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY.',
     );
+  }
+}
+
+function apiKeyCheck(apiKey: string | undefined): OpenBoxAnthropicAgentSDKDiagnosticCheck {
+  if (!apiKey) {
+    return {
+      name: 'api-key',
+      status: 'fail',
+      detail: 'OPENBOX_API_KEY is not configured.',
+      remediation: 'Set OPENBOX_API_KEY to an obx_live_* or obx_test_* runtime key.',
+    };
+  }
+  if (OPENBOX_BACKEND_API_KEY_PATTERN.test(apiKey)) {
+    return {
+      name: 'api-key',
+      status: 'fail',
+      detail: 'OPENBOX_API_KEY is an org/backend key (obx_key_*), not an agent runtime key.',
+      remediation: 'Use an obx_live_* or obx_test_* runtime key for Anthropic Agent SDK runtime governance.',
+    };
+  }
+  if (!OPENBOX_RUNTIME_KEY_PATTERN.test(apiKey)) {
+    return {
+      name: 'api-key',
+      status: 'fail',
+      detail: 'OPENBOX_API_KEY must start with obx_live_* or obx_test_*.',
+      remediation: 'Create or configure an OpenBox runtime key for this agent.',
+    };
+  }
+  return {
+    name: 'api-key',
+    status: 'pass',
+    detail: 'OPENBOX_API_KEY has an agent runtime key prefix.',
+  };
+}
+
+function coreUrlCheck(coreUrl: string | undefined): OpenBoxAnthropicAgentSDKDiagnosticCheck {
+  return coreUrl
+    ? {
+        name: 'core-url',
+        status: 'pass',
+        detail: 'OPENBOX_CORE_URL is configured.',
+      }
+    : {
+        name: 'core-url',
+        status: 'fail',
+        detail: 'OPENBOX_CORE_URL is not configured.',
+        remediation: 'Set OPENBOX_CORE_URL to the OpenBox Core runtime endpoint.',
+      };
+}
+
+function agentIdentityCheck(
+  agentIdentity: AgentIdentityConfig | undefined,
+): OpenBoxAnthropicAgentSDKDiagnosticCheck {
+  if (agentIdentity) {
+    return {
+      name: 'signed-agent-identity',
+      status: 'pass',
+      detail: 'Signed agent identity is provided in config.',
+    };
+  }
+  if (!process.env.OPENBOX_AGENT_DID && !process.env.OPENBOX_AGENT_PRIVATE_KEY) {
+    return {
+      name: 'signed-agent-identity',
+      status: 'skip',
+      detail: 'No signed agent identity is configured; unsigned runtime requests will be used.',
+    };
+  }
+  try {
+    resolveAgentIdentity();
+    return {
+      name: 'signed-agent-identity',
+      status: 'pass',
+      detail: 'Signed agent identity environment variables are complete.',
+    };
+  } catch (error) {
+    return {
+      name: 'signed-agent-identity',
+      status: 'fail',
+      detail: error instanceof Error ? error.message : String(error),
+      remediation: 'Set both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY, or remove both.',
+    };
   }
 }

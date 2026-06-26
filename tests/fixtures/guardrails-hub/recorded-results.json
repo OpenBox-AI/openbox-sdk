@@ -1,0 +1,991 @@
+{
+  "fixturePath": "tests/fixtures/guardrails-hub/recorded-results.json",
+  "generatedBy": "scripts/record-guardrails-hub.mjs",
+  "policyId": "guardrails-hub-recording-v1",
+  "provenance": {
+    "requiredValidatorModulePrefix": "guardrails_grhub_",
+    "source": "guardrails-hub",
+    "validators": [
+      {
+        "className": "DetectPII",
+        "guardrailType": "1",
+        "module": "guardrails_grhub_detect_pii.main"
+      },
+      {
+        "className": "NSFWText",
+        "guardrailType": "2",
+        "module": "guardrails_grhub_nsfw_text.main"
+      },
+      {
+        "className": "ToxicLanguage",
+        "guardrailType": "3",
+        "module": "guardrails_grhub_toxic_language.main"
+      },
+      {
+        "className": "BanList",
+        "guardrailType": "4",
+        "module": "guardrails_grhub_ban_list.main"
+      },
+      {
+        "className": "RegexMatch",
+        "guardrailType": "5",
+        "module": "guardrails_grhub_regex_match.main"
+      }
+    ]
+  },
+  "records": [
+    {
+      "caseId": "detect-pii",
+      "expectedSemanticStatus": "allowed",
+      "guardrailType": "1",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "ordinary safe text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "ordinary safe text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "ordinary safe text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "ordinary safe text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "ordinary safe text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        }
+      ],
+      "stable": true,
+      "variantId": "safe"
+    },
+    {
+      "caseId": "detect-pii",
+      "expectedSemanticStatus": "violation",
+      "guardrailType": "1",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_email",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contact <EMAIL_ADDRESS> for the ticket"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_email",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contact <EMAIL_ADDRESS> for the ticket"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_email",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contact <EMAIL_ADDRESS> for the ticket"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_email",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contact <EMAIL_ADDRESS> for the ticket"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_detect_pii_email",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contact <EMAIL_ADDRESS> for the ticket"
+              }
+            ]
+          },
+          "violationsDetected": true
+        }
+      ],
+      "stable": true,
+      "variantId": "email-violation"
+    },
+    {
+      "caseId": "nsfw-text",
+      "expectedSemanticStatus": "allowed",
+      "guardrailType": "2",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "the project update is ready for review"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "the project update is ready for review"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "the project update is ready for review"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "the project update is ready for review"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "the project update is ready for review"
+              }
+            ]
+          },
+          "violationsDetected": false
+        }
+      ],
+      "stable": true,
+      "variantId": "safe"
+    },
+    {
+      "caseId": "nsfw-text",
+      "expectedSemanticStatus": "violation",
+      "guardrailType": "2",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_nsfw_text_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        }
+      ],
+      "stable": true,
+      "variantId": "violation"
+    },
+    {
+      "caseId": "toxic-language",
+      "expectedSemanticStatus": "allowed",
+      "guardrailType": "3",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "please review the design notes"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "please review the design notes"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "please review the design notes"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "please review the design notes"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "please review the design notes"
+              }
+            ]
+          },
+          "violationsDetected": false
+        }
+      ],
+      "stable": true,
+      "variantId": "safe"
+    },
+    {
+      "caseId": "toxic-language",
+      "expectedSemanticStatus": "violation",
+      "guardrailType": "3",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_toxic_language_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "violationsDetected": true
+        }
+      ],
+      "stable": true,
+      "variantId": "violation"
+    },
+    {
+      "caseId": "ban-list",
+      "expectedSemanticStatus": "allowed",
+      "guardrailType": "4",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains permitted text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains permitted text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains permitted text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains permitted text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains permitted text"
+              }
+            ]
+          },
+          "violationsDetected": false
+        }
+      ],
+      "stable": true,
+      "variantId": "safe"
+    },
+    {
+      "caseId": "ban-list",
+      "expectedSemanticStatus": "violation",
+      "guardrailType": "4",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains r text"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains r text"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains r text"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains r text"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_ban_list_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "contains r text"
+              }
+            ]
+          },
+          "violationsDetected": true
+        }
+      ],
+      "stable": true,
+      "variantId": "violation"
+    },
+    {
+      "caseId": "regex-match",
+      "expectedSemanticStatus": "allowed",
+      "guardrailType": "5",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": false
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "allowed",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_safe",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": false
+        }
+      ],
+      "stable": true,
+      "variantId": "safe"
+    },
+    {
+      "caseId": "regex-match",
+      "expectedSemanticStatus": "violation",
+      "guardrailType": "5",
+      "sampleCount": 5,
+      "samples": [
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": true
+        },
+        {
+          "detail": "Success",
+          "envelopeStatus": 200,
+          "semanticStatus": "violation",
+          "statusCode": 201,
+          "success": true,
+          "validatedLogs": {
+            "activity_type": "hub_regex_match_violation",
+            "event_type": "ActivityStarted",
+            "input": [
+              {
+                "text": "sensitive"
+              }
+            ]
+          },
+          "violationsDetected": true
+        }
+      ],
+      "stable": true,
+      "variantId": "violation"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": "specs/typespec/govern/capabilities.tsp",
+  "status": "recorded"
+}

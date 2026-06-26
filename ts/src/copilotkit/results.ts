@@ -5,7 +5,11 @@ import {
   hasGuardrailRedaction,
   summarizeGuardrailRedaction,
 } from '../core-client/redaction.js';
-import type { AGEResult, WorkflowVerdict } from '../core-client/index.js';
+import {
+  mapGuardrailsResult as mapGeneratedGuardrailsResult,
+  type AGEResult,
+  type WorkflowVerdict,
+} from '../core-client/index.js';
 import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 import { cloneValue, errorMessage } from './internal-utils.js';
 import type {
@@ -18,6 +22,8 @@ import type {
 } from './types.js';
 
 type WorkflowVerdictWithAge = WorkflowVerdict & { ageResult?: AGEResult };
+
+export { mapGeneratedGuardrailsResult as mapGuardrailsResult };
 
 export function applyOpenBoxTransform<T>(
   original: T,
@@ -327,16 +333,26 @@ export function applyStartedRedaction<
   verdict: WorkflowVerdict,
 ): { input: TInput; summary?: string } {
   if (!hasGuardrailRedaction(verdict.guardrailsResult)) return { input };
+  if (
+    verdict.guardrailsResult?.redactedInput === null ||
+    verdict.guardrailsResult?.redactedInput === undefined
+  ) {
+    throw new Error(
+      'OpenBox redacted action input but did not provide replacement input.',
+    );
+  }
   const redactedTools = applyInputRedaction(
     cloneValue([toolInputForRedaction(definition, input)]),
     verdict.guardrailsResult,
   ) as Array<{ args?: Partial<TInput> }>;
   const redactedArgs = redactedTools?.[0]?.args;
+  if (!redactedArgs || typeof redactedArgs !== 'object') {
+    throw new Error(
+      'OpenBox redacted action input but did not provide replacement input.',
+    );
+  }
   return {
-    input:
-      redactedArgs && typeof redactedArgs === 'object'
-        ? ({ ...input, ...redactedArgs, action: input.action } as TInput)
-        : input,
+    input: { ...input, ...redactedArgs, action: input.action } as TInput,
     summary: summarizeGuardrailRedaction(
       verdict.guardrailsResult,
       'Input redacted by OpenBox guardrails.',
@@ -446,51 +462,6 @@ function ageResultFromVerdict(
   return (verdict as WorkflowVerdictWithAge | undefined)?.ageResult;
 }
 
-export function mapGuardrailsResult(
-  value: unknown,
-): WorkflowVerdict['guardrailsResult'] | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const raw = value as {
-    inputType?: string;
-    input_type?: string;
-    redactedInput?: unknown;
-    redacted_input?: unknown;
-    validationPassed?: boolean;
-    validation_passed?: boolean;
-    rawLogs?: Record<string, unknown>;
-    raw_logs?: Record<string, unknown>;
-    reasons?: Array<{ type?: unknown; field?: unknown; reason?: unknown }>;
-    fieldResults?: Array<{
-      field?: unknown;
-      status?: unknown;
-      reason?: unknown;
-    }>;
-    results?: Array<{
-      results?: Array<{ field?: unknown; status?: unknown; reason?: unknown }>;
-    }>;
-  };
-  const inputType = raw.inputType ?? raw.input_type;
-  return {
-    inputType: normalizeGuardrailsInputType(inputType),
-    redactedInput: raw.redactedInput ?? raw.redacted_input,
-    validationPassed: raw.validationPassed ?? raw.validation_passed ?? true,
-    rawLogs: raw.rawLogs ?? raw.raw_logs,
-    reasons: (raw.reasons ?? []).map((reason) => ({
-      type: String(reason.type ?? ''),
-      field: typeof reason.field === 'string' ? reason.field : undefined,
-      reason: String(reason.reason ?? ''),
-    })),
-    fieldResults: [
-      ...(raw.fieldResults ?? []),
-      ...(raw.results ?? []).flatMap((group) => group.results ?? []),
-    ].map((field) => ({
-      field: String(field.field ?? ''),
-      status: normalizeGuardrailStatus(field.status),
-      reason: typeof field.reason === 'string' ? field.reason : undefined,
-    })),
-  };
-}
-
 export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
   if (typeof value === 'number') {
     switch (value) {
@@ -518,9 +489,27 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
   ) {
     return normalized;
   }
-  if (normalized === 'continue') return 'allow';
+  if (
+    normalized === 'approve' ||
+    normalized === 'approved' ||
+    normalized === 'allowed' ||
+    normalized === 'continue'
+  ) return 'allow';
   if (normalized === 'stop') return 'halt';
-  if (normalized === 'request_approval') return 'require_approval';
+  if (normalized === 'stopped') return 'halt';
+  if (normalized === 'blocked') return 'block';
+  if (
+    normalized === 'reject' ||
+    normalized === 'rejected' ||
+    normalized === 'deny' ||
+    normalized === 'denied'
+  ) return 'block';
+  if (
+    normalized === 'request_approval' ||
+    normalized === 'requires_approval' ||
+    normalized === 'pending' ||
+    normalized === 'ask'
+  ) return 'require_approval';
   return 'allow';
 }
 
@@ -581,24 +570,6 @@ function toolInputForRedaction<
     args: input,
     description: definition.description,
   };
-}
-
-function normalizeGuardrailsInputType(
-  value: unknown,
-): NonNullable<WorkflowVerdict['guardrailsResult']>['inputType'] {
-  if (value === 'activity_output') return 'activity_output';
-  if (value === 'signal_args') return 'signal_args';
-  return 'activity_input';
-}
-
-function normalizeGuardrailStatus(
-  value: unknown,
-): 'allowed' | 'blocked' | 'redacted' | 'transformed' | 'skipped' {
-  if (value === 'blocked' || value === 'block') return 'blocked';
-  if (value === 'redacted') return 'redacted';
-  if (value === 'transformed') return 'transformed';
-  if (value === 'allowed' || value === 'allow') return 'allowed';
-  return 'skipped';
 }
 
 function statusForVerdict(
