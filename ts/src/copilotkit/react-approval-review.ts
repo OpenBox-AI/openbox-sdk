@@ -66,8 +66,11 @@ export function OpenBoxApprovalReview({
     setIsSubmitting(false);
     void respond(
       JSON.stringify({
-        nextTool: 'openbox_resume_governed_action',
-        mustCallOpenBoxResumeGovernedAction: true,
+        // The langgraph interrupt resumes the governed action internally
+        // (governWithApprovalGate → resumeGovernedAction). Do NOT instruct the
+        // model to call a resume tool — `openbox_resume_governed_action` was
+        // removed, so emitting it makes the model call a non-existent tool,
+        // error, and loop. The decision fields below are all the resume needs.
         approved,
         decision: apiDecision,
         reason: approved

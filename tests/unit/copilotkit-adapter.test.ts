@@ -81,19 +81,25 @@ function restoreEnv(values: Record<string, string | undefined>) {
 describe('CopilotKit OpenBox adapter', () => {
   it('does not register governed backend tools as same-named frontend render tools', () => {
     const useHumanInTheLoop = vi.fn();
+    const useInterrupt = vi.fn();
     const useDefaultRenderTool = vi.fn();
     const useRenderTool = vi.fn();
 
     const result = useOpenBoxCopilotKit({
       bindings: {
         useHumanInTheLoop,
+        useInterrupt,
         useDefaultRenderTool,
         useRenderTool,
       },
     });
 
     expect(result.governedToolNames).toContain('openbox_governed_action');
-    expect(useHumanInTheLoop).toHaveBeenCalledTimes(2);
+    // Interactive review is a model-driven HITL tool (useHumanInTheLoop); the
+    // deterministic governance approval is a host-driven langgraph interrupt
+    // rendered via useInterrupt — not a same-named frontend tool.
+    expect(useHumanInTheLoop).toHaveBeenCalledTimes(1);
+    expect(useInterrupt).toHaveBeenCalledTimes(1);
     expect(useDefaultRenderTool).toHaveBeenCalledTimes(1);
     expect(useRenderTool).not.toHaveBeenCalled();
   });
@@ -1541,6 +1547,9 @@ describe('CopilotKit OpenBox adapter', () => {
       handler,
     );
 
+    // Terminal verdicts (halt/block/error) STOP the workflow — the runtime
+    // suppresses further events, so a model continuation would be wasted. The
+    // turn ends with the governed card as the answer and no extra text.
     expect(handler).not.toHaveBeenCalled();
     expect(result.content).toBe('');
     expect(mock.events).toEqual([]);
@@ -1702,9 +1711,59 @@ describe('CopilotKit OpenBox adapter', () => {
       handler,
     );
 
+    // The governed card IS the answer. Re-running the model after a governed
+    // result is unreliable (gpt-5-nano re-calls the SAME governed tool instead
+    // of confirming, producing a DUPLICATE governance card). End the turn here
+    // so exactly one governed action runs per user prompt.
     expect(handler).not.toHaveBeenCalled();
     expect(result.content).toBe('');
-    expect(mock.events).toEqual([]);
+  });
+
+  it('suppresses model continuation when a per-turn App Context message trails the governed tool result', async () => {
+    // Repro of the duplicate-card bug: CopilotKit/@ag-ui injects a per-turn App
+    // Context developer/system message that lands AFTER the governed tool
+    // result. If the short-circuit only inspected the LAST message it would miss
+    // the result, the model would run again and re-call the governed tool,
+    // emitting a SECOND identical "Governance decision / Allowed" card.
+    const mock = createMockCore(() => ({
+      verdict: 'allow',
+      reason: 'allowed',
+    }));
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+    const handler = vi.fn(async () => ({ content: 'duplicate summary' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [
+          { type: 'human', content: 'Summarize Escalation.' },
+          {
+            type: 'ai',
+            tool_calls: [{ name: 'view_governance_report', args: {} }],
+          },
+          {
+            type: 'tool',
+            content: JSON.stringify({
+              schemaVersion: 'openbox.copilotkit.result.v1',
+              status: 'executed',
+              verdict: 'allow',
+              executed: true,
+              artifact: { summary: 'Escalation summarized.' },
+            }),
+          },
+          // App Context developer message injected AFTER the governed result.
+          {
+            type: 'developer',
+            content: 'App Context: { user: "agent", page: "escalations" }',
+          },
+        ],
+      },
+      handler,
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.content).toBe('');
   });
 
   it('keeps CopilotKit runtime gate payload compact without truncating allowed model input', async () => {
@@ -3385,6 +3444,117 @@ describe('CopilotKit OpenBox adapter', () => {
       workflow_type: 'CopilotKitRuntime',
       task_queue: 'copilotkit-runtime',
     });
+  });
+
+  it('native runner resets the langgraph thread checkpoint on a non-resume run, keeping the thread id', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const deleted: string[] = [];
+    const agent = {
+      client: {
+        threads: {
+          delete: vi.fn(async (threadId: string) => {
+            deleted.push(threadId);
+          }),
+        },
+      },
+    };
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent,
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    // The prior-turn checkpoint is cleared so prepareStream starts clean.
+    expect(agent.client.threads.delete).toHaveBeenCalledTimes(1);
+    expect(deleted).toEqual(['thread-1']);
+    // The frontend-pinned thread id is unchanged: the agent still runs against
+    // (and stamps its events with) 'thread-1', so the frontend stays in sync.
+    expect(baseRunner.run).toHaveBeenCalledTimes(1);
+    expect(baseRunner.lastInput.threadId).toBe('thread-1');
+  });
+
+  it('native runner does NOT reset the thread on a resume run (continues the paused thread)', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const agent = {
+      client: { threads: { delete: vi.fn(async () => undefined) } },
+    };
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent,
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Approve.' }],
+          // A HITL approval resume must keep the paused checkpoint.
+          forwardedProps: { command: { resume: { approved: true } } },
+        },
+      }),
+    );
+
+    expect(agent.client.threads.delete).not.toHaveBeenCalled();
+    expect(baseRunner.run).toHaveBeenCalledTimes(1);
+    expect(baseRunner.lastInput.threadId).toBe('thread-1');
+  });
+
+  it('native runner survives a langgraph thread-reset failure on a non-resume run', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const agent = {
+      client: {
+        threads: {
+          delete: vi.fn(async () => {
+            throw new Error('thread not found');
+          }),
+        },
+      },
+    };
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+
+    // A delete failure (e.g. the thread does not exist on the first turn) must
+    // never break the turn — the run still proceeds.
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent,
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    expect(agent.client.threads.delete).toHaveBeenCalledTimes(1);
+    expect(baseRunner.run).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(events)).toContain('RUN_FINISHED');
   });
 
   it('native runner fails the OpenBox workflow when the CopilotKit stream errors', async () => {
@@ -5202,6 +5372,126 @@ describe('CopilotKit OpenBox adapter', () => {
         delete process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE;
       else process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE = prev.fromCapture;
     }
+  });
+
+  it('carries the real captured exchange duration on the llm_completion span (start !== end)', async () => {
+    const { createCapturingFetch } = await import(
+      '../../ts/src/copilotkit/otel-capture'
+    );
+    // Drive a deterministic, monotonically advancing clock so the captured
+    // request start and response end land on distinct wall-clock millis. The
+    // base fetch advances the clock by 250ms, so the captured exchange has a
+    // real elapsed window and the completed span must carry a non-zero
+    // duration instead of collapsing start===end (BUG 1).
+    let clock = 1_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+      const middleware = createOpenBoxCopilotKitAdapter({
+        core: mock.core as any,
+      }).createLangChainMiddleware(createMiddlewareDeps()) as any;
+      const mockFetch = async () => {
+        clock += 250; // model call takes 250ms of wall-clock time
+        return new Response(
+          JSON.stringify({
+            id: 'chatcmpl-dur',
+            model: 'gpt-4o-mini',
+            choices: [{ message: { content: 'hi' } }],
+            usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      };
+      const capturing = createCapturingFetch(mockFetch as unknown as typeof fetch);
+
+      await middleware.wrapModelCall(
+        {
+          messages: [{ type: 'human', content: 'hello' }],
+          // The prompt was already governed by the runtime (a different
+          // process), so THIS process skips the prompt gate and stores no
+          // activity start time. The completed span's timing can then ONLY come
+          // from the captured exchange — the exact BUG 1 condition where the
+          // span previously collapsed to a single `now` (start === end).
+          state: {
+            openboxWorkflowId: 'wf',
+            openboxRunId: 'run',
+            __openboxRuntimePromptGoverned: true,
+            openboxPromptActivityId: 'prompt-activity-1',
+          },
+          model: { model: 'gpt-4o-mini' },
+        },
+        async () => {
+          await capturing('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { authorization: 'Bearer sk-x' },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [{ role: 'user', content: 'hello' }],
+            }),
+          });
+          return { content: 'hi', usage_metadata: { input_tokens: 5, output_tokens: 2 } };
+        },
+      );
+
+      const completed = mock.events
+        .filter((e) => e.hook_trigger)
+        .flatMap((e) => (e.spans ?? []) as Record<string, any>[])
+        .find((s) => s.name === 'POST' && s.stage === 'completed');
+      expect(completed).toBeDefined();
+      // The completed span carries the captured window verbatim, not a single
+      // `now`: start !== end and a real positive duration.
+      expect(completed?.start_time).not.toBe(completed?.end_time);
+      expect(Number(completed?.end_time)).toBeGreaterThan(
+        Number(completed?.start_time),
+      );
+      expect(Number(completed?.duration_ns)).toBe(250 * 1_000_000);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('completes the llm_call activity when a governed route short-circuits the model call', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const deps = {
+      ...createMiddlewareDeps(),
+      routeLatestUserPrompt: () => ({
+        toolName: 'openbox_governed_action',
+        args: { request: 'open the queue' },
+      }),
+    };
+    const middleware = createOpenBoxCopilotKitAdapter({
+      core: mock.core as any,
+    }).createLangChainMiddleware(deps) as any;
+    const handler = vi.fn(async () => ({ content: 'should not run' }));
+
+    const result = await middleware.wrapModelCall(
+      {
+        messages: [{ type: 'human', content: 'Open the queue.' }],
+        state: { openboxWorkflowId: 'wf', openboxRunId: 'run' },
+      },
+      handler,
+    );
+
+    // The model is short-circuited: a routed tool-call is returned instead.
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.tool_calls?.[0]?.name).toBe('openbox_governed_action');
+
+    // Every ActivityStarted(llm_call) must have a matching ActivityCompleted.
+    const llmStarts = mock.events.filter(
+      (e) =>
+        e.event_type === 'ActivityStarted' &&
+        e.activity_type === 'llm_call' &&
+        e.hook_trigger !== true,
+    );
+    const llmCompletes = mock.events.filter(
+      (e) =>
+        e.event_type === 'ActivityCompleted' &&
+        e.activity_type === 'llm_call' &&
+        e.hook_trigger !== true,
+    );
+    expect(llmStarts).toHaveLength(1);
+    expect(llmCompletes).toHaveLength(1);
+    expect(llmCompletes[0]?.activity_id).toBe(llmStarts[0]?.activity_id);
   });
 
   it('assembles a streamed (SSE) response into a chat.completion response_body', async () => {

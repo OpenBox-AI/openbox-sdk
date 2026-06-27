@@ -24,6 +24,8 @@ ts/*/src/**/*.d.ts.map
 # local packaging and publish.
 /specs/generated/openapi3/
 /specs/generated/json-schema/
+# Claude Code local agent state; never commit.
+.claude/
 # Local auth state; never commit.
 .tokens
 .openbox/

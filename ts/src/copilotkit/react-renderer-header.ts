@@ -7,6 +7,7 @@ export function OpenBoxHeader({
   reason,
   busy,
   logoSrc,
+  goalDrifted,
 }: {
   title: string;
   badge: string;
@@ -14,6 +15,8 @@ export function OpenBoxHeader({
   reason: string;
   busy?: boolean;
   logoSrc?: string;
+  /** When true, render a secondary, non-blocking "Goal drift" alert badge. */
+  goalDrifted?: boolean;
 }) {
   const [logoFailed, setLogoFailed] = useState(false);
   useEffect(() => {
@@ -57,12 +60,30 @@ export function OpenBoxHeader({
             'OpenBox',
           ),
           h(
-            'span',
-            {
-              key: 'badge',
-              className: `obx-renderer-badge ${badgeClassName}`,
-            },
-            badge,
+            'div',
+            { key: 'badges', className: 'obx-renderer-badge-group' },
+            [
+              h(
+                'span',
+                {
+                  key: 'badge',
+                  className: `obx-renderer-badge ${badgeClassName}`,
+                },
+                badge,
+              ),
+              goalDrifted
+                ? h(
+                    'span',
+                    {
+                      key: 'drift',
+                      className: 'obx-renderer-badge obx-renderer-badge--drift',
+                      title:
+                        'OpenBox flagged this request as off the original goal (alert only).',
+                    },
+                    'Goal drift',
+                  )
+                : null,
+            ],
           ),
         ],
       ),

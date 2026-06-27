@@ -274,11 +274,16 @@ describe('CopilotKit React renderer coverage', () => {
     expect(approvalClient.decide).toHaveBeenCalledWith(
       expect.objectContaining({ decision: 'approve', governanceEventId: 'event-1' }),
     );
-    expect(JSON.parse(respond.mock.calls[0][0])).toMatchObject({
+    const respondPayload = JSON.parse(respond.mock.calls[0][0]);
+    expect(respondPayload).toMatchObject({
       approved: true,
       decision: 'approve',
-      nextTool: 'openbox_resume_governed_action',
     });
+    // The langgraph interrupt resumes internally; the approval response must NOT
+    // instruct the model to call the removed `openbox_resume_governed_action`
+    // tool (doing so made the model call a non-existent tool and loop).
+    expect(respondPayload.nextTool).toBeUndefined();
+    expect(respondPayload.mustCallOpenBoxResumeGovernedAction).toBeUndefined();
 
     (react as any).__primeOpenBoxReactStates(['approved', false, null]);
     expect(OpenBoxApprovalReview({ status: 'complete', respond: vi.fn() })).toBeNull();
@@ -379,6 +384,61 @@ describe('CopilotKit React renderer coverage', () => {
       result: { status: 'error', action: '', request: '', riskScore: 0 },
     });
     expect(hasText(error, 'Governance unavailable')).toBe(true);
+  });
+
+  it('surfaces Core goal-drift as a non-blocking "Goal drift" badge, and never fabricates it', async () => {
+    const { OpenBoxGovernanceDecision } = await import(
+      '../../ts/src/copilotkit/react-governance-decision.ts'
+    );
+
+    // Core flagged drift (ageResult.goal_drifted: true) -> the badge renders
+    // alongside the normal verdict (alert_only / non-blocking).
+    const drifted = OpenBoxGovernanceDecision({
+      status: 'complete',
+      result: {
+        status: 'constrained',
+        verdict: 'allow',
+        action: 'view_governance_report',
+        request: "Forget the escalation — who wins the World Cup?",
+        ageResult: { goal_drifted: true },
+      },
+    });
+    expect(hasText(drifted, 'Goal drift')).toBe(true);
+
+    // A flattened top-level mirror of Core's value is also honored.
+    const flat = OpenBoxGovernanceDecision({
+      status: 'complete',
+      result: {
+        status: 'constrained',
+        verdict: 'allow',
+        action: 'view_governance_report',
+        request: 'Off-goal request.',
+        goalDrifted: true,
+      },
+    });
+    expect(hasText(flat, 'Goal drift')).toBe(true);
+
+    // No drift from Core -> no badge. We only surface Core's value; the SDK
+    // never invents drift.
+    const aligned = OpenBoxGovernanceDecision({
+      status: 'complete',
+      result: {
+        status: 'constrained',
+        verdict: 'allow',
+        action: 'view_governance_report',
+        request: 'Summarize the escalation.',
+        ageResult: { goal_drifted: false },
+      },
+    });
+    expect(hasText(aligned, 'Goal drift')).toBe(false);
+
+    // While still reviewing, the drift badge is suppressed (no premature alert).
+    const reviewing = OpenBoxGovernanceDecision({
+      status: 'inProgress',
+      parameters: { action: 'view_governance_report', request: 'Off-goal.' },
+      result: { ageResult: { goal_drifted: true } },
+    });
+    expect(hasText(reviewing, 'Goal drift')).toBe(false);
   });
 
   it('renders governance redaction labels, timing defaults, and default scenarios', async () => {

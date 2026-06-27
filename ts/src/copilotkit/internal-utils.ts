@@ -114,6 +114,70 @@ export function withGovernedModelInput(
   return request;
 }
 
+/**
+ * Reads Core's goal-drift verdict off a prompt-gate result. Drift detection is
+ * `alert_only` (non-blocking), so the boolean rides back on the verdict's
+ * `ageResult.goal_drifted` rather than changing the arm. Never fabricated.
+ */
+export function gateGoalDrifted(gate: OpenBoxSafePayload): boolean {
+  const verdict = objectRecord((gate as { verdict?: unknown }).verdict);
+  const ageResult = objectRecord(verdict.ageResult);
+  return ageResult.goal_drifted === true;
+}
+
+/**
+ * Best-effort alignment score (0..1) from the prompt-gate verdict, if Core
+ * returned per-span alignment results. Used only to enrich the drift note.
+ */
+export function gateAlignmentScore(gate: OpenBoxSafePayload): number | undefined {
+  const verdict = objectRecord((gate as { verdict?: unknown }).verdict);
+  const ageResult = objectRecord(verdict.ageResult);
+  const spans = Array.isArray(ageResult.span_results)
+    ? ageResult.span_results
+    : [];
+  for (const span of spans) {
+    const alignment = objectRecord(objectRecord(span).alignment_result);
+    if (typeof alignment.score === 'number') return alignment.score;
+  }
+  return undefined;
+}
+
+/**
+ * Returns `request` with a SHORT, per-turn system note prepended so the model
+ * acknowledges the off-goal request to the user. Core's prompt-gate verdict
+ * carries `goal_drifted` but not the original-goal text, so the note stays
+ * generic rather than quoting a goal we do not have. Drift detection is
+ * alert-only: this surfaces it, it does not block.
+ */
+export function withGoalDriftNote(
+  request: any,
+  options: {
+    alignmentScore?: number;
+    SystemMessage?: new (message: any) => unknown;
+  } = {},
+): any {
+  const messages = Array.isArray(request?.messages)
+    ? request.messages
+    : undefined;
+  if (!messages) return request;
+  const scoreSuffix =
+    typeof options.alignmentScore === 'number' &&
+    Number.isFinite(options.alignmentScore)
+      ? ` (goal-alignment score ${Math.round(options.alignmentScore * 100) / 100}).`
+      : '.';
+  const note =
+    'OpenBox flagged this request as drifting from the original goal of this ' +
+    'conversation' +
+    scoreSuffix +
+    ' Before answering, briefly acknowledge to the user that this appears ' +
+    'off-topic from the original goal, then continue.';
+  const SystemMessage = options.SystemMessage;
+  const noteMessage = SystemMessage
+    ? new SystemMessage({ content: note })
+    : { role: 'system', content: note };
+  return { ...request, messages: [noteMessage, ...messages] };
+}
+
 export function mergeMessageContent(
   originalMessages: unknown,
   safeMessages: unknown[],

@@ -7,6 +7,8 @@ import { COPILOTKIT_LLM_ACTIVITY_TYPE } from './activity-types.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import {
   errorOutput,
+  gateAlignmentScore,
+  gateGoalDrifted,
   isRecord,
   modelInput,
   modelNameFromRequest,
@@ -19,6 +21,7 @@ import {
   swallow,
   toPlain,
   toolCallInput,
+  withGoalDriftNote,
   withGovernedAssistantOutput,
   withGovernedModelInput,
   withGovernedToolInput,
@@ -182,17 +185,35 @@ export function createOpenBoxLangChainMiddleware({
       const trailingOpenBoxResult = openBoxResultFromContent(trailingToolResult);
       if (trailingOpenBoxResult) {
         if (isApprovalRequiredResult(trailingOpenBoxResult)) {
+          const approvalToolCallId = `openbox_approval_${randomUUID().replace(
+            /-/g,
+            '',
+          )}`;
+          const approvalArgs = approvalReviewArgs(trailingOpenBoxResult);
+          // openboxApprovalReview is a CLIENT-side HITL tool that the frontend
+          // forwards into the run (state.copilotkit.actions). Return it as a
+          // tool call on a synthetic assistant message: copilotkitMiddleware
+          // (next in the middleware chain) strips that frontend tool call in
+          // afterModel and pauses the run, which is what renders the v2
+          // useHumanInTheLoop approval card and waits for respond().
           return new deps.AIMessage({
             content: '',
             tool_calls: [
               {
-                id: `openbox_approval_${randomUUID().replace(/-/g, '')}`,
+                id: approvalToolCallId,
                 name: 'openboxApprovalReview',
-                args: approvalReviewArgs(trailingOpenBoxResult),
+                args: approvalArgs,
               },
             ],
           });
         }
+        // A governed tool result is trailing. The governed CARD — the tool's own
+        // lean structured output — IS the answer. Do NOT run the model again to
+        // hand-roll a confirmation sentence: that continuation is unreliable
+        // (gpt-5-nano re-calls the SAME governed tool instead of confirming,
+        // producing duplicate "Reviewing" cards / a near-loop) and for terminal
+        // verdicts would be suppressed downstream anyway. End the turn here so the
+        // structured card stands as the response. (No hand-rolled confirm text.)
         return new deps.AIMessage({ content: '' });
       }
       const key = sessionKeyFromConfig(request);
@@ -240,10 +261,22 @@ export function createOpenBoxLangChainMiddleware({
           promptGate.safe,
           promptGate.changed,
         );
+        // Goal drift is detected on the prompt gate (alert_only / non-blocking):
+        // the verdict's `ageResult.goal_drifted` is available BEFORE the model
+        // call. Surface it the only way that makes the model speak up for a
+        // prose turn (no governed-action card to badge) — inject a short,
+        // per-turn system note so the assistant acknowledges the off-goal
+        // request. Only when Core actually flagged drift; never a static claim.
+        if (gateGoalDrifted(promptGate)) {
+          request = withGoalDriftNote(request, {
+            alignmentScore: gateAlignmentScore(promptGate),
+            SystemMessage: deps.SystemMessage,
+          });
+        }
       }
       const governedRoute = deps.routeLatestUserPrompt?.(request.messages);
       if (governedRoute) {
-        return new deps.AIMessage({
+        const routedMessage = new deps.AIMessage({
           content: '',
           tool_calls: [
             {
@@ -253,6 +286,29 @@ export function createOpenBoxLangChainMiddleware({
             },
           ],
         });
+        // The prompt gate opened an `llm_call` ActivityStarted for this turn.
+        // Routing short-circuits the real model call, so without this the
+        // activity would never get its ActivityCompleted pair (observed:
+        // ActivityStarted(llm_call) with no ActivityCompleted). Close it with
+        // the routed assistant decision as the output so every ActivityStarted
+        // has a matching ActivityCompleted. Only when this process actually
+        // opened the activity (the prompt gate ran here).
+        if (!runtimePromptGoverned && promptActivityId !== undefined) {
+          await swallow(() =>
+            adapter.governAssistantOutput({
+              payload: toPlain(routedMessage),
+              sessionKey: key,
+              workflowId: gateIds.workflowId,
+              runId: gateIds.runId,
+              activityId: promptActivityId,
+              activityType: COPILOTKIT_LLM_ACTIVITY_TYPE,
+              llmModel,
+              llmProvider,
+              parentActivityStarted: true,
+            }),
+          );
+        }
+        return routedMessage;
       }
       try {
         // Run the real model call inside an OTel capture scope so the
@@ -261,8 +317,18 @@ export function createOpenBoxLangChainMiddleware({
         // INSIDE the scope — the AsyncLocalStorage store is gone once
         // runWithLLMCapture returns. The capture feeds the llm_completion
         // span so it mirrors the wire payload.
+        // Drop orphaned tool results (a `tool` whose tool_call_id has no
+        // preceding assistant tool_call) that @ag-ui/langgraph's
+        // langGraphDefaultMergeState/prepareStream reconciliation can leave on a
+        // second governed tool call (pinned thread / two-step verify-then-read).
+        // OpenAI rejects them with 400 INVALID_TOOL_RESULTS. We prune ONLY the
+        // request handed to the model — the SDK's own approval/terminal detection
+        // upstream still sees the full list. Never fabricates messages.
+        const modelRequest = Array.isArray(request.messages)
+          ? { ...request, messages: repairToolMessages(request.messages) }
+          : request;
         const { response, captured } = await runWithLLMCapture(async () => {
-          const result = await handler(request);
+          const result = await handler(modelRequest);
           return { response: result, captured: latestCapturedLLMExchange() };
         });
         const responseGate = await adapter.governAssistantOutput({
@@ -286,6 +352,18 @@ export function createOpenBoxLangChainMiddleware({
                 },
                 redactSensitiveHeaders:
                   process.env.OPENBOX_CAPTURE_RAW_HEADERS !== 'true',
+                // Carry the REAL wall-clock timing of the provider HTTP
+                // exchange (recorded by the instrumented fetch) so the
+                // llm_completion span's start_time/end_time/duration reflect
+                // the actual elapsed call instead of collapsing to a single
+                // `now` (start === end, duration 0) when no prompt-gate start
+                // time is available in this process.
+                startTime: captured.startTimeMs,
+                endTime: captured.endTimeMs,
+                durationMs: Math.max(
+                  0,
+                  captured.endTimeMs - captured.startTimeMs,
+                ),
               }
             : {}),
         });
@@ -431,6 +509,71 @@ function toolActivityTypeFromRequest(request: any): string {
     : langchainActivity.onToolStart;
 }
 
+function messageTypeOf(message: any): string {
+  if (message && typeof message._getType === 'function') {
+    return String(message._getType());
+  }
+  return String(message?.type ?? message?.role ?? '');
+}
+
+/**
+ * Drop `tool` messages whose tool_call_id has no matching preceding assistant
+ * tool_call in the same list. @ag-ui/langgraph's reconciliation can leave such
+ * orphans on a second governed tool call (pinned thread / two-step), and OpenAI
+ * rejects them with 400 INVALID_TOOL_RESULTS. Never adds or fabricates messages
+ * — only removes a tool result that cannot legally be sent.
+ */
+function toolCallIdsOf(message: any): string[] {
+  const toolCalls =
+    message?.tool_calls ?? message?.additional_kwargs?.tool_calls ?? [];
+  return toolCalls
+    .map((tc: any) => tc?.id ?? tc?.tool_call_id)
+    .filter(Boolean)
+    .map(String);
+}
+
+function repairToolMessages(messages: any[]): any[] {
+  // Rebuild so each assistant's tool results sit IMMEDIATELY after it. The real
+  // cause of the 400 is order, not absence: CopilotKit's per-turn App Context
+  // developer message can land between an assistant tool_call and its (present)
+  // result. We also drop tool results with no declaring assistant, and drop a
+  // content-less assistant whose tool_calls have no result. Never fabricates.
+  const resultById = new Map<string, any>();
+  for (const message of messages) {
+    if (messageTypeOf(message) === 'tool' && message?.tool_call_id) {
+      const id = String(message.tool_call_id);
+      if (!resultById.has(id)) resultById.set(id, message);
+    }
+  }
+  const placed = new Set<string>();
+  const repaired: any[] = [];
+  for (const message of messages) {
+    const type = messageTypeOf(message);
+    if (type === 'tool') continue; // re-placed right after its assistant
+    if (type === 'ai' || type === 'assistant') {
+      const ids = toolCallIdsOf(message);
+      if (ids.length > 0) {
+        const allResulted = ids.every((id) => resultById.has(id));
+        const hasContent =
+          typeof message?.content === 'string' &&
+          message.content.trim().length > 0;
+        if (!allResulted && !hasContent) continue; // unanswerable tool_call
+        repaired.push(message);
+        for (const id of ids) {
+          const result = resultById.get(id);
+          if (result && !placed.has(id)) {
+            repaired.push(result);
+            placed.add(id);
+          }
+        }
+        continue;
+      }
+    }
+    repaired.push(message);
+  }
+  return repaired;
+}
+
 function promptActivityIdFromState(state: unknown): string | undefined {
   const record = objectRecord(state);
   const openboxSession = objectRecord(record.openboxSession);
@@ -472,10 +615,23 @@ function isHumanMessage(message: Record<string, unknown>): boolean {
 
 function trailingToolContent(messages: unknown): unknown {
   if (!Array.isArray(messages) || messages.length === 0) return undefined;
-  const message = objectRecord(messages[messages.length - 1]);
-  const role = String(message.role ?? message.type ?? '').toLowerCase();
-  if (role !== 'tool') return undefined;
-  return messageContent(message);
+  // Scan back from the end for the most-recent `tool` message, stepping over
+  // trailing developer/system messages. CopilotKit/@ag-ui injects a per-turn
+  // App Context developer/system message that can land AFTER the governed tool
+  // result (the same trailing-App-Context behaviour that caused the earlier 400
+  // INVALID_TOOL_RESULTS). If we only looked at the LAST message, that App
+  // Context would hide the governed tool result, the short-circuit below would
+  // be skipped, and the model would run again and re-call the governed tool —
+  // producing a duplicate governance card. Stop at anything else (a human turn
+  // or an assistant message) so a genuinely new prompt is never short-circuited.
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = objectRecord(messages[index]);
+    const role = String(message.role ?? message.type ?? '').toLowerCase();
+    if (role === 'developer' || role === 'system') continue;
+    if (role === 'tool') return messageContent(message);
+    return undefined;
+  }
+  return undefined;
 }
 
 function messageContent(message: Record<string, unknown>): unknown {
@@ -512,6 +668,23 @@ function isApprovalRequiredResult(result: Record<string, unknown>): boolean {
     status === 'approval_required' ||
     status === 'approval_pending' ||
     verdict === 'require_approval'
+  );
+}
+
+// halt / block / error are workflow-terminal: the runtime stops governance and
+// suppresses further events, so the governed card is the final answer and the
+// model should NOT continue. Allow / executed / constrained are non-terminal and
+// the model continues to emit a one-sentence confirmation.
+function isTerminalGovernedResult(result: Record<string, unknown>): boolean {
+  const status = String(result.status ?? '');
+  const verdict = String(result.verdict ?? '');
+  return (
+    status === 'halted' ||
+    status === 'blocked' ||
+    status === 'error' ||
+    verdict === 'halt' ||
+    verdict === 'block' ||
+    verdict === 'error'
   );
 }
 

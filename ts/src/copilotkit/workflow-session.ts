@@ -274,6 +274,11 @@ export async function emitUserPromptSignal(
         {
           prompt: currentPrompt,
           current_prompt: currentPrompt,
+          // goal_prompt/original_goal both carry the session goal anchor (the
+          // first prompt). Core does NOT detect drift by diffing these fields —
+          // drift is decided by Core's LlamaFirewall alignment scoring of this
+          // signal against subsequent actions vs. the agent's threshold — so
+          // these stay the anchor, matching the goal-signal conformance spec.
           goal_prompt: goalPrompt,
           original_goal: goalPrompt,
           event_category: 'agent_goal',
