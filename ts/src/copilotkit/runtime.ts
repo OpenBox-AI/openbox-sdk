@@ -673,17 +673,6 @@ function pipeGovernedEvents(
             }
             return;
           }
-          // OpenBox constrained (redacted) the output without stopping it. Surface
-          // the verdict on a status card (same mechanism as block/halt) so the UI
-          // shows "Redacted" instead of silently emitting redacted content with no
-          // governance status. The redacted content itself still flows below.
-          if (gate.verdict.arm === 'constrain') {
-            emitOpenBoxMessageEvents(
-              subscriber,
-              input,
-              adapter.toOpenBoxCopilotResult(gate.verdict, gate),
-            );
-          }
           const safeEvent = eventWithSafeFinalPayload(
             agEvent,
             finalPayload,
