@@ -622,22 +622,6 @@ function pipeGovernedEvents(
           return;
         }
         buffer.events.push(agEvent);
-        if (adapter.isSelfGovernedTool(buffer.toolName)) {
-          // Self-governed tools are governed by the agent itself (a separate
-          // CopilotKitGovernedAction activity with its own paired spans). The
-          // runtime must NOT open its own tool-call activity here: it would
-          // never close, because the result returns through the assistant-output
-          // path (governAssistantOutput) rather than a runtime tool-result
-          // event — leaving an unpaired ActivityStarted. Forward the buffered
-          // tool-call events untouched (same as a passed input gate) and do not
-          // govern. The result path is left completely intact.
-          if (!buffer.eventsEmitted) {
-            for (const bufferedEvent of buffer.events) emit(bufferedEvent);
-            buffer.eventsEmitted = true;
-          }
-          toolCallBuffers.delete(toolCallId);
-          return;
-        }
         queueToolInputGate(buffer);
         return;
       }
