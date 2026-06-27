@@ -174,10 +174,13 @@ export function withGovernedAssistantOutput(
   if (!response || typeof response !== 'object') return safe;
   const safeRecord = objectRecord(safe);
   if (Object.keys(safeRecord).length === 0) return response;
-  return {
-    ...(response as Record<string, unknown>),
-    ...safeRecord,
-  };
+  // Preserve the AIMessage INSTANCE: langchain 1.4's model node validates the
+  // wrapModelCall return with isInternalModelResponse (AIMessage.isInstance). A
+  // plain spread drops the prototype, fails that check, and throws a
+  // MiddlewareError — the redaction-noop bug this branch is named for (only
+  // fires when governance redacts content, so `safe` is non-empty).
+  Object.assign(response as Record<string, unknown>, safeRecord);
+  return response;
 }
 
 export function parseToolResult(value: unknown): Record<string, unknown> {

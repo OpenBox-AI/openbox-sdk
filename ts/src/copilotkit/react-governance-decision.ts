@@ -26,7 +26,6 @@ export function OpenBoxGovernanceDecision({
   useOpenBoxRendererStyles();
   const resolvedTheme = resolveTheme(theme, logoSrc);
   const toolResult = parseToolResult(result);
-  if (toolResult.status === 'approval_required') return null;
   const action = String(toolResult.action ?? parameters?.action ?? 'unknown');
   const scenario = scenarioFor(action, scenarios);
   const hasDecision = Boolean(toolResult.status || toolResult.verdict);
@@ -70,6 +69,12 @@ export function OpenBoxGovernanceDecision({
     if (session.status !== 'halted') return;
     onSessionHalted?.(session.haltedAt);
   }, [onSessionHalted, session.haltedAt, session.status]);
+
+  // approval_required is rendered by the dedicated approval-review component, so
+  // this card renders nothing for it. This return MUST stay below every hook
+  // above (rules of hooks): an earlier return skipped the useEffect and threw
+  // "Rendered fewer hooks than expected" whenever an approval card tried to render.
+  if (toolResult.status === 'approval_required') return null;
 
   return h(
     'section',
