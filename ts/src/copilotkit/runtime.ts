@@ -119,6 +119,35 @@ export function createOpenBoxGovernedRunner(
                 subscriber,
               );
           if (!governedInput) return;
+          // Per-turn langgraph thread isolation (frontend-safe).
+          //
+          // @ag-ui/langgraph's prepareStream + langGraphDefaultMergeState
+          // accumulate message state across turns on the PINNED langgraph
+          // thread (== request.threadId == the frontend's threadId). On a
+          // SECOND turn that prior-turn accumulation causes two failures:
+          //   1. reconciliation dedups the assistant tool_calls message by id
+          //      but keeps its tool result → OpenAI 400 INVALID_TOOL_RESULTS;
+          //   2. prepareStream sees server-checkpoint non-system count `b` >
+          //      client-sent non-system count `x` and routes to
+          //      prepareRegenerateStream → getCheckpointByMessage throws
+          //      "Message not found".
+          // Both vanish if each NEW user turn runs against a CLEAN thread
+          // checkpoint (b can't exceed x, no stale orphan).
+          //
+          // We reset the checkpoint while KEEPING request.threadId stable, so
+          // the frontend's run/thread correlation is untouched: prepareStream
+          // and handleStreamEvents stamp every outbound RUN_STARTED /
+          // RUN_FINISHED / STATE_SNAPSHOT with `f` (= request.threadId), and
+          // the frontend pins that same id. Minting a fresh server threadId
+          // instead would change `f` and desync the frontend, so we do NOT.
+          //
+          // A resume run (forwardedProps.command.resume) is the continuation
+          // of a paused HITL approval — it MUST keep the paused checkpoint, so
+          // we skip the reset for it (resetting would orphan the interrupt and
+          // Core would mark the session "no longer active").
+          if (!inputHasResumeCommand(request.input)) {
+            await resetLangGraphThreadCheckpoint(request.agent, request.threadId);
+          }
           const source = runner.run({ ...request, input: governedInput });
           pipeGovernedEvents(
             source,
@@ -177,6 +206,21 @@ export function createOpenBoxRuntimeHooks(
       const body = await readJsonRequestBody(ctx.request);
       if (!isRecord(body)) return;
       const input = body as OpenBoxCopilotRunInputLike;
+      // A `command.resume` run CONTINUES a paused turn (e.g. a HITL approval
+      // resume) — it carries no new user prompt. Re-governing it here would open
+      // a FRESH governance session (new workflow ids) that supersedes the
+      // original approval session, so Core marks the original "no longer active"
+      // and halts the resume at its output gate. Skip the prompt gate on a
+      // resume: there is no new prompt to govern, and the resume must complete
+      // the ORIGINAL session. (The action's own output gate still runs.)
+      const inputRecord = input as Record<string, unknown>;
+      const forwarded = isRecord(inputRecord.forwardedProps)
+        ? inputRecord.forwardedProps
+        : undefined;
+      const resumeCommand =
+        (isRecord(forwarded?.command) ? forwarded?.command : undefined) ??
+        (isRecord(inputRecord.command) ? inputRecord.command : undefined);
+      if (resumeCommand && resumeCommand.resume !== undefined) return;
       const sessionKey = input.threadId || 'default';
       const ids = freshRuntimeWorkflowIdsFromInput(input);
       const promptGate = await adapter.governPrompt({
@@ -343,6 +387,14 @@ function pipeGovernedEvents(
     return activityId;
   };
   let terminalized = false;
+  // On a command.resume run, langgraph re-runs the interrupted tool node and
+  // re-streams the SAME tool call (START/ARGS/END). The frontend card is keyed
+  // by tool-call id, so that re-emit resets it to "Reviewing" after the verdict
+  // already showed — the post-approval "allowed → reviewing" flicker, and the
+  // duplicate "block" cards. Drop the re-emitted (first) tool call's stream; its
+  // RESULT still flows through and updates the existing card to the verdict.
+  const isResumeRun = inputHasResumeCommand(input);
+  let suppressedResumeToolCallId: string | null = null;
   let pendingError: unknown;
   let queuedTerminalEvent:
     | {
@@ -461,6 +513,13 @@ function pipeGovernedEvents(
       }
     | undefined;
   let emittedOpenBoxToolResult = false;
+  // True once this run paused at a langgraph interrupt (e.g. a HITL approval).
+  // When a run ends because it PAUSED (not truly finished), we must NOT emit
+  // WorkflowCompleted on the shared task workflow — Core would mark the session
+  // `completed`, and the later approval RESUME's ActivityCompleted would hit
+  // Core's "session no longer active" guard and halt. The terminal event is
+  // deferred until the resume run actually finishes the workflow.
+  let pausedAtInterrupt = false;
   const queueAssistantOutputGate = (
     messageId: string,
     type: string,
@@ -548,6 +607,27 @@ function pipeGovernedEvents(
       if (isMalformedCopilotKitLangGraphInterruptEvent(agEvent)) {
         return;
       }
+      if (isInterruptPauseEvent(agEvent)) {
+        // The run is pausing at an interrupt (HITL approval). Remember it so the
+        // upcoming RUN_FINISHED does NOT complete the shared workflow.
+        pausedAtInterrupt = true;
+        emit(agEvent);
+        return;
+      }
+      if (isMessagesSnapshotEvent(agEvent)) {
+        // Keep EVERYTHING ever shown on this thread visible. The per-turn
+        // checkpoint reset (thread-isolation) makes a new run's snapshot omit
+        // PRIOR turns' messages, so CopilotKit's reconciler drops them from its
+        // store (a later snapshot re-adds them) — cards and text flicker away and
+        // back. Merge every forwarded snapshot with all messages previously shown
+        // on this thread (the richest version of each wins), so the snapshot never
+        // omits a shown message and the reconciler never has a reason to drop one.
+        emit({
+          ...agEvent,
+          messages: mergeShownMessages(sessionKey, agEvent.messages),
+        });
+        return;
+      }
       if (pendingAssistantOutput) {
         flushPendingAssistantOutput(
           isRunFinishedEvent(agEvent) ? agEvent : undefined,
@@ -595,6 +675,15 @@ function pipeGovernedEvents(
       }
       if (isToolCallStartEvent(agEvent)) {
         const toolCallId = toolCallIdForEvent(agEvent);
+        if (isResumeRun && suppressedResumeToolCallId === null) {
+          // First tool call on a resume run = the langgraph re-run RE-EMITTING
+          // the interrupted call. The card already exists from the original run,
+          // so dropping this re-emitted START/ARGS/END stops it resetting to
+          // "Reviewing"; its RESULT still flows through to update the card to the
+          // final verdict — honoring the verdict priority (never a downgrade).
+          suppressedResumeToolCallId = toolCallId;
+          return;
+        }
         toolCallBuffers.set(toolCallId, {
           toolCallId,
           toolName: toolNameForToolEvent(agEvent),
@@ -605,6 +694,7 @@ function pipeGovernedEvents(
       }
       if (isToolCallArgsEvent(agEvent)) {
         const toolCallId = toolCallIdForEvent(agEvent);
+        if (toolCallId === suppressedResumeToolCallId) return;
         const buffer = toolCallBuffers.get(toolCallId);
         if (!buffer) {
           emit(agEvent);
@@ -616,6 +706,7 @@ function pipeGovernedEvents(
       }
       if (isToolCallEndEvent(agEvent)) {
         const toolCallId = toolCallIdForEvent(agEvent);
+        if (toolCallId === suppressedResumeToolCallId) return;
         const buffer = toolCallBuffers.get(toolCallId);
         if (!buffer) {
           emit(agEvent);
@@ -673,23 +764,16 @@ function pipeGovernedEvents(
             }
             return;
           }
-          // OpenBox constrained (redacted) the output without stopping it. Surface
-          // the verdict on a status card (same mechanism as block/halt) so the UI
-          // shows "Redacted" instead of silently emitting redacted content with no
-          // governance status. The redacted content itself still flows below.
-          if (gate.verdict.arm === 'constrain') {
-            emitOpenBoxMessageEvents(
-              subscriber,
-              input,
-              adapter.toOpenBoxCopilotResult(gate.verdict, gate),
-            );
-          }
           const safeEvent = eventWithSafeFinalPayload(
             agEvent,
             finalPayload,
             gate.safe,
           );
           if (isRunFinishedEvent(agEvent)) {
+            if (pausedAtInterrupt) {
+              emit(safeEvent);
+              return;
+            }
             queueTerminalEvent(safeEvent, 'completed');
             return;
           }
@@ -698,6 +782,10 @@ function pipeGovernedEvents(
         return;
       }
       if (isRunFinishedEvent(agEvent)) {
+        if (pausedAtInterrupt) {
+          emit(agEvent);
+          return;
+        }
         queueTerminalEvent(agEvent, 'completed');
         return;
       }
@@ -757,7 +845,12 @@ function pipeGovernedEvents(
             subscriber.complete?.();
             return;
           }
-          await markCompleted();
+          if (!pausedAtInterrupt) {
+            // Paused at an interrupt: leave the shared workflow OPEN (pending)
+            // so the approval resume can complete it. The terminal event fires
+            // on the resume run's true finish, not at the pause.
+            await markCompleted();
+          }
           subscriber.complete?.();
         },
         (error) => subscriber.error?.(error),
@@ -925,12 +1018,149 @@ function isRunErrorEvent(event: Record<string, any>): boolean {
   return type === 'RUN_ERROR' || type === 'RunError';
 }
 
+function isMessagesSnapshotEvent(event: Record<string, any>): boolean {
+  const type = String(event.type);
+  return (
+    (type === 'MESSAGES_SNAPSHOT' || type === 'MessagesSnapshot') &&
+    Array.isArray(event.messages)
+  );
+}
+
+// Per-thread record of every message ever shown, so a forwarded MESSAGES_SNAPSHOT
+// can re-include messages a later (checkpoint-reset) snapshot omits. Keyed by the
+// stable frontend threadId (== sessionKey). Demo-scoped: unbounded, never pruned.
+const shownMessagesByThread = new Map<
+  string,
+  { order: string[]; byId: Map<string, unknown> }
+>();
+
+// Rough "how much does this message carry" score, so re-merging never DOWNGRADES
+// a decided/with-content message to an emptier version a reset snapshot may hold.
+function messageRichness(message: unknown): number {
+  const record = objectRecord(message);
+  const content = record.content;
+  if (typeof content === 'string') {
+    return content.trim().length > 0 ? content.length + 100 : 0;
+  }
+  if (Array.isArray(content)) return content.length + 100;
+  if (content) return 100;
+  if (Array.isArray(record.toolCalls) || Array.isArray(record.tool_calls)) {
+    return 10;
+  }
+  return 1;
+}
+
+// Merge an incoming snapshot with everything previously shown on this thread.
+// New messages append in arrival order; for a known id the richer version wins.
+// The result preserves first-seen order and never drops a message.
+function mergeShownMessages(
+  threadKey: string,
+  snapshotMessages: unknown[],
+): unknown[] {
+  let store = shownMessagesByThread.get(threadKey);
+  if (!store) {
+    store = { order: [], byId: new Map() };
+    shownMessagesByThread.set(threadKey, store);
+  }
+  for (const message of snapshotMessages) {
+    const record = objectRecord(message);
+    const id = typeof record.id === 'string' ? record.id : null;
+    if (!id) continue;
+    const prev = store.byId.get(id);
+    if (prev === undefined) {
+      store.order.push(id);
+      store.byId.set(id, message);
+    } else if (messageRichness(message) >= messageRichness(prev)) {
+      store.byId.set(id, message);
+    }
+  }
+  const merged: unknown[] = [];
+  for (const id of store.order) {
+    const message = store.byId.get(id);
+    if (message !== undefined) merged.push(message);
+  }
+  return merged;
+}
+
 function isMalformedCopilotKitLangGraphInterruptEvent(
   event: Record<string, any>,
 ): boolean {
   if (event.name !== 'CopilotKitLangGraphInterruptEvent') return false;
   const data = objectRecord(event.data);
   return !Array.isArray(data.messages);
+}
+
+// A run "pauses" (rather than finishes) when the langgraph graph hits an
+// interrupt() — e.g. a HITL approval. @ag-ui/langgraph surfaces this as a CUSTOM
+// `on_interrupt` event ahead of RUN_FINISHED.
+function isInterruptPauseEvent(event: Record<string, any>): boolean {
+  const type = String(event.type);
+  const name = String(event.name ?? '');
+  if (
+    (type === 'CUSTOM' || type === 'CUSTOM_EVENT' || type === 'CustomEvent') &&
+    name === 'on_interrupt'
+  ) {
+    return true;
+  }
+  return name === 'CopilotKitLangGraphInterruptEvent';
+}
+
+// True when this run is a langgraph resume (`forwardedProps.command.resume`),
+// i.e. the continuation of a paused HITL approval rather than a fresh turn.
+function inputHasResumeCommand(input: unknown): boolean {
+  const rec = isRecord(input) ? input : undefined;
+  const forwarded = isRecord(rec?.forwardedProps) ? rec?.forwardedProps : undefined;
+  const command =
+    (isRecord(forwarded?.command) ? forwarded?.command : undefined) ??
+    (isRecord(rec?.command) ? rec?.command : undefined);
+  return Boolean(command && command.resume !== undefined);
+}
+
+// Reset the langgraph thread's server-side checkpoint for a NON-resume turn so
+// @ag-ui/langgraph starts the turn from a clean state (see the call site for the
+// two failures this prevents). The frontend-pinned `threadId` is preserved — we
+// only clear the checkpoint behind it.
+//
+// The langgraph thread is the same id the runner is handed (request.threadId),
+// and the LangGraph SDK client lives on the resolved @ag-ui/langgraph agent
+// (`agent.client.threads`). @ag-ui/langgraph is NOT a dependency of this SDK, so
+// the agent shape is opaque: we duck-type for `client.threads.delete` and only
+// reset when it is present. `getOrCreateThread` (in prepareStream) re-creates the
+// thread empty on the next run, so the server checkpoint count drops to 0.
+//
+// Best-effort: a delete failure (e.g. the thread does not exist yet on the first
+// turn, or a transient transport error) must never break the run, so it is
+// swallowed. Worst case we fall back to the prior accumulate-across-turns
+// behavior rather than failing the turn.
+async function resetLangGraphThreadCheckpoint(
+  agent: unknown,
+  threadId: unknown,
+): Promise<void> {
+  if (typeof threadId !== 'string' || threadId.length === 0) return;
+  const threads = langGraphThreadsClient(agent);
+  if (!threads) return;
+  try {
+    await threads.delete(threadId);
+  } catch {
+    // Thread absent (first turn) or transient error: leave it to the agent's
+    // own getOrCreateThread. Never fail the turn for a checkpoint reset.
+  }
+}
+
+interface LangGraphThreadsClientLike {
+  delete(threadId: string): Promise<unknown>;
+}
+
+function langGraphThreadsClient(
+  agent: unknown,
+): LangGraphThreadsClientLike | undefined {
+  const agentRecord = isRecord(agent) ? agent : undefined;
+  const client = isRecord(agentRecord?.client) ? agentRecord?.client : undefined;
+  const threads = isRecord(client?.threads) ? client?.threads : undefined;
+  if (threads && typeof threads.delete === 'function') {
+    return threads as unknown as LangGraphThreadsClientLike;
+  }
+  return undefined;
 }
 
 function isToolResultEvent(event: Record<string, any>): boolean {

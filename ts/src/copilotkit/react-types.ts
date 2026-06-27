@@ -4,6 +4,17 @@ export interface OpenBoxCopilotKitReactBindings {
   useHumanInTheLoop: (definition: Record<string, unknown>) => void;
   useDefaultRenderTool: (definition: Record<string, unknown>) => void;
   useRenderTool?: (definition: Record<string, unknown>) => void;
+  // Host-driven (langgraph interrupt) approval rendering. The deterministic
+  // governance approval is surfaced as an `on_interrupt` event, not a
+  // model-emitted tool call, so it is rendered via useInterrupt rather than
+  // useHumanInTheLoop.
+  useInterrupt?: (config: {
+    enabled?: (event: Record<string, unknown>) => boolean;
+    render: (props: {
+      event: Record<string, unknown>;
+      resolve: (response: unknown) => void;
+    }) => unknown;
+  }) => void;
 }
 
 export type OpenBoxToolStatus =

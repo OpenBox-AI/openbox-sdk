@@ -425,7 +425,7 @@ describe('cursor adapter end-to-end stdin → stdout', () => {
     });
     expect(promptHook?.spans?.[0]).toMatchObject({
       module: 'cursor',
-      name: 'llm.chat.completion',
+      name: 'POST',
       semantic_type: 'llm_completion',
       attributes: expect.objectContaining({
         'gen_ai.system': 'cursor',

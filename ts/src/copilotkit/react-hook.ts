@@ -12,26 +12,55 @@ import type {
   UseOpenBoxCopilotKitResult,
 } from './react-types.js';
 
+// The on_interrupt event's `value` is the (JSON-stringified or parsed) payload
+// the agent passed to interrupt(). The CopilotKit convention wraps it in
+// `{ __copilotkit_interrupt_value__: { action, args } }`, so unwrap that
+// envelope to get the `{ action, args }` we keyed the renderer on.
+function interruptValue(event: unknown): Record<string, unknown> {
+  let raw: unknown = asRecord(event).value;
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      raw = {};
+    }
+  }
+  const record = asRecord(raw);
+  const inner = record.__copilotkit_interrupt_value__;
+  return inner ? asRecord(inner) : record;
+}
+
 export function useOpenBoxCopilotKit(
   options: UseOpenBoxCopilotKitOptions = {},
 ): UseOpenBoxCopilotKitResult {
   const bindings = options.bindings;
-  bindings?.useHumanInTheLoop({
-    name: 'openboxApprovalReview',
-    description:
-      'Show an OpenBox approval UI. After it returns, the assistant must call openbox_resume_governed_action with the returned payload.',
-    parameters: options.approvalParameters,
-    render:
-      options.renderApprovalReview ??
-      ((props: Record<string, unknown>) =>
-        h(OpenBoxApprovalReview, {
-          ...options,
-          status: String(props.status ?? ''),
-          respond: props.respond as
-            | ((response: string) => void | Promise<void>)
-            | undefined,
-          ...asRecord(props.args),
-        })),
+  // Deterministic governance approval is a HOST-driven pause: OpenBox Core
+  // returns approval_required and the agent calls langgraph interrupt(), so the
+  // card ALWAYS renders (independent of the model). It arrives as an
+  // `on_interrupt` event, rendered via useInterrupt — NOT a model-emitted
+  // useHumanInTheLoop tool call (which the model could skip). resolve() carries
+  // the decision back as the resume value (Command.resume).
+  bindings?.useInterrupt?.({
+    enabled: (event) =>
+      interruptValue(event).action === 'openboxApprovalReview',
+    render: (props) => {
+      const value = interruptValue(props.event);
+      if (options.renderApprovalReview) {
+        return options.renderApprovalReview({
+          status: 'executing',
+          respond: props.resolve,
+          args: value.args,
+        } as Record<string, unknown>);
+      }
+      return h(OpenBoxApprovalReview, {
+        ...options,
+        status: 'executing',
+        respond: props.resolve as
+          | ((response: string) => void | Promise<void>)
+          | undefined,
+        ...asRecord(value.args),
+      });
+    },
   });
   bindings?.useHumanInTheLoop({
     name: 'openboxInteractiveReview',

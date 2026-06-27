@@ -190,6 +190,15 @@ export const openBoxRendererCss = `
   border-radius:999px;
   background:var(--obx-status-color,var(--obx-verdict));
 }
+.obx-renderer-badge-group{display:inline-flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.obx-renderer-badge--drift{
+  --obx-status-color:#b8791f;
+  color:#8a5a14;
+  background:color-mix(in srgb,#b8791f 12%,transparent);
+  border-radius:999px;
+  padding:.1rem .5rem;
+  font-weight:650;
+}
 .obx-status--reviewing{--obx-status-color:var(--obx-accent,#3f6f9c)}
 .obx-status--allow{--obx-status-color:#2f7d5a}
 .obx-status--block,.obx-status--rejected{--obx-status-color:#a94444}

@@ -3,6 +3,7 @@ import { defaultScenarios, verdictStyles } from './react-defaults.js';
 import { OpenBoxHeader } from './react-renderer-header.js';
 import type { OpenBoxGovernanceDecisionProps } from './react-renderer-types.js';
 import {
+  asRecord,
   parseToolResult,
   rendererStyle,
   resolveTheme,
@@ -14,6 +15,18 @@ import type {
   OpenBoxUiVerdict,
 } from './react-types.js';
 
+// Module-level latch: remember each card's last REAL decision keyed by its
+// tool-call id. This SURVIVES a React re-mount (a useRef would not), which is
+// what happens when a later turn's reconciliation re-renders an already-decided
+// OLD card — the per-turn checkpoint reset (runtime thread-isolation) wipes the
+// langgraph server view, so @ag-ui re-renders that card with an empty result.
+// Keyed by the stable tool-call id. We only ever store a REAL decision; never
+// fabricate one.
+const latchedDecisionByToolCall = new Map<
+  string,
+  ReturnType<typeof parseToolResult>
+>();
+
 export function OpenBoxGovernanceDecision({
   status,
   parameters,
@@ -22,14 +35,23 @@ export function OpenBoxGovernanceDecision({
   theme,
   onSessionHalted,
   scenarios,
+  toolCallId,
 }: OpenBoxGovernanceDecisionProps) {
   useOpenBoxRendererStyles();
   const resolvedTheme = resolveTheme(theme, logoSrc);
-  const toolResult = parseToolResult(result);
-  if (toolResult.status === 'approval_required') return null;
+  const liveResult = parseToolResult(result);
+  const liveHasDecision = Boolean(liveResult.status || liveResult.verdict);
+  if (liveHasDecision && toolCallId) {
+    latchedDecisionByToolCall.set(toolCallId, liveResult);
+  }
+  const latchedDecision = toolCallId
+    ? latchedDecisionByToolCall.get(toolCallId)
+    : undefined;
+  const toolResult =
+    liveHasDecision || !latchedDecision ? liveResult : latchedDecision;
   const action = String(toolResult.action ?? parameters?.action ?? 'unknown');
   const scenario = scenarioFor(action, scenarios);
-  const hasDecision = Boolean(toolResult.status || toolResult.verdict);
+  const hasDecision = liveHasDecision || latchedDecision !== undefined;
   const verdict = !hasDecision ? 'reviewing' : verdictFromResult(toolResult);
   const isReviewing = verdict === 'reviewing';
   const styles = verdictStyles[verdict];
@@ -62,6 +84,35 @@ export function OpenBoxGovernanceDecision({
       : undefined;
   const trustTier = textValue(toolResult.trustTier);
   const redactionSummary = textValue(toolResult.redactionSummary);
+  // Goal drift is detected by Core (alert_only / non-blocking). The real verdict
+  // rides back on `ageResult.goal_drifted`; accept a flattened top-level mirror
+  // too. We only surface Core's value — never fabricate it.
+  const ageResult = asRecord(toolResult.ageResult);
+  const goalDrifted =
+    ageResult.goal_drifted === true ||
+    toolResult.goalDrifted === true ||
+    toolResult.goal_drifted === true;
+  // Controls reflect what ACTUALLY governed THIS action — derived from Core's
+  // live verdict + triggered guardrails/rules — not a static per-action label.
+  // Empty on a clean allow with nothing triggered (accurate, not decorative).
+  const verdictControlLabel: Record<string, string | undefined> = {
+    approval: 'Human-in-the-loop approval',
+    rejected: 'Human-in-the-loop rejection',
+    halt: 'Critical action halt',
+    block: 'Policy block',
+    constrain: 'Guardrail constraint',
+  };
+  const triggeredControls: string[] = [];
+  const pushControl = (label: string | undefined) => {
+    if (label && !triggeredControls.includes(label)) triggeredControls.push(label);
+  };
+  if (!isReviewing) pushControl(verdictControlLabel[verdict]);
+  const behavioralViolations = Array.isArray(ageResult.behavioral_violations)
+    ? ageResult.behavioral_violations
+    : [];
+  for (const violation of behavioralViolations) pushControl(textValue(violation));
+  if (redactionSummary) pushControl('Guardrails');
+  if (goalDrifted) pushControl('Goal alignment');
   const timings =
     normalizeTimings(toolResult.timings) ??
     normalizeTimings(parameters?.timings);
@@ -70,6 +121,12 @@ export function OpenBoxGovernanceDecision({
     if (session.status !== 'halted') return;
     onSessionHalted?.(session.haltedAt);
   }, [onSessionHalted, session.haltedAt, session.status]);
+
+  // approval_required is rendered by the dedicated approval-review component, so
+  // this card renders nothing for it. This return MUST stay below every hook
+  // above (rules of hooks): an earlier return skipped the useEffect and threw
+  // "Rendered fewer hooks than expected" whenever an approval card tried to render.
+  if (toolResult.status === 'approval_required') return null;
 
   return h(
     'section',
@@ -95,6 +152,7 @@ export function OpenBoxGovernanceDecision({
             badgeClassName: styles.badge,
             reason,
             busy: isReviewing,
+            goalDrifted: goalDrifted && !isReviewing,
           }),
         ),
         h('div', { key: 'body', className: 'obx-governance-body' }, [
@@ -155,7 +213,7 @@ export function OpenBoxGovernanceDecision({
                 ],
               )
             : null,
-          renderCheckedLine(scenario.capability),
+          renderCheckedLine(triggeredControls.join(' + ') || undefined),
         ]),
       ]),
     ],

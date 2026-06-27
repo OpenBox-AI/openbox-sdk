@@ -216,6 +216,27 @@ export interface OpenBoxCopilotLangChainMiddlewareDeps {
   createMiddleware: (definition: any) => unknown;
   AIMessage: new (message: any) => unknown;
   /**
+   * Optional LangChain `SystemMessage` constructor. When provided, OpenBox uses
+   * it to inject a per-turn goal-drift acknowledgment note (alert-only) before
+   * the model call. Falls back to a plain `{ role: 'system' }` message object.
+   */
+  SystemMessage?: new (message: any) => unknown;
+  /**
+   * Optional CopilotKit `copilotkitEmitToolCall(config, name, args, options)`.
+   * When provided, OpenBox emits HITL tool calls (openboxApprovalReview /
+   * openboxInteractiveReview) through CopilotKit's manual-emit path so they
+   * surface as real streamed AG-UI TOOL_CALL events — which is what CopilotKit
+   * v2 requires to render the human-review card. (A synthetic AIMessage tool
+   * call alone never streams, so v2 renders nothing.) The dispatch resolves its
+   * RunnableConfig from the ambient node context, so passing `{}` is sufficient.
+   */
+  emitToolCall?: (
+    config: unknown,
+    name: string,
+    args: unknown,
+    options?: { toolCallId?: string },
+  ) => Promise<string>;
+  /**
    * Optional LangChain middleware state schema (for example a zod object)
    * declaring `openboxWorkflowId`, `openboxRunId`, and the runtime
    * prompt-governed flag. Declaring them keeps the CopilotKit runtime's
