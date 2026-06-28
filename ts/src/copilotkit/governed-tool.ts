@@ -1,11 +1,6 @@
-import { randomBytes, randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/index.js';
 import { DEFAULT_TASK_QUEUE, DEFAULT_WORKFLOW_TYPE } from './constants.js';
-import {
-  errorOutput,
-  nowUnixNano,
-  sessionKeyFromConfig,
-} from './internal-utils.js';
+import { errorOutput, sessionKeyFromConfig } from './internal-utils.js';
 import {
   applyCompletedRedaction,
   applyStartedRedaction,
@@ -41,21 +36,17 @@ import {
   pollApproval,
   toolActivityInput,
   toolInput,
-  toolSpan,
   withCopilotToolActivityMetadata,
-  withSpanIdentityFromActivity,
 } from './workflow-session.js';
 import { EVENT } from '../governance/events.js';
 import {
-  buildSpan,
-  leanCopilotLlmSpan,
-  stripServerComputedSemantic,
-} from '../governance/spans.js';
-import {
   capturedLLMExchanges,
-  runWithLLMCapture,
+  capturedSubOpSpans,
+  runWithSubOpCapture,
   type CapturedLLMExchange,
 } from './otel-capture.js';
+import { buildSpan, leanCopilotLlmSpan } from '../governance/spans.js';
+import { randomBytes } from 'node:crypto';
 
 type HaltedCopilotSession = Extract<
   OpenBoxCopilotSessionState,
@@ -167,7 +158,6 @@ export function createGovernedCopilotTool<
       }
       // Split-stage gate from the spec-generated runtime: input verdict now,
       // paired completion (same activity id) after the business logic runs.
-      const toolStartedNs = nowUnixNano();
       const openedActivity = await timings.measure(
         'tool_input_gate',
         'Input policy check',
@@ -176,21 +166,9 @@ export function createGovernedCopilotTool<
           session.openActivity(activityType, {
             activityId: ids.activityId,
             input: toolActivityInput(definition, normalizedInput),
-            spans: [
-              toolSpan(
-                definition,
-                normalizedInput,
-                'started',
-                undefined,
-                ids.activityId,
-                toolStartedNs,
-              ),
-              ...(definition.operationSpans?.(
-                normalizedInput,
-                'started',
-                ids.activityId,
-              ) ?? []),
-            ],
+            // Canonical: the tool ACTIVITY carries no span; only its captured
+            // sub-operations do (attached to the completed activity below).
+            spans: [],
           }),
       );
       const started = openedActivity.verdict;
@@ -235,9 +213,12 @@ export function createGovernedCopilotTool<
         started,
       );
       let artifact: TArtifact;
-      // The SDK's global OTel fetch instrumentation records the LLM call(s) the
-      // business action makes; collect them inside the capture scope so they can
-      // be surfaced as real llm_completion spans on the completed activity.
+      // Capture the real sub-operations (HTTP/DB/file/function) the business
+      // action performs; each becomes a canonical hook_trigger span evaluation on
+      // the completed activity. LLM provider calls are captured as llm_completion
+      // span pairs (http_request) from the real exchange, matching canonical
+      // (openbox-langgraph-sdk-python instruments the provider POST as a span).
+      let subOpSpans: SpanData[] = [];
       let llmCaptures: CapturedLLMExchange[] = [];
       try {
         artifact = await timings.measure(
@@ -245,10 +226,11 @@ export function createGovernedCopilotTool<
           'Business action',
           'tool',
           () =>
-            runWithLLMCapture(async () => {
+            runWithSubOpCapture({ activityId: ids.activityId }, async () => {
               try {
                 return await definition.execute(startedRedaction.input);
               } finally {
+                subOpSpans = capturedSubOpSpans();
                 llmCaptures = capturedLLMExchanges();
               }
             }),
@@ -264,22 +246,7 @@ export function createGovernedCopilotTool<
                 {
                   input: toolActivityInput(definition, startedRedaction.input),
                   output: failedToolOutputForGovernance(error),
-                  spans: [
-                    toolSpan(
-                      definition,
-                      startedRedaction.input,
-                      'completed',
-                      failedToolOutputForGovernance(error),
-                      ids.activityId,
-                      toolStartedNs,
-                    ),
-                    ...(definition.operationSpans?.(
-                      startedRedaction.input,
-                      'completed',
-                      ids.activityId,
-                    ) ?? []),
-                    ...capturedLlmCompletionSpans(llmCaptures),
-                  ],
+                  spans: [...subOpSpans, ...capturedLlmCompletionSpans(llmCaptures)],
                   hookSpanParentEventType: EVENT.START,
                 },
                 activityType,
@@ -308,22 +275,7 @@ export function createGovernedCopilotTool<
             {
               input: toolActivityInput(definition, startedRedaction.input),
               output: toolOutputForGovernance(provisional),
-              spans: [
-                toolSpan(
-                  definition,
-                  startedRedaction.input,
-                  'completed',
-                  toolOutputForGovernance(provisional),
-                  ids.activityId,
-                  toolStartedNs,
-                ),
-                ...(definition.operationSpans?.(
-                  startedRedaction.input,
-                  'completed',
-                  ids.activityId,
-                ) ?? []),
-                ...capturedLlmCompletionSpans(llmCaptures),
-              ],
+              spans: [...subOpSpans, ...capturedLlmCompletionSpans(llmCaptures)],
               hookSpanParentEventType: EVENT.START,
             },
             activityType,
@@ -487,11 +439,21 @@ export function createGovernedCopilotTool<
         );
       }
 
+      let resumeSubOpSpans: SpanData[] = [];
+      let resumeLlmCaptures: CapturedLLMExchange[] = [];
       const artifact = await timings.measure(
         'tool_execution',
         'Business action',
         'tool',
-        () => definition.execute(normalizedInput),
+        () =>
+          runWithSubOpCapture({ activityId: ids.activityId }, async () => {
+            try {
+              return await definition.execute(normalizedInput);
+            } finally {
+              resumeSubOpSpans = capturedSubOpSpans();
+              resumeLlmCaptures = capturedLLMExchanges();
+            }
+          }),
       );
       const result = resultForAllowedVerdict(
         normalizedInput,
@@ -519,14 +481,7 @@ export function createGovernedCopilotTool<
               approvalResumeToolInput(definition, normalizedInput),
             ]),
             output: toolOutputForGovernance(result),
-            spans: [
-              approvalResumeSpan(definition, normalizedInput, ids.activityId),
-              ...(definition.operationSpans?.(
-                normalizedInput,
-                'completed',
-                ids.activityId,
-              ) ?? []),
-            ],
+            spans: [...resumeSubOpSpans, ...capturedLlmCompletionSpans(resumeLlmCaptures)],
             hookSpanParentEventType: EVENT.START,
           }),
       );
@@ -650,14 +605,8 @@ export function createGovernedCopilotTool<
           ).openActivity(governedToolActivityType(definition), {
             activityId: ids.activityId,
             input: toolActivityInput(definition, input),
-            spans: [
-              toolSpan(definition, input, 'started', undefined, ids.activityId),
-              ...(definition.operationSpans?.(
-                input,
-                'started',
-                ids.activityId,
-              ) ?? []),
-            ],
+            // Halted-session check: start-only gate, no spans (canonical).
+            spans: [],
           }),
       );
       if (isAllowed(verdict.arm)) {
@@ -706,11 +655,12 @@ export function createGovernedCopilotTool<
   return { execute, resume };
 }
 
-// Surface the LLM call(s) the business action made (captured by the SDK's OTel
-// fetch instrumentation) as full-data llm_completion span pairs, so a governed
-// action carries the same real request/response/headers/body/usage/duration as
-// the middleware path. Each captured exchange becomes a started+completed pair
-// sharing one span_id.
+// Turns LLM provider exchanges captured during execution (via the instrumented
+// fetch) into full-data llm_completion span pairs, so a governed action carries
+// the same real request/response/headers/body/usage/duration as the middleware
+// path. Each captured exchange becomes a started+completed pair sharing one
+// span_id. Matches canonical openbox-langgraph-sdk-python, where the provider
+// POST is instrumented as an http_request span (server-classified llm_completion).
 function capturedLlmCompletionSpans(
   captures: CapturedLLMExchange[],
 ): SpanData[] {
@@ -805,44 +755,6 @@ function approvalResumeToolInput<
     args: approvalResumeMetadata(input),
     description: definition.description,
   };
-}
-
-function approvalResumeSpan<
-  TInput extends OpenBoxCopilotActionInput & OpenBoxCopilotResumeInput,
->(
-  definition: Pick<GovernedCopilotToolDefinition<any, any>, 'toolName'>,
-  input: TInput,
-  activityId?: string,
-) {
-  const now = nowUnixNano();
-  // Pair this resume completion with the original approval-request started
-  // span by deriving the span identity from the shared activity id.
-  return withSpanIdentityFromActivity(
-    stripServerComputedSemantic({
-      span_id: `approval-${randomUUID().replaceAll('-', '').slice(0, 8)}`,
-      trace_id: randomUUID().replaceAll('-', ''),
-      name: `${definition.toolName}.approval_resume`,
-      kind: 'internal',
-      // Reference shape: function-call operations are span_type 'internal'.
-      span_type: 'internal',
-      hook_type: 'function_call',
-      start_time: now,
-      end_time: now,
-      duration_ns: 0,
-      stage: 'completed',
-      status: { code: 'UNSET' },
-      events: [],
-      attributes: {
-        'openbox.span_type': 'internal',
-        'openbox.tool.name': definition.toolName,
-        'openbox.approval.resume': true,
-        'tool.name': definition.toolName,
-        tool_name: definition.toolName,
-      },
-      data: approvalResumeMetadata(input),
-    }),
-    activityId,
-  );
 }
 
 function approvalResumeMetadata(input: OpenBoxCopilotResumeInput) {

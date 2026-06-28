@@ -615,11 +615,29 @@ const LLM_COMPLETION_ENVELOPE_FIELDS = [
   'result',
 ] as const;
 
+// Canonical: the llm_completion is a plain http_request span — model/usage/cost
+// are NOT span fields. Core derives them from the response_body, and the SDK also
+// rides them on the activity event via telemetryForGate. Drop the span-root copies
+// for an exact match with the reference http_request span.
+const LLM_TELEMETRY_ROOT_FIELDS = [
+  'model',
+  'model_id',
+  'provider',
+  'model_provider',
+  'input_tokens',
+  'output_tokens',
+  'total_tokens',
+  'cost_usd',
+] as const;
+
 export function leanCopilotLlmSpan<T extends object>(span: T): T {
   const record = span as Record<string, unknown>;
   if (record.name !== 'POST') return span;
   const next: Record<string, unknown> = { ...record };
   for (const key of LLM_COMPLETION_ENVELOPE_FIELDS) {
+    delete next[key];
+  }
+  for (const key of LLM_TELEMETRY_ROOT_FIELDS) {
     delete next[key];
   }
   // The reference started span omits duration_ns entirely (only completed spans
@@ -629,6 +647,27 @@ export function leanCopilotLlmSpan<T extends object>(span: T): T {
   }
   // The reference inner span sets semantic_type explicitly (Core preserves it).
   next.semantic_type = 'llm_completion';
+  // Canonical (openbox-langgraph-sdk-python http_governance_hooks): a span's
+  // `attributes` carry OTel-native keys ONLY; all custom data lives at root. The
+  // llm_completion is an http_request span, so its attributes are
+  // {http.url, http.method[, http.status_code]} — matching the file/db/http
+  // sub-op spans and the prod-data llm_completion span — not openbox.* keys.
+  next.attributes = {
+    ...(typeof record.http_url === 'string'
+      ? { 'http.url': record.http_url }
+      : {}),
+    ...(record.http_method !== undefined && record.http_method !== null
+      ? { 'http.method': record.http_method }
+      : {}),
+    ...(typeof record.http_status_code === 'number'
+      ? { 'http.status_code': record.http_status_code }
+      : {}),
+  };
+  // Canonical span status carries only { code } — drop a null description.
+  const status = next.status as Record<string, unknown> | undefined;
+  if (status && typeof status === 'object' && status.description == null) {
+    next.status = { code: status.code };
+  }
   return next as unknown as T;
 }
 

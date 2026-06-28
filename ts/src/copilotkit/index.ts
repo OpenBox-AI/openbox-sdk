@@ -28,11 +28,24 @@ export { parseToolResult } from './internal-utils.js';
 export {
   registerOpenBoxOtel,
   createCapturingFetch,
+  createInstrumentedFetch,
   runWithLLMCapture,
+  runWithSubOpCapture,
+  capturedSubOpSpans,
   latestCapturedLLMExchange,
   capturedLLMExchanges,
+  recordFileOperation,
+  recordDatabaseQuery,
+  recordFunctionCall,
+  isCapturing,
   type CapturedLLMExchange,
 } from './otel-capture.js';
+export {
+  traced,
+  instrumentSqlite,
+  tracedReadFile,
+  tracedReadFileSync,
+} from './instrumentation.js';
 export { OpenBoxCopilotKitError } from './types.js';
 export type {
   GovernedCopilotTool,

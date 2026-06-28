@@ -361,15 +361,11 @@ export interface GovernedCopilotToolDefinition<
   description?: string;
   normalizeInput?: (input: TInput) => TInput;
   execute: (input: TInput) => Promise<TArtifact> | TArtifact;
-  spanProfile?: (
-    input: TInput,
-    stage: 'started' | 'completed',
-  ) => Partial<SpanData> | undefined;
-  operationSpans?: (
-    input: TInput,
-    stage: 'started' | 'completed',
-    activityId: string,
-  ) => SpanData[];
+  // Sub-operation spans (file/db/http/function) are no longer hand-declared.
+  // Perform real I/O through the SDK's instrumented entry points
+  // (tracedReadFileSync, instrumentSqlite, instrumented fetch, traced) inside
+  // `execute`; the spans are captured automatically and submitted as canonical
+  // hook_trigger evaluations on the completed activity.
   isArtifactRedacted?: (artifact: TArtifact | undefined) => boolean;
   markArtifactRedacted?: (artifact: TArtifact) => TArtifact;
   sessionKey?: (config?: unknown) => string;

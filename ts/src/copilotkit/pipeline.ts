@@ -839,136 +839,124 @@ function toolMetadataFromPayload(
 
 function spansForGate(
   kind: OpenBoxCopilotGateKind,
-  activityType: string,
+  _activityType: string,
   payload: unknown,
   overrides?: GateOverrides,
 ): SpanData[] {
-  switch (kind) {
-    case 'assistant_output': {
-      const content = assistantContentFromPayload(payload);
-      const metadata = llmCompletionMetadataFromPayload(payload);
-      const usage = metadata.usage ?? normalizeOpenBoxUsage(overrides?.llmUsage)?.raw;
-      const capture = overrides?.llmCapture;
-      if (!content && !usage && !capture) return [];
-      // When the client-side capture path owns llm_completion spans
-      // (OPENBOX_LLM_SPANS_FROM_CAPTURE=true), the runtime gate that has no
-      // captured exchange suppresses its reconstructed span so the real
-      // captured span (emitted by the middleware) is the only one. Default
-      // off: the runtime keeps emitting its span for capture-less consumers.
-      const emitLlmSpan =
-        capture !== undefined ||
-        process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE !== 'true';
-      const span = pipelineSpan(kind, 'llm.chat.completion', payload);
-      const model = metadata.model ?? overrides?.llmModel;
-      const provider = metadata.provider ?? overrides?.llmProvider;
-      // When a real provider HTTP exchange was captured at the client
-      // (OTel-style), use it verbatim so the span mirrors the wire payload:
-      // raw bodies, real headers, real status. Otherwise fall back to the
-      // metadata reconstructed from the AG-UI payload.
-      const completionSpans = buildAssistantOutputSpan({
-        source: 'copilotkit',
-        content,
-        span: {
-          ...span,
-          kind: 'CLIENT',
-          hook_type: 'http_request',
-        },
-        name: 'POST',
-        kind: 'CLIENT',
-        model,
-        provider,
-        usage,
-        requestBody:
-          metadata.requestBody ??
-          llmRequestBodyFromPrompt(overrides?.pairedPromptInput, model, provider),
-        responseBody: metadata.responseBody,
-        rawRequestBody: capture?.requestBody,
-        rawResponseBody: capture?.responseBody,
-        requestHeaders: capture?.requestHeaders ?? metadata.requestHeaders,
-        responseHeaders: capture?.responseHeaders ?? metadata.responseHeaders,
-        httpStatusCode: capture?.httpStatusCode ?? metadata.httpStatusCode ?? 200,
-        redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
-        providerUrl:
-          capture?.providerUrl ??
-          metadata.providerUrl ??
-          providerUrlFor(provider, model),
-        startTime: overrides?.startTime,
-        endTime: overrides?.endTime,
-        durationNs: overrides?.durationNs,
-        attributes: { 'gen_ai.system': 'copilotkit' },
-        hasToolCalls: hasToolCallsFromPayload(payload),
-      }) ?? [];
-      // With a real captured exchange, also emit the matching STARTED span
-      // (request only) from the same capture so BOTH stages carry full real
-      // data and share one span_id — like the LangGraph/Temporal reference.
-      const startedFromCapture =
-        emitLlmSpan && capture
-          ? [
-              buildSpan('copilotkit', 'llm', {
-                stage: 'started',
-                model,
-                rawRequestBody: capture.requestBody,
-                request_headers: capture.requestHeaders,
-                redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
-                data: payload,
-              }) as unknown as SpanData,
-            ]
-          : [];
-      // The assistant's tool-call decision is part of the llm_completion (the
-      // assistant message's tool_calls live in this span's response_body), and
-      // the actual execution is a separate governed-tool activity with its own
-      // paired span. So we do NOT emit a separate llm_tool_call span on the
-      // llm_call: it points at the /chat/completions endpoint (misleading — a
-      // tool-call decision is not its own HTTP call), duplicates the call, and
-      // produced orphaned started/completed spans. The reference llm_call is the
-      // llm_completion pair only.
-      return [
-        ...startedFromCapture,
-        ...(emitLlmSpan ? completionSpans : []),
-      ];
-    }
-    case 'tool_input':
-    case 'tool_output':
-      // langgraph-py strict (capture mode): emit NO separate tool-call span. The
-      // tool-call DECISION is already inside the planner's llm_completion
-      // response_body (captured), and the tool EXECUTION is a separate activity
-      // whose own operations are spanned (governed-tool → internal +
-      // llm_completion). A gate-level openai.TOOL.call span at /chat/completions
-      // duplicates the planner's llm_completion and — being a gate, not an
-      // operation — cannot pair (the gate fires at the call, not the result),
-      // producing the orphaned started span. The gate still runs (verdict +
-      // result forwarding); it just emits no span. Mirrors the prompt gate
-      // above. Capture-less hosts keep the span (their only tool record).
-      if (process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE === 'true') return [];
-      return [toolCallSpan(kind, activityType, payload, overrides)];
-    case 'prompt': {
-      // In capture mode the assistant gate emits the full started+completed
-      // pair from the real captured exchange, so suppress this pre-call started
-      // span (which can only carry a reconstructed request) to avoid a partial
-      // duplicate. Default off: capture-less hosts keep the prompt started span.
-      if (process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE === 'true') return [];
-      const prompt = promptTextFromPayload(payload);
-      const metadata = llmCompletionMetadataFromPayload(payload);
-      const model = metadata.model ?? overrides?.llmModel;
-      if (!prompt && !model) return [];
-      return [
-        withGateSpanTiming(
+  // Canonical alignment (openbox-langgraph-sdk-python): lifecycle/gate activities
+  // carry NO embedded span EXCEPT the assistant llm_call. In canonical, the
+  // provider POST is instrumented as an http_request span (server-classified
+  // llm_completion) and correlated to the llm_call activity; the assistant_output
+  // gate emits that captured pair here. prompt / tool_input / tool_output carry no
+  // gate-level span — a tool's real sub-operations are captured inside
+  // governed-tool execution and submitted as hook_trigger evaluations; the
+  // cross-process runtime gate has none of its own to add. The prompt gate emits
+  // the llm_call STARTED span only in the reconstructed (non-capture) path; in
+  // capture mode the assistant gate emits the full started+completed pair from the
+  // real exchange, so the prompt span is suppressed to avoid a partial duplicate.
+  if (kind === 'prompt') {
+    if (process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE === 'true') return [];
+    const prompt = promptTextFromPayload(payload);
+    const metadata = llmCompletionMetadataFromPayload(payload);
+    const model = metadata.model ?? overrides?.llmModel;
+    if (!prompt && !model) return [];
+    return [
+      withGateSpanTiming(
+        buildSpan('copilotkit', 'llm', {
+          stage: 'started',
+          prompt,
+          model,
+          requestHeaders: metadata.requestHeaders,
+          requestBody:
+            metadata.requestBody ??
+            llmRequestBodyFromPrompt(payload, model, metadata.provider),
+          data: payload,
+        }) as unknown as SpanData,
+        overrides,
+        'started',
+      ),
+    ];
+  }
+  if (kind !== 'assistant_output') return [];
+  const content = assistantContentFromPayload(payload);
+  const metadata = llmCompletionMetadataFromPayload(payload);
+  const usage = metadata.usage ?? normalizeOpenBoxUsage(overrides?.llmUsage)?.raw;
+  const capture = overrides?.llmCapture;
+  if (!content && !usage && !capture) return [];
+  // When the client-side capture path owns llm_completion spans
+  // (OPENBOX_LLM_SPANS_FROM_CAPTURE=true), the runtime gate that has no captured
+  // exchange suppresses its reconstructed span so the real captured span (emitted
+  // by the middleware) is the only one. Default off: the runtime keeps emitting
+  // its span for capture-less consumers.
+  const emitLlmSpan =
+    capture !== undefined ||
+    process.env.OPENBOX_LLM_SPANS_FROM_CAPTURE !== 'true';
+  const span = pipelineSpan(kind, 'llm.chat.completion', payload);
+  const model = metadata.model ?? overrides?.llmModel;
+  const provider = metadata.provider ?? overrides?.llmProvider;
+  // When a real provider HTTP exchange was captured at the client (OTel-style),
+  // use it verbatim so the span mirrors the wire payload: raw bodies, real
+  // headers, real status. Otherwise fall back to the metadata reconstructed from
+  // the AG-UI payload.
+  const completionSpans = buildAssistantOutputSpan({
+    source: 'copilotkit',
+    content,
+    span: {
+      ...span,
+      kind: 'CLIENT',
+      hook_type: 'http_request',
+    },
+    name: 'POST',
+    kind: 'CLIENT',
+    model,
+    provider,
+    usage,
+    requestBody:
+      metadata.requestBody ??
+      llmRequestBodyFromPrompt(overrides?.pairedPromptInput, model, provider),
+    responseBody: metadata.responseBody,
+    rawRequestBody: capture?.requestBody,
+    rawResponseBody: capture?.responseBody,
+    requestHeaders: capture?.requestHeaders ?? metadata.requestHeaders,
+    responseHeaders: capture?.responseHeaders ?? metadata.responseHeaders,
+    httpStatusCode: capture?.httpStatusCode ?? metadata.httpStatusCode ?? 200,
+    redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
+    providerUrl:
+      capture?.providerUrl ??
+      metadata.providerUrl ??
+      providerUrlFor(provider, model),
+    startTime: overrides?.startTime,
+    endTime: overrides?.endTime,
+    durationNs: overrides?.durationNs,
+    attributes: { 'gen_ai.system': 'copilotkit' },
+    hasToolCalls: hasToolCallsFromPayload(payload),
+  }) ?? [];
+  // With a real captured exchange, also emit the matching STARTED span (request
+  // only) from the same capture so BOTH stages carry full real data and share one
+  // span_id — like the LangGraph/Temporal reference.
+  const startedFromCapture =
+    emitLlmSpan && capture
+      ? [
           buildSpan('copilotkit', 'llm', {
             stage: 'started',
-            prompt,
             model,
-            requestHeaders: metadata.requestHeaders,
-            requestBody:
-              metadata.requestBody ??
-              llmRequestBodyFromPrompt(payload, model, metadata.provider),
+            rawRequestBody: capture.requestBody,
+            request_headers: capture.requestHeaders,
+            redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
             data: payload,
           }) as unknown as SpanData,
-          overrides,
-          'started',
-        ),
-      ];
-    }
-  }
+        ]
+      : [];
+  // We do NOT emit a separate llm_tool_call span: the assistant's tool-call
+  // decision already lives in this span's response_body, and the actual execution
+  // is a separate governed-tool activity with its own paired span. A gate-level
+  // tool-call span would point at /chat/completions (misleading), duplicate the
+  // call, and orphan started/completed pairs. (Confirmed by prod data: llm_call
+  // carries only the llm_completion pair.)
+  return [
+    ...startedFromCapture,
+    ...(emitLlmSpan ? completionSpans : []),
+  ];
 }
 
 function parentSpanIdForActivity(activityId: string): string {
