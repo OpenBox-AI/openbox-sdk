@@ -402,6 +402,18 @@ export function recordFunctionCall(opts: {
       attributes: {
         'code.function': opts.name,
         ...(opts.module ? { 'code.namespace': opts.module } : {}),
+        // Canonical @traced sets one function.arg.{i} per positional arg plus
+        // function.result on completion. function.kwarg.{key} is N/A in JS
+        // (no keyword args), so the kwargs half is intentionally absent.
+        ...Object.fromEntries(
+          (Array.isArray(opts.args) ? opts.args : []).map((arg, i) => [
+            `function.arg.${i}`,
+            serializeArg(arg),
+          ]),
+        ),
+        ...(stage === 'completed'
+          ? { 'function.result': serializeArg(opts.result) }
+          : {}),
       },
       function: opts.name,
       module: opts.module ?? 'copilotkit',

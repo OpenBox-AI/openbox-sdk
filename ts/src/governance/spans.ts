@@ -929,19 +929,17 @@ const REDACTED = '[REDACTED]';
 function sanitizeHeaderValue(key: string, value: string): string {
   const normalizedKey = key.toLowerCase();
   if (
-    // Canonical sensitive set (http_governance_hooks.py:_SENSITIVE_HEADERS):
-    // authorization, cookie, set-cookie, x-api-key, x-auth-token,
-    // proxy-authorization, www-authenticate. The *token*/*api-key* heuristics
-    // are an additive safety superset.
+    // Canonical sensitive set, byte-for-byte with the Python reference
+    // (http_governance_hooks.py:_SENSITIVE_HEADERS) — exact keys only, NO
+    // substring heuristics, so non-secret headers like x-ratelimit-*-tokens
+    // keep their real values exactly as the canonical SDK emits them.
     normalizedKey === 'authorization' ||
     normalizedKey === 'proxy-authorization' ||
     normalizedKey === 'cookie' ||
     normalizedKey === 'set-cookie' ||
     normalizedKey === 'www-authenticate' ||
     normalizedKey === 'x-api-key' ||
-    normalizedKey === 'x-auth-token' ||
-    normalizedKey.includes('api-key') ||
-    normalizedKey.includes('token')
+    normalizedKey === 'x-auth-token'
   ) {
     return REDACTED;
   }
@@ -1506,6 +1504,16 @@ function buildSpanWithClassifierFields(
           'file.path': input.file_path ?? '',
           'file.mode': (input.file_mode as string | undefined) ?? 'r',
           'file.operation': 'open',
+          // Canonical TracedFile.close() sets cumulative file.total_bytes_read /
+          // file.total_bytes_written on the open span. Counts are only known at
+          // the close (completed) stage, so the started open span omits them.
+          ...(typeof input.bytes_read === 'number' ||
+          typeof input.bytes_written === 'number'
+            ? {
+                'file.total_bytes_read': input.bytes_read ?? 0,
+                'file.total_bytes_written': input.bytes_written ?? 0,
+              }
+            : {}),
           ...toolNameAttributes(input),
           'openbox.span_type': 'file_io',
         },

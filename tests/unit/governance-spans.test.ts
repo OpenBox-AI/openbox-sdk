@@ -898,6 +898,8 @@ describe('LLM completion spans', () => {
         'cf-ray': 'abc-HKG',
         'x-request-id': 'req_123',
         'openai-version': '2020-10-01',
+        'set-cookie': 'sess=secret',
+        'x-ratelimit-limit-tokens': '200000',
       },
     }) as ReturnType<typeof buildLLMCompletionSpan> & {
       request_headers?: Record<string, string>;
@@ -922,6 +924,11 @@ describe('LLM completion spans', () => {
     expect(span.request_headers?.['x-stainless-lang']).toBe('js');
     expect(span.response_headers?.['cf-ray']).toBe('abc-HKG');
     expect(span.response_headers?.['x-request-id']).toBe('req_123');
+    // Canonical exact-set redaction: set-cookie is in the sensitive set →
+    // redacted; x-ratelimit-limit-tokens is NOT (no substring heuristic) →
+    // passes through with its real value, byte-for-byte with the Python SDK.
+    expect(span.response_headers?.['set-cookie']).toBe('[REDACTED]');
+    expect(span.response_headers?.['x-ratelimit-limit-tokens']).toBe('200000');
     expect(span.http_status_code).toBe(200);
     expect(span.attributes).toMatchObject({ 'http.status_code': 200 });
   });
