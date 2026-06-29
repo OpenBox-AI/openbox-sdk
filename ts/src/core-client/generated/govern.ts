@@ -1565,6 +1565,9 @@ export const CANONICAL_SPAN = Object.freeze({"caps":{"httpBody":8192,"fileData":
  *  canonical-request field order, and DID pattern. Single spec source so the
  *  TS core-client and the Python identity module sign requests identically. */
 export const CANONICAL_AGENT_IDENTITY = Object.freeze({"headers":{"did":"X-OpenBox-Agent-DID","timestamp":"X-OpenBox-Agent-Timestamp","nonce":"X-OpenBox-Agent-Nonce","bodySha256":"X-OpenBox-Body-SHA256","signature":"X-OpenBox-Agent-Signature","sdkVersion":"X-OpenBox-SDK-Version"},"canonicalRequestFields":["method","pathname","timestamp","nonce","bodySha256"],"didPattern":"^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"} as const);
+/** Misc canonical SDK vocab — retryable HTTP statuses + guardrail-type alias
+ *  map. Spec-driven so the client/validator stop hand-rolling them. */
+export const CANONICAL_SDK_VOCAB = Object.freeze({"retryableStatuses":[429,500,502,503,504],"guardrailTypeAliases":{"1":"1","2":"2","3":"3","4":"4","5":"5","pii":"1","pii_detection":"1","nsfw":"2","nsfw_detection":"2","content_safety":"2","toxicity":"3","toxicity_detection":"3","ban_list":"4","ban_words":"4","regex":"5","regex_match":"5"}} as const);
 // Runtime-portable UUID v4 source. Node ≥19 / Bun / Deno / modern
 // browsers / Hermes (RN ≥0.74 / Expo ≥51) all expose
 // `globalThis.crypto.randomUUID()`; no `import { randomUUID } from 'crypto'`

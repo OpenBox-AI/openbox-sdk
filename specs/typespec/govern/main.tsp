@@ -443,6 +443,30 @@ using OpenBox.Workflow;
   // Agent DID format (did:aip:<uuid>).
   didPattern: "^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
 })
+@sdkVocab(#{
+  // HTTP status codes the Core client retries.
+  retryableStatuses: #[429, 500, 502, 503, 504],
+  // Guardrail-type alias map: human names → the canonical numeric guardrail_type
+  // id (the "1".."5" union is generated in the backend types).
+  guardrailTypeAliases: #{
+    `1`: "1",
+    pii: "1",
+    pii_detection: "1",
+    `2`: "2",
+    nsfw: "2",
+    nsfw_detection: "2",
+    content_safety: "2",
+    `3`: "3",
+    toxicity: "3",
+    toxicity_detection: "3",
+    `4`: "4",
+    ban_list: "4",
+    ban_words: "4",
+    `5`: "5",
+    regex: "5",
+    regex_match: "5",
+  },
+})
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------

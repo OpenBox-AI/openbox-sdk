@@ -31,6 +31,7 @@ import { error as printError, warn } from '../cli/output.js';
 import {
   CANONICAL_ACTIVITY_TYPES as GENERATED_CANONICAL_ACTIVITY_TYPES,
   CANONICAL_SPAN,
+  CANONICAL_SDK_VOCAB,
 } from '../core-client/generated/govern.js';
 export { EXIT, exitCodeForStatus, isRetryable, bailWith } from '../cli/exit-codes.js';
 export type { ExitCode } from '../cli/exit-codes.js';
@@ -283,13 +284,9 @@ export function parsePagination(opts: { page?: unknown; limit?: unknown }): {
 // ---------------------------------------------------------------------------
 
 /** Numeric IDs match the live guardrails service registry. CLI aliases below. */
-export const GUARDRAIL_TYPE_ALIASES: Record<string, string> = {
-  '1': '1', pii: '1', pii_detection: '1',
-  '2': '2', nsfw: '2', nsfw_detection: '2', content_safety: '2',
-  '3': '3', toxicity: '3', toxicity_detection: '3',
-  '4': '4', ban_list: '4', ban_words: '4',
-  '5': '5', regex: '5', regex_match: '5',
-};
+// Spec-driven (CANONICAL_SDK_VOCAB.guardrailTypeAliases, from @sdkVocab).
+export const GUARDRAIL_TYPE_ALIASES: Record<string, string> =
+  CANONICAL_SDK_VOCAB.guardrailTypeAliases;
 
 export function validateGuardrailType(value: unknown): string {
   if (typeof value !== 'string') {

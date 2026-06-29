@@ -3,7 +3,10 @@ import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
 import { normalizeServiceUrl } from '../env/connection.js';
 import { API_KEY_PATTERN } from '../env/generated/env-bindings.js';
-import { CANONICAL_AGENT_IDENTITY } from './generated/govern.js';
+import {
+  CANONICAL_AGENT_IDENTITY,
+  CANONICAL_SDK_VOCAB,
+} from './generated/govern.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
 import { validateCoreRequest } from './generated/request-preflight.js';
 
@@ -208,7 +211,10 @@ export class OpenBoxCoreClient {
   // Private helpers
   // =========================================================================
 
-  private static readonly RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+  // Retryable status set is spec-driven (CANONICAL_SDK_VOCAB.retryableStatuses).
+  private static readonly RETRYABLE_STATUSES = new Set<number>(
+    CANONICAL_SDK_VOCAB.retryableStatuses,
+  );
 
   private async request(
     method: string,

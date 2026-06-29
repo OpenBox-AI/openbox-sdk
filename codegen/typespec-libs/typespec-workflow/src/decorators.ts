@@ -773,6 +773,33 @@ export function getAgentIdentityContract(
   return program.stateMap(stateKeys.agentIdentityContract).get(target);
 }
 
+/**
+ * Miscellaneous canonical SDK vocab that doesn't belong to a domain contract:
+ * the retryable HTTP status set and the guardrail-type alias map. Materialized as
+ * CANONICAL_SDK_VOCAB so the values are spec-driven rather than hand-rolled.
+ */
+export type SdkVocabBinding = Record<string, unknown>;
+
+export function $sdkVocab(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    context.program
+      .stateMap(stateKeys.sdkVocab)
+      .set(target, value as Record<string, unknown>);
+  }
+}
+
+export function getSdkVocab(
+  program: Program,
+  target: Namespace,
+): SdkVocabBinding | undefined {
+  return program.stateMap(stateKeys.sdkVocab).get(target);
+}
+
 // ─── Govern protocol conformance fixture ────────────────────────────
 // Cross-language lifecycle scenarios belong in TypeSpec so every
 // language runner consumes the same "bible" fixture.

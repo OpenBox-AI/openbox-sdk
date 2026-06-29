@@ -21,6 +21,7 @@ import {
   $providerCapabilities,
   $spanContract,
   $agentIdentityContract,
+  $sdkVocab,
   $governProtocol,
   $backendPermissions,
   $sdkMethodNames,
@@ -34,6 +35,7 @@ export {
   getProviderCapabilities,
   getSpanContract,
   getAgentIdentityContract,
+  getSdkVocab,
   getSdkMethodNames,
   getSdkTargets,
 } from './decorators.js';
@@ -61,6 +63,7 @@ export const $decorators = {
     providerCapabilities: $providerCapabilities,
     spanContract: $spanContract,
     agentIdentityContract: $agentIdentityContract,
+    sdkVocab: $sdkVocab,
     governProtocol: $governProtocol,
     backendPermissions: $backendPermissions,
     sdkMethodNames: $sdkMethodNames,

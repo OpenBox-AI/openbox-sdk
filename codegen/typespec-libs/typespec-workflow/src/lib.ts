@@ -130,6 +130,7 @@ export const $lib = createTypeSpecLibrary({
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
     spanContract: { description: 'canonical hook-span contract (caps/sentinels/headers/kinds/semantic-types) attached to a namespace' },
     agentIdentityContract: { description: 'canonical agent-identity (AIP) signing contract attached to a namespace' },
+    sdkVocab: { description: 'misc canonical SDK vocab (retryable statuses, guardrail-type aliases) attached to a namespace' },
     hookEventLabel: { description: 'human-readable label attached to an adapter @hookEvent operation' },
     providerCapabilities: { description: 'provider capability/support-tier matrix attached to a namespace' },
     governProtocol: { description: 'cross-language governance protocol conformance fixture attached to a namespace' },

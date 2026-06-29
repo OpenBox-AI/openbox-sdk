@@ -70,6 +70,7 @@ import {
   getProviderCapabilities,
   getSpanContract,
   getAgentIdentityContract,
+  getSdkVocab,
   getGovernProtocol,
   getBackendPermissions,
   getSdkMethodNames,
@@ -3701,6 +3702,12 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     ' *  TS core-client and the Python identity module sign requests identically. */',
     `export const CANONICAL_AGENT_IDENTITY = Object.freeze(${JSON.stringify(
       getAgentIdentityContract(program, ns) ?? {},
+    )} as const);`,
+    '',
+    '/** Misc canonical SDK vocab — retryable HTTP statuses + guardrail-type alias',
+    ' *  map. Spec-driven so the client/validator stop hand-rolling them. */',
+    `export const CANONICAL_SDK_VOCAB = Object.freeze(${JSON.stringify(
+      getSdkVocab(program, ns) ?? {},
     )} as const);`,
     '',
   ]);

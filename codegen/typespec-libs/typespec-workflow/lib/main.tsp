@@ -364,6 +364,9 @@ extern dec spanContract(target: Namespace, contract: valueof Record<unknown>);
  */
 extern dec agentIdentityContract(target: Namespace, contract: valueof Record<unknown>);
 
+/** Miscellaneous canonical SDK vocab (retryable HTTP statuses, guardrail-type aliases). */
+extern dec sdkVocab(target: Namespace, contract: valueof Record<unknown>);
+
 /**
  * Cross-language governance lifecycle conformance fixture. Emitters
  * materialize this record as `codegen/fixtures/govern-protocol.json`.
