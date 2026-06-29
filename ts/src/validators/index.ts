@@ -28,7 +28,10 @@ export { parseJsonInput } from './input.js';
 
 import { EXIT, exitCodeForStatus } from '../cli/exit-codes.js';
 import { error as printError, warn } from '../cli/output.js';
-import { CANONICAL_ACTIVITY_TYPES as GENERATED_CANONICAL_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
+import {
+  CANONICAL_ACTIVITY_TYPES as GENERATED_CANONICAL_ACTIVITY_TYPES,
+  CANONICAL_SPAN,
+} from '../core-client/generated/govern.js';
 export { EXIT, exitCodeForStatus, isRetryable, bailWith } from '../cli/exit-codes.js';
 export type { ExitCode } from '../cli/exit-codes.js';
 
@@ -415,15 +418,9 @@ export const API_KEY_GRANTABLE_PERMISSIONS = ALL_PERMISSIONS.filter(
   (p) => !API_KEY_EXCLUDED_PERMISSIONS.has(p),
 );
 
-/** Mirrors the live `BehaviorRuleTrigger` enum the backend persists. */
-export const BEHAVIOR_TRIGGER_ENUM = [
-  'http_get', 'http_post', 'http_put', 'http_patch', 'http_delete', 'http',
-  'llm_completion', 'llm_embedding', 'llm_tool_call', 'llm_gen_ai',
-  'mcp_tool_call',
-  'database_select', 'database_insert', 'database_update', 'database_delete', 'database_query',
-  'file_read', 'file_write', 'file_open', 'file_delete',
-  'internal',
-] as const;
+/** Behavior-rule trigger vocabulary — spec-driven (CANONICAL_SPAN.behaviorTriggers,
+ *  from @spanContract); mirrors the live `BehaviorRuleTrigger` enum. */
+export const BEHAVIOR_TRIGGER_ENUM = CANONICAL_SPAN.behaviorTriggers;
 
 export function validateBehaviorTrigger(value: unknown): string {
   return validateEnum(value, BEHAVIOR_TRIGGER_ENUM, '--trigger');

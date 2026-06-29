@@ -338,6 +338,32 @@ using OpenBox.Workflow;
   redactedSentinel: "[REDACTED]",
   // OTel span status codes emitted on hook spans.
   statusCode: #{ unset: "UNSET", error: "ERROR" },
+  // Semantic-type vocabulary a behavior rule may be triggered on (the full set of
+  // serverComputedSemanticType outputs + aliases). Single source for the CLI
+  // `--trigger` validator and any consumer enumerating valid triggers.
+  behaviorTriggers: #[
+    "http_get",
+    "http_post",
+    "http_put",
+    "http_patch",
+    "http_delete",
+    "http",
+    "llm_completion",
+    "llm_embedding",
+    "llm_tool_call",
+    "llm_gen_ai",
+    "mcp_tool_call",
+    "database_select",
+    "database_insert",
+    "database_update",
+    "database_delete",
+    "database_query",
+    "file_read",
+    "file_write",
+    "file_open",
+    "file_delete",
+    "internal"
+  ],
   // SQL verbs recognized when classifying a db_query span's db_operation
   // (shared by every host's classifier AND the Python _classify_sql).
   sqlVerbs: #[
