@@ -170,6 +170,30 @@ function canonicalizeSubOpSpan(span: Record<string, unknown>): SpanData {
     delete next.args;
     delete next.result;
   }
+  // Canonical file.open span (file_governance_hooks.py traced_open) sets ONLY
+  // {file.path, file.mode} as attributes — file.operation lives at the root
+  // (file_operation), NOT as an attribute. (read/write DO set file.operation as
+  // an attribute, so only strip it for the open span.) The shared buildSpan adds
+  // it additively for cursor/claude-code/codex; remove it on the copilotkit path.
+  if (
+    next.name === 'file.open' &&
+    next.attributes &&
+    typeof next.attributes === 'object' &&
+    !Array.isArray(next.attributes)
+  ) {
+    delete (next.attributes as Record<string, unknown>)['file.operation'];
+  }
+  // Canonical db span name falls back to "{db_operation} {db_system}" when the
+  // OTel span is unnamed (_build_db_span_data). Our captured sqlite path has no
+  // OTel span name, so the shared builder emits just the operation — restore the
+  // canonical "{operation} {system}" form (e.g. "SELECT sqlite").
+  if (
+    next.hook_type === 'db_query' &&
+    typeof next.db_operation === 'string' &&
+    typeof next.db_system === 'string'
+  ) {
+    next.name = `${next.db_operation} ${next.db_system}`;
+  }
   return next as unknown as SpanData;
 }
 
