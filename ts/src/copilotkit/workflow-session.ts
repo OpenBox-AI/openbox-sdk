@@ -32,6 +32,17 @@ import type {
 const startedWorkflowRuns = new Set<string>();
 const TERMINAL_EVENT_TIMEOUT_MS = 5_000;
 const APPROVAL_POLL_INTERVAL_MS = 750;
+// Local fail-CLOSED safety backstop for the approval poll. Expiry stays
+// server-authoritative (Core owns the decision and the real expiry, avoiding
+// clock-skew false-blocks), but a Core outage or an approval that never resolves
+// must not poll forever — so after this generous window we fail closed (block)
+// rather than hang the action. Default 30 min, comfortably longer than any real
+// human approval; tunable per-deployment via OPENBOX_APPROVAL_POLL_MAX_MS. Read
+// at call time (not module load) so deployments — and tests — can override it.
+const DEFAULT_APPROVAL_POLL_MAX_MS = 1_800_000;
+function approvalPollMaxMs(): number {
+  return Number(process.env.OPENBOX_APPROVAL_POLL_MAX_MS) || DEFAULT_APPROVAL_POLL_MAX_MS;
+}
 const defaultActivity = PRESET_ACTIVITY_TYPES.default;
 const langchainActivity = PRESET_ACTIVITY_TYPES.langchain;
 
@@ -123,7 +134,21 @@ export async function pollApproval(
   ids: { workflowId: string; runId: string; activityId: string },
 ): Promise<WorkflowVerdict> {
   let last: WorkflowVerdict | undefined;
+  const startedAt = Date.now();
+  const maxDurationMs = approvalPollMaxMs();
   while (true) {
+    // Fail-closed backstop: bound the otherwise-unbounded poll loop (a Core
+    // outage `continue`s below; require_approval/constrain keep polling). After
+    // the max window with no decision, block rather than hang indefinitely.
+    if (Date.now() - startedAt > maxDurationMs) {
+      return {
+        arm: 'block',
+        reason:
+          last?.reason ??
+          'OpenBox approval timed out (no decision within the poll window).',
+        riskScore: 0,
+      };
+    }
     let response: Awaited<ReturnType<OpenBoxCoreClient['pollApproval']>> | undefined;
     try {
       response = await adapter.getCoreClient().pollApproval({

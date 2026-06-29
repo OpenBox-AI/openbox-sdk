@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkflowVerdict } from '../../ts/src/core-client/index.ts';
 import {
@@ -91,6 +91,31 @@ describe('copilotkit helper coverage', () => {
     });
     expect(activityInput[0].name).toBeUndefined();
     expect(activityInput[0].description).toBeUndefined();
+  });
+
+  it('approval poll fails closed after the max-duration backstop (no infinite poll on Core silence)', async () => {
+    const { pollApproval } = await import(
+      '../../ts/src/copilotkit/workflow-session.ts'
+    );
+    const pollSpy = vi.fn(async () => ({
+      action: 'require_approval',
+      reason: 'pending',
+    }));
+    const adapter = {
+      getCoreClient: () => ({ pollApproval: pollSpy }),
+    } as any;
+    // startedAt reads 0; the in-loop deadline check then reads past the 30-min
+    // default, so the backstop fires before any poll/sleep.
+    const nowSpy = vi.spyOn(Date, 'now');
+    nowSpy.mockReturnValueOnce(0).mockReturnValue(2_000_000);
+    const verdict = await pollApproval(adapter, {
+      workflowId: 'w',
+      runId: 'r',
+      activityId: 'a',
+    });
+    nowSpy.mockRestore();
+    expect(verdict.arm).toBe('block');
+    expect(pollSpy).not.toHaveBeenCalled();
   });
 
   it('summarizes runtime model input and truncates nested values', () => {

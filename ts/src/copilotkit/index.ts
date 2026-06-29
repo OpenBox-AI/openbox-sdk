@@ -100,6 +100,7 @@ export function createOpenBoxGovernedRunner(
     adapter?: OpenBoxCopilotKitAdapter;
     agents?: string[];
     sessionKey?: (input: OpenBoxCopilotRunInputLike) => string;
+    assistantOutputOwner?: 'runtime' | 'agent';
   } = {},
 ): OpenBoxCopilotAgentRunnerLike {
   return createOpenBoxGovernedRunnerImpl(runner, config, () =>
