@@ -5063,11 +5063,16 @@ export class BaseGovernedSession {
    *
    * Backward-compat alias: \`complete()\`.
    */
-  async workflowCompleted(): Promise<${verdictModelName} | undefined> {
+  async workflowCompleted(opts?: { status?: 'completed' | 'failed'; error?: unknown }): Promise<${verdictModelName} | undefined> {
     if (this.finalized) return undefined;
     this.finalized = true;
+    const failed = opts?.status === 'failed';
     try {
-      return await this.emit({ event_type: CANONICAL_EVENT_TYPE.WORKFLOW_COMPLETED, status: 'completed' });
+      return await this.emit({
+        event_type: CANONICAL_EVENT_TYPE.WORKFLOW_COMPLETED,
+        status: failed ? 'failed' : 'completed',
+        ...(failed ? { error: errorInfoFrom(opts?.error) } : {}),
+      });
     } finally {
       this.cleanupExitHandlers();
     }

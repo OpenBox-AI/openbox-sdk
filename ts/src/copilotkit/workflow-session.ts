@@ -236,7 +236,23 @@ export async function finishStoppedWorkflow(
   taskQueue: string,
   verdict: WorkflowVerdict,
 ) {
-  await failWorkflow(adapter, ids, workflowType, taskQueue, verdict.reason);
+  // Canonical seal: a governance STOP (block/halt) closes the session with
+  // WorkflowCompleted(status="failed"), mirroring the Python handler
+  // (langgraph_handler._pre_screen_input L573-588), which seals a governed
+  // block with WorkflowCompleted+failed rather than WorkflowFailed. WorkflowFailed
+  // stays reserved for genuine runtime crashes (see failWorkflow).
+  const reason = verdict.reason;
+  await bestEffortTerminalEvent(() =>
+    createWorkflowSession(
+      adapter,
+      ids,
+      workflowType,
+      taskQueue,
+    ).workflowCompleted({
+      status: 'failed',
+      error: typeof reason === 'string' ? new Error(reason) : reason,
+    }),
+  );
 }
 
 export async function ensureWorkflowStarted(

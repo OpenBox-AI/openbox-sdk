@@ -1373,8 +1373,13 @@ describe('CopilotKit OpenBox adapter', () => {
       'SignalReceived',
       'WorkflowStarted',
       'ActivityStarted',
-      'WorkflowFailed',
+      'WorkflowCompleted',
     ]);
+    // Canonical seal: a governance block closes the session with
+    // WorkflowCompleted(status="failed"), mirroring langgraph_handler.
+    expect(events.find((e) => e.event_type === 'WorkflowCompleted')?.status).toBe(
+      'failed',
+    );
     const startedParent = events.find(
       (event) => event.event_type === 'ActivityStarted' && !event.hook_trigger,
     );
@@ -1457,10 +1462,17 @@ describe('CopilotKit OpenBox adapter', () => {
       'SignalReceived',
       'WorkflowStarted',
       'ActivityStarted',
-      'WorkflowFailed',
+      'WorkflowCompleted',
       'ActivityStarted',
-      'WorkflowFailed',
+      'WorkflowCompleted',
     ]);
+    // Canonical seal: a governance halt closes the session with
+    // WorkflowCompleted(status="failed").
+    expect(
+      events
+        .filter((e) => e.event_type === 'WorkflowCompleted')
+        .every((e) => e.status === 'failed'),
+    ).toBe(true);
   });
 
   it('blocks a prompt before the model handler runs', async () => {
@@ -4282,11 +4294,16 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(emittedTypes).not.toContain('TEXT_MESSAGE_END');
     expect(emittedTypes).not.toContain('RUN_FINISHED');
     expect(mock.events.map((event) => event.event_type)).toContain(
-      'WorkflowFailed',
-    );
-    expect(mock.events.map((event) => event.event_type)).not.toContain(
       'WorkflowCompleted',
     );
+    expect(mock.events.map((event) => event.event_type)).not.toContain(
+      'WorkflowFailed',
+    );
+    // Canonical seal: governance stop → WorkflowCompleted(status="failed").
+    expect(
+      mock.events.find((event) => event.event_type === 'WorkflowCompleted')
+        ?.status,
+    ).toBe('failed');
   });
 
   it('native runner keeps RUN_FINISHED after late final assistant text', async () => {
@@ -4374,11 +4391,16 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(events)).toContain('final output blocked');
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
     expect(mock.events.map((event) => event.event_type)).toContain(
-      'WorkflowFailed',
-    );
-    expect(mock.events.map((event) => event.event_type)).not.toContain(
       'WorkflowCompleted',
     );
+    expect(mock.events.map((event) => event.event_type)).not.toContain(
+      'WorkflowFailed',
+    );
+    // Canonical seal: governance stop → WorkflowCompleted(status="failed").
+    expect(
+      mock.events.find((event) => event.event_type === 'WorkflowCompleted')
+        ?.status,
+    ).toBe('failed');
   });
 
   it('native runner does not re-govern final payload after an OpenBox governed tool result', async () => {
