@@ -85,6 +85,7 @@ export class OpenBoxApiError extends Error implements ApiError {
 // Client
 // ---------------------------------------------------------------------------
 
+import { CANONICAL_SDK_VOCAB } from '../core-client/generated/govern.js';
 import { validateBackendRequest } from './generated/request-preflight.js';
 import { OpenBoxClientWrapperBase } from './generated/wrapper-methods.js';
 
@@ -414,7 +415,10 @@ export class OpenBoxClient extends OpenBoxClientWrapperBase {
   // Retry helpers
   // -------------------------------------------------------------------------
 
-  private static readonly RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+  // Spec-driven (CANONICAL_SDK_VOCAB.retryableStatuses, from @sdkVocab).
+  private static readonly RETRYABLE_STATUSES = new Set<number>(
+    CANONICAL_SDK_VOCAB.retryableStatuses,
+  );
 
   private async executeWithRetry(url: string, fetchOptions: RequestInit): Promise<Response> {
     const maxRetries = this.config.retry?.maxRetries ?? 3;
