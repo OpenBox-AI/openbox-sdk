@@ -313,9 +313,15 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
     span_id: randomBytes(8).toString('hex'),
     trace_id: randomBytes(16).toString('hex'),
     name: `n8n.${toolName}`,
-    kind: 'tool',
+    // Canonical function_call spans are INTERNAL (tracing.py); 'tool' is not a
+    // valid OTel SpanKind. Also carry the canonical function/module/args that
+    // this hand-built node span was missing.
+    kind: 'INTERNAL',
     span_type: 'function',
     hook_type: 'function_call',
+    function: toolName,
+    module: 'n8n',
+    args: input.input,
     start_time: startTime,
     end_time: endTime,
     duration_ns: input.durationMs !== undefined

@@ -1690,7 +1690,15 @@ export function buildSpan(
   type: SpanType,
   input: SpanInput,
 ): Record<string, unknown> {
-  const span = buildSpanWithClassifierFields(host, type, input);
+  const built = buildSpanWithClassifierFields(host, type, input);
+  // Canonical: function_call sub-op spans are INTERNAL (tracing.py). The shared
+  // base() defaults kind:'CLIENT', which several function_call cases (embedding,
+  // tool_call, mcp) inherited — correct it centrally so the span kind always
+  // matches its hook_type for every host.
+  const span =
+    built.hook_type === 'function_call' && built.kind !== 'INTERNAL'
+      ? { ...built, kind: 'INTERNAL' }
+      : built;
   return stripServerComputedSemantic(
     input.data !== undefined && span.data === undefined
       ? { ...span, data: input.data }
