@@ -9,7 +9,7 @@ import type {
   OpenBoxAnthropicApprovalMode,
 } from './types.js';
 
-const OPENBOX_RUNTIME_KEY_PATTERN = /^obx_(live|test)_/;
+const OPENBOX_RUNTIME_KEY_PATTERN = /^obx_(live|test)_[0-9a-f]{48}$/;
 const OPENBOX_BACKEND_API_KEY_PATTERN = /^obx_key_/;
 
 export const DEFAULT_ANTHROPIC_AGENT_WORKFLOW_TYPE =

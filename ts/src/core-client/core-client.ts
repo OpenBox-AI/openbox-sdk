@@ -363,8 +363,8 @@ function validateCoreRuntimeApiKey(value: string): void {
       'OpenBox Core requires an agent runtime key (obx_live_* or obx_test_*), not an org/backend key (obx_key_*).',
     );
   }
-  if (!/^obx_(live|test)_/.test(value)) {
-    throw new Error('OpenBox Core runtime API key must start with obx_live_ or obx_test_.');
+  if (!/^obx_(live|test)_[0-9a-f]{48}$/.test(value)) {
+    throw new Error('OpenBox Core runtime API key must match obx_live_ or obx_test_ followed by 48 lowercase hex characters.');
   }
 }
 

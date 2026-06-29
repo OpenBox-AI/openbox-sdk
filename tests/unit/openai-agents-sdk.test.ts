@@ -105,7 +105,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
 
     const checks = withRuntimeEnv(
       {
-        OPENBOX_API_KEY: 'obx_test_runtime',
+        OPENBOX_API_KEY: 'obx_test_28a7258c30f5233d7d71277b777e83f575664df9503bff2e',
         OPENBOX_CORE_URL: 'https://core.openbox.test',
         OPENBOX_AGENT_DID: undefined,
         OPENBOX_AGENT_PRIVATE_KEY: undefined,
@@ -149,7 +149,7 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
     writeFileSync(
       join(configDir, '.env'),
       [
-        'OPENBOX_API_KEY="obx_test_project"',
+        'OPENBOX_API_KEY="obx_test_520591299020aff6858b66021164555cd70cba16d0ecd83b"',
         'OPENBOX_CORE_URL="https://core.project.test"',
         'OPENBOX_AGENT_DID="did:aip:550e8400-e29b-41d4-a716-446655440000"',
         `OPENBOX_AGENT_PRIVATE_KEY="${Buffer.alloc(32, 1).toString('base64')}"`,

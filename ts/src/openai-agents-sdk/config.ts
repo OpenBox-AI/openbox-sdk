@@ -6,7 +6,7 @@ import { loadDotenv, loadJsonConfig } from '../config/host-config.js';
 import { resolveAgentIdentity } from '../env/agent-identity.js';
 import type { OpenBoxAgentsSDKConfig } from './types.js';
 
-const OPENBOX_RUNTIME_KEY_PATTERN = /^obx_(live|test)_/;
+const OPENBOX_RUNTIME_KEY_PATTERN = /^obx_(live|test)_[0-9a-f]{48}$/;
 const OPENBOX_BACKEND_API_KEY_PATTERN = /^obx_key_/;
 
 export const DEFAULT_OPENAI_AGENTS_WORKFLOW_TYPE = 'OpenAIAgentsSDKRun';

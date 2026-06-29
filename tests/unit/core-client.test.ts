@@ -64,7 +64,7 @@ describe('OpenBoxCoreClient', () => {
     overrides?: Partial<ConstructorParameters<typeof OpenBoxCoreClient>[0]>,
   ) {
     return new OpenBoxCoreClient({
-      apiKey: 'obx_live_test123',
+      apiKey: 'obx_live_46313a2294e18b0453fa61ab7268096bca73618df7f7c55b',
       retry: { maxRetries: 0 },
       ...overrides,
     });
@@ -130,7 +130,7 @@ describe('OpenBoxCoreClient', () => {
       const client = createClient({ apiKey: 'not-a-runtime-key' });
 
       await expect(client.validateApiKey()).rejects.toThrow(
-        'must start with obx_live_ or obx_test_',
+        'must match obx_live_ or obx_test_ followed by 48 lowercase hex characters',
       );
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -157,16 +157,16 @@ describe('OpenBoxCoreClient', () => {
     });
 
     it('sets Authorization header with API key', async () => {
-      const client = createClient({ apiKey: 'obx_live_mykey' });
+      const client = createClient({ apiKey: 'obx_live_6e527a12ff742ccf7ee069c408c36e2ed8d5d482997d317f' });
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
       await client.validateApiKey();
       expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(
-        'Bearer obx_live_mykey',
+        'Bearer obx_live_6e527a12ff742ccf7ee069c408c36e2ed8d5d482997d317f',
       );
     });
 
     it('sets the SDK version header', async () => {
-      const client = createClient({ apiKey: 'obx_live_mykey' });
+      const client = createClient({ apiKey: 'obx_live_6e527a12ff742ccf7ee069c408c36e2ed8d5d482997d317f' });
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
       await client.validateApiKey();
       expect(
@@ -175,7 +175,7 @@ describe('OpenBoxCoreClient', () => {
     });
 
     it('marks Core calls as internal so governed fetch layers skip recursion', async () => {
-      const client = createClient({ apiKey: 'obx_live_mykey' });
+      const client = createClient({ apiKey: 'obx_live_6e527a12ff742ccf7ee069c408c36e2ed8d5d482997d317f' });
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
       await client.validateApiKey();
       expect(fetchMock.mock.calls[0][1].headers['x-openbox-internal']).toBe(
@@ -184,7 +184,7 @@ describe('OpenBoxCoreClient', () => {
     });
 
     it('sets the User-Agent header for Core calls', async () => {
-      const client = createClient({ apiKey: 'obx_live_mykey' });
+      const client = createClient({ apiKey: 'obx_live_6e527a12ff742ccf7ee069c408c36e2ed8d5d482997d317f' });
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
       await client.validateApiKey();
       expect(fetchMock.mock.calls[0][1].headers['User-Agent']).toMatch(

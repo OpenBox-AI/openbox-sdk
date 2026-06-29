@@ -188,7 +188,7 @@ async function withMcpEnv<T>(fn: () => Promise<T>): Promise<T> {
   const beforeHome = process.env.OPENBOX_HOME;
   process.env.OPENBOX_API_URL = 'http://localhost:3000';
   process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-  process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
+  process.env.OPENBOX_API_KEY = 'obx_test_0fb1a199458e9d1dcc05c785990785a0fede273741b00261';
   process.env.OPENBOX_BACKEND_API_KEY = 'obx_key_mcp_backend';
   process.env.OPENBOX_HOME = mkdtempSync(join(tmpdir(), 'openbox-mcp-test-'));
   try {
@@ -214,7 +214,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
     const beforeBackend = process.env.OPENBOX_BACKEND_API_KEY;
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-    process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
+    process.env.OPENBOX_API_KEY = 'obx_test_0fb1a199458e9d1dcc05c785990785a0fede273741b00261';
     process.env.OPENBOX_BACKEND_API_KEY = 'obx_key_mcp_backend';
     try {
       const { runMcpServer } = await import('../../ts/src/runtime/mcp');
@@ -549,7 +549,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
     const beforeBackend = process.env.OPENBOX_BACKEND_API_KEY;
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
-    process.env.OPENBOX_API_KEY = 'obx_test_x'.padEnd(57, 'x');
+    process.env.OPENBOX_API_KEY = 'obx_test_0fb1a199458e9d1dcc05c785990785a0fede273741b00261';
     process.env.OPENBOX_BACKEND_API_KEY = 'obx_key_mcp_backend';
     try {
       const { runMcpServer } = await import('../../ts/src/runtime/mcp');

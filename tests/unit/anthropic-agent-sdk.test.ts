@@ -117,7 +117,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
 
     const checks = withRuntimeEnv(
       {
-        OPENBOX_API_KEY: 'obx_live_runtime',
+        OPENBOX_API_KEY: 'obx_live_a3b6b089e35ecfdb10179b186271822e82adedb212caa0a7',
         OPENBOX_CORE_URL: 'https://core.openbox.test',
         OPENBOX_AGENT_DID: undefined,
         OPENBOX_AGENT_PRIVATE_KEY: undefined,
@@ -161,7 +161,7 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     writeFileSync(
       join(configDir, '.env'),
       [
-        'OPENBOX_API_KEY="obx_live_project"',
+        'OPENBOX_API_KEY="obx_live_9375f689a542cecf04d2093edd4d88ec97d199fdaca2683e"',
         'OPENBOX_CORE_URL="https://core.project.test"',
         'OPENBOX_AGENT_DID="did:aip:550e8400-e29b-41d4-a716-446655440000"',
         `OPENBOX_AGENT_PRIVATE_KEY="${Buffer.alloc(32, 1).toString('base64')}"`,
