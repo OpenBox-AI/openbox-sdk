@@ -1447,7 +1447,7 @@ function buildSpanWithClassifierFields(
       return {
         ...b,
         name: 'file.read',
-        kind: 'INTERNAL',
+        kind: CANONICAL_SPAN.spanKind.file_operation,
         span_type: 'file_io',
         hook_type: 'file_operation',
         // Canonical read span sets `file.bytes` (the byte count) once known — i.e.
@@ -1470,7 +1470,7 @@ function buildSpanWithClassifierFields(
       return {
         ...b,
         name: 'file.open',
-        kind: 'INTERNAL',
+        kind: CANONICAL_SPAN.spanKind.file_operation,
         span_type: 'file_io',
         hook_type: 'file_operation',
         // Canonical open span (file_governance_hooks.py:traced_open) carries
@@ -1503,7 +1503,7 @@ function buildSpanWithClassifierFields(
       return {
         ...b,
         name: 'file.write',
-        kind: 'INTERNAL',
+        kind: CANONICAL_SPAN.spanKind.file_operation,
         span_type: 'file_io',
         hook_type: 'file_operation',
         // Canonical write span sets `file.bytes` (the byte count) once known — i.e.
@@ -1526,7 +1526,7 @@ function buildSpanWithClassifierFields(
       return {
         ...b,
         name: 'file.delete',
-        kind: 'INTERNAL',
+        kind: CANONICAL_SPAN.spanKind.file_operation,
         span_type: 'file_io',
         hook_type: 'file_operation',
         attributes: {
@@ -1546,7 +1546,7 @@ function buildSpanWithClassifierFields(
       return {
         ...b,
         name: 'ShellExecution',
-        kind: 'INTERNAL',
+        kind: CANONICAL_SPAN.spanKind.function_call,
         span_type: 'function',
         hook_type: 'function_call',
         attributes: {
@@ -1700,8 +1700,9 @@ export function buildSpan(
   // tool_call, mcp) inherited — correct it centrally so the span kind always
   // matches its hook_type for every host.
   const span =
-    built.hook_type === 'function_call' && built.kind !== 'INTERNAL'
-      ? { ...built, kind: 'INTERNAL' }
+    built.hook_type === 'function_call' &&
+    built.kind !== CANONICAL_SPAN.spanKind.function_call
+      ? { ...built, kind: CANONICAL_SPAN.spanKind.function_call }
       : built;
   return stripServerComputedSemantic(
     input.data !== undefined && span.data === undefined
