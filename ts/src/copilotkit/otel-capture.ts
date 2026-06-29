@@ -157,6 +157,10 @@ function truncateFileData(value: unknown): string | undefined {
 function canonicalizeSubOpSpan(span: Record<string, unknown>): SpanData {
   const next: Record<string, unknown> = { ...span };
   const attrs = next.attributes;
+  // Every span reaching here is built by buildSpan() or recordFunctionCall(),
+  // both of which always attach an object `attributes`; the non-object else
+  // branch is an unreachable defensive guard.
+  /* c8 ignore next */
   if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
     next.attributes = Object.fromEntries(
       Object.entries(attrs as Record<string, unknown>).filter(

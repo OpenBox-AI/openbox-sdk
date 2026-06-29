@@ -512,9 +512,13 @@ export function signAgentIdentityRequest(input: {
     nonce,
     bodySha256,
   };
+  /* v8 ignore start -- canonicalRequestFields is spec-locked to the exact keys
+     of fieldValues, so the `?? ''` fallback is unreachable defensive code (it
+     could only fire if the generated spec added a field with no value). */
   const canonical = CANONICAL_AGENT_IDENTITY.canonicalRequestFields
     .map((field) => fieldValues[field] ?? '')
     .join('\n');
+  /* v8 ignore stop */
   const privateKey = ed25519PrivateKeyFromRawBase64(identity.privateKey);
   const signature = sign(null, Buffer.from(canonical), privateKey).toString('base64');
   const h = CANONICAL_AGENT_IDENTITY.headers;

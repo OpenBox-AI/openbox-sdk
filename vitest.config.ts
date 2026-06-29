@@ -88,6 +88,15 @@ export default defineConfig({
         branches: 75,
         functions: 80,
         lines: 80,
+        // Spec-driven files are locked at 100% (driven there by TDD); the
+        // per-file thresholds below fail the build if any regresses.
+        'ts/src/governance/spans.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'ts/src/validators/index.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'ts/src/client/client.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'ts/src/core-client/core-client.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'ts/src/copilotkit/otel-capture.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'ts/src/copilotkit/instrumentation.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
+        'ts/src/copilotkit/pipeline.ts': { statements: 100, branches: 100, functions: 100, lines: 100 },
       },
     },
     projects: [

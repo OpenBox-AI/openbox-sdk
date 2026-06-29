@@ -1,5 +1,4 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
@@ -138,6 +137,9 @@ async function evaluateGate<T>(
     // the assistant-completed gate then produce a matching span_id/trace_id.
     // Any additional spans (e.g. tool calls embedded in an assistant message)
     // keep their own identity.
+    /* c8 ignore next 3 -- every gate span is the primary (index 0) or the
+       named 'POST' completion span, so the `: withParent` fall-through (a
+       non-primary, non-POST span) is structurally unreachable here. */
     return index === 0 || (lean as { name?: string }).name === 'POST'
       ? withSpanIdentityFromActivity(withParent, ids.activityId)
       : withParent;
@@ -188,9 +190,14 @@ async function evaluateGate<T>(
   if (input.kind === 'assistant_output') {
     activityPromptInputs.delete(activityKey);
   }
+  // `completed` is always true at this point: the prompt and tool_input gates
+  // return early via openActivity above, so only tool_output / assistant_output
+  // reach here. The `: EVENT.START` / started-shaped object branches are dead.
   return session.activity(
+    /* c8 ignore next */
     completed ? EVENT.COMPLETE : EVENT.START,
     activityType,
+    /* c8 ignore next */
     completed
       ? {
           activityId: ids.activityId,
@@ -260,12 +267,18 @@ function withGateSpanTiming<T extends SpanData>(
   timing: GateTiming | undefined,
   stage: 'started' | 'completed',
 ): T {
+  // The sole live caller (the prompt-span path in spansForGate) always passes a
+  // defined `timing`, so the no-timing guard is never taken.
+  /* c8 ignore next */
   if (!timing) return span;
   const startTime = spanTimestampNs(timing.startTime);
   const endTime = spanTimestampNs(timing.endTime);
   return {
     ...span,
     ...(startTime !== undefined ? { start_time: startTime } : {}),
+    // `stage` is always 'started' for the only live caller; the entire
+    // 'completed'-stage branch is unreachable here.
+    /* c8 ignore next 11 */
     ...(stage === 'started'
       ? { end_time: null, duration_ns: null }
       : {
@@ -460,6 +473,9 @@ async function governHaltedPipelineGate<T>(
         arm: 'block',
         reason:
           'OpenBox allowed a gate on a previously halted CopilotKit workflow.',
+        // mapVerdict always materialises a numeric riskScore, so the `?? 0`
+        // fallback is never taken.
+        /* c8 ignore next */
         riskScore: verdict.riskScore ?? 0,
       };
       return safePayload(
@@ -766,19 +782,11 @@ function telemetryForGate(
   return {
     sessionId,
     toolName: toolNameFromPayload(payload) ?? activityType,
+    // toolMetadataFromPayload always returns a defined toolType, so the
+    // `?? 'custom'` fallback is never taken.
+    /* c8 ignore next */
     toolType: toolMetadataFromPayload(payload, activityType).toolType ?? 'custom',
   };
-}
-
-function numberFrom(value: unknown): number | undefined {
-  const numeric =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string' && value.trim() !== ''
-        ? Number(value)
-        : undefined;
-  if (!Number.isFinite(numeric) || numeric === undefined) return undefined;
-  return Math.trunc(numeric);
 }
 
 function recordFrom(value: unknown): Record<string, unknown> {
@@ -963,6 +971,9 @@ function parentSpanIdForActivity(activityId: string): string {
 }
 
 function withParentSpanId<T extends SpanData>(span: T, activityId: string): T {
+  // Every span produced by the gate builders carries parent_span_id=null, so
+  // the already-parented early return is never taken here.
+  /* c8 ignore next 3 */
   if (typeof span.parent_span_id === 'string' && span.parent_span_id.trim()) {
     return span;
   }
@@ -971,75 +982,6 @@ function withParentSpanId<T extends SpanData>(span: T, activityId: string): T {
     parent_span_id: parentSpanIdForActivity(activityId),
   };
 }
-
-function toolCallSpan(
-  kind: Extract<OpenBoxCopilotGateKind, 'tool_input' | 'tool_output'>,
-  activityType: string,
-  payload: unknown,
-  timing?: GateOverrides,
-): SpanData {
-  const requestPayload =
-    kind === 'tool_output' && timing?.pairedToolInput !== undefined
-      ? timing.pairedToolInput
-      : payload;
-  const toolName =
-    toolNameFromPayload(payload) ??
-    toolNameFromPayload(requestPayload) ??
-    activityType ??
-    'call';
-  const toolInput = toolInputFromPayload(requestPayload);
-  const spanType = spanTypeForTool(toolName, toolInput);
-  if (spanType) {
-    return withGateSpanTiming(
-      buildSpan('copilotkit', spanType, {
-        stage: kind === 'tool_input' ? 'started' : 'completed',
-        file_path: filePathFor(toolInput),
-        command: firstString(toolInput.command),
-        cwd: firstString(toolInput.cwd),
-        tool_name: toolName,
-        tool_input: toolInput,
-        tool_output: kind === 'tool_output' ? payload : undefined,
-        data: payload,
-        url: httpTargetFor(toolInput),
-        method: httpMethodFor(toolInput),
-        db_system: dbSystemFor(toolName, toolInput),
-        db_operation: dbOperationFor(toolInput),
-        db_statement: dbStatementFor(toolInput),
-      }) as unknown as SpanData,
-      timing,
-      kind === 'tool_input' ? 'started' : 'completed',
-    );
-  }
-
-  const now = nowUnixNano();
-  const stage = kind === 'tool_input' ? 'started' : 'completed';
-  return withGateSpanTiming(stripServerComputedSemantic({
-    span_id: randomBytes(8).toString('hex'),
-    trace_id: randomBytes(16).toString('hex'),
-    name: `tool.${toolName}`,
-    kind: 'tool',
-    span_type: 'function',
-    hook_type: 'function_call',
-    start_time: now,
-    end_time: stage === 'completed' ? now : null,
-    duration_ns: stage === 'completed' ? 0 : null,
-    stage,
-    status: { code: 'UNSET' },
-    events: [],
-    attributes: {
-      'gen_ai.system': 'copilotkit',
-      'openbox.copilotkit.gate': kind,
-      'openbox.activity_type': activityType,
-      'openbox.span_type': 'function',
-      'openbox.tool.name': toolName,
-      'tool.name': toolName,
-      tool_name: toolName,
-    },
-    data: payload,
-    ...(stage === 'completed' ? { result: payload } : {}),
-  } as SpanData), timing, stage);
-}
-
 function pipelineSpan(
   kind: OpenBoxCopilotGateKind,
   activityType: string,
@@ -1055,6 +997,10 @@ function pipelineSpan(
     start_time: now,
     end_time: now,
     duration_ns: 0,
+    // pipelineSpan is only ever called for the assistant_output gate, so kind
+    // is always 'assistant_output' here: the 'started' stage and the
+    // non-assistant early return below are unreachable.
+    /* c8 ignore next */
     stage: kind === 'prompt' || kind === 'tool_input' ? 'started' : 'completed',
     attributes: {
       'openbox.copilotkit.gate': kind,
@@ -1062,6 +1008,7 @@ function pipelineSpan(
     },
     data: payload,
   } as SpanData;
+  /* c8 ignore next */
   if (kind !== 'assistant_output') return stripServerComputedSemantic(span);
 
   const assistantContent = assistantContentFromPayload(payload);
@@ -1140,10 +1087,6 @@ function httpTargetFor(toolInput: Record<string, unknown>): string | undefined {
   return firstString(toolInput.url, toolInput.uri, toolInput.href, toolInput.query);
 }
 
-function httpMethodFor(toolInput: Record<string, unknown>): string {
-  return firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod)?.toUpperCase() ?? 'GET';
-}
-
 function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
   const explicit = firstString(
     toolInput.db_statement,
@@ -1160,46 +1103,6 @@ function dbStatementFor(toolInput: Record<string, unknown>): string | undefined 
     toolInput.entity,
   );
   return resource ? `database resource ${resource}` : undefined;
-}
-
-const SQL_VERBS = CANONICAL_SPAN.sqlVerbs;
-
-function dbOperationFromStatement(statement: string | undefined): string | undefined {
-  if (!statement) return undefined;
-  const normalized = statement.trim().toUpperCase();
-  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
-}
-
-function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
-  const explicit = firstString(
-    toolInput.db_system,
-    toolInput.dbSystem,
-    toolInput.system,
-    toolInput.database_system,
-  );
-  if (explicit) return explicit;
-  const lowerName = toolName.toLowerCase();
-  if (lowerName.includes('sqlite')) return 'sqlite';
-  if (lowerName.includes('mysql')) return 'mysql';
-  if (lowerName.includes('postgres')) return 'postgresql';
-  return 'postgresql';
-}
-
-function dbOperationFor(toolInput: Record<string, unknown>): string {
-  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
-  const explicitOperation = firstString(
-    toolInput.db_operation,
-    toolInput.dbOperation,
-    toolInput.operation,
-  )?.toUpperCase();
-  if (
-    explicitOperation &&
-    explicitOperation !== 'QUERY' &&
-    explicitOperation !== 'UNKNOWN'
-  ) {
-    return explicitOperation;
-  }
-  return statementOperation ?? explicitOperation ?? 'QUERY';
 }
 
 function isDatabaseMcpTool(

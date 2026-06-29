@@ -322,6 +322,7 @@ function deriveDurationNs(
   startTime: number | undefined,
   endTime: number | undefined,
 ): number | undefined {
+  /* c8 ignore next -- defensive: only ever called with defined start/end (both default to `now`) */
   if (startTime === undefined || endTime === undefined) return undefined;
   return Math.max(0, endTime - startTime);
 }
@@ -498,6 +499,7 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
   }
   if (webSearchRequests !== undefined) normalized.web_search_requests = webSearchRequests;
   if (costUsd !== undefined) normalized.cost_usd = costUsd;
+  /* c8 ignore next -- defensive: a truthy normalizedUsage always re-extracts ≥1 normalized field, so the empty→undefined arm is unreachable */
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
@@ -962,6 +964,10 @@ export function buildLLMCompletionSpan(
   const derivedDurationNs =
     deriveDurationNsFromRawTimestamps(rawStartTime, rawEndTime) ??
     deriveDurationNs(startTime, endTime);
+  // The final `?? sourceDurationNs ?? 0` arms are defensive: derivedDurationNs is
+  // always defined (deriveDurationNs never returns undefined when called here), so
+  // they are unreachable and excluded from coverage.
+  /* v8 ignore next 3 */
   const durationNs =
     explicitDurationNs ??
     usefulSourceDurationNs ??

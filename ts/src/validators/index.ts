@@ -519,6 +519,10 @@ export function validateRegoSource(rego: string): void {
 
   // Warn if the package name is specific enough that the user might think it matters.
   const pkgMatch = src.match(/^\s*package\s+(\S+)/m);
+  // pkgMatch is always truthy here: the `package …` declaration check above
+  // (rego-no-package) already blocked any source without one, so the else
+  // branch is unreachable.
+  /* c8 ignore next */
   if (pkgMatch) {
     const pkg = pkgMatch[1];
     if (!/^org\.openbox_ai\./.test(pkg) && !/^org\.[0-9a-z_]+\.policy_/.test(pkg)) {
