@@ -353,15 +353,35 @@ using OpenBox.Workflow;
     db_query: "CLIENT",
     function_call: "INTERNAL",
   },
-  // hook_type → semantic_type emitted to Core.
+  // Span semantic_type computation (serverComputedSemanticType). `static` maps a
+  // SpanType to a fixed semantic_type; http/db are contextual on method/operation.
   semanticType: #{
-    file_open: "file_open",
-    file_read: "file_read",
-    file_write: "file_write",
-    file_delete: "file_delete",
-    http_request: "http_request",
-    db_query: "db_query",
-    function_call: "function_call",
+    static: #{
+      llm: "llm_completion",
+      llm_embedding: "llm_embedding",
+      llm_tool_call: "llm_tool_call",
+      file_read: "file_read",
+      file_open: "file_open",
+      file_write: "file_write",
+      file_delete: "file_delete",
+      shell: "internal",
+      mcp: "mcp_tool_call",
+    },
+    httpByMethod: #{
+      get: "http_get",
+      post: "http_post",
+      put: "http_put",
+      patch: "http_patch",
+      delete: "http_delete",
+    },
+    httpDefault: "http",
+    dbByOperation: #{
+      select: "database_select",
+      insert: "database_insert",
+      update: "database_update",
+      delete: "database_delete",
+    },
+    dbDefault: "database_query",
   },
 })
 namespace OpenboxGovern;

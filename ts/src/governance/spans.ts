@@ -693,39 +693,26 @@ export function serverComputedSemanticType(
   type: SpanType,
   input: SpanInput = {},
 ): string {
-  switch (type) {
-    case 'llm':
-      return 'llm_completion';
-    case 'llm_embedding':
-      return 'llm_embedding';
-    case 'llm_tool_call':
-      return 'llm_tool_call';
-    case 'file_read':
-    case 'file_open':
-    case 'file_write':
-    case 'file_delete':
-      return type;
-    case 'shell':
-      return 'internal';
-    case 'mcp':
-      return 'mcp_tool_call';
-    case 'http': {
-      const method = (input.method ?? 'GET').trim().toLowerCase();
-      return ['get', 'post', 'put', 'patch', 'delete'].includes(method)
-        ? `http_${method}`
-        : 'http';
-    }
-    case 'db': {
-      const operation = (
-        input.db_operation ??
-        input.operation ??
-        'query'
-      ).trim().toLowerCase();
-      return ['select', 'insert', 'update', 'delete'].includes(operation)
-        ? `database_${operation}`
-        : 'database_query';
-    }
+  // Mapping is spec-driven (CANONICAL_SPAN.semanticType, from @spanContract).
+  const sem = CANONICAL_SPAN.semanticType;
+  const byMethod = sem.httpByMethod as Record<string, string>;
+  const byOperation = sem.dbByOperation as Record<string, string>;
+  const staticMap = sem.static as Record<string, string>;
+  if (type === 'http') {
+    const method = (input.method ?? 'GET').trim().toLowerCase();
+    return byMethod[method] ?? sem.httpDefault;
   }
+  if (type === 'db') {
+    const operation = (
+      input.db_operation ??
+      input.operation ??
+      'query'
+    )
+      .trim()
+      .toLowerCase();
+    return byOperation[operation] ?? sem.dbDefault;
+  }
+  return staticMap[type] ?? type;
 }
 
 export function withServerComputedSemantic<T extends Record<string, unknown>>(
