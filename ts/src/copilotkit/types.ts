@@ -148,6 +148,21 @@ export interface OpenBoxCopilotRuntimeConfig {
   agents?: string[];
   finalOutputMode?: 'buffer';
   sessionKey?: (input: OpenBoxCopilotRunInputLike) => string;
+  /**
+   * Which layer governs the LLM assistant output (the `llm_call` completion).
+   *
+   * - `'runtime'` (default): the runtime governs the streamed assistant text.
+   *   Use for runtime-only deployments where the wrapped agent does NOT run the
+   *   OpenBox LangChain middleware.
+   * - `'agent'`: the agent-side LangChain middleware (`wrapModelCall` /
+   *   `afterAgent`) owns the assistant gate — it has the real captured LLM
+   *   exchange (richer `llm_completion` span) and is the canonical per-call
+   *   seam. The runtime then streams the agent's already-governed output WITHOUT
+   *   re-evaluating it, so one `llm_call` activity is completed once instead of
+   *   twice. Set this when the agent runs the OpenBox middleware (the standard
+   *   LangGraph integration).
+   */
+  assistantOutputOwner?: 'runtime' | 'agent';
 }
 
 export interface OpenBoxCopilotRuntime {

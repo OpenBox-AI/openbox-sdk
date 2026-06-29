@@ -3582,6 +3582,45 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(JSON.stringify(events)).not.toContain('alice@example.com');
   });
 
+  it('defers the assistant gate to the agent when assistantOutputOwner is "agent"', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const adapter = createOpenBoxCopilotKitAdapter({ core: mock.core as any });
+    const govSpy = vi.spyOn(adapter, 'governAssistantOutput');
+    const baseRunner = createFakeRunner([
+      { type: 'RUN_STARTED', threadId: 'thread-1', runId: 'run-1' },
+      { type: 'TEXT_MESSAGE_START', messageId: 'assistant-1', role: 'assistant' },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'assistant-1',
+        delta: 'Reviewed by the agent.',
+      },
+      { type: 'TEXT_MESSAGE_END', messageId: 'assistant-1' },
+      { type: 'RUN_FINISHED', threadId: 'thread-1', runId: 'run-1' },
+    ]);
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter,
+      assistantOutputOwner: 'agent',
+    });
+
+    const events = await collectObservable(
+      runner.run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'Summarize.' }],
+        },
+      }),
+    );
+
+    // The runtime streams the agent's already-governed output verbatim...
+    expect(JSON.stringify(events)).toContain('Reviewed by the agent.');
+    // ...and does NOT re-govern the assistant output (single-owner = agent),
+    // so the same llm_call is not completed twice.
+    expect(govSpy).not.toHaveBeenCalled();
+  });
+
   it('native runner records model usage and cost on the assistant output hook span', async () => {
     const mock = createMockCore(() => ({
       verdict: 'allow',

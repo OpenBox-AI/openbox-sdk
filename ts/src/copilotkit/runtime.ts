@@ -51,6 +51,7 @@ export function createOpenBoxCopilotRuntime(
       adapter,
       agents: config.agents,
       sessionKey: config.sessionKey,
+      assistantOutputOwner: config.assistantOutputOwner,
     },
     defaultAdapter,
   );
@@ -79,11 +80,13 @@ export function createOpenBoxGovernedRunner(
     adapter?: OpenBoxCopilotKitAdapter;
     agents?: string[];
     sessionKey?: (input: OpenBoxCopilotRunInputLike) => string;
+    assistantOutputOwner?: 'runtime' | 'agent';
   } = {},
   defaultAdapter: AdapterFactory,
 ): OpenBoxCopilotAgentRunnerLike {
   const adapter = config.adapter ?? defaultAdapter();
   const agentSet = config.agents ? new Set(config.agents) : undefined;
+  const assistantOutputOwner = config.assistantOutputOwner ?? 'runtime';
   const sessionKeyForInput =
     config.sessionKey ?? ((input) => input.threadId || 'default');
   const governedRunner = Object.create(Object.getPrototypeOf(runner));
@@ -156,6 +159,7 @@ export function createOpenBoxGovernedRunner(
             sessionKey,
             governedInput,
             runtimeWorkflowConfig(adapter),
+            assistantOutputOwner,
           );
         });
       },
@@ -377,6 +381,7 @@ function pipeGovernedEvents(
   sessionKey: string,
   input: OpenBoxCopilotRunInputLike,
   workflowConfig: { workflowType: string; taskQueue: string },
+  assistantOutputOwner: 'runtime' | 'agent' = 'runtime',
 ) {
   const pending: Promise<void>[] = [];
   const ids = runtimeWorkflowIdsFromInput(input);
@@ -547,6 +552,20 @@ function pipeGovernedEvents(
     }
     queuePending(async () => {
       if (governanceStopped) return;
+      if (assistantOutputOwner === 'agent') {
+        // The agent-side middleware already governed (and redacted) this
+        // assistant output and completed the llm_call (with the real captured
+        // exchange). Stream it through verbatim rather than re-evaluating the
+        // same llm_call here — this is the single-owner split that removes the
+        // assistant-output double-governance.
+        emit(buffer.start);
+        emit({
+          ...contentEventFromStart(buffer.start, buffer.content),
+          type: contentEventType(type),
+        });
+        emit(buffer.end);
+        return;
+      }
       const activityId = nextLlmActivityId();
       const gate = await adapter.governAssistantOutput({
         payload: assistantOutputPayload(
@@ -740,6 +759,20 @@ function pipeGovernedEvents(
       if (finalPayload) {
         queuePending(async () => {
           if (governanceStopped) return;
+          if (assistantOutputOwner === 'agent') {
+            // Agent middleware (afterAgent) already governed the final output;
+            // stream it through without re-evaluating (single-owner split).
+            if (isRunFinishedEvent(agEvent)) {
+              if (pausedAtInterrupt) {
+                emit(agEvent);
+                return;
+              }
+              queueTerminalEvent(agEvent, 'completed');
+              return;
+            }
+            emit(agEvent);
+            return;
+          }
           const activityId = nextLlmActivityId();
           const gate = await adapter.governAssistantOutput({
             payload: finalPayload.governancePayload ?? finalPayload.payload,
