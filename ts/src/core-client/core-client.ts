@@ -2,6 +2,7 @@ import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
 import { normalizeServiceUrl } from '../env/connection.js';
+import { API_KEY_PATTERN } from '../env/generated/env-bindings.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
 import { validateCoreRequest } from './generated/request-preflight.js';
 
@@ -363,7 +364,7 @@ function validateCoreRuntimeApiKey(value: string): void {
       'OpenBox Core requires an agent runtime key (obx_live_* or obx_test_*), not an org/backend key (obx_key_*).',
     );
   }
-  if (!/^obx_(live|test)_[0-9a-f]{48}$/.test(value)) {
+  if (!API_KEY_PATTERN.test(value)) {
     throw new Error('OpenBox Core runtime API key must match obx_live_ or obx_test_ followed by 48 lowercase hex characters.');
   }
 }

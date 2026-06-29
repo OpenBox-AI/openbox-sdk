@@ -7,7 +7,8 @@ export const ENV_VAR_BINDINGS = {
   authUrl: {"name":"OPENBOX_AUTH_URL"} as const,
   apiKey: {"name":"OPENBOX_API_KEY"} as const,
 } as const;
-const API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
+/** Canonical runtime API-key format — single spec source; consume this instead of re-hand-rolling the regex. */
+export const API_KEY_PATTERN = /^obx_(?:live|test)_[0-9a-f]{48}$/;
 export function validateApiKeyFormat(value: string): true | string {
   if (!API_KEY_PATTERN.test(value)) {
     return 'OPENBOX_API_KEY must match obx_(live|test)_<48hex>';

@@ -27,6 +27,7 @@ export type { OsPathResolver, OsPathScope } from './generated/env-bindings.js';
 // specs/typespec/env/main.tsp.
 export {
   ENV_VAR_BINDINGS,
+  API_KEY_PATTERN,
   validateApiKeyFormat,
   OS_PATH_FIELDS,
   CLIENT_VARIANT_PATTERN,

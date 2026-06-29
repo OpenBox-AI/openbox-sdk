@@ -1129,7 +1129,8 @@ function emitEnvPackage(program: Program, project: Project, repoRoot: string): v
     const pattern = apiKey ? getTokenFormat(program, apiKey) : undefined;
     if (pattern) {
       out.addStatements([
-        `const API_KEY_PATTERN = ${tsRegexLiteral(pattern)};`,
+        `/** Canonical runtime API-key format — single spec source; consume this instead of re-hand-rolling the regex. */`,
+        `export const API_KEY_PATTERN = ${tsRegexLiteral(pattern)};`,
         '',
         `export function validateApiKeyFormat(value: string): true | string {
   if (!API_KEY_PATTERN.test(value)) {

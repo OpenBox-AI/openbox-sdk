@@ -4,9 +4,11 @@ import { OpenBoxCoreClient } from '../core-client/index.js';
 import type { AgentIdentityConfig } from '../core-client/index.js';
 import { loadDotenv, loadJsonConfig } from '../config/host-config.js';
 import { resolveAgentIdentity } from '../env/agent-identity.js';
+import { API_KEY_PATTERN } from '../env/generated/env-bindings.js';
 import type { OpenBoxAgentsSDKConfig } from './types.js';
 
-const OPENBOX_RUNTIME_KEY_PATTERN = /^obx_(live|test)_[0-9a-f]{48}$/;
+// Single spec source for the runtime API-key format (no hand-rolled regex).
+const OPENBOX_RUNTIME_KEY_PATTERN = API_KEY_PATTERN;
 const OPENBOX_BACKEND_API_KEY_PATTERN = /^obx_key_/;
 
 export const DEFAULT_OPENAI_AGENTS_WORKFLOW_TYPE = 'OpenAIAgentsSDKRun';
