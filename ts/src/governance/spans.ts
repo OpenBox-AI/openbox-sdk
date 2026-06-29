@@ -59,7 +59,7 @@ function spanStatusOrDefault(
 ): { code: string; description?: string | null } {
   return status && typeof status === 'object' && !Array.isArray(status)
     ? (status as { code: string; description?: string | null })
-    : { code: error ? 'ERROR' : 'UNSET', description: error ?? null };
+    : { code: error ? CANONICAL_SPAN.statusCode.error : CANONICAL_SPAN.statusCode.unset, description: error ?? null };
 }
 
 function base(
@@ -78,7 +78,7 @@ function base(
     start_time: now,
     end_time: stage === 'completed' ? now : null,
     duration_ns: stage === 'completed' ? 0 : null,
-    status: { code: description ? 'ERROR' : 'UNSET', description: description ?? null },
+    status: { code: description ? CANONICAL_SPAN.statusCode.error : CANONICAL_SPAN.statusCode.unset, description: description ?? null },
     events: [],
     error: description ?? null,
   };
@@ -647,7 +647,8 @@ export function leanCopilotLlmSpan<T extends object>(span: T): T {
     delete next.duration_ns;
   }
   // The reference inner span sets semantic_type explicitly (Core preserves it).
-  next.semantic_type = 'llm_completion';
+  // Value is spec-driven (CANONICAL_SPAN.semanticType, from @spanContract).
+  next.semantic_type = CANONICAL_SPAN.semanticType.static.llm;
   // Canonical (openbox-langgraph-sdk-python http_governance_hooks): a span's
   // `attributes` carry OTel-native keys ONLY; all custom data lives at root. The
   // llm_completion is an http_request span, so its attributes are

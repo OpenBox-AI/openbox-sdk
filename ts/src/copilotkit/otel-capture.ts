@@ -419,7 +419,7 @@ export function recordFunctionCall(opts: {
       start_time: startNs,
       end_time: stage === 'completed' ? endNs : null,
       duration_ns: stage === 'completed' ? durationNs : null,
-      status: { code: description ? 'ERROR' : 'UNSET', description },
+      status: { code: description ? CANONICAL_SPAN.statusCode.error : CANONICAL_SPAN.statusCode.unset, description },
       events: [],
       error: description,
       // Canonical @traced attributes are OTel-native code.* (function/module

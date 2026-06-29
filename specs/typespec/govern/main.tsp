@@ -336,6 +336,8 @@ using OpenBox.Workflow;
   caps: #{ httpBody: 8192, fileData: 4096, dbStatement: 2000, functionArg: 2000 },
   truncationSuffix: "...[truncated]",
   redactedSentinel: "[REDACTED]",
+  // OTel span status codes emitted on hook spans.
+  statusCode: #{ unset: "UNSET", error: "ERROR" },
   // Canonical _SENSITIVE_HEADERS — exact keys, no substring heuristics.
   sensitiveHeaders: #[
     "authorization",
