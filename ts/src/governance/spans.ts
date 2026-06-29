@@ -1683,11 +1683,26 @@ function buildSpanWithClassifierFields(
           'openbox.span_type': 'database',
         },
         db_system: dbSystem,
-        db_name: null,
+        // Honor connection metadata on BOTH stages (canonical db hooks set
+        // db_name/server_address/server_port on started + completed). Falls back
+        // to null when unknown (e.g. sqlite has no server endpoint).
+        db_name:
+          ((input as Record<string, unknown>).db_name as
+            | string
+            | null
+            | undefined) ?? null,
         db_operation: dbOperation,
         db_statement: dbStatement,
-        server_address: null,
-        server_port: null,
+        server_address:
+          ((input as Record<string, unknown>).server_address as
+            | string
+            | null
+            | undefined) ?? null,
+        server_port:
+          ((input as Record<string, unknown>).server_port as
+            | number
+            | null
+            | undefined) ?? null,
         rowcount: null,
         function: 'DatabaseQuery',
         module: host,
