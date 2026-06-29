@@ -14,6 +14,7 @@
 // distinguish traffic by originating adapter.
 
 import type { SpanData } from '../core-client/index.js';
+import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import { USAGE_NORMALIZATION_SURFACE } from './generated/capability-matrix.js';
 
 function hex(len: number): string {
@@ -883,10 +884,10 @@ function defaultLLMRequestHeaders(provider?: string): Record<string, string> {
     'content-type': 'application/json',
   };
   if (normalizedProvider.includes('anthropic')) {
-    headers['x-api-key'] = '[REDACTED]';
+    headers['x-api-key'] = CANONICAL_SPAN.redactedSentinel;
     headers['anthropic-version'] = '2023-06-01';
   } else {
-    headers.authorization = '[REDACTED]';
+    headers.authorization = CANONICAL_SPAN.redactedSentinel;
   }
   return headers;
 }
@@ -924,26 +925,15 @@ function sanitizeHeaderMap(value: unknown): Record<string, string> | undefined {
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
-const REDACTED = '[REDACTED]';
+const REDACTED = CANONICAL_SPAN.redactedSentinel;
+
+// Canonical sensitive set, from the generated contract (CANONICAL_SPAN) — exact
+// keys only, no substring heuristics, so non-secret headers like
+// x-ratelimit-*-tokens keep their real values like the canonical SDK.
+const SENSITIVE_HEADERS = new Set<string>(CANONICAL_SPAN.sensitiveHeaders);
 
 function sanitizeHeaderValue(key: string, value: string): string {
-  const normalizedKey = key.toLowerCase();
-  if (
-    // Canonical sensitive set, byte-for-byte with the Python reference
-    // (http_governance_hooks.py:_SENSITIVE_HEADERS) — exact keys only, NO
-    // substring heuristics, so non-secret headers like x-ratelimit-*-tokens
-    // keep their real values exactly as the canonical SDK emits them.
-    normalizedKey === 'authorization' ||
-    normalizedKey === 'proxy-authorization' ||
-    normalizedKey === 'cookie' ||
-    normalizedKey === 'set-cookie' ||
-    normalizedKey === 'www-authenticate' ||
-    normalizedKey === 'x-api-key' ||
-    normalizedKey === 'x-auth-token'
-  ) {
-    return REDACTED;
-  }
-  return value;
+  return SENSITIVE_HEADERS.has(key.toLowerCase()) ? REDACTED : value;
 }
 
 function headerMapOrNull(value: unknown): Record<string, string> | null {

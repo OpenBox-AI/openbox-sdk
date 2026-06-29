@@ -3682,6 +3682,52 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
       verdictArmMembers.sort(),
     )} as const);`,
     '',
+    '/** Canonical hook-span contract — the field caps, truncation/redaction',
+    ' *  sentinels, sensitive-header set, span kinds, and hook->semantic-type',
+    ' *  map that every host adapter AND the Python SDK must emit identically.',
+    ' *  Single generated source of truth: replaces the per-SDK hand-rolled',
+    ' *  literals in governance/spans.ts and copilotkit/otel-capture.ts (and',
+    ' *  Python _build_*_span_data), which previously drifted independently.',
+    ' */',
+    `export const CANONICAL_SPAN = Object.freeze(${JSON.stringify({
+      caps: {
+        httpBody: 8192,
+        fileData: 4096,
+        dbStatement: 2000,
+        functionArg: 2000,
+      },
+      truncationSuffix: '...[truncated]',
+      redactedSentinel: '[REDACTED]',
+      // Canonical _SENSITIVE_HEADERS (http_governance_hooks.py) — exact keys,
+      // no substring heuristics.
+      sensitiveHeaders: [
+        'authorization',
+        'proxy-authorization',
+        'cookie',
+        'set-cookie',
+        'www-authenticate',
+        'x-api-key',
+        'x-auth-token',
+      ],
+      // hook_type -> OTel span kind.
+      spanKind: {
+        file_operation: 'INTERNAL',
+        http_request: 'CLIENT',
+        db_query: 'CLIENT',
+        function_call: 'INTERNAL',
+      },
+      // hook_type -> semantic_type emitted to Core.
+      semanticType: {
+        file_open: 'file_open',
+        file_read: 'file_read',
+        file_write: 'file_write',
+        file_delete: 'file_delete',
+        http_request: 'http_request',
+        db_query: 'db_query',
+        function_call: 'function_call',
+      },
+    })} as const);`,
+    '',
   ]);
 
   out.addStatements([emitBaseSession(verdictModelName), '']);

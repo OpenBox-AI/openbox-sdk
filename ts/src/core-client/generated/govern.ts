@@ -1553,6 +1553,14 @@ export const CANONICAL_ACTIVITY_LABELS: Readonly<Record<string, string>> = Objec
 /** Every verdict arm the runtime emits. Production sets typically
  *  exclude `constrain`; consumers can re-filter. */
 export const CANONICAL_VERDICT_ARMS: ReadonlySet<VerdictArm> = new Set(["allow","block","constrain","halt","require_approval"] as const);
+/** Canonical hook-span contract — the field caps, truncation/redaction
+ *  sentinels, sensitive-header set, span kinds, and hook->semantic-type
+ *  map that every host adapter AND the Python SDK must emit identically.
+ *  Single generated source of truth: replaces the per-SDK hand-rolled
+ *  literals in governance/spans.ts and copilotkit/otel-capture.ts (and
+ *  Python _build_*_span_data), which previously drifted independently.
+ */
+export const CANONICAL_SPAN = Object.freeze({"caps":{"httpBody":8192,"fileData":4096,"dbStatement":2000,"functionArg":2000},"truncationSuffix":"...[truncated]","redactedSentinel":"[REDACTED]","sensitiveHeaders":["authorization","proxy-authorization","cookie","set-cookie","www-authenticate","x-api-key","x-auth-token"],"spanKind":{"file_operation":"INTERNAL","http_request":"CLIENT","db_query":"CLIENT","function_call":"INTERNAL"},"semanticType":{"file_open":"file_open","file_read":"file_read","file_write":"file_write","file_delete":"file_delete","http_request":"http_request","db_query":"db_query","function_call":"function_call"}} as const);
 // Runtime-portable UUID v4 source. Node ≥19 / Bun / Deno / modern
 // browsers / Hermes (RN ≥0.74 / Expo ≥51) all expose
 // `globalThis.crypto.randomUUID()`; no `import { randomUUID } from 'crypto'`

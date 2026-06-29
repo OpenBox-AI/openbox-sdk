@@ -23,6 +23,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomBytes } from 'node:crypto';
 import { SpanKind, trace, type Span } from '@opentelemetry/api';
 import type { SpanData } from '../core-client/index.js';
+import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import { buildSpan, type SpanInput, type SpanType } from '../governance/spans.js';
 
 export interface CapturedLLMExchange {
@@ -58,7 +59,7 @@ const tracer = trace.getTracer('openbox-copilotkit-subops');
 // Captured http span headers are redacted by buildSpan's headerMapOrNull
 // (authorization/cookie/x-api-key/*token* → '[REDACTED]'), so no extra
 // header sanitization is applied here.
-const MAX_HTTP_BODY = 8192;
+const MAX_HTTP_BODY = CANONICAL_SPAN.caps.httpBody;
 
 function defaultIgnoredUrlPrefixes(): string[] {
   // Always ignore the OpenBox Core/Backend URLs so the governance POST itself is
@@ -136,13 +137,13 @@ export function parentSpanIdForActivity(activityId: string): string {
   return createHash('sha256').update(activityId).digest('hex').slice(0, 16);
 }
 
-const MAX_FILE_DATA = 4096;
+const MAX_FILE_DATA = CANONICAL_SPAN.caps.fileData;
 
 function truncateFileData(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   const text = typeof value === 'string' ? value : String(value);
   return text.length > MAX_FILE_DATA
-    ? text.slice(0, MAX_FILE_DATA) + '...[truncated]'
+    ? text.slice(0, MAX_FILE_DATA) + CANONICAL_SPAN.truncationSuffix
     : text;
 }
 
@@ -266,7 +267,7 @@ function errorString(error: unknown): string {
 function truncateBody(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   return value.length > MAX_HTTP_BODY
-    ? value.slice(0, MAX_HTTP_BODY) + '...[truncated]'
+    ? value.slice(0, MAX_HTTP_BODY) + CANONICAL_SPAN.truncationSuffix
     : value;
 }
 
@@ -346,7 +347,7 @@ export function recordDatabaseQuery(opts: {
   error?: unknown;
 }): void {
   const base: SpanInput = {
-    db_statement: opts.statement.slice(0, 2000),
+    db_statement: opts.statement.slice(0, CANONICAL_SPAN.caps.dbStatement),
     db_operation: opts.operation,
     db_system: opts.system,
   };
@@ -365,7 +366,7 @@ export function recordDatabaseQuery(opts: {
   recordOpSpanPair('db', base, completed, opts);
 }
 
-function serializeArg(value: unknown, max = 2000): unknown {
+function serializeArg(value: unknown, max = CANONICAL_SPAN.caps.functionArg): unknown {
   if (value === undefined) return undefined;
   let text: string;
   try {
@@ -378,7 +379,7 @@ function serializeArg(value: unknown, max = 2000): unknown {
   } catch {
     return '<unserializable>';
   }
-  return text.length > max ? text.slice(0, max) + '...[truncated]' : text;
+  return text.length > max ? text.slice(0, max) + CANONICAL_SPAN.truncationSuffix : text;
 }
 
 /**

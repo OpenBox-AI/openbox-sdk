@@ -112,6 +112,9 @@ export {
   CANONICAL_ACTIVITY_TYPES,
   CANONICAL_ACTIVITY_LABELS,
   PRESET_ACTIVITY_TYPES,
+  // Canonical hook-span contract (caps/sentinels/headers/kinds/semantic-types).
+  // Single generated source of truth consumed by every span builder.
+  CANONICAL_SPAN,
 } from './generated/govern.js';
 
 // Guardrail redaction helpers; apply `verdict.guardrailsResult.redactedInput`
