@@ -129,6 +129,43 @@ function parentSpanIdForActivity(activityId: string): string {
   return createHash('sha256').update(activityId).digest('hex').slice(0, 16);
 }
 
+const MAX_FILE_DATA = 4096;
+
+function truncateFileData(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const text = typeof value === 'string' ? value : String(value);
+  return text.length > MAX_FILE_DATA
+    ? text.slice(0, MAX_FILE_DATA) + '...[truncated]'
+    : text;
+}
+
+/**
+ * Project a captured sub-op span onto the canonical hook span shape
+ * (openbox-langgraph-sdk-python): `attributes` carry OTel-native keys ONLY (no
+ * `openbox.*`); Core computes `span_type` from `hook_type` so the SDK does not
+ * send it; and `module`/`function`/`args`/`result` are function_call-only fields,
+ * never present on http/db/file spans. All canonical root data fields are kept.
+ */
+function canonicalizeSubOpSpan(span: Record<string, unknown>): SpanData {
+  const next: Record<string, unknown> = { ...span };
+  const attrs = next.attributes;
+  if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+    next.attributes = Object.fromEntries(
+      Object.entries(attrs as Record<string, unknown>).filter(
+        ([key]) => !key.startsWith('openbox.'),
+      ),
+    );
+  }
+  delete next.span_type;
+  if (next.hook_type !== 'function_call') {
+    delete next.module;
+    delete next.function;
+    delete next.args;
+    delete next.result;
+  }
+  return next as unknown as SpanData;
+}
+
 /**
  * Build a started+completed SpanData pair from a captured sub-operation and push
  * it into the active capture scope. Both stages share one span_id/trace_id and,
@@ -139,7 +176,7 @@ function parentSpanIdForActivity(activityId: string): string {
 function recordOpSpanPair(
   type: SpanType,
   base: SpanInput,
-  completed: SpanInput,
+  completed: Record<string, unknown>,
   timing: { startMs: number; endMs: number; error?: unknown },
 ): void {
   const store = captureStore.getStore();
@@ -156,9 +193,11 @@ function recordOpSpanPair(
   const stamp = (
     span: Record<string, unknown>,
     stage: 'started' | 'completed',
+    extra: Record<string, unknown> = {},
   ): SpanData =>
-    ({
+    canonicalizeSubOpSpan({
       ...span,
+      ...extra,
       span_id: spanId,
       trace_id: traceId,
       parent_span_id: parentSpanId,
@@ -166,20 +205,24 @@ function recordOpSpanPair(
       end_time: stage === 'completed' ? endNs : null,
       duration_ns: stage === 'completed' ? durationNs : null,
       ...(store.activityId ? { activity_id: store.activityId } : {}),
-    }) as unknown as SpanData;
+    });
 
   store.spans.push(
     stamp(buildSpan('copilotkit', type, { ...base, stage: 'started' }), 'started'),
     stamp(
       buildSpan('copilotkit', type, {
         ...base,
-        ...completed,
+        ...(completed as SpanInput),
         stage: 'completed',
         ...(timing.error !== undefined
           ? { error: errorString(timing.error) }
           : {}),
       } as SpanInput),
       'completed',
+      // Canonical completed-only data fields (bytes_read/bytes_written/data/
+      // rowcount/db_name/operations/lines_count) that buildSpan drops — merge
+      // them back so they actually reach Core (matches _build_*_span_data).
+      completed,
     ),
   );
 }
@@ -200,44 +243,95 @@ function truncateBody(value: unknown): unknown {
 // Public record helpers for non-fetch instrumentation (fs / db / function).
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Record a captured file operation as a file_operation span pair. */
+/**
+ * Record a captured file operation as a `file_operation` span pair. Mirrors the
+ * canonical `_build_file_span_data` field set: file_path, file_mode, the real
+ * operation label, and (on completed) data/bytes_read/bytes_written/lines_count/
+ * operations — so content- and volume-based file rules see real values.
+ */
 export function recordFileOperation(opts: {
   filePath: string;
-  operation: 'read' | 'open' | 'write' | 'delete';
+  operation:
+    | 'read'
+    | 'readline'
+    | 'readlines'
+    | 'open'
+    | 'close'
+    | 'write'
+    | 'writelines'
+    | 'delete';
+  fileMode?: string;
+  bytesRead?: number;
+  bytesWritten?: number;
+  data?: unknown;
+  linesCount?: number;
+  operations?: string[];
   startMs: number;
   endMs: number;
   error?: unknown;
 }): void {
   const type: SpanType =
-    opts.operation === 'read'
-      ? 'file_read'
-      : opts.operation === 'write'
-        ? 'file_write'
-        : opts.operation === 'delete'
-          ? 'file_delete'
-          : 'file_open';
-  recordOpSpanPair(type, { file_path: opts.filePath }, {}, opts);
+    opts.operation === 'write' || opts.operation === 'writelines'
+      ? 'file_write'
+      : opts.operation === 'delete'
+        ? 'file_delete'
+        : opts.operation === 'open' || opts.operation === 'close'
+          ? 'file_open'
+          : 'file_read'; // read | readline | readlines
+  const base: SpanInput = { file_path: opts.filePath };
+  if (opts.fileMode) (base as Record<string, unknown>).file_mode = opts.fileMode;
+  // Canonical: the file.open span is held open across the file's life and ends as
+  // operation 'close' (file_governance_hooks.py:259-280) — started 'open',
+  // completed 'close'.
+  const completedOperation =
+    opts.operation === 'open' ? 'close' : opts.operation;
+  const completed: Record<string, unknown> = {
+    file_operation: completedOperation,
+  };
+  if (opts.fileMode) completed.file_mode = opts.fileMode;
+  if (opts.bytesRead !== undefined) completed.bytes_read = opts.bytesRead;
+  if (opts.bytesWritten !== undefined) completed.bytes_written = opts.bytesWritten;
+  if (opts.linesCount !== undefined) completed.lines_count = opts.linesCount;
+  if (opts.operations !== undefined) completed.operations = opts.operations;
+  if (opts.data !== undefined) completed.data = truncateFileData(opts.data);
+  recordOpSpanPair(type, base, completed, opts);
 }
 
-/** Record a captured database query as a db_query span pair. */
+/**
+ * Record a captured database query as a `db_query` span pair. Mirrors the
+ * canonical `_build_db_span_data` field set: db_system/db_name/db_operation/
+ * db_statement/server_address/server_port and (on completed) rowcount.
+ */
 export function recordDatabaseQuery(opts: {
   statement: string;
   operation?: string;
   system?: string;
+  dbName?: string | null;
+  serverAddress?: string | null;
+  serverPort?: number | null;
+  rowcount?: number;
   startMs: number;
   endMs: number;
   error?: unknown;
 }): void {
-  recordOpSpanPair(
-    'db',
-    {
-      db_statement: opts.statement.slice(0, 2000),
-      db_operation: opts.operation,
-      db_system: opts.system,
-    },
-    {},
-    opts,
-  );
+  const base: SpanInput = {
+    db_statement: opts.statement.slice(0, 2000),
+    db_operation: opts.operation,
+    db_system: opts.system,
+  };
+  if (opts.dbName !== undefined)
+    (base as Record<string, unknown>).db_name = opts.dbName;
+  if (opts.serverAddress !== undefined)
+    (base as Record<string, unknown>).server_address = opts.serverAddress;
+  if (opts.serverPort !== undefined)
+    (base as Record<string, unknown>).server_port = opts.serverPort;
+  const completed: Record<string, unknown> = {};
+  if (opts.dbName !== undefined) completed.db_name = opts.dbName;
+  if (opts.serverAddress !== undefined) completed.server_address = opts.serverAddress;
+  if (opts.serverPort !== undefined) completed.server_port = opts.serverPort;
+  if (opts.rowcount !== undefined && opts.rowcount >= 0)
+    completed.rowcount = opts.rowcount;
+  recordOpSpanPair('db', base, completed, opts);
 }
 
 function serializeArg(value: unknown, max = 2000): unknown {
@@ -282,13 +376,12 @@ export function recordFunctionCall(opts: {
   const durationNs = Math.max(1, endNs - startNs);
   const description = opts.error !== undefined ? errorString(opts.error) : null;
   const make = (stage: 'started' | 'completed'): SpanData =>
-    ({
+    canonicalizeSubOpSpan({
       span_id: spanId,
       trace_id: traceId,
       parent_span_id: parentSpanId,
       name: opts.name,
       kind: 'INTERNAL',
-      span_type: 'function',
       hook_type: 'function_call',
       stage,
       start_time: startNs,
@@ -297,13 +390,19 @@ export function recordFunctionCall(opts: {
       status: { code: description ? 'ERROR' : 'UNSET', description },
       events: [],
       error: description,
-      attributes: { 'openbox.span_type': 'function' },
+      // Canonical @traced attributes are OTel-native code.* (function/module
+      // also live at root); never openbox.* keys.
+      attributes: {
+        'code.function': opts.name,
+        ...(opts.module ? { 'code.namespace': opts.module } : {}),
+      },
       function: opts.name,
       module: opts.module ?? 'copilotkit',
-      args: serializeArg(opts.args),
+      // Canonical serializes args as {"args": [...], "kwargs": {...}}.
+      args: serializeArg({ args: opts.args ?? [], kwargs: {} }),
       result: stage === 'completed' ? serializeArg(opts.result) : null,
       ...(store.activityId ? { activity_id: store.activityId } : {}),
-    }) as unknown as SpanData;
+    });
   store.spans.push(make('started'), make('completed'));
 }
 
@@ -459,11 +558,63 @@ function parseLLMResponseBody(
 function bodyText(body: unknown): string | undefined {
   if (body === undefined || body === null) return undefined;
   if (typeof body === 'string') return body;
-  try {
-    return typeof body === 'object' ? JSON.stringify(body) : String(body);
-  } catch {
-    return undefined;
+  if (typeof body === 'object') {
+    // FormData / URLSearchParams / streams stringify to useless [object …]; skip
+    // them rather than emit garbage (canonical reads decoded text bodies).
+    const tag = Object.prototype.toString.call(body);
+    if (
+      tag === '[object FormData]' ||
+      tag === '[object URLSearchParams]' ||
+      tag === '[object ReadableStream]' ||
+      ArrayBuffer.isView(body) ||
+      body instanceof ArrayBuffer
+    ) {
+      return body instanceof URLSearchParams ? body.toString() : undefined;
+    }
+    try {
+      return JSON.stringify(body);
+    } catch {
+      return undefined;
+    }
   }
+  return String(body);
+}
+
+// Canonical _is_text_content_type (http_governance_hooks.py:111-116): gate
+// response-body capture on text content types; assume text when absent.
+function isTextContentType(contentType: string | null | undefined): boolean {
+  if (!contentType) return true;
+  const ct = contentType.toLowerCase();
+  return (
+    ct.startsWith('text/') ||
+    ct.includes('application/json') ||
+    ct.includes('application/xml') ||
+    ct.includes('application/javascript') ||
+    ct.includes('application/x-www-form-urlencoded')
+  );
+}
+
+// Capture the request body as a truncated STRING (matches canonical request_body)
+// — from init.body, else from a Request object's own body.
+async function captureRequestBodyString(
+  input: Request | string | URL,
+  init: RequestInit | undefined,
+): Promise<string | undefined> {
+  if (init?.body !== undefined && init?.body !== null) {
+    return truncateBody(bodyText(init.body)) as string | undefined;
+  }
+  const reqObj =
+    input && typeof input === 'object' && !(input instanceof URL)
+      ? (input as Request)
+      : undefined;
+  if (reqObj && reqObj.body) {
+    try {
+      return truncateBody(await reqObj.clone().text()) as string | undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 const DEFAULT_LLM_URL_PATTERN =
@@ -609,17 +760,22 @@ async function captureHttpSpan(
   url: string,
   store: SubOpCaptureStore,
 ): Promise<Response> {
-  const { method, requestHeaders, requestBody } = requestParts(input, init);
+  const { method, requestHeaders } = requestParts(input, init);
+  const requestBody = await captureRequestBodyString(input, init);
   const startMs = Date.now();
   try {
     const response = await baseFetch(input as RequestInfo, init);
     const endMs = Date.now();
-    let responseBody: unknown;
+    let responseBody: string | undefined;
     let responseHeaders: Record<string, string> = {};
     try {
       const clone = response.clone();
       responseHeaders = headersToRecord(clone.headers);
-      responseBody = safeJsonParse(await clone.text());
+      // Only capture text-ish response bodies (canonical _is_text_content_type),
+      // and cap them at MAX_HTTP_BODY.
+      if (isTextContentType(clone.headers.get('content-type'))) {
+        responseBody = truncateBody(await clone.text()) as string | undefined;
+      }
     } catch {
       responseHeaders = headersToRecord(response.headers);
     }
@@ -629,11 +785,11 @@ async function captureHttpSpan(
         method,
         url,
         request_headers: requestHeaders,
-        request_body: truncateBody(requestBody),
+        request_body: requestBody,
       },
       {
         response_headers: responseHeaders,
-        response_body: truncateBody(responseBody),
+        response_body: responseBody,
         http_status_code: response.status,
       },
       {
@@ -650,7 +806,7 @@ async function captureHttpSpan(
         method,
         url,
         request_headers: requestHeaders,
-        request_body: truncateBody(requestBody),
+        request_body: requestBody,
       },
       {},
       { startMs, endMs: Date.now(), error },

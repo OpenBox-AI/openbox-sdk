@@ -86,6 +86,41 @@ export function modelProviderFromRequest(request: unknown): string | undefined {
   ]);
 }
 
+/**
+ * Unwrap potentially double-encoded JSON tool input (canonical
+ * openbox-langgraph-sdk-python `_unwrap_tool_input`, langgraph_handler.py:1524-1538).
+ * A string that JSON-parses to an object is returned as that object;
+ * `{"input":"<json-string>"}` is unwrapped one further level; a non-string, a
+ * non-JSON string, or non-object JSON (array/number) is returned unchanged. This
+ * lets Rego policies match the structured `activity_input` args instead of an
+ * opaque stringified payload.
+ */
+export function unwrapToolInput(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      const keys = Object.keys(record);
+      if (
+        keys.length === 1 &&
+        keys[0] === 'input' &&
+        typeof record.input === 'string'
+      ) {
+        try {
+          return JSON.parse(record.input);
+        } catch {
+          return raw;
+        }
+      }
+      return parsed;
+    }
+  } catch {
+    // Not JSON — fall through and return the original string.
+  }
+  return raw;
+}
+
 export function toolCallInput(request: {
   toolCall?: { id?: string; name?: string; args?: unknown };
   tool?: { description?: string };
@@ -93,7 +128,7 @@ export function toolCallInput(request: {
   return {
     id: request.toolCall?.id,
     name: request.toolCall?.name,
-    args: toPlain(request.toolCall?.args),
+    args: toPlain(unwrapToolInput(request.toolCall?.args)),
     description: request.tool?.description,
   };
 }

@@ -27,13 +27,104 @@ function now(): number {
   return Date.now();
 }
 
+function byteLength(data: string | Buffer | NodeJS.ArrayBufferView): number {
+  if (typeof data === 'string') return Buffer.byteLength(data);
+  if (Buffer.isBuffer(data)) return data.byteLength;
+  return (data as ArrayBufferView).byteLength ?? 0;
+}
+
+// Capture text content only (binary stays as bytes_read without a body).
+function textData(data: unknown): string | undefined {
+  return typeof data === 'string' ? data : undefined;
+}
+
+function fileFlag(
+  options:
+    | { encoding?: BufferEncoding | null; flag?: string | number }
+    | BufferEncoding
+    | null
+    | undefined,
+  fallback: string,
+): string {
+  if (options && typeof options === 'object' && options.flag != null) {
+    return String(options.flag);
+  }
+  return fallback;
+}
+
+// Mirror the canonical open→operation→close lifecycle: a `file.open` span held
+// across the op (started 'open', completed 'close' carrying aggregate bytes +
+// operations[]) PLUS the per-operation read/write span carrying data + bytes.
+function emitFileRead(
+  filePath: string,
+  mode: string,
+  result: string | Buffer | undefined,
+  startMs: number,
+  endMs: number,
+  error?: unknown,
+): void {
+  const bytesRead = error || result === undefined ? undefined : byteLength(result);
+  recordFileOperation({
+    filePath,
+    operation: 'open',
+    fileMode: mode,
+    operations: ['read'],
+    bytesRead,
+    startMs,
+    endMs,
+    error,
+  });
+  recordFileOperation({
+    filePath,
+    operation: 'read',
+    fileMode: mode,
+    bytesRead,
+    data: error ? undefined : textData(result),
+    startMs,
+    endMs,
+    error,
+  });
+}
+
+function emitFileWrite(
+  filePath: string,
+  mode: string,
+  data: string | Buffer | NodeJS.ArrayBufferView,
+  startMs: number,
+  endMs: number,
+  error?: unknown,
+): void {
+  const bytesWritten = error ? undefined : byteLength(data);
+  recordFileOperation({
+    filePath,
+    operation: 'open',
+    fileMode: mode,
+    operations: ['write'],
+    bytesWritten,
+    startMs,
+    endMs,
+    error,
+  });
+  recordFileOperation({
+    filePath,
+    operation: 'write',
+    fileMode: mode,
+    bytesWritten,
+    data: error ? undefined : textData(data),
+    startMs,
+    endMs,
+    error,
+  });
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // File I/O
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * Instrumented synchronous file read. Emits a `file_operation` (read) span pair
- * into the active capture scope, then returns the file contents. Use in place of
+ * Instrumented synchronous file read. Emits the canonical `file.open`(open→close)
+ * + `file.read` span pair (with file_mode, bytes_read, and text data) into the
+ * active capture scope, then returns the file contents. Use in place of
  * `fs.readFileSync` inside a governed tool so secret-path reads are governed by
  * OpenBox's file-read behavioral rules.
  */
@@ -45,27 +136,13 @@ export function tracedReadFileSync(
     | null,
 ): string | Buffer {
   const startMs = now();
+  const mode = fileFlag(options as never, 'r');
   try {
     const result = fs.readFileSync(path, options as never);
-    if (isCapturing()) {
-      recordFileOperation({
-        filePath: String(path),
-        operation: 'read',
-        startMs,
-        endMs: now(),
-      });
-    }
+    if (isCapturing()) emitFileRead(String(path), mode, result, startMs, now());
     return result;
   } catch (error) {
-    if (isCapturing()) {
-      recordFileOperation({
-        filePath: String(path),
-        operation: 'read',
-        startMs,
-        endMs: now(),
-        error,
-      });
-    }
+    if (isCapturing()) emitFileRead(String(path), mode, undefined, startMs, now(), error);
     throw error;
   }
 }
@@ -79,27 +156,57 @@ export async function tracedReadFile(
     | null,
 ): Promise<string | Buffer> {
   const startMs = now();
+  const mode = fileFlag(options, 'r');
   try {
     const result = await fsp.readFile(path, options as never);
-    if (isCapturing()) {
-      recordFileOperation({
-        filePath: String(path),
-        operation: 'read',
-        startMs,
-        endMs: now(),
-      });
-    }
+    if (isCapturing()) emitFileRead(String(path), mode, result, startMs, now());
     return result;
   } catch (error) {
-    if (isCapturing()) {
-      recordFileOperation({
-        filePath: String(path),
-        operation: 'read',
-        startMs,
-        endMs: now(),
-        error,
-      });
-    }
+    if (isCapturing()) emitFileRead(String(path), mode, undefined, startMs, now(), error);
+    throw error;
+  }
+}
+
+/**
+ * Instrumented synchronous file write. Emits the canonical `file.open`(open→close)
+ * + `file.write` span pair (file_mode, bytes_written, text data) so file-write
+ * behavioral rules fire on real writes. Use in place of `fs.writeFileSync`.
+ */
+export function tracedWriteFileSync(
+  path: string | URL,
+  data: string | NodeJS.ArrayBufferView,
+  options?:
+    | { encoding?: BufferEncoding | null; mode?: number; flag?: string }
+    | BufferEncoding
+    | null,
+): void {
+  const startMs = now();
+  const mode = fileFlag(options as never, 'w');
+  try {
+    fs.writeFileSync(path, data as never, options as never);
+    if (isCapturing()) emitFileWrite(String(path), mode, data, startMs, now());
+  } catch (error) {
+    if (isCapturing()) emitFileWrite(String(path), mode, data, startMs, now(), error);
+    throw error;
+  }
+}
+
+/** Instrumented asynchronous file write (promise form). */
+export async function tracedWriteFile(
+  path: string | URL,
+  data: string | NodeJS.ArrayBufferView,
+  options?:
+    | { encoding?: BufferEncoding | null; mode?: number; flag?: string }
+    | BufferEncoding
+    | null,
+): Promise<void> {
+  const startMs = now();
+  const mode = fileFlag(options as never, 'w');
+  try {
+    await fsp.writeFile(path, data as never, options as never);
+    if (isCapturing()) emitFileWrite(String(path), mode, data, startMs, now());
+  } catch (error) {
+    if (isCapturing()) emitFileWrite(String(path), mode, data, startMs, now(), error);
     throw error;
   }
 }
@@ -123,12 +230,50 @@ interface SqliteDatabaseLike {
 
 const INSTRUMENTED = Symbol('openbox.sqlite.instrumented');
 
+// Canonical _classify_sql verb whitelist (db_governance_hooks.py:71-80) — any
+// other leading token classifies as UNKNOWN.
+const SQL_VERBS = new Set([
+  'SELECT',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'CREATE',
+  'DROP',
+  'ALTER',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+]);
+
 function sqlOperation(statement: string): string {
   const match = statement.trim().match(/^[a-zA-Z]+/);
-  return (match ? match[0] : 'UNKNOWN').toUpperCase();
+  const verb = (match ? match[0] : '').toUpperCase();
+  return SQL_VERBS.has(verb) ? verb : 'UNKNOWN';
 }
 
-function timeDatabaseCall<T>(statement: string, run: () => T): T {
+// rowcount from the driver result, by call shape (canonical reads cursor.rowcount).
+function rowcountFor(
+  method: 'run' | 'get' | 'all' | 'exec',
+  result: unknown,
+): number | undefined {
+  if (method === 'all') return Array.isArray(result) ? result.length : undefined;
+  if (method === 'get') return result == null ? 0 : 1;
+  if (method === 'run') {
+    const changes = (result as { changes?: unknown } | null)?.changes;
+    if (typeof changes === 'number') return changes;
+    if (typeof changes === 'bigint') return Number(changes);
+  }
+  return undefined;
+}
+
+function timeDatabaseCall<T>(
+  statement: string,
+  method: 'run' | 'get' | 'all' | 'exec',
+  dbName: string | null,
+  run: () => T,
+): T {
   const startMs = now();
   try {
     const result = run();
@@ -137,6 +282,12 @@ function timeDatabaseCall<T>(statement: string, run: () => T): T {
         statement,
         operation: sqlOperation(statement),
         system: 'sqlite',
+        dbName,
+        // sqlite is file/in-memory — no network endpoint (canonical leaves these
+        // null for sqlite too).
+        serverAddress: null,
+        serverPort: null,
+        rowcount: rowcountFor(method, result),
         startMs,
         endMs: now(),
       });
@@ -148,6 +299,9 @@ function timeDatabaseCall<T>(statement: string, run: () => T): T {
         statement,
         operation: sqlOperation(statement),
         system: 'sqlite',
+        dbName,
+        serverAddress: null,
+        serverPort: null,
         startMs,
         endMs: now(),
         error,
@@ -157,10 +311,20 @@ function timeDatabaseCall<T>(statement: string, run: () => T): T {
   }
 }
 
+function sqliteDbName(db: SqliteDatabaseLike): string | null {
+  // better-sqlite3 exposes `name` (file path); node:sqlite DatabaseSync exposes
+  // `location`. Fall back to null (canonical db_name is nullable).
+  const named = db as { name?: unknown; location?: unknown };
+  if (typeof named.name === 'string') return named.name;
+  if (typeof named.location === 'string') return named.location;
+  return null;
+}
+
 /**
  * Wrap a sqlite Database instance (better-sqlite3 or node:sqlite `DatabaseSync`)
- * so every `prepare(...).run/get/all` and `exec` emits a `db_query` span into the
- * active capture scope. Returns the same instance (mutated). Idempotent.
+ * so every `prepare(...).run/get/all` and `exec` emits a `db_query` span (with
+ * db_name + rowcount) into the active capture scope. Returns the same instance
+ * (mutated). Idempotent.
  */
 export function instrumentSqlite<TDatabase extends SqliteDatabaseLike>(
   db: TDatabase,
@@ -168,6 +332,7 @@ export function instrumentSqlite<TDatabase extends SqliteDatabaseLike>(
   const flagged = db as TDatabase & { [INSTRUMENTED]?: boolean };
   if (flagged[INSTRUMENTED]) return db;
   flagged[INSTRUMENTED] = true;
+  const dbName = sqliteDbName(db);
 
   const originalPrepare = db.prepare.bind(db);
   db.prepare = (sql: string): SqliteStatementLike => {
@@ -177,7 +342,7 @@ export function instrumentSqlite<TDatabase extends SqliteDatabaseLike>(
       if (typeof original === 'function') {
         const bound = original.bind(stmt);
         stmt[method] = (...args: unknown[]) =>
-          timeDatabaseCall(sql, () => bound(...args));
+          timeDatabaseCall(sql, method, dbName, () => bound(...args));
       }
     }
     return stmt;
@@ -185,7 +350,8 @@ export function instrumentSqlite<TDatabase extends SqliteDatabaseLike>(
 
   if (typeof db.exec === 'function') {
     const originalExec = db.exec.bind(db);
-    db.exec = (sql: string) => timeDatabaseCall(sql, () => originalExec(sql));
+    db.exec = (sql: string) =>
+      timeDatabaseCall(sql, 'exec', dbName, () => originalExec(sql));
   }
 
   return db;

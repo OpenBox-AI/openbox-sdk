@@ -19,6 +19,7 @@ import {
   toPlain,
   toolCallInput,
   truncate,
+  unwrapToolInput,
   withGovernedAssistantOutput,
   withGovernedModelInput,
   withGovernedToolInput,
@@ -806,5 +807,31 @@ describe('copilotkit helper coverage', () => {
       trustTier: 1,
       artifact: { body: 'plain' },
     });
+  });
+
+  it('unwrapToolInput unwraps double-encoded JSON tool input (canonical _unwrap_tool_input)', () => {
+    // Non-string passes through unchanged.
+    const obj = { city: 'SF', units: 'metric' };
+    expect(unwrapToolInput(obj)).toBe(obj);
+    // A stringified-JSON object unwraps to the object.
+    expect(unwrapToolInput('{"city":"SF","units":"metric"}')).toEqual({
+      city: 'SF',
+      units: 'metric',
+    });
+    // {"input":"<json-string>"} unwraps one further level.
+    expect(unwrapToolInput('{"input":"{\\"city\\":\\"SF\\"}"}')).toEqual({
+      city: 'SF',
+    });
+    // A non-single-key dict containing `input` is returned as the parsed dict.
+    expect(unwrapToolInput('{"input":"x","other":1}')).toEqual({
+      input: 'x',
+      other: 1,
+    });
+    // {"input":"<not-json>"} keeps the original string (inner parse fails).
+    expect(unwrapToolInput('{"input":"not json"}')).toBe('{"input":"not json"}');
+    // A non-JSON string passes through unchanged.
+    expect(unwrapToolInput('just text')).toBe('just text');
+    // Non-object JSON (array/number) passes through unchanged.
+    expect(unwrapToolInput('[1,2,3]')).toBe('[1,2,3]');
   });
 });

@@ -49,15 +49,15 @@ describe('CopilotKit pure utility coverage', () => {
   it('resolves runtime, backend, and signed-agent config branches', () => {
     withEnv(
       {
-        OPENBOX_API_KEY: 'obx_test_from_env',
+        OPENBOX_API_KEY: 'obx_test_ffffffffffffffffffffffffffffffffffffffffffffffff',
         OPENBOX_BACKEND_API_KEY: 'obx_key_from_env',
         OPENBOX_AGENT_DID: 'did:aip:550e8400-e29b-41d4-a716-446655440001',
         OPENBOX_AGENT_PRIVATE_KEY: FAKE_AGENT_PRIVATE_KEY,
       },
       () => {
-        expect(getRuntimeApiKey({})).toBe('obx_test_from_env');
-        expect(getRuntimeApiKey({ apiKey: 'obx_live_explicit' })).toBe(
-          'obx_live_explicit',
+        expect(getRuntimeApiKey({})).toBe('obx_test_ffffffffffffffffffffffffffffffffffffffffffffffff');
+        expect(getRuntimeApiKey({ apiKey: 'obx_live_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' })).toBe(
+          'obx_live_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
         );
         expect(getApprovalBackendApiKey({})).toBe('obx_key_from_env');
         expect(getApprovalBackendApiKey({ backendApiKey: 'obx_key_explicit' })).toBe(
@@ -105,7 +105,7 @@ describe('CopilotKit pure utility coverage', () => {
     );
     withEnv(
       {
-        OPENBOX_API_KEY: 'obx_test_runtime',
+        OPENBOX_API_KEY: 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
         OPENBOX_CORE_URL: undefined,
       },
       () => {
@@ -123,7 +123,7 @@ describe('CopilotKit pure utility coverage', () => {
     writeFileSync(
       join(configDir, '.env'),
       [
-        'OPENBOX_API_KEY="obx_test_project"',
+        'OPENBOX_API_KEY="obx_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"',
         'OPENBOX_CORE_URL="http://127.0.0.1:8086"',
         'OPENBOX_BACKEND_API_KEY="obx_key_project"',
         'OPENBOX_AGENT_DID="did:aip:550e8400-e29b-41d4-a716-446655440000"',
@@ -140,7 +140,7 @@ describe('CopilotKit pure utility coverage', () => {
         OPENBOX_AGENT_PRIVATE_KEY: undefined,
       },
       () => {
-        expect(getRuntimeApiKey({ cwd })).toBe('obx_test_project');
+        expect(getRuntimeApiKey({ cwd })).toBe('obx_test_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
         expect(getApprovalBackendApiKey({ cwd })).toBe('obx_key_project');
         expect(getAgentIdentity({ cwd })).toEqual({
           did: 'did:aip:550e8400-e29b-41d4-a716-446655440000',
@@ -154,7 +154,7 @@ describe('CopilotKit pure utility coverage', () => {
   it('caches Core clients until the runtime cache key changes', () => {
     withEnv(
       {
-        OPENBOX_API_KEY: 'obx_test_runtime',
+        OPENBOX_API_KEY: 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
         OPENBOX_CORE_URL: 'http://127.0.0.1:8086',
         OPENBOX_AGENT_DID: undefined,
         OPENBOX_AGENT_PRIVATE_KEY: undefined,

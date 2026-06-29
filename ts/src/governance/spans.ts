@@ -103,6 +103,7 @@ export interface SpanInput {
   model?: string;
   usage?: LLMTokenUsage;
   file_path?: string;
+  file_mode?: string;
   command?: string;
   cwd?: string;
   tool_name?: string;
@@ -930,10 +931,20 @@ function sanitizeHeaderValue(key: string, value: string): string {
     const [scheme] = value.trim().split(/\s+/, 1);
     return scheme ? `${scheme} <redacted>` : '<redacted>';
   }
+  if (normalizedKey === 'proxy-authorization') {
+    const [scheme] = value.trim().split(/\s+/, 1);
+    return scheme ? `${scheme} <redacted>` : '<redacted>';
+  }
   if (
     normalizedKey === 'cookie' ||
     normalizedKey === 'set-cookie' ||
+    // proxy-authorization handled above; www-authenticate carries a challenge
+    // that can leak realm/token material — redact like the canonical Python set
+    // (authorization, cookie, set-cookie, x-api-key, x-auth-token,
+    // proxy-authorization, www-authenticate).
+    normalizedKey === 'www-authenticate' ||
     normalizedKey === 'x-api-key' ||
+    normalizedKey === 'x-auth-token' ||
     normalizedKey.includes('api-key') ||
     normalizedKey.includes('token')
   ) {
@@ -1483,7 +1494,7 @@ function buildSpanWithClassifierFields(
         },
         module: host,
         file_path: input.file_path ?? '',
-        file_mode: 'r',
+        file_mode: (input.file_mode as string | undefined) ?? 'r',
         file_operation: 'read',
       };
     case 'file_open':
@@ -1501,7 +1512,7 @@ function buildSpanWithClassifierFields(
         },
         module: host,
         file_path: input.file_path ?? '',
-        file_mode: 'r',
+        file_mode: (input.file_mode as string | undefined) ?? 'r',
         file_operation: 'open',
       };
     case 'file_write':
@@ -1519,7 +1530,7 @@ function buildSpanWithClassifierFields(
         },
         module: host,
         file_path: input.file_path ?? '',
-        file_mode: 'w',
+        file_mode: (input.file_mode as string | undefined) ?? 'w',
         file_operation: 'write',
       };
     case 'file_delete':

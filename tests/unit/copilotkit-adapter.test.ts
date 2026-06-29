@@ -305,7 +305,7 @@ describe('CopilotKit OpenBox adapter', () => {
       OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
       OPENBOX_AGENT_ID: process.env.OPENBOX_AGENT_ID,
     };
-    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_API_KEY = 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
     delete process.env.OPENBOX_API_URL;
     delete process.env.OPENBOX_AGENT_ID;
@@ -324,14 +324,14 @@ describe('CopilotKit OpenBox adapter', () => {
       OPENBOX_API_KEY: process.env.OPENBOX_API_KEY,
       OPENBOX_CORE_URL: process.env.OPENBOX_CORE_URL,
     };
-    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_API_KEY = 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
 
     try {
       expect(createOpenBoxCopilotKitAdapter().isEnabled()).toBe(true);
       expect(
         createOpenBoxCopilotKitAdapter({
-          apiKey: 'obx_test_runtime',
+          apiKey: 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
           coreUrl: 'http://127.0.0.1:8086',
         }).isEnabled(),
       ).toBe(true);
@@ -367,7 +367,7 @@ describe('CopilotKit OpenBox adapter', () => {
       OPENBOX_AGENT_DID: process.env.OPENBOX_AGENT_DID,
       OPENBOX_AGENT_PRIVATE_KEY: process.env.OPENBOX_AGENT_PRIVATE_KEY,
     };
-    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_API_KEY = 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
     process.env.OPENBOX_AGENT_PRIVATE_KEY = FAKE_AGENT_PRIVATE_KEY;
@@ -385,7 +385,7 @@ describe('CopilotKit OpenBox adapter', () => {
 
   it('passes explicit Core timeout into the runtime Core client', () => {
     const adapter = createOpenBoxCopilotKitAdapter({
-      apiKey: 'obx_test_runtime',
+      apiKey: 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       coreUrl: 'http://127.0.0.1:8086',
       coreTimeoutMs: 90_000,
     });
@@ -401,7 +401,7 @@ describe('CopilotKit OpenBox adapter', () => {
       OPENBOX_AGENT_DID: process.env.OPENBOX_AGENT_DID,
       OPENBOX_AGENT_PRIVATE_KEY: process.env.OPENBOX_AGENT_PRIVATE_KEY,
     };
-    process.env.OPENBOX_API_KEY = 'obx_test_runtime';
+    process.env.OPENBOX_API_KEY = 'obx_test_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     process.env.OPENBOX_CORE_URL = 'http://127.0.0.1:8086';
     process.env.OPENBOX_AGENT_DID = 'did:aip:550e8400-e29b-41d4-a716-446655440000';
     delete process.env.OPENBOX_AGENT_PRIVATE_KEY;
@@ -1266,6 +1266,45 @@ describe('CopilotKit OpenBox adapter', () => {
         reason: 'approval allowed by server',
         approvalExpiresAt: '2026-01-01 00:00:09',
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps polling on a CONSTRAIN verdict until a terminal verdict (canonical hitl.py:88)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+      let polls = 0;
+      const core = {
+        evaluate: vi.fn(),
+        pollApproval: vi.fn(async () => {
+          polls += 1;
+          // CONSTRAIN is "still pending" in canonical — must keep polling, not
+          // return early (the bug this guards against).
+          return {
+            action: polls === 1 ? 'constrain' : 'allow',
+            reason:
+              polls === 1 ? 'constrained, still pending' : 'approval allowed',
+          };
+        }),
+      };
+      const adapter = createOpenBoxCopilotKitAdapter({
+        core: core as any,
+        workflowType: 'CopilotKitTestWorkflow',
+        taskQueue: 'langgraph',
+      });
+      const { pollApproval } = await import(
+        '../../ts/src/copilotkit/workflow-session'
+      );
+      const result = pollApproval(adapter, {
+        workflowId: 'workflow-approval',
+        runId: 'run-approval',
+        activityId: 'activity-approval',
+      });
+      await vi.advanceTimersByTimeAsync(750);
+      await expect(result).resolves.toMatchObject({ arm: 'allow' });
+      expect(core.pollApproval).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

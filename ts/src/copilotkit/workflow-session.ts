@@ -175,7 +175,11 @@ export async function pollApproval(
     if (guardrailsResult?.validationPassed === false && !response.reason) {
       last.reason = guardrailFailureReason(guardrailsResult);
     }
-    if (last && last.arm !== 'require_approval') return last;
+    // Canonical hitl.py:88 — REQUIRE_APPROVAL and CONSTRAIN are both "still
+    // pending"; keep polling. Only ALLOW or a stop verdict (block/halt) terminates.
+    if (last && last.arm !== 'require_approval' && last.arm !== 'constrain') {
+      return last;
+    }
     await sleep(APPROVAL_POLL_INTERVAL_MS);
   }
 }

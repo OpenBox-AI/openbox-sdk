@@ -22,6 +22,7 @@ import {
   nowUnixNano,
   sameJson,
   swallow,
+  unwrapToolInput,
 } from './internal-utils.js';
 import { applyOpenBoxTransform, isAllowed, safePayload } from './results.js';
 import type {
@@ -1091,10 +1092,12 @@ function toolNameFromPayload(payload: unknown): string | undefined {
 
 function toolInputFromPayload(payload: unknown): Record<string, unknown> {
   const record = recordFrom(payload);
-  const args = recordFrom(record.args);
+  // Unwrap double-encoded JSON args so structured args reach Core (canonical
+  // _unwrap_tool_input). A stringified-JSON args becomes an object here.
+  const args = recordFrom(unwrapToolInput(record.args));
   if (Object.keys(args).length > 0) return args;
   const toolCall = recordFrom(record.toolCall);
-  const toolCallArgs = recordFrom(toolCall.args);
+  const toolCallArgs = recordFrom(unwrapToolInput(toolCall.args));
   if (Object.keys(toolCallArgs).length > 0) return toolCallArgs;
   return record;
 }
