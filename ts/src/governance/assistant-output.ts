@@ -35,7 +35,6 @@ export interface AssistantOutputTelemetryInput {
   httpStatusCode?: unknown;
   rawRequestBody?: unknown;
   rawResponseBody?: unknown;
-  redactSensitiveHeaders?: boolean;
   startTime?: number;
   endTime?: number;
   durationNs?: number;
@@ -103,7 +102,6 @@ export function buildAssistantOutputSpan(
       httpStatusCode: input.httpStatusCode,
       rawRequestBody: input.rawRequestBody,
       rawResponseBody: input.rawResponseBody,
-      redactSensitiveHeaders: input.redactSensitiveHeaders,
       providerUrl: input.providerUrl,
       startTime: input.startTime,
       endTime: input.endTime,

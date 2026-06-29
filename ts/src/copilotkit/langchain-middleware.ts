@@ -350,8 +350,6 @@ export function createOpenBoxLangChainMiddleware({
                   responseHeaders: captured.responseHeaders,
                   httpStatusCode: captured.httpStatusCode,
                 },
-                redactSensitiveHeaders:
-                  process.env.OPENBOX_CAPTURE_RAW_HEADERS !== 'true',
                 // Carry the REAL wall-clock timing of the provider HTTP
                 // exchange (recorded by the instrumented fetch) so the
                 // llm_completion span's start_time/end_time/duration reflect

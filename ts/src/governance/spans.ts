@@ -104,6 +104,10 @@ export interface SpanInput {
   usage?: LLMTokenUsage;
   file_path?: string;
   file_mode?: string;
+  // Completed-stage byte counts (merged in by recordOpSpanPair). The canonical
+  // file hooks surface the count as a `file.bytes` span attribute on read/write.
+  bytes_read?: number;
+  bytes_written?: number;
   command?: string;
   cwd?: string;
   tool_name?: string;
@@ -141,9 +145,6 @@ export interface SpanInput {
   // the span carries the real wire payload (full messages, raw provider JSON).
   rawRequestBody?: unknown;
   rawResponseBody?: unknown;
-  // When false, request/response headers are stored verbatim (no redaction of
-  // authorization/cookie/api-key). Defaults to redacted.
-  redactSensitiveHeaders?: boolean;
 }
 
 export interface LLMCompletionSpanInput {
@@ -170,8 +171,6 @@ export interface LLMCompletionSpanInput {
   // used verbatim so the completed span mirrors the real wire payload.
   rawRequestBody?: unknown;
   rawResponseBody?: unknown;
-  // When false, headers are stored verbatim with no redaction.
-  redactSensitiveHeaders?: boolean;
 }
 
 export interface LLMTokenUsage {
@@ -884,10 +883,10 @@ function defaultLLMRequestHeaders(provider?: string): Record<string, string> {
     'content-type': 'application/json',
   };
   if (normalizedProvider.includes('anthropic')) {
-    headers['x-api-key'] = '<redacted>';
+    headers['x-api-key'] = '[REDACTED]';
     headers['anthropic-version'] = '2023-06-01';
   } else {
-    headers.authorization = 'Bearer <redacted>';
+    headers.authorization = '[REDACTED]';
   }
   return headers;
 }
@@ -913,42 +912,38 @@ function coerceHttpStatusCode(value: unknown): number | undefined {
   return Math.trunc(numeric);
 }
 
-function sanitizeHeaderMap(
-  value: unknown,
-  redact = true,
-): Record<string, string> | undefined {
+// Sensitive headers are ALWAYS redacted — there is no opt-out flag, mirroring
+// the canonical Python SDK (_sanitize_headers), which unconditionally replaces
+// the value with the literal `[REDACTED]`.
+function sanitizeHeaderMap(value: unknown): Record<string, string> | undefined {
   const record = objectRecord(value);
   const entries = Object.entries(record).flatMap(([key, entry]) => {
     if (typeof entry !== 'string') return [];
-    return [[key, redact ? sanitizeHeaderValue(key, entry) : entry] as const];
+    return [[key, sanitizeHeaderValue(key, entry)] as const];
   });
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+const REDACTED = '[REDACTED]';
+
 function sanitizeHeaderValue(key: string, value: string): string {
   const normalizedKey = key.toLowerCase();
-  if (normalizedKey === 'authorization') {
-    const [scheme] = value.trim().split(/\s+/, 1);
-    return scheme ? `${scheme} <redacted>` : '<redacted>';
-  }
-  if (normalizedKey === 'proxy-authorization') {
-    const [scheme] = value.trim().split(/\s+/, 1);
-    return scheme ? `${scheme} <redacted>` : '<redacted>';
-  }
   if (
+    // Canonical sensitive set (http_governance_hooks.py:_SENSITIVE_HEADERS):
+    // authorization, cookie, set-cookie, x-api-key, x-auth-token,
+    // proxy-authorization, www-authenticate. The *token*/*api-key* heuristics
+    // are an additive safety superset.
+    normalizedKey === 'authorization' ||
+    normalizedKey === 'proxy-authorization' ||
     normalizedKey === 'cookie' ||
     normalizedKey === 'set-cookie' ||
-    // proxy-authorization handled above; www-authenticate carries a challenge
-    // that can leak realm/token material — redact like the canonical Python set
-    // (authorization, cookie, set-cookie, x-api-key, x-auth-token,
-    // proxy-authorization, www-authenticate).
     normalizedKey === 'www-authenticate' ||
     normalizedKey === 'x-api-key' ||
     normalizedKey === 'x-auth-token' ||
     normalizedKey.includes('api-key') ||
     normalizedKey.includes('token')
   ) {
-    return '<redacted>';
+    return REDACTED;
   }
   return value;
 }
@@ -961,7 +956,6 @@ export function buildLLMCompletionSpan(
   input: LLMCompletionSpanInput,
 ): SpanData {
   const now = Date.now() * 1_000_000;
-  const redact = input.redactSensitiveHeaders !== false;
   const source = input.span ?? {};
   const sourceRecord = source as SpanData & {
     durationNs?: unknown;
@@ -1028,7 +1022,7 @@ export function buildLLMCompletionSpan(
     input.httpStatusCode ?? source.http_status_code,
   );
   const responseHeaders =
-    sanitizeHeaderMap(input.responseHeaders ?? source.response_headers, redact) ??
+    sanitizeHeaderMap(input.responseHeaders ?? source.response_headers) ??
     (httpStatusCode !== undefined
       ? defaultLLMResponseHeaders(modelTelemetry.provider)
       : undefined);
@@ -1124,7 +1118,6 @@ export function buildLLMCompletionSpan(
         input.requestHeaders ??
           source.request_headers ??
           defaultLLMRequestHeaders(modelTelemetry.provider),
-        redact,
       ) ?? defaultLLMRequestHeaders(modelTelemetry.provider),
     data: input.data ?? source.data,
     response_body:
@@ -1209,7 +1202,6 @@ function buildSpanWithClassifierFields(
           ? { messages: [{ role: 'user', content: input.prompt }] }
           : {}),
       };
-      const llmRedact = input.redactSensitiveHeaders !== false;
       const llmRequestBodyString =
         input.rawRequestBody !== undefined
           ? stringifyBody(input.rawRequestBody)
@@ -1231,10 +1223,7 @@ function buildSpanWithClassifierFields(
           (llmStage === 'completed' ? 200 : undefined),
       );
       const llmResponseHeaders =
-        sanitizeHeaderMap(
-          input.response_headers ?? input.responseHeaders,
-          llmRedact,
-        ) ??
+        sanitizeHeaderMap(input.response_headers ?? input.responseHeaders) ??
         (llmHttpStatusCode !== undefined
           ? defaultLLMResponseHeaders(modelTelemetry.provider)
           : undefined);
@@ -1320,7 +1309,7 @@ function buildSpanWithClassifierFields(
         http_url: llmHttpUrl,
         ...(llmRequestBodyString ? { request_body: llmRequestBodyString } : {}),
         request_headers:
-          sanitizeHeaderMap(llmRequestHeaders, llmRedact) ??
+          sanitizeHeaderMap(llmRequestHeaders) ??
           defaultLLMRequestHeaders(modelTelemetry.provider),
         ...(llmResponseHeaders ? { response_headers: llmResponseHeaders } : {}),
         ...(llmHttpStatusCode !== undefined
@@ -1486,9 +1475,14 @@ function buildSpanWithClassifierFields(
         kind: 'INTERNAL',
         span_type: 'file_io',
         hook_type: 'file_operation',
+        // Canonical read span sets `file.bytes` (the byte count) once known — i.e.
+        // on the completed stage (file_governance_hooks.py:TracedFile.read L178).
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'read',
+          ...(typeof input.bytes_read === 'number'
+            ? { 'file.bytes': input.bytes_read }
+            : {}),
           ...toolNameAttributes(input),
           'openbox.span_type': 'file_io',
         },
@@ -1504,8 +1498,13 @@ function buildSpanWithClassifierFields(
         kind: 'INTERNAL',
         span_type: 'file_io',
         hook_type: 'file_operation',
+        // Canonical open span (file_governance_hooks.py:traced_open) carries
+        // `file.mode`. We add it here (was missing); `file.operation` is retained
+        // additively because the other shared-builder hosts (cursor/claude-code/
+        // codex) assert it on the open span — extra OTel attrs are harmless.
         attributes: {
           'file.path': input.file_path ?? '',
+          'file.mode': (input.file_mode as string | undefined) ?? 'r',
           'file.operation': 'open',
           ...toolNameAttributes(input),
           'openbox.span_type': 'file_io',
@@ -1522,9 +1521,14 @@ function buildSpanWithClassifierFields(
         kind: 'INTERNAL',
         span_type: 'file_io',
         hook_type: 'file_operation',
+        // Canonical write span sets `file.bytes` (the byte count) once known — i.e.
+        // on the completed stage (file_governance_hooks.py:TracedFile.write L229).
         attributes: {
           'file.path': input.file_path ?? '',
           'file.operation': 'write',
+          ...(typeof input.bytes_written === 'number'
+            ? { 'file.bytes': input.bytes_written }
+            : {}),
           ...toolNameAttributes(input),
           'openbox.span_type': 'file_io',
         },

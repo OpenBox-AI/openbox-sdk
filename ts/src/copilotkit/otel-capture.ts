@@ -56,7 +56,7 @@ const captureStore = new AsyncLocalStorage<SubOpCaptureStore>();
 const tracer = trace.getTracer('openbox-copilotkit-subops');
 
 // Captured http span headers are redacted by buildSpan's headerMapOrNull
-// (authorization/cookie/x-api-key/*token* → '<redacted>'), so no extra
+// (authorization/cookie/x-api-key/*token* → '[REDACTED]'), so no extra
 // header sanitization is applied here.
 const MAX_HTTP_BODY = 8192;
 
@@ -125,7 +125,14 @@ export function isCapturing(): boolean {
   return captureStore.getStore() !== undefined;
 }
 
-function parentSpanIdForActivity(activityId: string): string {
+/**
+ * Derive a span id for the activity so captured sub-op spans (file/db/function)
+ * and the captured LLM `POST` span all parent to the SAME activity span — the
+ * canonical hooks parent every span to its activity (hook_governance.py:
+ * extract_span_context). Exported so the governed-tool LLM-capture path can
+ * reuse the exact same derivation.
+ */
+export function parentSpanIdForActivity(activityId: string): string {
   return createHash('sha256').update(activityId).digest('hex').slice(0, 16);
 }
 

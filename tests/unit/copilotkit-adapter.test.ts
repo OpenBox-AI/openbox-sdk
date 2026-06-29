@@ -1880,7 +1880,7 @@ describe('CopilotKit OpenBox adapter', () => {
       stage: 'started',
       hook_type: 'http_request',
       request_headers: expect.objectContaining({
-        authorization: 'Bearer <redacted>',
+        authorization: '[REDACTED]',
         'content-type': 'application/json',
       }),
       attributes: expect.objectContaining({
@@ -1904,7 +1904,7 @@ describe('CopilotKit OpenBox adapter', () => {
       hook_type: 'http_request',
       http_url: 'https://api.openai.com/v1/chat/completions',
       request_headers: expect.objectContaining({
-        authorization: 'Bearer <redacted>',
+        authorization: '[REDACTED]',
         'content-type': 'application/json',
       }),
       attributes: expect.objectContaining({
@@ -2379,7 +2379,7 @@ describe('CopilotKit OpenBox adapter', () => {
       stage: 'started',
       hook_type: 'http_request',
       request_headers: expect.objectContaining({
-        authorization: 'Bearer <redacted>',
+        authorization: '[REDACTED]',
         'content-type': 'application/json',
       }),
       attributes: expect.objectContaining({
@@ -3757,7 +3757,7 @@ describe('CopilotKit OpenBox adapter', () => {
       stage: 'started',
       hook_type: 'http_request',
       request_headers: expect.objectContaining({
-        authorization: 'Bearer <redacted>',
+        authorization: '[REDACTED]',
         'content-type': 'application/json',
       }),
       attributes: expect.objectContaining({
@@ -3774,7 +3774,7 @@ describe('CopilotKit OpenBox adapter', () => {
       hook_type: 'http_request',
       http_url: 'https://api.openai.com/v1/chat/completions',
       request_headers: expect.objectContaining({
-        authorization: 'Bearer <redacted>',
+        authorization: '[REDACTED]',
         'content-type': 'application/json',
       }),
     });
@@ -3870,7 +3870,7 @@ describe('CopilotKit OpenBox adapter', () => {
       hook_type: 'http_request',
       http_url: 'https://api.anthropic.com/v1/messages',
       request_headers: expect.objectContaining({
-        'x-api-key': '<redacted>',
+        'x-api-key': '[REDACTED]',
         'content-type': 'application/json',
       }),
     });
@@ -5410,7 +5410,7 @@ describe('CopilotKit canonical sub-op span capture', () => {
     expect(String(completed?.http_url)).toContain('api.example.com');
     // Sensitive request headers are redacted on the captured span (the SDK keeps
     // the auth scheme and redacts the secret).
-    expect(completed?.request_headers.authorization).toBe('Bearer <redacted>');
+    expect(completed?.request_headers.authorization).toBe('[REDACTED]');
   });
 
   it('captures a traced function as a function_call span pair', async () => {
@@ -5489,7 +5489,7 @@ describe('CopilotKit canonical sub-op span capture', () => {
     expect(typeof completed?.end_time).toBe('number');
     expect(typeof completed?.duration_ns).toBe('number');
     // Sensitive header redaction (SDK convention).
-    expect(completed?.request_headers.cookie).toBe('<redacted>');
+    expect(completed?.request_headers.cookie).toBe('[REDACTED]');
     // Body truncation at 8192 with the literal suffix.
     expect(String(started?.request_body)).toContain('...[truncated]');
     expect(String(started?.request_body).length).toBeLessThanOrEqual(

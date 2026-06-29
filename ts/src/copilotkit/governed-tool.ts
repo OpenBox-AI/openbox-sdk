@@ -42,6 +42,7 @@ import { EVENT } from '../governance/events.js';
 import {
   capturedLLMExchanges,
   capturedSubOpSpans,
+  parentSpanIdForActivity,
   runWithSubOpCapture,
   type CapturedLLMExchange,
 } from './otel-capture.js';
@@ -246,7 +247,7 @@ export function createGovernedCopilotTool<
                 {
                   input: toolActivityInput(definition, startedRedaction.input),
                   output: failedToolOutputForGovernance(error),
-                  spans: [...subOpSpans, ...capturedLlmCompletionSpans(llmCaptures)],
+                  spans: [...subOpSpans, ...capturedLlmCompletionSpans(llmCaptures, ids.activityId)],
                   hookSpanParentEventType: EVENT.START,
                 },
                 activityType,
@@ -275,7 +276,7 @@ export function createGovernedCopilotTool<
             {
               input: toolActivityInput(definition, startedRedaction.input),
               output: toolOutputForGovernance(provisional),
-              spans: [...subOpSpans, ...capturedLlmCompletionSpans(llmCaptures)],
+              spans: [...subOpSpans, ...capturedLlmCompletionSpans(llmCaptures, ids.activityId)],
               hookSpanParentEventType: EVENT.START,
             },
             activityType,
@@ -481,7 +482,10 @@ export function createGovernedCopilotTool<
               approvalResumeToolInput(definition, normalizedInput),
             ]),
             output: toolOutputForGovernance(result),
-            spans: [...resumeSubOpSpans, ...capturedLlmCompletionSpans(resumeLlmCaptures)],
+            spans: [
+              ...resumeSubOpSpans,
+              ...capturedLlmCompletionSpans(resumeLlmCaptures, ids.activityId),
+            ],
             hookSpanParentEventType: EVENT.START,
           }),
       );
@@ -663,8 +667,14 @@ export function createGovernedCopilotTool<
 // POST is instrumented as an http_request span (server-classified llm_completion).
 function capturedLlmCompletionSpans(
   captures: CapturedLLMExchange[],
+  activityId?: string,
 ): SpanData[] {
-  const redact = process.env.OPENBOX_CAPTURE_RAW_HEADERS !== 'true';
+  // Canonical hooks always parent the provider POST span to its activity
+  // (hook_governance.py:extract_span_context). Derive the same parent the
+  // sibling file/db/function sub-op spans use so the LLM span is never orphaned.
+  const parentSpanId = activityId
+    ? parentSpanIdForActivity(activityId)
+    : null;
   const fieldString = (value: unknown, key: string): string | undefined => {
     const record =
       value && typeof value === 'object' && !Array.isArray(value)
@@ -679,6 +689,7 @@ function capturedLlmCompletionSpans(
       ...span,
       span_id: spanId,
       trace_id: traceId,
+      parent_span_id: parentSpanId,
     });
     // All values come from the real captured exchange: model from the wire
     // body, URL from the actual request, headers/body/status/timing verbatim.
@@ -695,7 +706,6 @@ function capturedLlmCompletionSpans(
         url: exchange.url,
         rawRequestBody: exchange.requestBody,
         request_headers: exchange.requestHeaders,
-        redactSensitiveHeaders: redact,
       }),
     );
     const completed = identify(
@@ -708,7 +718,6 @@ function capturedLlmCompletionSpans(
         request_headers: exchange.requestHeaders,
         response_headers: exchange.responseHeaders,
         http_status_code: exchange.httpStatusCode,
-        redactSensitiveHeaders: redact,
       }),
     );
     return [

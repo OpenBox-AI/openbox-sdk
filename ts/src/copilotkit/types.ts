@@ -361,10 +361,9 @@ export interface OpenBoxCopilotGateInput<T = unknown> {
   reason?: string;
   ensureWorkflowStarted?: boolean;
   parentActivityStarted?: boolean;
-  // Real captured LLM HTTP exchange (see OpenBoxLLMCapture) and whether to
-  // redact authorization/cookie/api-key headers when storing it.
+  // Real captured LLM HTTP exchange (see OpenBoxLLMCapture). Sensitive headers
+  // are always redacted when stored (canonical _sanitize_headers) — no opt-out.
   llmCapture?: OpenBoxLLMCapture;
-  redactSensitiveHeaders?: boolean;
 }
 
 export interface GovernedCopilotToolDefinition<

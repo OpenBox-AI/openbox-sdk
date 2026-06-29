@@ -63,7 +63,6 @@ type GateOverrides = Pick<
   | 'endTime'
   | 'durationMs'
   | 'llmCapture'
-  | 'redactSensitiveHeaders'
 > &
   GateTiming & {
     pairedToolInput?: unknown;
@@ -921,7 +920,6 @@ function spansForGate(
     requestHeaders: capture?.requestHeaders ?? metadata.requestHeaders,
     responseHeaders: capture?.responseHeaders ?? metadata.responseHeaders,
     httpStatusCode: capture?.httpStatusCode ?? metadata.httpStatusCode ?? 200,
-    redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
     providerUrl:
       capture?.providerUrl ??
       metadata.providerUrl ??
@@ -943,7 +941,6 @@ function spansForGate(
             model,
             rawRequestBody: capture.requestBody,
             request_headers: capture.requestHeaders,
-            redactSensitiveHeaders: overrides?.redactSensitiveHeaders,
             data: payload,
           }) as unknown as SpanData,
         ]

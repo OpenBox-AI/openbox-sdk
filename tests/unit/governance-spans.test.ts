@@ -747,9 +747,50 @@ describe('LLM completion spans', () => {
     });
     expect(span.attributes).toMatchObject({
       'file.path': '/project/.env',
+      // Canonical open span carries file.mode (file_governance_hooks.py:traced_open).
+      'file.mode': 'r',
       'file.operation': 'open',
       'openbox.tool.name': 'TabRead',
       'tool.name': 'TabRead',
+    });
+  });
+
+  test('canonical file spans: open carries file.mode; read/write carry file.bytes when known', () => {
+    const open = buildSpan('copilotkit', 'file_open', {
+      file_path: '/vault/prod.env',
+      file_mode: 'r',
+    });
+    expect(open.attributes).toMatchObject({
+      'file.path': '/vault/prod.env',
+      'file.mode': 'r',
+    });
+
+    // Started read (no byte count yet) → no file.bytes attribute.
+    const readStarted = buildSpan('copilotkit', 'file_read', {
+      file_path: '/vault/prod.env',
+    });
+    expect(readStarted.attributes).not.toHaveProperty('file.bytes');
+
+    // Completed read (byte count merged by recordOpSpanPair) → file.bytes set.
+    const readCompleted = buildSpan('copilotkit', 'file_read', {
+      stage: 'completed',
+      file_path: '/vault/prod.env',
+      bytes_read: 449,
+    });
+    expect(readCompleted.attributes).toMatchObject({
+      'file.path': '/vault/prod.env',
+      'file.operation': 'read',
+      'file.bytes': 449,
+    });
+
+    const writeCompleted = buildSpan('copilotkit', 'file_write', {
+      stage: 'completed',
+      file_path: '/tmp/out.txt',
+      bytes_written: 1175,
+    });
+    expect(writeCompleted.attributes).toMatchObject({
+      'file.operation': 'write',
+      'file.bytes': 1175,
     });
   });
 
@@ -828,11 +869,10 @@ describe('LLM completion spans', () => {
     expect(extractAssistantContentLikeCore([span])).toBe('');
   });
 
-  test('captures raw provider request/response headers and bodies verbatim when redaction is disabled', () => {
+  test('captures raw provider bodies verbatim but always redacts sensitive headers', () => {
     const span = buildLLMCompletionSpan({
       content: '',
       model: 'gpt-4o',
-      redactSensitiveHeaders: false,
       httpStatusCode: 200,
       rawRequestBody: {
         messages: [
@@ -876,8 +916,9 @@ describe('LLM completion spans', () => {
       service_tier: 'default',
       usage: { prompt_tokens: 10, total_tokens: 12 },
     });
-    // Headers stored verbatim, no redaction.
-    expect(span.request_headers?.authorization).toBe('Bearer sk-test-RAW');
+    // Sensitive headers are ALWAYS redacted (canonical [REDACTED]); benign
+    // headers pass through verbatim.
+    expect(span.request_headers?.authorization).toBe('[REDACTED]');
     expect(span.request_headers?.['x-stainless-lang']).toBe('js');
     expect(span.response_headers?.['cf-ray']).toBe('abc-HKG');
     expect(span.response_headers?.['x-request-id']).toBe('req_123');
@@ -885,7 +926,7 @@ describe('LLM completion spans', () => {
     expect(span.attributes).toMatchObject({ 'http.status_code': 200 });
   });
 
-  test('redacts authorization and cookie headers by default', () => {
+  test('redacts authorization and cookie headers with the canonical sentinel', () => {
     const span = buildLLMCompletionSpan({
       content: 'ok',
       model: 'gpt-4o',
@@ -894,15 +935,14 @@ describe('LLM completion spans', () => {
       request_headers?: Record<string, string>;
     };
 
-    expect(span.request_headers?.authorization).toBe('Bearer <redacted>');
-    expect(span.request_headers?.cookie).toBe('<redacted>');
+    expect(span.request_headers?.authorization).toBe('[REDACTED]');
+    expect(span.request_headers?.cookie).toBe('[REDACTED]');
   });
 
-  test('generic completed LLM span passes raw capture through buildSpan', () => {
+  test('generic completed LLM span passes raw capture through buildSpan (headers redacted)', () => {
     const span = buildSpan('copilotkit', 'llm', {
       stage: 'completed',
       model: 'gpt-4o',
-      redactSensitiveHeaders: false,
       http_status_code: 200,
       rawRequestBody: { messages: [{ role: 'user', content: 'hi' }], model: 'gpt-4o' },
       rawResponseBody: { id: 'resp_1', usage: { prompt_tokens: 3, completion_tokens: 1 } },
@@ -914,7 +954,8 @@ describe('LLM completion spans', () => {
       messages: [{ role: 'user', content: 'hi' }],
     });
     expect(JSON.parse(String(span.response_body))).toMatchObject({ id: 'resp_1' });
-    expect(span.request_headers.authorization).toBe('Bearer sk-raw-2');
+    // Bodies are verbatim; the authorization header is always redacted.
+    expect(span.request_headers.authorization).toBe('[REDACTED]');
     expect(span.response_headers['x-request-id']).toBe('req_456');
     expect(span.http_status_code).toBe(200);
   });
