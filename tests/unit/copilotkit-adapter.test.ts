@@ -3621,6 +3621,45 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(govSpy).not.toHaveBeenCalled();
   });
 
+  it('propagates consumer unsubscribe to the source subscription (no stream leak on disconnect)', async () => {
+    const mock = createMockCore(() => ({ verdict: 'allow', reason: 'allowed' }));
+    const unsubscribeSpy = vi.fn();
+    let sourceObserver: unknown;
+    const baseRunner = {
+      run: () => ({
+        subscribe: (obs: unknown) => {
+          sourceObserver = obs;
+          return { unsubscribe: unsubscribeSpy };
+        },
+      }),
+    } as any;
+    const runner = createOpenBoxGovernedRunner(baseRunner, {
+      adapter: createOpenBoxCopilotKitAdapter({ core: mock.core as any }),
+    });
+    const sub = runner
+      .run({
+        threadId: 'thread-1',
+        agent: {},
+        input: {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messages: [{ id: 'user-1', role: 'user', content: 'hi' }],
+        },
+      })
+      .subscribe({ next() {}, error() {}, complete() {} }) as {
+      unsubscribe(): void;
+    };
+    // Wait for the async prompt gate + source wiring to complete.
+    const deadline = Date.now() + 2000;
+    while (!sourceObserver && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    expect(sourceObserver).toBeTruthy();
+    expect(unsubscribeSpy).not.toHaveBeenCalled();
+    sub.unsubscribe();
+    expect(unsubscribeSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('native runner records model usage and cost on the assistant output hook span', async () => {
     const mock = createMockCore(() => ({
       verdict: 'allow',

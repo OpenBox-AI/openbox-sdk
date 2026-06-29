@@ -111,7 +111,7 @@ export function createOpenBoxGovernedRunner(
         if (agentSet && agentId && !agentSet.has(agentId)) {
           return runner.run(request);
         }
-        return createDeferredObservable(runner, async (subscriber) => {
+        return createDeferredObservable(runner, async (subscriber, registerTeardown) => {
           const sessionKey = sessionKeyForInput(request.input);
           const governedInput = isRuntimePromptGoverned(request.input)
             ? request.input
@@ -160,6 +160,7 @@ export function createOpenBoxGovernedRunner(
             governedInput,
             runtimeWorkflowConfig(adapter),
             assistantOutputOwner,
+            registerTeardown,
           );
         });
       },
@@ -298,13 +299,32 @@ function jsonRequestWithBody(request: Request, body: unknown): Request {
 
 function createDeferredObservable(
   runner: OpenBoxCopilotAgentRunnerLike,
-  start: (subscriber: OpenBoxSubscriberLike) => Promise<void>,
+  start: (
+    subscriber: OpenBoxSubscriberLike,
+    registerTeardown: (teardown: () => void) => void,
+  ) => Promise<void>,
 ): OpenBoxCopilotObservableLike {
   return {
     subscribe(observerOrNext?: unknown, error?: unknown, complete?: unknown) {
       const subscriber = normalizeSubscriber(observerOrNext, error, complete);
-      start(subscriber).catch((err) => subscriber.error?.(err));
-      return { unsubscribe() {} };
+      // Propagate consumer cancellation to the underlying source subscription.
+      // The previous no-op unsubscribe meant a client disconnect mid-stream left
+      // the base runner streaming + governance gates firing on a dead stream.
+      let teardown: (() => void) | undefined;
+      let cancelled = false;
+      start(subscriber, (t) => {
+        // Consumer may unsubscribe before the source is wired up; tear down now.
+        if (cancelled) t();
+        else teardown = t;
+      }).catch((err) => subscriber.error?.(err));
+      return {
+        unsubscribe() {
+          cancelled = true;
+          const t = teardown;
+          teardown = undefined;
+          t?.();
+        },
+      };
     },
   };
 }
@@ -382,6 +402,7 @@ function pipeGovernedEvents(
   input: OpenBoxCopilotRunInputLike,
   workflowConfig: { workflowType: string; taskQueue: string },
   assistantOutputOwner: 'runtime' | 'agent' = 'runtime',
+  registerTeardown?: (teardown: () => void) => void,
 ) {
   const pending: Promise<void>[] = [];
   const ids = runtimeWorkflowIdsFromInput(input);
@@ -889,6 +910,14 @@ function pipeGovernedEvents(
         (error) => subscriber.error?.(error),
       );
     },
+  });
+  // Hand the source subscription's teardown up to the deferred observable so a
+  // consumer unsubscribe (client disconnect) cancels the underlying runner
+  // stream instead of leaving it running. Guarded: the source's subscribe()
+  // return shape is structural (rxjs Subscription in prod).
+  registerTeardown?.(() => {
+    const sub = subscription as { unsubscribe?: () => void } | null | undefined;
+    if (sub && typeof sub.unsubscribe === 'function') sub.unsubscribe();
   });
   function queueToolInputGate(buffer: ToolCallBuffer): Promise<void> {
     if (!buffer.inputGate) {
