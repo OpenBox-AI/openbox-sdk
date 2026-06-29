@@ -3,6 +3,7 @@ import { TextDecoder } from 'node:util';
 import { TokenBucket } from '../client/index.js';
 import { normalizeServiceUrl } from '../env/connection.js';
 import { API_KEY_PATTERN } from '../env/generated/env-bindings.js';
+import { CANONICAL_AGENT_IDENTITY } from './generated/govern.js';
 import { OPENBOX_SDK_VERSION } from '../version.js';
 import { validateCoreRequest } from './generated/request-preflight.js';
 
@@ -100,8 +101,8 @@ export interface AgentIdentityConfig {
   privateKey: string;
 }
 
-const AGENT_DID_PATTERN =
-  /^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// DID format is spec-driven (CANONICAL_AGENT_IDENTITY.didPattern).
+const AGENT_DID_PATTERN = new RegExp(CANONICAL_AGENT_IDENTITY.didPattern, 'i');
 
 // ---------------------------------------------------------------------------
 // Error wrapper
@@ -228,7 +229,7 @@ export class OpenBoxCoreClient {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${this.config.apiKey}`,
       'User-Agent': `OpenBox-SDK/${OPENBOX_SDK_VERSION}`,
-      'X-OpenBox-SDK-Version': OPENBOX_SDK_VERSION,
+      [CANONICAL_AGENT_IDENTITY.headers.sdkVersion]: OPENBOX_SDK_VERSION,
       'x-openbox-internal': 'true',
     };
     const body = options?.data !== undefined ? JSON.stringify(options.data) : undefined;
@@ -496,21 +497,27 @@ export function signAgentIdentityRequest(input: {
   const timestamp = input.timestamp ?? new Date().toISOString();
   const nonce = input.nonce ?? randomUUID();
   const bodySha256 = createHash('sha256').update(input.body ?? '').digest('hex');
-  const canonical = [
-    input.method.toUpperCase(),
-    input.path,
+  // Canonical request string + signed header names are spec-driven
+  // (CANONICAL_AGENT_IDENTITY), so TS and Python sign byte-identically.
+  const fieldValues: Record<string, string> = {
+    method: input.method.toUpperCase(),
+    pathname: input.path,
     timestamp,
     nonce,
     bodySha256,
-  ].join('\n');
+  };
+  const canonical = CANONICAL_AGENT_IDENTITY.canonicalRequestFields
+    .map((field) => fieldValues[field] ?? '')
+    .join('\n');
   const privateKey = ed25519PrivateKeyFromRawBase64(identity.privateKey);
   const signature = sign(null, Buffer.from(canonical), privateKey).toString('base64');
+  const h = CANONICAL_AGENT_IDENTITY.headers;
   return {
-    'X-OpenBox-Agent-DID': identity.did,
-    'X-OpenBox-Agent-Timestamp': timestamp,
-    'X-OpenBox-Agent-Nonce': nonce,
-    'X-OpenBox-Body-SHA256': bodySha256,
-    'X-OpenBox-Agent-Signature': signature,
+    [h.did]: identity.did,
+    [h.timestamp]: timestamp,
+    [h.nonce]: nonce,
+    [h.bodySha256]: bodySha256,
+    [h.signature]: signature,
   };
 }
 

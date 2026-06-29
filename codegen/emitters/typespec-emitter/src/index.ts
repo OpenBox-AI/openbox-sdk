@@ -69,6 +69,7 @@ import {
   getHookEventLabel,
   getProviderCapabilities,
   getSpanContract,
+  getAgentIdentityContract,
   getGovernProtocol,
   getBackendPermissions,
   getSdkMethodNames,
@@ -3695,10 +3696,21 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
       getSpanContract(program, ns) ?? {},
     )} as const);`,
     '',
+    '/** Canonical agent-identity (AIP) signing contract — signed header names,',
+    ' *  canonical-request field order, and DID pattern. Single spec source so the',
+    ' *  TS core-client and the Python identity module sign requests identically. */',
+    `export const CANONICAL_AGENT_IDENTITY = Object.freeze(${JSON.stringify(
+      getAgentIdentityContract(program, ns) ?? {},
+    )} as const);`,
+    '',
   ]);
 
-  // Materialize the spec-driven span contract as a JSON artifact for the Python SDK.
+  // Materialize the spec-driven contracts as JSON artifacts for the Python SDK.
   emitSpanContractJson(program, ns, repoRoot);
+  emitContractJson(
+    getAgentIdentityContract(program, ns),
+    resolvePath(repoRoot, 'specs', 'generated', 'agent-identity-contract.json'),
+  );
 
   out.addStatements([emitBaseSession(verdictModelName), '']);
   for (const p of presets) {
@@ -3718,16 +3730,24 @@ function kebabToCamel(s: string): string {
  * language-agnostic JSON artifact the Python SDK vendors — so both languages
  * derive from the ONE contract in the TypeSpec source.
  */
+function emitContractJson(
+  contract: Record<string, unknown> | undefined,
+  path: string,
+): void {
+  if (!contract) return;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(contract, null, 2)}\n`, 'utf8');
+}
+
 function emitSpanContractJson(
   program: Program,
   ns: Namespace,
   repoRoot: string,
 ): void {
-  const contract = getSpanContract(program, ns);
-  if (!contract) return;
-  const path = resolvePath(repoRoot, 'specs', 'generated', 'span-contract.json');
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(contract, null, 2)}\n`, 'utf8');
+  emitContractJson(
+    getSpanContract(program, ns),
+    resolvePath(repoRoot, 'specs', 'generated', 'span-contract.json'),
+  );
 }
 
 // ---------------------------------------------------------------------------

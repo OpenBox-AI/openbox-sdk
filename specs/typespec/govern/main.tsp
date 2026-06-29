@@ -402,6 +402,21 @@ using OpenBox.Workflow;
     dbDefault: "database_query",
   },
 })
+@agentIdentityContract(#{
+  // Signed AIP request headers — names must be byte-identical across SDKs.
+  headers: #{
+    did: "X-OpenBox-Agent-DID",
+    timestamp: "X-OpenBox-Agent-Timestamp",
+    nonce: "X-OpenBox-Agent-Nonce",
+    bodySha256: "X-OpenBox-Body-SHA256",
+    signature: "X-OpenBox-Agent-Signature",
+    sdkVersion: "X-OpenBox-SDK-Version",
+  },
+  // The canonical request string is these fields joined by "\n", in this order.
+  canonicalRequestFields: #["method", "pathname", "timestamp", "nonce", "bodySha256"],
+  // Agent DID format (did:aip:<uuid>).
+  didPattern: "^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+})
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------

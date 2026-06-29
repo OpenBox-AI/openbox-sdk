@@ -20,6 +20,7 @@ import {
   $hookEventLabel,
   $providerCapabilities,
   $spanContract,
+  $agentIdentityContract,
   $governProtocol,
   $backendPermissions,
   $sdkMethodNames,
@@ -32,6 +33,7 @@ export {
   getGovernProtocol,
   getProviderCapabilities,
   getSpanContract,
+  getAgentIdentityContract,
   getSdkMethodNames,
   getSdkTargets,
 } from './decorators.js';
@@ -58,6 +60,7 @@ export const $decorators = {
     hookEventLabel: $hookEventLabel,
     providerCapabilities: $providerCapabilities,
     spanContract: $spanContract,
+    agentIdentityContract: $agentIdentityContract,
     governProtocol: $governProtocol,
     backendPermissions: $backendPermissions,
     sdkMethodNames: $sdkMethodNames,

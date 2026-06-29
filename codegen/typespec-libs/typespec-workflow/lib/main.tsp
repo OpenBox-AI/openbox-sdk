@@ -358,6 +358,13 @@ extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknow
 extern dec spanContract(target: Namespace, contract: valueof Record<unknown>);
 
 /**
+ * Canonical agent-identity (AIP) signing contract: signed header names, canonical
+ * request field order, and DID pattern. Emitter materializes CANONICAL_AGENT_IDENTITY
+ * + a generated JSON the Python SDK vendors.
+ */
+extern dec agentIdentityContract(target: Namespace, contract: valueof Record<unknown>);
+
+/**
  * Cross-language governance lifecycle conformance fixture. Emitters
  * materialize this record as `codegen/fixtures/govern-protocol.json`.
  * Each language runner consumes the same scenario cases instead of

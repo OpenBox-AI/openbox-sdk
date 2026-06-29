@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "did": "X-OpenBox-Agent-DID",
+    "timestamp": "X-OpenBox-Agent-Timestamp",
+    "nonce": "X-OpenBox-Agent-Nonce",
+    "bodySha256": "X-OpenBox-Body-SHA256",
+    "signature": "X-OpenBox-Agent-Signature",
+    "sdkVersion": "X-OpenBox-SDK-Version"
+  },
+  "canonicalRequestFields": [
+    "method",
+    "pathname",
+    "timestamp",
+    "nonce",
+    "bodySha256"
+  ],
+  "didPattern": "^did:aip:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+}

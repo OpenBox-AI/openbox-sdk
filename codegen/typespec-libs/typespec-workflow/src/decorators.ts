@@ -744,6 +744,35 @@ export function getSpanContract(
   return program.stateMap(stateKeys.spanContract).get(target);
 }
 
+/**
+ * Canonical agent-identity (AIP) signing contract — the signed header names, the
+ * canonical-request field order, and the DID pattern that every SDK must produce
+ * identically when signing requests to Core. Materialized as CANONICAL_AGENT_IDENTITY
+ * (TS) + a generated agent-identity-contract.json the Python SDK vendors, so the
+ * TS core-client and Python identity.py can't drift on the wire signing format.
+ */
+export type AgentIdentityContractBinding = Record<string, unknown>;
+
+export function $agentIdentityContract(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    context.program
+      .stateMap(stateKeys.agentIdentityContract)
+      .set(target, value as Record<string, unknown>);
+  }
+}
+
+export function getAgentIdentityContract(
+  program: Program,
+  target: Namespace,
+): AgentIdentityContractBinding | undefined {
+  return program.stateMap(stateKeys.agentIdentityContract).get(target);
+}
+
 // ─── Govern protocol conformance fixture ────────────────────────────
 // Cross-language lifecycle scenarios belong in TypeSpec so every
 // language runner consumes the same "bible" fixture.
