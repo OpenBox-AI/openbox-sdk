@@ -338,6 +338,22 @@ using OpenBox.Workflow;
   redactedSentinel: "[REDACTED]",
   // OTel span status codes emitted on hook spans.
   statusCode: #{ unset: "UNSET", error: "ERROR" },
+  // SQL verbs recognized when classifying a db_query span's db_operation
+  // (shared by every host's classifier AND the Python _classify_sql).
+  sqlVerbs: #[
+    "SELECT",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "CREATE",
+    "DROP",
+    "ALTER",
+    "TRUNCATE",
+    "BEGIN",
+    "COMMIT",
+    "ROLLBACK",
+    "EXPLAIN"
+  ],
   // Canonical _SENSITIVE_HEADERS — exact keys, no substring heuristics.
   sensitiveHeaders: #[
     "authorization",

@@ -15,6 +15,7 @@
 // span evaluation correlated to the parent activity.
 
 import * as fs from 'node:fs';
+import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import * as fsp from 'node:fs/promises';
 import {
   isCapturing,
@@ -232,20 +233,7 @@ const INSTRUMENTED = Symbol('openbox.sqlite.instrumented');
 
 // Canonical _classify_sql verb whitelist (db_governance_hooks.py:71-80) — any
 // other leading token classifies as UNKNOWN.
-const SQL_VERBS = new Set([
-  'SELECT',
-  'INSERT',
-  'UPDATE',
-  'DELETE',
-  'CREATE',
-  'DROP',
-  'ALTER',
-  'TRUNCATE',
-  'BEGIN',
-  'COMMIT',
-  'ROLLBACK',
-  'EXPLAIN',
-]);
+const SQL_VERBS = new Set<string>(CANONICAL_SPAN.sqlVerbs);
 
 function sqlOperation(statement: string): string {
   const match = statement.trim().match(/^[a-zA-Z]+/);

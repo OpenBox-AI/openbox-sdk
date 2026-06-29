@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import type { SpanData } from '../core-client/core-client.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
@@ -1161,20 +1162,7 @@ function dbStatementFor(toolInput: Record<string, unknown>): string | undefined 
   return resource ? `database resource ${resource}` : undefined;
 }
 
-const SQL_VERBS = [
-  'SELECT',
-  'INSERT',
-  'UPDATE',
-  'DELETE',
-  'CREATE',
-  'DROP',
-  'ALTER',
-  'TRUNCATE',
-  'BEGIN',
-  'COMMIT',
-  'ROLLBACK',
-  'EXPLAIN',
-] as const;
+const SQL_VERBS = CANONICAL_SPAN.sqlVerbs;
 
 function dbOperationFromStatement(statement: string | undefined): string | undefined {
   if (!statement) return undefined;
