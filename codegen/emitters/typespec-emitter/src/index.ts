@@ -3689,44 +3689,9 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     ' *  literals in governance/spans.ts and copilotkit/otel-capture.ts (and',
     ' *  Python _build_*_span_data), which previously drifted independently.',
     ' */',
-    `export const CANONICAL_SPAN = Object.freeze(${JSON.stringify({
-      caps: {
-        httpBody: 8192,
-        fileData: 4096,
-        dbStatement: 2000,
-        functionArg: 2000,
-      },
-      truncationSuffix: '...[truncated]',
-      redactedSentinel: '[REDACTED]',
-      // Canonical _SENSITIVE_HEADERS (http_governance_hooks.py) — exact keys,
-      // no substring heuristics.
-      sensitiveHeaders: [
-        'authorization',
-        'proxy-authorization',
-        'cookie',
-        'set-cookie',
-        'www-authenticate',
-        'x-api-key',
-        'x-auth-token',
-      ],
-      // hook_type -> OTel span kind.
-      spanKind: {
-        file_operation: 'INTERNAL',
-        http_request: 'CLIENT',
-        db_query: 'CLIENT',
-        function_call: 'INTERNAL',
-      },
-      // hook_type -> semantic_type emitted to Core.
-      semanticType: {
-        file_open: 'file_open',
-        file_read: 'file_read',
-        file_write: 'file_write',
-        file_delete: 'file_delete',
-        http_request: 'http_request',
-        db_query: 'db_query',
-        function_call: 'function_call',
-      },
-    })} as const);`,
+    `export const CANONICAL_SPAN = Object.freeze(${JSON.stringify(
+      loadSpanContract(repoRoot),
+    )} as const);`,
     '',
   ]);
 
@@ -3741,6 +3706,19 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
 
 function kebabToCamel(s: string): string {
   return s.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
+/**
+ * Load the language-agnostic canonical hook-span contract (specs/span-contract.json)
+ * — the single source of truth shared by every SDK + host. The TS emitter
+ * materializes it as CANONICAL_SPAN; the Python SDK vendors the same JSON.
+ */
+function loadSpanContract(repoRoot: string): Record<string, unknown> {
+  const raw = JSON.parse(
+    readFileSync(resolvePath(repoRoot, 'specs', 'span-contract.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  delete raw._comment;
+  return raw;
 }
 
 // ---------------------------------------------------------------------------

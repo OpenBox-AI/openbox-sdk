@@ -1,0 +1,35 @@
+{
+  "_comment": "SINGLE SOURCE OF TRUTH for the canonical hook-span contract, shared across every SDK and host. The TypeSpec emitter reads this file and materializes CANONICAL_SPAN into the generated govern.ts; the Python SDK vendors a copy (openbox_langgraph/span_contract.json) and loads it. Neither language hand-rolls these values anymore. Edit here only; regenerate with `npm run specs:compile`.",
+  "caps": {
+    "httpBody": 8192,
+    "fileData": 4096,
+    "dbStatement": 2000,
+    "functionArg": 2000
+  },
+  "truncationSuffix": "...[truncated]",
+  "redactedSentinel": "[REDACTED]",
+  "sensitiveHeaders": [
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "www-authenticate",
+    "x-api-key",
+    "x-auth-token"
+  ],
+  "spanKind": {
+    "file_operation": "INTERNAL",
+    "http_request": "CLIENT",
+    "db_query": "CLIENT",
+    "function_call": "INTERNAL"
+  },
+  "semanticType": {
+    "file_open": "file_open",
+    "file_read": "file_read",
+    "file_write": "file_write",
+    "file_delete": "file_delete",
+    "http_request": "http_request",
+    "db_query": "db_query",
+    "function_call": "function_call"
+  }
+}
