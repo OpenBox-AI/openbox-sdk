@@ -6,6 +6,7 @@ import {
   OPENBOX_RUNTIME_PROMPT_GOVERNED_KEY,
 } from './constants.js';
 import { COPILOTKIT_LLM_ACTIVITY_TYPE } from './activity-types.js';
+import { AGUI_EVENT, matchesEventType } from './agui-events.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import {
   isRecord,
@@ -1048,42 +1049,35 @@ function runtimeWorkflowConfig(adapter: OpenBoxCopilotKitAdapter): {
 }
 
 function isAssistantTextStart(event: Record<string, any>): boolean {
-  const type = String(event.type);
   return (
-    (type === 'TEXT_MESSAGE_START' || type === 'TextMessageStart') &&
+    matchesEventType(event, AGUI_EVENT.TEXT_MESSAGE_START) &&
     String(event.role ?? 'assistant') === 'assistant'
   );
 }
 
 function isAssistantTextContent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return (
-    type === 'TEXT_MESSAGE_CONTENT' ||
-    type === 'TEXT_MESSAGE_CHUNK' ||
-    type === 'TextMessageContent' ||
-    type === 'TextMessageChunk'
+  return matchesEventType(
+    event,
+    AGUI_EVENT.TEXT_MESSAGE_CONTENT,
+    AGUI_EVENT.TEXT_MESSAGE_CHUNK,
   );
 }
 
 function isAssistantTextEnd(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return type === 'TEXT_MESSAGE_END' || type === 'TextMessageEnd';
+  return matchesEventType(event, AGUI_EVENT.TEXT_MESSAGE_END);
 }
 
 function isRunFinishedEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return type === 'RUN_FINISHED' || type === 'RunFinished';
+  return matchesEventType(event, AGUI_EVENT.RUN_FINISHED);
 }
 
 function isRunErrorEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return type === 'RUN_ERROR' || type === 'RunError';
+  return matchesEventType(event, AGUI_EVENT.RUN_ERROR);
 }
 
 function isMessagesSnapshotEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
   return (
-    (type === 'MESSAGES_SNAPSHOT' || type === 'MessagesSnapshot') &&
+    matchesEventType(event, AGUI_EVENT.MESSAGES_SNAPSHOT) &&
     Array.isArray(event.messages)
   );
 }
@@ -1226,28 +1220,23 @@ function langGraphThreadsClient(
 }
 
 function isToolResultEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return type === 'TOOL_CALL_RESULT' || type === 'ToolCallResult';
+  return matchesEventType(event, AGUI_EVENT.TOOL_CALL_RESULT);
 }
 
 function isToolCallStartEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return type === 'TOOL_CALL_START' || type === 'ToolCallStart';
+  return matchesEventType(event, AGUI_EVENT.TOOL_CALL_START);
 }
 
 function isToolCallArgsEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return (
-    type === 'TOOL_CALL_ARGS' ||
-    type === 'TOOL_CALL_ARGUMENTS' ||
-    type === 'ToolCallArgs' ||
-    type === 'ToolCallArguments'
+  return matchesEventType(
+    event,
+    AGUI_EVENT.TOOL_CALL_ARGS,
+    AGUI_EVENT.TOOL_CALL_ARGUMENTS,
   );
 }
 
 function isToolCallEndEvent(event: Record<string, any>): boolean {
-  const type = String(event.type);
-  return type === 'TOOL_CALL_END' || type === 'ToolCallEnd';
+  return matchesEventType(event, AGUI_EVENT.TOOL_CALL_END);
 }
 
 function toolCallIdForEvent(event: Record<string, any>): string {

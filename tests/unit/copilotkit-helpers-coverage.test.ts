@@ -118,6 +118,32 @@ describe('copilotkit helper coverage', () => {
     expect(pollSpy).not.toHaveBeenCalled();
   });
 
+  it('agui-events matchesEventType handles canonical SCREAMING_SNAKE + the PascalCase fallback', async () => {
+    const { AGUI_EVENT, matchesEventType, aguiPascalCase } = await import(
+      '../../ts/src/copilotkit/agui-events.ts'
+    );
+    expect(
+      matchesEventType({ type: 'TEXT_MESSAGE_START' }, AGUI_EVENT.TEXT_MESSAGE_START),
+    ).toBe(true);
+    expect(
+      matchesEventType({ type: 'TextMessageStart' }, AGUI_EVENT.TEXT_MESSAGE_START),
+    ).toBe(true);
+    expect(
+      matchesEventType(
+        { type: 'TOOL_CALL_ARGUMENTS' },
+        AGUI_EVENT.TOOL_CALL_ARGS,
+        AGUI_EVENT.TOOL_CALL_ARGUMENTS,
+      ),
+    ).toBe(true);
+    expect(matchesEventType({ type: 'RUN_ERROR' }, AGUI_EVENT.RUN_FINISHED)).toBe(
+      false,
+    );
+    expect(matchesEventType({ type: undefined }, AGUI_EVENT.RUN_FINISHED)).toBe(
+      false,
+    );
+    expect(aguiPascalCase(AGUI_EVENT.MESSAGES_SNAPSHOT)).toBe('MessagesSnapshot');
+  });
+
   it('summarizes runtime model input and truncates nested values', () => {
     const messages = [
       { type: 'human', id: '1', name: 'user', content: 'hello' },
