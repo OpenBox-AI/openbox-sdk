@@ -342,6 +342,22 @@ extern dec hookEventLabel(target: Operation, label: valueof string);
 extern dec providerCapabilities(target: Namespace, matrix: valueof Record<unknown>);
 
 /**
+ * Canonical hook-span contract — the truncation caps, redaction/truncation
+ * sentinels, sensitive-header set, span kinds, and hook→semantic-type map every
+ * SDK + host must emit identically. The emitter materializes it as `CANONICAL_SPAN`
+ * (TS) and a generated `span-contract.json` the Python SDK vendors, so these
+ * values are spec-driven from one place rather than hand-rolled per SDK.
+ *
+ * Shape:
+ *   #{
+ *     caps: #{ httpBody, fileData, dbStatement, functionArg },
+ *     truncationSuffix, redactedSentinel,
+ *     sensitiveHeaders: #[...], spanKind: #{...}, semanticType: #{...},
+ *   }
+ */
+extern dec spanContract(target: Namespace, contract: valueof Record<unknown>);
+
+/**
  * Cross-language governance lifecycle conformance fixture. Emitters
  * materialize this record as `codegen/fixtures/govern-protocol.json`.
  * Each language runner consumes the same scenario cases instead of

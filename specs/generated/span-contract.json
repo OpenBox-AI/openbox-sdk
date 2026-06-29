@@ -1,5 +1,4 @@
 {
-  "_comment": "SINGLE SOURCE OF TRUTH for the canonical hook-span contract, shared across every SDK and host. The TypeSpec emitter reads this file and materializes CANONICAL_SPAN into the generated govern.ts; the Python SDK vendors a copy (openbox_langgraph/span_contract.json) and loads it. Neither language hand-rolls these values anymore. Edit here only; regenerate with `npm run specs:compile`.",
   "caps": {
     "httpBody": 8192,
     "fileData": 4096,

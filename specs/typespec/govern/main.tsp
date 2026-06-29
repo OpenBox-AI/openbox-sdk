@@ -331,6 +331,39 @@ using OpenBox.Workflow;
     },
   ],
 })
+@spanContract(#{
+  // Truncation caps (chars/bytes) for the four hook span types.
+  caps: #{ httpBody: 8192, fileData: 4096, dbStatement: 2000, functionArg: 2000 },
+  truncationSuffix: "...[truncated]",
+  redactedSentinel: "[REDACTED]",
+  // Canonical _SENSITIVE_HEADERS — exact keys, no substring heuristics.
+  sensitiveHeaders: #[
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "www-authenticate",
+    "x-api-key",
+    "x-auth-token"
+  ],
+  // hook_type → OTel span kind.
+  spanKind: #{
+    file_operation: "INTERNAL",
+    http_request: "CLIENT",
+    db_query: "CLIENT",
+    function_call: "INTERNAL",
+  },
+  // hook_type → semantic_type emitted to Core.
+  semanticType: #{
+    file_open: "file_open",
+    file_read: "file_read",
+    file_write: "file_write",
+    file_delete: "file_delete",
+    http_request: "http_request",
+    db_query: "db_query",
+    function_call: "function_call",
+  },
+})
 namespace OpenboxGovern;
 
 // ---------------------------------------------------------------------------

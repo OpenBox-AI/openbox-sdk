@@ -68,6 +68,7 @@ import {
   getActivityLabels,
   getHookEventLabel,
   getProviderCapabilities,
+  getSpanContract,
   getGovernProtocol,
   getBackendPermissions,
   getSdkMethodNames,
@@ -3690,10 +3691,13 @@ function emitGovernProtocol(program: Program, project: Project, repoRoot: string
     ' *  Python _build_*_span_data), which previously drifted independently.',
     ' */',
     `export const CANONICAL_SPAN = Object.freeze(${JSON.stringify(
-      loadSpanContract(repoRoot),
+      getSpanContract(program, ns) ?? {},
     )} as const);`,
     '',
   ]);
+
+  // Materialize the spec-driven span contract as a JSON artifact for the Python SDK.
+  emitSpanContractJson(program, ns, repoRoot);
 
   out.addStatements([emitBaseSession(verdictModelName), '']);
   for (const p of presets) {
@@ -3709,16 +3713,20 @@ function kebabToCamel(s: string): string {
 }
 
 /**
- * Load the language-agnostic canonical hook-span contract (specs/span-contract.json)
- * — the single source of truth shared by every SDK + host. The TS emitter
- * materializes it as CANONICAL_SPAN; the Python SDK vendors the same JSON.
+ * Materialize the spec-driven span contract (@spanContract on OpenboxGovern) as a
+ * language-agnostic JSON artifact the Python SDK vendors — so both languages
+ * derive from the ONE contract in the TypeSpec source.
  */
-function loadSpanContract(repoRoot: string): Record<string, unknown> {
-  const raw = JSON.parse(
-    readFileSync(resolvePath(repoRoot, 'specs', 'span-contract.json'), 'utf8'),
-  ) as Record<string, unknown>;
-  delete raw._comment;
-  return raw;
+function emitSpanContractJson(
+  program: Program,
+  ns: Namespace,
+  repoRoot: string,
+): void {
+  const contract = getSpanContract(program, ns);
+  if (!contract) return;
+  const path = resolvePath(repoRoot, 'specs', 'generated', 'span-contract.json');
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(contract, null, 2)}\n`, 'utf8');
 }
 
 // ---------------------------------------------------------------------------

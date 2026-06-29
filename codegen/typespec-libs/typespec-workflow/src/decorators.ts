@@ -715,6 +715,35 @@ export function getProviderCapabilities(
   return program.stateMap(stateKeys.providerCapabilities).get(target);
 }
 
+/**
+ * Canonical hook-span contract — the truncation caps, redaction/truncation
+ * sentinels, sensitive-header set, span kinds, and hook→semantic-type map every
+ * SDK + host must emit identically. Materialized by the emitter as `CANONICAL_SPAN`
+ * (TS) and a generated `span-contract.json` the Python SDK vendors, so the values
+ * live in ONE spec-driven place instead of hand-rolled per SDK.
+ */
+export type SpanContractBinding = Record<string, unknown>;
+
+export function $spanContract(
+  context: DecoratorContext,
+  target: Namespace,
+  raw: unknown,
+): void {
+  const value = unwrapTspValue(raw);
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    context.program
+      .stateMap(stateKeys.spanContract)
+      .set(target, value as Record<string, unknown>);
+  }
+}
+
+export function getSpanContract(
+  program: Program,
+  target: Namespace,
+): SpanContractBinding | undefined {
+  return program.stateMap(stateKeys.spanContract).get(target);
+}
+
 // ─── Govern protocol conformance fixture ────────────────────────────
 // Cross-language lifecycle scenarios belong in TypeSpec so every
 // language runner consumes the same "bible" fixture.

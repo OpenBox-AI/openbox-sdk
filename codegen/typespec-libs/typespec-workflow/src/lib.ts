@@ -128,6 +128,7 @@ export const $lib = createTypeSpecLibrary({
     activityVariants: { description: 'predicate-based activity-type reroute table attached to an adapter operation' },
     activityType: { description: 'fixed activity_type binding attached to an adapter operation (single value, mutually exclusive with activityRouting)' },
     activityLabels: { description: 'activity_type → human-readable display label table attached to a namespace' },
+    spanContract: { description: 'canonical hook-span contract (caps/sentinels/headers/kinds/semantic-types) attached to a namespace' },
     hookEventLabel: { description: 'human-readable label attached to an adapter @hookEvent operation' },
     providerCapabilities: { description: 'provider capability/support-tier matrix attached to a namespace' },
     governProtocol: { description: 'cross-language governance protocol conformance fixture attached to a namespace' },

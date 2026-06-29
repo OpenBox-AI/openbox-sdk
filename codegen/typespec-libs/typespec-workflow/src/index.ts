@@ -19,6 +19,7 @@ import {
   $activityLabels,
   $hookEventLabel,
   $providerCapabilities,
+  $spanContract,
   $governProtocol,
   $backendPermissions,
   $sdkMethodNames,
@@ -30,6 +31,7 @@ export {
   getHookEventLabel,
   getGovernProtocol,
   getProviderCapabilities,
+  getSpanContract,
   getSdkMethodNames,
   getSdkTargets,
 } from './decorators.js';
@@ -55,6 +57,7 @@ export const $decorators = {
     activityLabels: $activityLabels,
     hookEventLabel: $hookEventLabel,
     providerCapabilities: $providerCapabilities,
+    spanContract: $spanContract,
     governProtocol: $governProtocol,
     backendPermissions: $backendPermissions,
     sdkMethodNames: $sdkMethodNames,
