@@ -9,7 +9,6 @@ import {
 } from '../../ts/src/governance/usage.js';
 import {
   buildLLMCompletionResponseBody,
-  buildLLMCompletionSpan,
   buildSpan,
   llmTokenUsageFromRecord,
   openBoxActivityMetadata,
@@ -153,20 +152,19 @@ describe('LLM completion spans', () => {
       } as any,
     });
 
-    expect(span).toMatchObject({
-      input_tokens: 8,
-      output_tokens: 5,
-      total_tokens: 13,
-      cache_read_input_tokens: 3,
-      cost_usd: 0.02,
-      attributes: expect.objectContaining({
-        'gen_ai.usage.input_tokens': 8,
-        'gen_ai.usage.output_tokens': 5,
-        'gen_ai.usage.total_tokens': 13,
-        'gen_ai.usage.cache_read_input_tokens': 3,
-        'openbox.usage.cost_usd': 0.02,
-      }),
-    });
+    // Canonical http_request span: token/cost telemetry is no longer carried as
+    // span-root fields or gen_ai.*/openbox.* attributes. Normalized usage survives
+    // only inside the response_body (which Core re-derives it from).
+    expect(span.hook_type).toBe('http_request');
+    expect(span.http_method).toBe('POST');
+    for (const k of ['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_input_tokens', 'cost_usd']) {
+      expect(span[k]).toBeUndefined();
+    }
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
     expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
       input_tokens: 8,
       output_tokens: 5,
@@ -186,8 +184,9 @@ describe('LLM completion spans', () => {
       web_search_requests: 0,
       cost_usd: 0,
     };
-    const completed = buildLLMCompletionSpan({
-      content: 'No billable usage.',
+    const completed = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'No billable usage.',
       model: 'gpt-4o-mini',
       usage,
     });
@@ -197,25 +196,18 @@ describe('LLM completion spans', () => {
       usage,
     });
 
+    // buildSpan emits the canonical http_request shape — zero usage survives only
+    // in the response_body, not as span-root fields or gen_ai.*/openbox.* attrs.
     for (const span of [completed, generic]) {
-      expect(span).toMatchObject({
-        input_tokens: 0,
-        output_tokens: 0,
-        total_tokens: 0,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-        web_search_requests: 0,
-        cost_usd: 0,
-        attributes: expect.objectContaining({
-          'gen_ai.usage.input_tokens': 0,
-          'gen_ai.usage.output_tokens': 0,
-          'gen_ai.usage.total_tokens': 0,
-          'gen_ai.usage.cache_read_input_tokens': 0,
-          'gen_ai.usage.cache_creation_input_tokens': 0,
-          'gen_ai.usage.web_search_requests': 0,
-          'openbox.usage.cost_usd': 0,
-        }),
-      });
+      expect(span.hook_type).toBe('http_request');
+      for (const k of ['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'web_search_requests', 'cost_usd']) {
+        expect(span[k]).toBeUndefined();
+      }
+      expect(
+        Object.keys(span.attributes as Record<string, unknown>).some(
+          (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+        ),
+      ).toBe(false);
       expect(JSON.parse(String(span.response_body)).usage).toMatchObject(usage);
     }
   });
@@ -240,92 +232,63 @@ describe('LLM completion spans', () => {
   });
 
   test('builds the Core-compatible completed llm_completion span shape', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'The queue has two governed requests ready.',
-      span: {
-        span_id: 'span-1',
-        trace_id: 'trace-1',
-        name: 'placeholder',
-        kind: 'internal',
-        start_time: 100,
-        end_time: 200,
-        duration_ns: 100,
-        attributes: { 'openbox.copilotkit.gate': 'assistant_output' },
-        data: { source: 'copilotkit' },
-      },
-      name: 'openbox.copilotkit.assistant_output',
-      kind: 'llm',
+    const span = buildSpan('copilotkit', 'llm', {
+      stage: 'completed',
+      response: 'The queue has two governed requests ready.',
     });
 
+    // Canonical: an assistant-output / LLM provider call is a plain http_request
+    // span — name 'POST', kind 'CLIENT', OTel-native http.* attributes only.
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span).toMatchObject({
-      span_id: 'span-1',
-      trace_id: 'trace-1',
       parent_span_id: null,
-      name: 'openbox.copilotkit.assistant_output',
-      kind: 'llm',
-      start_time: 100_000_000,
-      end_time: 200_000_000,
-      duration_ns: 100,
+      name: 'POST',
+      kind: 'CLIENT',
+      hook_type: 'http_request',
       stage: 'completed',
       status: { code: 'UNSET', description: null },
       events: [],
       error: null,
+      http_method: 'POST',
+      http_url: 'https://api.openai.com/v1/chat/completions',
       attributes: {
-        'gen_ai.system': 'openbox-sdk',
         'http.method': 'POST',
         'http.url': 'https://api.openai.com/v1/chat/completions',
-        'openbox.copilotkit.gate': 'assistant_output',
       },
-      data: { source: 'copilotkit' },
     });
-    expect(extractAssistantContentLikeCore([span])).toBe(
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
+    expect(extractAssistantContentLikeCore([span as never])).toBe(
       'The queue has two governed requests ready.',
     );
   });
 
-  test('preserves source LLM span status, events, parent id, and error root fields', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'failed',
-      span: {
-        span_id: 'span-1',
-        trace_id: 'trace-1',
-        parent_span_id: 'parent-1',
-        name: 'source',
-        start_time: 1,
-        end_time: 2,
-        duration_ns: 1,
-        status: { code: 'ERROR', description: 'model failed' },
-        events: [
-          {
-            name: 'exception',
-            timestamp: 2,
-            attributes: { message: 'model failed' },
-          },
-        ],
-        error: 'model failed',
-      } as SpanData & { error: string },
+  test('propagates LLM span error into the canonical status and error root fields', () => {
+    const span = buildSpan('mcp', 'llm', {
+      response: 'failed',
+      error: 'model failed',
     });
 
+    // Canonical envelope carries the error as both the status description and the
+    // root `error` field; events default to [] and parent_span_id to null.
     expect(span).toMatchObject({
-      parent_span_id: 'parent-1',
+      parent_span_id: null,
+      hook_type: 'http_request',
       status: { code: 'ERROR', description: 'model failed' },
-      events: [
-        {
-          name: 'exception',
-          timestamp: 2,
-          attributes: { message: 'model failed' },
-        },
-      ],
+      events: [],
       error: 'model failed',
     });
   });
 
-  test('includes Core model-usage fields when provider metadata is present', () => {
+  test('carries model and usage telemetry only inside the canonical response_body', () => {
     const beforeNs = Date.now() * 1_000_000;
-    const span = buildLLMCompletionSpan({
-      content: 'The governed request is ready.',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'The governed request is ready.',
       model: 'gpt-4o-mini',
       usage: {
         promptTokens: 120,
@@ -339,6 +302,7 @@ describe('LLM completion spans', () => {
     expect(Number(span.end_time)).toBeGreaterThanOrEqual(beforeNs - 1_000_000);
     expect(Number(span.end_time)).toBeLessThanOrEqual(afterNs + 1_000_000);
 
+    // Model/usage telemetry is re-derivable by Core from the verbatim response_body.
     expect(JSON.parse(String(span.response_body))).toEqual({
       choices: [
         {
@@ -361,34 +325,24 @@ describe('LLM completion spans', () => {
     });
     expect(span.http_url).toBe('https://api.openai.com/v1/chat/completions');
     expect(span.http_method).toBe('POST');
-    const observed = span as typeof span & {
-      model?: string;
-      model_id?: string;
-      provider?: string;
-      model_provider?: string;
-      input_tokens?: number;
-      output_tokens?: number;
-      total_tokens?: number;
-    };
-    expect(observed.model).toBe('gpt-4o-mini');
-    expect(observed.model_id).toBe('gpt-4o-mini');
-    expect(observed.provider).toBe('openai');
-    expect(observed.model_provider).toBe('openai');
-    expect(observed.input_tokens).toBe(120);
-    expect(observed.output_tokens).toBe(35);
-    expect(observed.total_tokens).toBe(155);
+    expect(span.hook_type).toBe('http_request');
+    // Canonical http_request: NO model/token telemetry at the span root.
+    for (const k of ['model', 'model_id', 'provider', 'model_provider', 'input_tokens', 'output_tokens', 'total_tokens']) {
+      expect(span[k]).toBeUndefined();
+    }
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    // OTel-native attributes only — no gen_ai.*/openbox.*.
     expect(span.attributes).toMatchObject({
-      'gen_ai.request.model': 'gpt-4o-mini',
-      'gen_ai.response.model': 'gpt-4o-mini',
-      'openbox.model.id': 'gpt-4o-mini',
-      'openbox.model.provider': 'openai',
-      'gen_ai.usage.input_tokens': 120,
-      'gen_ai.usage.output_tokens': 35,
-      'gen_ai.usage.total_tokens': 155,
-      'openbox.span_type': 'function',
+      'http.method': 'POST',
+      'http.url': 'https://api.openai.com/v1/chat/completions',
+      'http.status_code': 200,
     });
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
   });
 
   test('generic LLM spans expose derived total tokens for backend metrics', () => {
@@ -404,26 +358,27 @@ describe('LLM completion spans', () => {
 
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    // Canonical http_request span: model/token telemetry no longer rides on the
+    // span root or as gen_ai.*/openbox.* attributes — only the OTel-native http.*
+    // attributes and the canonical http_method/http_url root fields remain. The
+    // derived totals survive in the request/response bodies (asserted below).
+    expect(span.hook_type).toBe('http_request');
     expect(span).toMatchObject({
-      model: 'gemini-2.5-flash',
-      model_id: 'gemini-2.5-flash',
-      provider: 'google',
-      model_provider: 'google',
-      input_tokens: 11,
-      output_tokens: 7,
-      total_tokens: 18,
       http_method: 'POST',
       http_url: 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
       attributes: {
         'http.method': 'POST',
         'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
-        'gen_ai.usage.input_tokens': 11,
-        'gen_ai.usage.output_tokens': 7,
-        'gen_ai.usage.total_tokens': 18,
-        'openbox.model.id': 'gemini-2.5-flash',
-        'openbox.model.provider': 'google',
       },
     });
+    for (const k of ['model', 'model_id', 'provider', 'model_provider', 'input_tokens', 'output_tokens', 'total_tokens']) {
+      expect(span[k]).toBeUndefined();
+    }
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
 
     expect(JSON.parse(span.request_body as string)).toMatchObject({
       model: 'gemini-2.5-flash',
@@ -479,19 +434,22 @@ describe('LLM completion spans', () => {
       completion: 'Gemini response.',
     });
 
-    const span = buildLLMCompletionSpan({
-      content: 'Gemini response.',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'Gemini response.',
       model: 'gemini-2.5-flash',
       usage,
     });
 
-    expect(span).toMatchObject({
-      model_id: 'gemini-2.5-flash',
-      provider: 'google',
-      input_tokens: 11,
-      output_tokens: 7,
-      total_tokens: 21,
-    });
+    // Canonical http_request span: model/token telemetry survives only in the
+    // verbatim response_body, never as span-root fields.
+    expect(span.hook_type).toBe('http_request');
+    expect(span.http_url).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
+    );
+    for (const k of ['model_id', 'provider', 'input_tokens', 'output_tokens', 'total_tokens']) {
+      expect(span[k]).toBeUndefined();
+    }
     expect(JSON.parse(String(span.response_body)).usage).toMatchObject({
       input_tokens: 11,
       output_tokens: 7,
@@ -536,22 +494,20 @@ describe('LLM completion spans', () => {
     });
   });
 
-  test('provider-prefixed model names expose model_id without changing model', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'done',
+  test('provider-prefixed model names expose model_id inside the request/response bodies', () => {
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'done',
       model: 'anthropic/claude-opus-4-8',
       usage: { inputTokens: 2, outputTokens: 3 },
-    }) as ReturnType<typeof buildLLMCompletionSpan> & {
-      model?: string;
-      model_id?: string;
-      provider?: string;
-      model_provider?: string;
-    };
+    });
 
-    expect(span.model).toBe('anthropic/claude-opus-4-8');
-    expect(span.model_id).toBe('claude-opus-4-8');
-    expect(span.provider).toBe('anthropic');
-    expect(span.model_provider).toBe('anthropic');
+    // Canonical http_request: no model/provider telemetry at the span root.
+    for (const k of ['model', 'model_id', 'provider', 'model_provider']) {
+      expect(span[k]).toBeUndefined();
+    }
+    // The provider routes the canonical http.url; the parsed model_id/provider
+    // survive only inside the verbatim request/response bodies.
     expect(span.http_url).toBe('https://api.anthropic.com/v1/messages');
     expect(JSON.parse(String(span.request_body))).toMatchObject({
       model: 'anthropic/claude-opus-4-8',
@@ -567,14 +523,18 @@ describe('LLM completion spans', () => {
     });
     expect(span.attributes).toMatchObject({
       'http.url': 'https://api.anthropic.com/v1/messages',
-      'openbox.model.id': 'claude-opus-4-8',
-      'openbox.model.provider': 'anthropic',
     });
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
   });
 
   test('normalizes Date.now-style explicit LLM span timestamps to nanoseconds', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'done',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'done',
       startTime: 1_700_000_000_000,
       endTime: 1_700_000_000_125,
       durationNs: 125_000_000,
@@ -586,60 +546,39 @@ describe('LLM completion spans', () => {
   });
 
   test('derives LLM span duration from explicit start and end timestamps', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'done',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'done',
       startTime: 1_700_000_000_000,
       endTime: 1_700_000_000_125,
     });
 
     expect(span.start_time).toBe(1_700_000_000_000_000_000);
     expect(span.end_time).toBe(1_700_000_000_125_000_000);
-    expect(span.duration_ns).toBe(125_000_000);
-  });
-
-  test('normalizes Date.now-style source LLM span timestamps to nanoseconds', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'done',
-      span: {
-        start_time: 1_700_000_000_000,
-        end_time: 1_700_000_000_250,
-        duration_ns: 250_000_000,
-      },
-    });
-
-    expect(span.start_time).toBe(1_700_000_000_000_000_000);
-    expect(span.end_time).toBe(1_700_000_000_250_000_000);
-    expect(span.duration_ns).toBe(250_000_000);
-  });
-
-  test('derives LLM span duration when source span has placeholder zero duration', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'done',
-      span: {
-        start_time: 1_700_000_000_000,
-        end_time: 1_700_000_000_250,
-        duration_ns: 0,
-      },
-    });
-
-    expect(span.start_time).toBe(1_700_000_000_000_000_000);
-    expect(span.end_time).toBe(1_700_000_000_250_000_000);
-    expect(span.duration_ns).toBe(250_000_000);
+    // Canonical buildSpan derives duration by subtracting nanosecond timestamps,
+    // which exceed Number's safe-integer range, so the 125ms result lands within
+    // float rounding rather than exactly 125_000_000.
+    expect(Math.abs(Number(span.duration_ns) - 125_000_000)).toBeLessThan(1_000);
   });
 
   test('default classifier URL does not create a provider alias by itself', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'done',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'done',
       usage: { inputTokens: 1, outputTokens: 1 },
-    }) as ReturnType<typeof buildLLMCompletionSpan> & {
-      provider?: string;
-      model_provider?: string;
-    };
+    });
 
+    // No model/provider hint → falls back to the default OpenAI-compatible URL,
+    // and the canonical http_request span exposes no provider telemetry at all.
     expect(span.http_url).toBe('https://api.openai.com/v1/chat/completions');
     expect(span.provider).toBeUndefined();
     expect(span.model_provider).toBeUndefined();
     expect(span.attributes).not.toHaveProperty('openbox.model.provider');
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
   });
 
   test('MCP spans expose Core classifier and platform tool telemetry fields', () => {
@@ -650,18 +589,21 @@ describe('LLM completion spans', () => {
 
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
-    expect(span.span_type).toBe('mcp_tool_call');
+    // Canonical: MCP collapses to a function_call span (span_type stripped; the
+    // openbox.* attributes stripped). OTel-native mcp.* and tool.* attrs survive.
+    expect(span.span_type).toBeUndefined();
+    expect(span.hook_type).toBe('function_call');
     expect(span.name).toBe('MCP callTool read_customer_file');
     expect(span.attributes).toMatchObject({
       'mcp.method': 'callTool',
       'mcp.operation': 'read_customer_file',
       'mcp.server_id': 'unknown',
       'mcp.input': { path: 'customer.md' },
-      'openbox.span_type': 'mcp_tool_call',
-      'openbox.tool.name': 'read_customer_file',
       'tool.name': 'read_customer_file',
       tool_name: 'read_customer_file',
     });
+    expect(span.attributes).not.toHaveProperty('openbox.span_type');
+    expect(span.attributes).not.toHaveProperty('openbox.tool.name');
   });
 
   test('embedding spans expose Core classifier fields without client-forged semantic type', () => {
@@ -673,26 +615,30 @@ describe('LLM completion spans', () => {
 
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    // Canonical: an embedding collapses to a function_call span — span_type, the
+    // http_*/token root fields, and gen_ai.*/openbox.* attrs are all stripped. The
+    // request payload survives in the canonical `args` field, OTel http.* in attrs.
     expect(span).toMatchObject({
       name: 'openai.EMBEDDING.create',
-      span_type: 'function',
-      http_method: 'POST',
-      http_url: 'https://api.openai.com/v1/embeddings',
-      input_tokens: 12,
-      total_tokens: 12,
-      cost_usd: 0.001,
+      hook_type: 'function_call',
+      function: 'Embedding',
+      module: 'mcp',
     });
+    for (const k of ['span_type', 'http_method', 'http_url', 'input_tokens', 'total_tokens', 'cost_usd']) {
+      expect(span[k]).toBeUndefined();
+    }
     expect(span.attributes).toMatchObject({
-      'gen_ai.system': 'mcp',
-      'gen_ai.request.model': 'text-embedding-3-small',
       'http.method': 'POST',
       'http.url': 'https://api.openai.com/v1/embeddings',
-      'gen_ai.usage.input_tokens': 12,
-      'gen_ai.usage.total_tokens': 12,
     });
-    expect(JSON.parse(String(span.request_body))).toMatchObject({
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
+    expect(span.args).toMatchObject({
       model: 'text-embedding-3-small',
-      input: 'govern this embedding',
+      prompt: 'govern this embedding',
     });
   });
 
@@ -706,27 +652,30 @@ describe('LLM completion spans', () => {
 
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    // Canonical: a tool call collapses to a function_call span — span_type, the
+    // http_*/token root fields, response_body, and gen_ai.*/openbox.* attrs are all
+    // stripped. The tool input survives in the canonical `args` field.
     expect(span).toMatchObject({
       name: 'openai.TOOL.call',
-      span_type: 'function',
-      http_method: 'POST',
-      http_url: 'https://api.openai.com/v1/chat/completions',
+      hook_type: 'function_call',
       function: 'ToolCall:lookup_queue',
-      input_tokens: 5,
-      output_tokens: 2,
-      total_tokens: 7,
     });
+    for (const k of ['span_type', 'http_method', 'http_url', 'input_tokens', 'output_tokens', 'total_tokens']) {
+      expect(span[k]).toBeUndefined();
+    }
     expect(span.attributes).toMatchObject({
-      'gen_ai.system': 'openai-agents-sdk',
       'http.method': 'POST',
       'http.url': 'https://api.openai.com/v1/chat/completions',
-      'openbox.tool.name': 'lookup_queue',
       'tool.name': 'lookup_queue',
       tool_name: 'lookup_queue',
     });
-    expect(JSON.parse(String(span.response_body))).toMatchObject({
-      tool_calls: [{ name: 'lookup_queue', arguments: { queue: 'payments' } }],
-    });
+    expect(span.attributes).not.toHaveProperty('openbox.tool.name');
+    expect(
+      Object.keys(span.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
+    expect(span.args).toMatchObject({ queue: 'payments' });
   });
 
   test('file_open spans expose Core file.open classifier fields', () => {
@@ -737,22 +686,26 @@ describe('LLM completion spans', () => {
 
     expect(span).not.toHaveProperty('semantic_type');
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
+    // Canonical file_operation span: span_type stripped; file_operation lives at
+    // the root (not as a file.operation attribute on the open span); openbox.* attrs
+    // stripped.
     expect(span).toMatchObject({
       name: 'file.open',
       kind: 'INTERNAL',
-      span_type: 'file_io',
       file_path: '/project/.env',
       file_mode: 'r',
       file_operation: 'open',
     });
+    expect(span.span_type).toBeUndefined();
     expect(span.attributes).toMatchObject({
       'file.path': '/project/.env',
       // Canonical open span carries file.mode (file_governance_hooks.py:traced_open).
       'file.mode': 'r',
-      'file.operation': 'open',
-      'openbox.tool.name': 'TabRead',
       'tool.name': 'TabRead',
     });
+    // Canonical open span carries file.operation only at the root, not as an attr.
+    expect(span.attributes).not.toHaveProperty('file.operation');
+    expect(span.attributes).not.toHaveProperty('openbox.tool.name');
   });
 
   test('canonical file spans: open carries file.mode; read/write carry file.bytes when known', () => {
@@ -804,10 +757,11 @@ describe('LLM completion spans', () => {
     expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(span.attributes).toMatchObject({
       'shell.command': 'npm test',
-      'openbox.tool.name': 'Shell',
       'tool.name': 'Shell',
       tool_name: 'Shell',
     });
+    // Canonical: the synthetic openbox.* attribute is stripped.
+    expect(span.attributes).not.toHaveProperty('openbox.tool.name');
   });
 
   test('completed operation spans carry completed phase timestamps', () => {
@@ -870,8 +824,9 @@ describe('LLM completion spans', () => {
   });
 
   test('captures raw provider bodies verbatim but always redacts sensitive headers', () => {
-    const span = buildLLMCompletionSpan({
-      content: '',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: '',
       model: 'gpt-4o',
       httpStatusCode: 200,
       rawRequestBody: {
@@ -901,11 +856,7 @@ describe('LLM completion spans', () => {
         'set-cookie': 'sess=secret',
         'x-ratelimit-limit-tokens': '200000',
       },
-    }) as ReturnType<typeof buildLLMCompletionSpan> & {
-      request_headers?: Record<string, string>;
-      response_headers?: Record<string, string>;
-      http_status_code?: number;
-    };
+    }) as Record<string, any>;
 
     // Raw provider bodies preserved verbatim (not synthesized).
     expect(JSON.parse(String(span.request_body))).toMatchObject({
@@ -934,13 +885,12 @@ describe('LLM completion spans', () => {
   });
 
   test('redacts authorization and cookie headers with the canonical sentinel', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'ok',
+    const span = buildSpan('mcp', 'llm', {
+      stage: 'completed',
+      response: 'ok',
       model: 'gpt-4o',
       requestHeaders: { authorization: 'Bearer sk-secret', cookie: 'a=b' },
-    }) as ReturnType<typeof buildLLMCompletionSpan> & {
-      request_headers?: Record<string, string>;
-    };
+    }) as Record<string, any>;
 
     expect(span.request_headers?.authorization).toBe('[REDACTED]');
     expect(span.request_headers?.cookie).toBe('[REDACTED]');

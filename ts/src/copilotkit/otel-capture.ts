@@ -24,7 +24,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { SpanKind, trace, type Span } from '@opentelemetry/api';
 import type { SpanData } from '../core-client/index.js';
 import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
-import { buildSpan, type SpanInput, type SpanType } from '../governance/spans.js';
+import { buildSpan, canonicalizeSpan, type SpanInput, type SpanType } from '../governance/spans.js';
 
 export interface CapturedLLMExchange {
   method: string;
@@ -154,52 +154,11 @@ function truncateFileData(value: unknown): string | undefined {
  * send it; and `module`/`function`/`args`/`result` are function_call-only fields,
  * never present on http/db/file spans. All canonical root data fields are kept.
  */
+// Single canonicalizer for every span the SDK emits — the recordFunctionCall path
+// builds its span by hand (not via buildSpan), so it routes through the same
+// shared `canonicalizeSpan` chokepoint to guarantee the identical langgraph 1:1 shape.
 function canonicalizeSubOpSpan(span: Record<string, unknown>): SpanData {
-  const next: Record<string, unknown> = { ...span };
-  const attrs = next.attributes;
-  // Every span reaching here is built by buildSpan() or recordFunctionCall(),
-  // both of which always attach an object `attributes`; the non-object else
-  // branch is an unreachable defensive guard.
-  /* c8 ignore next */
-  if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
-    next.attributes = Object.fromEntries(
-      Object.entries(attrs as Record<string, unknown>).filter(
-        ([key]) => !key.startsWith('openbox.'),
-      ),
-    );
-  }
-  delete next.span_type;
-  if (next.hook_type !== 'function_call') {
-    delete next.module;
-    delete next.function;
-    delete next.args;
-    delete next.result;
-  }
-  // Canonical file.open span (file_governance_hooks.py traced_open) sets ONLY
-  // {file.path, file.mode} as attributes — file.operation lives at the root
-  // (file_operation), NOT as an attribute. (read/write DO set file.operation as
-  // an attribute, so only strip it for the open span.) The shared buildSpan adds
-  // it additively for cursor/claude-code/codex; remove it on the copilotkit path.
-  if (
-    next.name === 'file.open' &&
-    next.attributes &&
-    typeof next.attributes === 'object' &&
-    !Array.isArray(next.attributes)
-  ) {
-    delete (next.attributes as Record<string, unknown>)['file.operation'];
-  }
-  // Canonical db span name falls back to "{db_operation} {db_system}" when the
-  // OTel span is unnamed (_build_db_span_data). Our captured sqlite path has no
-  // OTel span name, so the shared builder emits just the operation — restore the
-  // canonical "{operation} {system}" form (e.g. "SELECT sqlite").
-  if (
-    next.hook_type === 'db_query' &&
-    typeof next.db_operation === 'string' &&
-    typeof next.db_system === 'string'
-  ) {
-    next.name = `${next.db_operation} ${next.db_system}`;
-  }
-  return next as unknown as SpanData;
+  return canonicalizeSpan(span) as unknown as SpanData;
 }
 
 /**

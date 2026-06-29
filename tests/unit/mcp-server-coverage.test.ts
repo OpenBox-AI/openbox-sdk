@@ -865,7 +865,6 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
           'mcp.method': 'callTool',
           'mcp.operation': 'danger_tool',
           'mcp.server_id': 'unknown',
-          'openbox.tool.name': 'danger_tool',
           'tool.name': 'danger_tool',
         }),
       });
@@ -966,19 +965,25 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
         span_count: 1,
       });
       const span = hook.spans[0];
+      // Canonical: the LLM provider call collapses to a plain http_request span.
+      // The token/model/cost telemetry is no longer carried as span root fields or
+      // gen_ai.*/openbox.* attributes — it survives only normalized inside the
+      // response_body (which Core re-derives it from).
       expect(span).toMatchObject({
-        model: 'gpt-4o-mini',
-        input_tokens: 5,
-        output_tokens: 3,
-        total_tokens: 8,
-        cost_usd: 0.002,
+        hook_type: 'http_request',
+        http_method: 'POST',
         attributes: expect.objectContaining({
-          'gen_ai.usage.input_tokens': 5,
-          'gen_ai.usage.output_tokens': 3,
-          'gen_ai.usage.total_tokens': 8,
-          'openbox.usage.cost_usd': 0.002,
+          'http.method': 'POST',
         }),
       });
+      for (const k of ['model', 'input_tokens', 'output_tokens', 'total_tokens', 'cost_usd', 'usage']) {
+        expect(span).not.toHaveProperty(k);
+      }
+      expect(
+        Object.keys(span.attributes as Record<string, unknown>).some(
+          (key) => key.startsWith('openbox.') || key.startsWith('gen_ai.'),
+        ),
+      ).toBe(false);
       expect(span).not.toHaveProperty('semantic_type');
       expect(span.attributes).not.toHaveProperty('openbox.semantic_type');
       expect(JSON.parse(String(span.response_body)).usage).toMatchObject({

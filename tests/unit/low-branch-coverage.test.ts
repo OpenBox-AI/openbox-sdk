@@ -126,21 +126,24 @@ describe('low-branch utility coverage', () => {
   });
 
   it('builds shared governance spans for each MCP-supported span type and defaults', () => {
+    // `module` is a canonical function_call root field — only function_call hooks
+    // (shell, mcp) carry it. file_operation / http_request / db_query spans (and the
+    // canonical LLM http_request span) drop it during canonicalization.
     const cases = [
-      ['llm', { prompt: 'hi' }, 'POST'],
-      ['file_read', { file_path: '/tmp/read.txt' }, 'file.read'],
-      ['file_write', { file_path: '/tmp/write.txt' }, 'file.write'],
-      ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete'],
-      ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution'],
-      ['http', { method: 'get', url: 'https://example.test' }, 'GET https://example.test'],
-      ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT'],
-      ['mcp', { tool_name: 'search' }, 'MCP callTool search'],
+      ['llm', { prompt: 'hi' }, 'POST', false],
+      ['file_read', { file_path: '/tmp/read.txt' }, 'file.read', false],
+      ['file_write', { file_path: '/tmp/write.txt' }, 'file.write', false],
+      ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete', false],
+      ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution', true],
+      ['http', { method: 'get', url: 'https://example.test' }, 'GET https://example.test', false],
+      ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT postgresql', false],
+      ['mcp', { tool_name: 'search' }, 'MCP callTool search', true],
     ] as const;
 
-    for (const [spanType, input, name] of cases) {
+    for (const [spanType, input, name, hasModule] of cases) {
       const span = buildSpan('mcp', spanType as SpanType, input);
       expect(span.name).toBe(name);
-      expect(span.module).toBe('mcp');
+      expect(span.module).toBe(hasModule ? 'mcp' : undefined);
       expect(span).not.toHaveProperty('semantic_type');
       expect(String(span.span_id)).toMatch(/^[0-9a-f]{16}$/);
       expect(String(span.trace_id)).toMatch(/^[0-9a-f]{32}$/);

@@ -513,7 +513,7 @@ describe('runtime/claude-code/mappers/post-tool-use', () => {
       name: 'ShellExecution',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
-        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
       }),
     });
     expect(span).not.toHaveProperty('semantic_type');
@@ -593,7 +593,7 @@ describe('runtime/claude-code/mappers/permission-request', () => {
       name: 'ShellExecution',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
-        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
       }),
     });
     expect(span).not.toHaveProperty('semantic_type');

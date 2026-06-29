@@ -53,15 +53,6 @@ function errorDescription(value: unknown): string | undefined {
   }
 }
 
-function spanStatusOrDefault(
-  status: unknown,
-  error: string | undefined,
-): { code: string; description?: string | null } {
-  return status && typeof status === 'object' && !Array.isArray(status)
-    ? (status as { code: string; description?: string | null })
-    : { code: error ? CANONICAL_SPAN.statusCode.error : CANONICAL_SPAN.statusCode.unset, description: error ?? null };
-}
-
 function base(
   stage: 'started' | 'completed' = 'started',
   error?: unknown,
@@ -146,6 +137,12 @@ export interface SpanInput {
   // the span carries the real wire payload (full messages, raw provider JSON).
   rawRequestBody?: unknown;
   rawResponseBody?: unknown;
+  provider?: string;
+  // Explicit wall-clock timing for spans whose caller knows real start/end (e.g.
+  // assistant-output / captured LLM spans). Overrides base()'s now() default.
+  startTime?: number;
+  endTime?: number;
+  durationNs?: number;
 }
 
 export interface LLMCompletionSpanInput {
@@ -261,6 +258,7 @@ function parseJsonRecord(value: unknown): JsonRecord {
 }
 
 function stringifyBody(value: unknown): string | undefined {
+  /* c8 ignore next -- defensive: every live caller already guards against undefined */
   if (value === undefined) return undefined;
   return typeof value === 'string' ? value : JSON.stringify(value);
 }
@@ -316,15 +314,6 @@ function isDateNowTimestamp(value: number): boolean {
 function normalizeDurationNs(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
   return Math.max(0, Math.trunc(value));
-}
-
-function deriveDurationNs(
-  startTime: number | undefined,
-  endTime: number | undefined,
-): number | undefined {
-  /* c8 ignore next -- defensive: only ever called with defined start/end (both default to `now`) */
-  if (startTime === undefined || endTime === undefined) return undefined;
-  return Math.max(0, endTime - startTime);
 }
 
 function deriveDurationNsFromRawTimestamps(
@@ -515,6 +504,7 @@ function firstTrimmed(...values: Array<unknown>): string | undefined {
 function normalizeProvider(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const normalized = value.trim().toLowerCase();
+  /* c8 ignore next -- defensive: value is non-empty here and pre-trimmed by parseModelIdentifier */
   if (!normalized) return undefined;
   if (normalized.includes('openai')) return 'openai';
   if (normalized.includes('anthropic')) return 'anthropic';
@@ -606,75 +596,6 @@ function providerUrlForLLM(provider: string | undefined): string {
 // fabricated) and the platform surfaces it; the leaner Python reference simply
 // does not emit it. Only POST spans are affected; tool/internal spans keep
 // their fields (the reference keeps them too).
-const LLM_COMPLETION_ENVELOPE_FIELDS = [
-  'data',
-  'events',
-  'error',
-  'span_type',
-  'duration_ms',
-  'function',
-  'module',
-  'args',
-  'result',
-] as const;
-
-// Canonical: the llm_completion is a plain http_request span — model/usage/cost
-// are NOT span fields. Core derives them from the response_body, and the SDK also
-// rides them on the activity event via telemetryForGate. Drop the span-root copies
-// for an exact match with the reference http_request span.
-const LLM_TELEMETRY_ROOT_FIELDS = [
-  'model',
-  'model_id',
-  'provider',
-  'model_provider',
-  'input_tokens',
-  'output_tokens',
-  'total_tokens',
-  'cost_usd',
-] as const;
-
-export function leanCopilotLlmSpan<T extends object>(span: T): T {
-  const record = span as Record<string, unknown>;
-  if (record.name !== 'POST') return span;
-  const next: Record<string, unknown> = { ...record };
-  for (const key of LLM_COMPLETION_ENVELOPE_FIELDS) {
-    delete next[key];
-  }
-  for (const key of LLM_TELEMETRY_ROOT_FIELDS) {
-    delete next[key];
-  }
-  // The reference started span omits duration_ns entirely (only completed spans
-  // carry it); drop the null key instead of emitting duration_ns: null.
-  if (next.duration_ns === null || next.duration_ns === undefined) {
-    delete next.duration_ns;
-  }
-  // The reference inner span sets semantic_type explicitly (Core preserves it).
-  // Value is spec-driven (CANONICAL_SPAN.semanticType, from @spanContract).
-  next.semantic_type = CANONICAL_SPAN.semanticType.static.llm;
-  // Canonical (openbox-langgraph-sdk-python http_governance_hooks): a span's
-  // `attributes` carry OTel-native keys ONLY; all custom data lives at root. The
-  // llm_completion is an http_request span, so its attributes are
-  // {http.url, http.method[, http.status_code]} — matching the file/db/http
-  // sub-op spans and the prod-data llm_completion span — not openbox.* keys.
-  next.attributes = {
-    ...(typeof record.http_url === 'string'
-      ? { 'http.url': record.http_url }
-      : {}),
-    ...(record.http_method !== undefined && record.http_method !== null
-      ? { 'http.method': record.http_method }
-      : {}),
-    ...(typeof record.http_status_code === 'number'
-      ? { 'http.status_code': record.http_status_code }
-      : {}),
-  };
-  // Canonical span status carries only { code } — drop a null description.
-  const status = next.status as Record<string, unknown> | undefined;
-  if (status && typeof status === 'object' && status.description == null) {
-    next.status = { code: status.code };
-  }
-  return next as unknown as T;
-}
-
 export function stripServerComputedSemantic<T extends object>(span: T): T {
   const next: Record<string, unknown> = {
     ...(span as Record<string, unknown>),
@@ -930,192 +851,6 @@ function headerMapOrNull(value: unknown): Record<string, string> | null {
   return sanitizeHeaderMap(value) ?? null;
 }
 
-export function buildLLMCompletionSpan(
-  input: LLMCompletionSpanInput,
-): SpanData {
-  const now = Date.now() * 1_000_000;
-  const source = input.span ?? {};
-  const sourceRecord = source as SpanData & {
-    durationNs?: unknown;
-    error?: unknown;
-    parent_span_id?: string | null;
-  };
-  const spanError = errorDescription(sourceRecord.error);
-  const rawStartTime = input.startTime ?? source.start_time;
-  const rawEndTime = input.endTime ?? source.end_time;
-  const sourceStartTime =
-    typeof source.start_time === 'number'
-      ? normalizeSpanTimestamp(source.start_time)
-      : undefined;
-  const sourceEndTime =
-    typeof source.end_time === 'number'
-      ? normalizeSpanTimestamp(source.end_time)
-      : undefined;
-  const startTime = normalizeSpanTimestamp(input.startTime) ?? sourceStartTime ?? now;
-  const endTime = normalizeSpanTimestamp(input.endTime) ?? sourceEndTime ?? now;
-  const explicitDurationNs = normalizeDurationNs(input.durationNs);
-  const sourceDurationNs = normalizeDurationNs(
-    sourceRecord.duration_ns ?? sourceRecord.durationNs,
-  );
-  const usefulSourceDurationNs =
-    sourceDurationNs !== undefined && sourceDurationNs > 0
-      ? sourceDurationNs
-      : undefined;
-  const derivedDurationNs =
-    deriveDurationNsFromRawTimestamps(rawStartTime, rawEndTime) ??
-    deriveDurationNs(startTime, endTime);
-  // The final `?? sourceDurationNs ?? 0` arms are defensive: derivedDurationNs is
-  // always defined (deriveDurationNs never returns undefined when called here), so
-  // they are unreachable and excluded from coverage.
-  /* v8 ignore next 3 */
-  const durationNs =
-    explicitDurationNs ??
-    usefulSourceDurationNs ??
-    derivedDurationNs ??
-    sourceDurationNs ??
-    0;
-  const usage = normalizeUsage(input.usage);
-  const inputTokens = toUsageInteger(
-    usage?.input_tokens ?? usage?.prompt_tokens,
-  );
-  const outputTokens = toUsageInteger(
-    usage?.output_tokens ?? usage?.completion_tokens,
-  );
-  const totalTokens = toUsageInteger(usage?.total_tokens);
-  const cacheReadInputTokens = toUsageInteger(usage?.cache_read_input_tokens);
-  const cacheCreationInputTokens = toUsageInteger(
-    usage?.cache_creation_input_tokens,
-  );
-  const webSearchRequests = toUsageInteger(usage?.web_search_requests);
-  const costUsd = toUsageNumber(usage?.cost_usd);
-  const explicitProviderUrl =
-    input.providerUrl ??
-    source.http_url ??
-    (typeof source.attributes?.['http.url'] === 'string'
-      ? source.attributes['http.url']
-      : undefined);
-  const modelTelemetry = modelTelemetryFields(
-    input.model,
-    input.provider,
-    explicitProviderUrl,
-  );
-  const httpUrl = explicitProviderUrl ?? providerUrlForLLM(modelTelemetry.provider);
-  const httpStatusCode = coerceHttpStatusCode(
-    input.httpStatusCode ?? source.http_status_code,
-  );
-  const responseHeaders =
-    sanitizeHeaderMap(input.responseHeaders ?? source.response_headers) ??
-    (httpStatusCode !== undefined
-      ? defaultLLMResponseHeaders(modelTelemetry.provider)
-      : undefined);
-  return stripServerComputedSemantic({
-    ...source,
-    span_id: source.span_id ?? hex(16),
-    trace_id: source.trace_id ?? hex(32),
-    parent_span_id: sourceRecord.parent_span_id ?? null,
-    name: input.name ?? source.name ?? 'llm.chat.completion',
-    kind: input.kind ?? source.kind ?? 'CLIENT',
-    start_time: startTime,
-    end_time: endTime,
-    duration_ns: durationNs,
-    duration_ms: durationNs / 1_000_000,
-    span_type: 'function',
-    stage: 'completed',
-    status: spanStatusOrDefault(source.status, spanError),
-    events: Array.isArray(source.events) ? source.events : [],
-    error: spanError ?? null,
-    attributes: {
-      'gen_ai.system': input.system ?? 'openbox-sdk',
-      ...(input.model ? { 'gen_ai.request.model': input.model } : {}),
-      ...(input.model ? { 'gen_ai.response.model': input.model } : {}),
-      ...(modelTelemetry.modelId ? { 'openbox.model.id': modelTelemetry.modelId } : {}),
-      ...(modelTelemetry.provider ? { 'openbox.model.provider': modelTelemetry.provider } : {}),
-      ...(inputTokens !== undefined
-        ? { 'gen_ai.usage.input_tokens': inputTokens }
-        : {}),
-      ...(outputTokens !== undefined
-        ? { 'gen_ai.usage.output_tokens': outputTokens }
-        : {}),
-      ...(totalTokens !== undefined
-        ? { 'gen_ai.usage.total_tokens': totalTokens }
-        : {}),
-      ...(cacheReadInputTokens !== undefined
-        ? {
-            'gen_ai.usage.cache_read_input_tokens': cacheReadInputTokens,
-            'openbox.usage.cache_read_input_tokens': cacheReadInputTokens,
-          }
-        : {}),
-      ...(cacheCreationInputTokens !== undefined
-        ? {
-            'gen_ai.usage.cache_creation_input_tokens': cacheCreationInputTokens,
-            'openbox.usage.cache_creation_input_tokens': cacheCreationInputTokens,
-          }
-        : {}),
-      ...(webSearchRequests !== undefined
-        ? {
-            'gen_ai.usage.web_search_requests': webSearchRequests,
-            'openbox.usage.web_search_requests': webSearchRequests,
-            'openbox.web_search.requests': webSearchRequests,
-          }
-        : {}),
-      ...(costUsd !== undefined
-        ? { 'openbox.usage.cost_usd': costUsd, 'openbox.cost.usd': costUsd }
-        : {}),
-      'http.method': 'POST',
-      'http.url': httpUrl,
-      ...(httpStatusCode !== undefined ? { 'http.status_code': httpStatusCode } : {}),
-      'openbox.span_type': 'function',
-      ...(source.attributes ?? {}),
-      ...(input.attributes ?? {}),
-    },
-    ...(input.model ? { model: input.model } : {}),
-    ...(modelTelemetry.modelId ? { model_id: modelTelemetry.modelId } : {}),
-    ...(modelTelemetry.provider
-      ? { provider: modelTelemetry.provider, model_provider: modelTelemetry.provider }
-      : {}),
-    ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
-    ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
-    ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
-    ...(cacheReadInputTokens !== undefined
-      ? { cache_read_input_tokens: cacheReadInputTokens }
-      : {}),
-    ...(cacheCreationInputTokens !== undefined
-      ? { cache_creation_input_tokens: cacheCreationInputTokens }
-      : {}),
-    ...(webSearchRequests !== undefined ? { web_search_requests: webSearchRequests } : {}),
-    ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
-    http_method: source.http_method ?? 'POST',
-    http_url: httpUrl,
-    request_body:
-      input.rawRequestBody !== undefined
-        ? stringifyBody(input.rawRequestBody)
-        : buildLLMCompletionRequestBody({
-            model: input.model,
-            modelId: modelTelemetry.modelId,
-            provider: modelTelemetry.provider,
-            requestBody: input.requestBody ?? source.request_body,
-          }),
-    request_headers:
-      sanitizeHeaderMap(
-        input.requestHeaders ??
-          source.request_headers ??
-          defaultLLMRequestHeaders(modelTelemetry.provider),
-      ) ?? defaultLLMRequestHeaders(modelTelemetry.provider),
-    data: input.data ?? source.data,
-    response_body:
-      input.rawResponseBody !== undefined
-        ? stringifyBody(input.rawResponseBody)
-        : buildLLMCompletionResponseBody(input.content, {
-            model: input.model,
-            modelId: modelTelemetry.modelId,
-            provider: modelTelemetry.provider,
-            usage: input.usage,
-            responseBody: input.responseBody ?? source.response_body,
-          }),
-    ...(responseHeaders ? { response_headers: responseHeaders } : {}),
-    ...(httpStatusCode !== undefined ? { http_status_code: httpStatusCode } : {}),
-  } as ObservableSpan) as unknown as SpanData;
-}
 
 /**
  * Build a single span for the given event. The gate attributes drive
@@ -1696,6 +1431,78 @@ function buildSpanWithClassifierFields(
   }
 }
 
+// Canonical langgraph-py span field sets, per hook_type. The SDK's shared
+// builder synthesizes a richer SUPERSET (span_type, openbox.*/gen_ai.* attrs,
+// function/args/result/module on non-function_call hooks, LLM token/cost
+// telemetry). `canonicalizeSpan` projects every built span down to exactly the
+// fields the canonical Python hooks emit (_build_{file,http,db}_span_data and
+// tracing.py), so EVERY host emits the byte-identical 1:1 langgraph shape — no
+// superset. An LLM provider call (hook_type 'http_request') collapses to a plain
+// http_request span because the usage/model fields aren't in the allow-list.
+const CANONICAL_ENVELOPE_KEYS = [
+  'span_id', 'trace_id', 'parent_span_id', 'name', 'kind', 'stage',
+  'start_time', 'end_time', 'duration_ns', 'attributes', 'status', 'events',
+  'hook_type', 'error',
+] as const;
+const CANONICAL_KEYS_BY_HOOK: Record<string, readonly string[]> = {
+  file_operation: [
+    'file_path', 'file_mode', 'file_operation',
+    'data', 'bytes_read', 'bytes_written', 'lines_count', 'operations',
+    'file_total_bytes_read', 'file_total_bytes_written',
+  ],
+  http_request: [
+    'http_method', 'http_url', 'request_body', 'request_headers',
+    'response_body', 'response_headers', 'http_status_code',
+  ],
+  db_query: [
+    'db_system', 'db_name', 'db_operation', 'db_statement',
+    'server_address', 'server_port', 'rowcount',
+  ],
+  function_call: ['function', 'module', 'args', 'result'],
+};
+
+export function canonicalizeSpan(span: Record<string, unknown>): Record<string, unknown> {
+  const hook = typeof span.hook_type === 'string' ? span.hook_type : '';
+  const allowed = new Set<string>([
+    ...CANONICAL_ENVELOPE_KEYS,
+    ...(CANONICAL_KEYS_BY_HOOK[hook] ?? []),
+  ]);
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(span)) {
+    if (allowed.has(key)) out[key] = span[key];
+  }
+  // Canonical attributes are the OTel-native span attributes only; the SDK's
+  // synthetic openbox.*/gen_ai.* telemetry keys are not part of the wire shape.
+  const attrs = out.attributes;
+  if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+    out.attributes = Object.fromEntries(
+      Object.entries(attrs as Record<string, unknown>).filter(
+        ([key]) => !key.startsWith('openbox.') && !key.startsWith('gen_ai.'),
+      ),
+    );
+  }
+  // Canonical file.open carries ONLY {file.path, file.mode} as attributes —
+  // file.operation lives at the root (file_operation), not as an attribute.
+  if (
+    span.name === 'file.open' &&
+    out.attributes &&
+    typeof out.attributes === 'object' &&
+    !Array.isArray(out.attributes)
+  ) {
+    delete (out.attributes as Record<string, unknown>)['file.operation'];
+  }
+  // Canonical db span name falls back to "{db_operation} {db_system}" when the
+  // OTel span is unnamed (_build_db_span_data).
+  if (
+    hook === 'db_query' &&
+    typeof out.db_operation === 'string' &&
+    typeof out.db_system === 'string'
+  ) {
+    out.name = `${out.db_operation} ${out.db_system}`;
+  }
+  return out;
+}
+
 export function buildSpan(
   host: string,
   type: SpanType,
@@ -1711,9 +1518,38 @@ export function buildSpan(
     built.kind !== CANONICAL_SPAN.spanKind.function_call
       ? { ...built, kind: CANONICAL_SPAN.spanKind.function_call }
       : built;
-  return stripServerComputedSemantic(
-    input.data !== undefined && span.data === undefined
-      ? { ...span, data: input.data }
-      : span,
+  const canonical = canonicalizeSpan(
+    stripServerComputedSemantic(
+      input.data !== undefined && span.data === undefined
+        ? { ...span, data: input.data }
+        : span,
+    ),
   );
+  return applyExplicitTiming(canonical, input);
+}
+
+// Override base()'s now() timing when the caller supplies real wall-clock (only
+// completed spans carry end_time/duration_ns, matching the canonical hooks).
+function applyExplicitTiming(
+  span: Record<string, unknown>,
+  input: SpanInput,
+): Record<string, unknown> {
+  const startNs = normalizeSpanTimestamp(input.startTime);
+  const endNs = normalizeSpanTimestamp(input.endTime);
+  // Derive duration from the RAW (pre-scaled) timestamps so ms inputs are
+  // subtracted before the ×1e6 scale — nanosecond subtraction would exceed JS's
+  // safe-integer range and lose precision.
+  const durNs =
+    normalizeDurationNs(input.durationNs) ??
+    deriveDurationNsFromRawTimestamps(input.startTime, input.endTime);
+  if (startNs === undefined && endNs === undefined && durNs === undefined) {
+    return span;
+  }
+  const out = { ...span };
+  if (startNs !== undefined) out.start_time = startNs;
+  if (span.stage === 'completed') {
+    if (endNs !== undefined) out.end_time = endNs;
+    if (durNs !== undefined) out.duration_ns = durNs;
+  }
+  return out;
 }

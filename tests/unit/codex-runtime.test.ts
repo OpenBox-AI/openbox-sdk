@@ -365,9 +365,8 @@ describe('Codex runtime adapter', () => {
       expect(promptHookEvent?.activity_type).toBe('PromptSubmission');
       expect(promptHookEvent?.spans?.[0]).toMatchObject({
         name: 'POST',
-        module: 'codex',
+        hook_type: 'http_request',
         attributes: expect.objectContaining({
-          'gen_ai.system': 'codex',
           'http.method': 'POST',
         }),
       });
@@ -662,16 +661,16 @@ describe('Codex runtime adapter', () => {
         llm_model: 'gpt-5.4',
       });
       const hookEvent = mock.events.find(
-        (event) => event.hook_trigger === true && event.spans?.[0]?.name === 'openbox.codex.assistant_output',
+        (event) =>
+          event.hook_trigger === true &&
+          event.spans?.[0]?.name === 'POST' &&
+          event.spans?.[0]?.stage === 'completed',
       );
       expect(hookEvent?.spans?.[0]).toMatchObject({
-        name: 'openbox.codex.assistant_output',
-        module: 'codex',
+        name: 'POST',
+        hook_type: 'http_request',
+        http_method: 'POST',
         stage: 'completed',
-        attributes: {
-          'gen_ai.system': 'codex',
-          'openbox.codex.event': 'Stop',
-        },
       });
     } finally {
       rmSync(sessionDir, { recursive: true, force: true });

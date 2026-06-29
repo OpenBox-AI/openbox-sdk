@@ -228,12 +228,12 @@ describe('runtime/cursor/mappers; drive every handler', () => {
       prompt: 'hi',
       toolType: 'llm',
     });
+    // Canonical http_request span: no `module` root field (function_call only)
+    // and no openbox.*/gen_ai.* attributes — only native OTel http.* survive.
     expect(promptGate?.args[2].spans?.[0]).toMatchObject({
-      module: 'cursor',
       name: 'POST',
       semantic_type: 'llm_completion',
       attributes: expect.objectContaining({
-        'gen_ai.system': 'cursor',
         'http.method': 'POST',
       }),
     });
@@ -293,13 +293,20 @@ describe('runtime/cursor/mappers; drive every handler', () => {
     expect(gate?.args[2].input).toContainEqual({
       __openbox: { tool_type: 'file_open' },
     });
+    // Canonical file.open drops the `file.operation` attribute (operation lives
+    // at the root) and strips openbox.* — only native attrs + tool.name survive.
     expect(gate?.args[2].spans?.[0]).toMatchObject({
       semantic_type: 'file_open',
+      file_operation: 'open',
       attributes: expect.objectContaining({
-        'file.operation': 'open',
-        'openbox.tool.name': 'TabRead',
+        'file.path': join(dir, '.env'),
+        'tool.name': 'TabRead',
       }),
     });
+    expect(
+      (gate?.args[2].spans?.[0] as { attributes?: Record<string, unknown> })
+        ?.attributes?.['file.operation'],
+    ).toBeUndefined();
   });
 
   it('mcp + mcp-response handlers process MCP-shaped envelopes', async () => {

@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import {
   buildLLMCompletionResponseBody,
-  buildLLMCompletionSpan,
   buildSpan,
-  leanCopilotLlmSpan,
+  canonicalizeSpan,
   llmTokenUsageFromRecord,
   openBoxActivityMetadata,
   serverComputedSemanticType,
@@ -15,6 +14,14 @@ import {
   type SpanType,
 } from '../../ts/src/governance/spans.js';
 
+// Parse a canonical http_request LLM span's synthesized request/response bodies,
+// which still carry the model/provider/usage telemetry that canonicalizeSpan
+// strips from the span root + attributes.
+const reqBody = (span: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(String(span.request_body));
+const respBody = (span: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(String(span.response_body));
+
 // These tests drive the remaining uncovered helper + span-type branches in
 // ts/src/governance/spans.ts purely through the module's exported API.
 
@@ -24,7 +31,7 @@ const attrs = (span: unknown): Record<string, unknown> =>
 const asRecord = (value: unknown): Record<string, unknown> =>
   value as unknown as Record<string, unknown>;
 
-describe('errorDescription (via buildSpan error / buildLLMCompletionSpan)', () => {
+describe('errorDescription (via buildSpan error)', () => {
   test('Error with a message uses the message', () => {
     expect(buildSpan('cursor', 'shell', { command: 'ls', error: new Error('boom') }).error).toBe(
       'boom',
@@ -296,35 +303,39 @@ describe('openBoxActivityMetadata helpers', () => {
   });
 });
 
-describe('provider normalization & inference', () => {
-  test('explicit provider: openai / anthropic / google(+gemini) / passthrough', () => {
-    expect(attrs(buildLLMCompletionSpan({ content: 'x', provider: 'OpenAI' }))['openbox.model.provider']).toBe('openai');
-    expect(attrs(buildLLMCompletionSpan({ content: 'x', provider: 'Anthropic Claude' }))['openbox.model.provider']).toBe('anthropic');
-    expect(attrs(buildLLMCompletionSpan({ content: 'x', provider: 'Google Vertex' }))['openbox.model.provider']).toBe('google');
-    expect(attrs(buildLLMCompletionSpan({ content: 'x', provider: 'gemini-cloud' }))['openbox.model.provider']).toBe('google');
-    expect(attrs(buildLLMCompletionSpan({ content: 'x', provider: 'mistral' }))['openbox.model.provider']).toBe('mistral');
-  });
+describe('provider normalization & inference (via canonical buildSpan llm)', () => {
+  // The canonical http_request span strips the gen_ai.*/openbox.* telemetry, so
+  // provider/model inference is asserted through the synthesized request_body
+  // (model_id/provider/model_provider) and the derived http_url.
 
-  test('whitespace-only provider yields no provider', () => {
-    expect(
-      attrs(buildLLMCompletionSpan({ content: 'x', provider: '   ', model: 'mysterymodel' }))[
-        'openbox.model.provider'
-      ],
-    ).toBeUndefined();
-  });
+  test('provider parsed from "provider/model" identifier: openai / anthropic / google(+gemini) / passthrough', () => {
+    const openai = buildSpan('cursor', 'llm', { model: 'openai/gpt-4', prompt: 'hi' });
+    expect(reqBody(openai).provider).toBe('openai');
+    expect(reqBody(openai).model_id).toBe('gpt-4');
 
-  test('provider parsed from "provider/model" identifier', () => {
-    const span = buildLLMCompletionSpan({ content: 'x', model: 'anthropic/claude-3' });
-    expect(attrs(span)['openbox.model.provider']).toBe('anthropic');
-    expect(attrs(span)['openbox.model.id']).toBe('claude-3');
+    const anthropic = buildSpan('cursor', 'llm', { model: 'anthropic/claude-3', prompt: 'hi' });
+    expect(reqBody(anthropic).provider).toBe('anthropic');
+    expect(reqBody(anthropic).model_id).toBe('claude-3');
+    expect(anthropic.http_url).toBe('https://api.anthropic.com/v1/messages');
+
+    const google = buildSpan('cursor', 'llm', { model: 'google/some-model', prompt: 'hi' });
+    expect(reqBody(google).provider).toBe('google');
+
+    // normalizeProvider maps any "gemini" substring to google.
+    const gemini = buildSpan('cursor', 'llm', { model: 'gemini/flash', prompt: 'hi' });
+    expect(reqBody(gemini).provider).toBe('google');
+
+    // Unknown provider segment passes through verbatim (lowercased).
+    const mistral = buildSpan('cursor', 'llm', { model: 'mistral/large', prompt: 'hi' });
+    expect(reqBody(mistral).provider).toBe('mistral');
   });
 
   test('slash identifier with empty provider segment falls through to full model id', () => {
     // Leading-slash model: the provider segment is empty, so parseModelIdentifier
     // does not split it into provider/model (exercises the no-split else path).
-    const span = buildLLMCompletionSpan({ content: 'x', model: '/gpt-4' });
-    expect(attrs(span)['openbox.model.id']).toBe('/gpt-4');
-    expect(attrs(span)['openbox.model.provider']).toBeUndefined();
+    const span = buildSpan('cursor', 'llm', { model: '/gpt-4', prompt: 'hi' });
+    expect(reqBody(span).model_id).toBe('/gpt-4');
+    expect(reqBody(span).provider).toBeUndefined();
   });
 
   test('inferProviderFromModelId: gpt-/o1/o3/o4 → openai, claude- → anthropic, gemini → google', () => {
@@ -338,9 +349,7 @@ describe('provider normalization & inference', () => {
       ['mysterymodel', undefined],
     ];
     for (const [model, provider] of cases) {
-      expect(attrs(buildSpan('cursor', 'llm', { model, prompt: 'hi' }))['openbox.model.provider']).toBe(
-        provider,
-      );
+      expect(reqBody(buildSpan('cursor', 'llm', { model, prompt: 'hi' })).provider).toBe(provider);
     }
   });
 
@@ -351,209 +360,226 @@ describe('provider normalization & inference', () => {
       ['https://generativelanguage.googleapis.com/v1beta/models/x', 'google'],
       ['https://example.com/llm', undefined],
     ];
-    for (const [providerUrl, provider] of cases) {
-      expect(
-        attrs(buildLLMCompletionSpan({ content: 'x', model: 'mysterymodel', providerUrl }))[
-          'openbox.model.provider'
-        ],
-      ).toBe(provider);
+    for (const [url, provider] of cases) {
+      // An unknown model forces provider inference to fall through to the URL.
+      const span = buildSpan('cursor', 'llm', { model: 'mysterymodel', prompt: 'hi', url });
+      expect(reqBody(span).provider).toBe(provider);
+      // The captured request URL is preferred verbatim as http_url.
+      expect(span.http_url).toBe(url);
     }
   });
 });
 
-describe('buildLLMCompletionSpan timestamps, duration, status, usage', () => {
-  test('no timestamps → derives duration via deriveDurationNs fallback', () => {
-    const span = buildLLMCompletionSpan({ content: 'x' });
-    expect(typeof span.duration_ns).toBe('number');
-    expect(span.duration_ns).toBeGreaterThanOrEqual(0);
-  });
+describe('LLM telemetry helpers via canonical buildSpan llm', () => {
+  // canonicalizeSpan strips the gen_ai.*/openbox.* usage/model telemetry from the
+  // span, but the 'llm' case still COMPUTES it (normalizeUsage, coerceHttpStatusCode,
+  // sanitizeHeaderMap, default header builders, response-body synthesis) before the
+  // projection. These tests drive those code paths and assert the surviving canonical
+  // output (synthesized request/response bodies + OTel headers/status).
 
-  test('millisecond timestamps are normalized to nanoseconds', () => {
-    const span = buildLLMCompletionSpan({ content: 'x', startTime: 1_700_000_000_000, endTime: 1_700_000_000_500 });
+  test('applyExplicitTiming: millisecond timestamps normalized to nanoseconds, duration derived', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'r',
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_000_500,
+    });
+    expect(span.start_time).toBe(1_700_000_000_000_000_000);
+    expect(span.end_time).toBe(1_700_000_000_500_000_000);
     expect(span.duration_ns).toBe(500 * 1_000_000);
   });
 
-  test('nanosecond-scale timestamps are kept as-is', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'x',
+  test('applyExplicitTiming: nanosecond-scale timestamps kept as-is', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'r',
       startTime: 200_000_000_000_000,
       endTime: 200_000_000_000_500,
     });
+    expect(span.start_time).toBe(200_000_000_000_000);
     expect(span.duration_ns).toBe(500);
   });
 
-  test('explicit durationNs wins; source duration used when > 0', () => {
-    expect(buildLLMCompletionSpan({ content: 'x', durationNs: 4242 }).duration_ns).toBe(4242);
-    const src = buildLLMCompletionSpan({ content: 'x', span: { duration_ns: 9000 } as never });
-    expect(src.duration_ns).toBe(9000);
-  });
-
-  test('source timestamps + explicit attributes http.url provider inference', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'x',
-      model: 'mysterymodel',
-      span: {
-        start_time: 1_700_000_000_000,
-        end_time: 1_700_000_000_100,
-        attributes: { 'http.url': 'https://api.anthropic.com/v1/messages' },
-      } as never,
+  test('applyExplicitTiming: explicit durationNs wins over derived', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'r',
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_000_500,
+      durationNs: 4242,
     });
-    expect(attrs(span)['openbox.model.provider']).toBe('anthropic');
+    expect(span.duration_ns).toBe(4242);
   });
 
-  test('status: error description, unset, and pre-set status object', () => {
-    const withError = buildLLMCompletionSpan({ content: 'x', span: { error: 'kaboom' } as never });
-    expect(asRecord(withError.status).code).toBe('ERROR');
-    expect(asRecord(withError.status).description).toBe('kaboom');
-    expect(withError.error).toBe('kaboom');
+  test('applyExplicitTiming: started span gets only start_time (no end/duration)', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'started',
+      prompt: 'hi',
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_000_500,
+      durationNs: 999,
+    });
+    expect(span.start_time).toBe(1_700_000_000_000_000_000);
+    // Only completed spans carry end_time/duration_ns.
+    expect(span.end_time).toBeNull();
+    expect(span.duration_ns).toBeNull();
+  });
 
-    const noError = buildLLMCompletionSpan({ content: 'x' });
-    expect(asRecord(noError.status).code).toBe('UNSET');
-
-    const preset = buildLLMCompletionSpan({ content: 'x', span: { status: { code: 'OK' } } as never });
-    expect(asRecord(preset.status).code).toBe('OK');
+  test('applyExplicitTiming: durationNs alone is clamped at zero', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'r',
+      durationNs: -50,
+    });
+    expect(span.duration_ns).toBe(0);
   });
 
   test('string usage values + cost are coerced; empty strings ignored', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'x',
-      model: 'gpt-4',
-      usage: {
-        input_tokens: '5',
-        output_tokens: '6',
-        total_tokens: '11',
-        cache_read_input_tokens: '1',
-        cache_creation_input_tokens: '2',
-        web_search_requests: '3',
-        cost_usd: '0.5',
-      } as never,
+    const usage = respBody(
+      buildSpan('cursor', 'llm', {
+        model: 'gpt-4',
+        response: 'r',
+        stage: 'completed',
+        usage: {
+          input_tokens: '5',
+          output_tokens: '6',
+          total_tokens: '11',
+          cache_read_input_tokens: '1',
+          cache_creation_input_tokens: '2',
+          web_search_requests: '3',
+          cost_usd: '0.5',
+        } as never,
+      }),
+    ).usage as Record<string, unknown>;
+    expect(usage).toMatchObject({
+      input_tokens: 5,
+      output_tokens: 6,
+      total_tokens: 11,
+      cache_read_input_tokens: 1,
+      cache_creation_input_tokens: 2,
+      web_search_requests: 3,
+      cost_usd: 0.5,
     });
-    const a = attrs(span);
-    expect(a['gen_ai.usage.input_tokens']).toBe(5);
-    expect(a['gen_ai.usage.output_tokens']).toBe(6);
-    expect(a['gen_ai.usage.total_tokens']).toBe(11);
-    expect(a['gen_ai.usage.cache_read_input_tokens']).toBe(1);
-    expect(a['gen_ai.usage.cache_creation_input_tokens']).toBe(2);
-    expect(a['gen_ai.usage.web_search_requests']).toBe(3);
-    expect(a['openbox.usage.cost_usd']).toBe(0.5);
 
-    const empty = buildLLMCompletionSpan({
-      content: 'x',
+    // All-empty usage → no usage object synthesized at all.
+    const empty = buildSpan('cursor', 'llm', {
+      model: 'gpt-4',
+      response: 'r',
+      stage: 'completed',
       usage: { input_tokens: '', cost_usd: '' } as never,
     });
-    expect(attrs(empty)['gen_ai.usage.input_tokens']).toBeUndefined();
+    expect(respBody(empty).usage).toBeUndefined();
   });
 
   test('derived total tokens from prompt/completion; cost-only usage has no total', () => {
-    const promptOnly = JSON.parse(
-      buildLLMCompletionSpan({ content: 'x', usage: { input_tokens: 3 } }).response_body as string,
-    );
-    expect(promptOnly.usage.total_tokens).toBe(3);
-    const both = JSON.parse(
-      buildLLMCompletionSpan({ content: 'x', usage: { input_tokens: 3, output_tokens: 4 } })
-        .response_body as string,
-    );
-    expect(both.usage.total_tokens).toBe(7);
-    const completionOnly = JSON.parse(
-      buildLLMCompletionSpan({ content: 'x', usage: { output_tokens: 4 } }).response_body as string,
-    );
-    expect(completionOnly.usage.total_tokens).toBe(4); // derived from 0 + 4
-    const costOnly = buildLLMCompletionSpan({ content: 'x', usage: { cost_usd: 0.9 } });
-    expect(attrs(costOnly)['gen_ai.usage.total_tokens']).toBeUndefined();
-    expect(attrs(costOnly)['openbox.usage.cost_usd']).toBe(0.9);
+    const promptOnly = respBody(
+      buildSpan('cursor', 'llm', { response: 'r', stage: 'completed', usage: { input_tokens: 3 } }),
+    ).usage as Record<string, unknown>;
+    expect(promptOnly.total_tokens).toBe(3);
+
+    const both = respBody(
+      buildSpan('cursor', 'llm', {
+        response: 'r',
+        stage: 'completed',
+        usage: { input_tokens: 3, output_tokens: 4 },
+      }),
+    ).usage as Record<string, unknown>;
+    expect(both.total_tokens).toBe(7);
+
+    const completionOnly = respBody(
+      buildSpan('cursor', 'llm', { response: 'r', stage: 'completed', usage: { output_tokens: 4 } }),
+    ).usage as Record<string, unknown>;
+    expect(completionOnly.total_tokens).toBe(4); // derived from 0 + 4
+
+    const costOnly = respBody(
+      buildSpan('cursor', 'llm', { response: 'r', stage: 'completed', usage: { cost_usd: 0.9 } }),
+    ).usage as Record<string, unknown>;
+    expect(costOnly.cost_usd).toBe(0.9);
+    expect(costOnly.total_tokens).toBeUndefined();
   });
 
   test('coerceHttpStatusCode handles string, empty, and non-numeric', () => {
-    expect(buildLLMCompletionSpan({ content: 'x', httpStatusCode: '200' }).http_status_code).toBe(200);
-    expect(buildLLMCompletionSpan({ content: 'x', httpStatusCode: '' }).http_status_code).toBeUndefined();
-    expect(buildLLMCompletionSpan({ content: 'x', httpStatusCode: 'abc' }).http_status_code).toBeUndefined();
+    expect(
+      buildSpan('cursor', 'llm', { model: 'gpt-4', stage: 'completed', http_status_code: '418' })
+        .http_status_code,
+    ).toBe(418);
+    // Empty / non-numeric coerce to undefined → the canonical span omits the field
+    // even on a completed span.
+    expect(
+      buildSpan('cursor', 'llm', { model: 'gpt-4', stage: 'completed', http_status_code: '' })
+        .http_status_code,
+    ).toBeUndefined();
+    expect(
+      buildSpan('cursor', 'llm', { model: 'gpt-4', stage: 'completed', http_status_code: 'abc' })
+        .http_status_code,
+    ).toBeUndefined();
   });
 
-  test('default response headers when status present but no headers provided', () => {
-    const withStatus = buildLLMCompletionSpan({ content: 'x', provider: 'openai', httpStatusCode: 200 });
-    expect((withStatus.response_headers as Record<string, string>)['openai-version']).toBe('2020-10-01');
-    const noStatus = buildLLMCompletionSpan({ content: 'x' });
-    expect(noStatus.response_headers).toBeUndefined();
+  test('default response headers when status present but no headers provided; none when started', () => {
+    const withStatus = buildSpan('cursor', 'llm', {
+      model: 'openai/gpt-4',
+      stage: 'completed',
+    });
+    expect((withStatus.response_headers as Record<string, string>)['openai-version']).toBe(
+      '2020-10-01',
+    );
+    // A started span never has a status code → no response headers synthesized.
+    const started = buildSpan('cursor', 'llm', { model: 'gpt-4', prompt: 'hi' });
+    expect(started.response_headers).toBeUndefined();
   });
 
-  test('empty request_headers object falls back to default LLM request headers', () => {
-    const span = buildLLMCompletionSpan({ content: 'x', provider: 'anthropic', requestHeaders: {} });
-    const h = span.request_headers as Record<string, string>;
+  test('empty request_headers object falls back to default LLM request headers (anthropic)', () => {
+    const h = buildSpan('cursor', 'llm', {
+      model: 'anthropic/claude-3',
+      stage: 'completed',
+      request_headers: {},
+    }).request_headers as Record<string, string>;
     expect(h['x-api-key']).toBe('[REDACTED]');
     expect(h['anthropic-version']).toBe('2023-06-01');
   });
 
   test('raw request/response bodies are used verbatim; function raw body → undefined', () => {
-    const verbatim = buildLLMCompletionSpan({
-      content: 'x',
+    const verbatim = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'x',
       rawRequestBody: { raw: true },
       rawResponseBody: 'RAW-RESP',
     });
     expect(verbatim.request_body).toBe(JSON.stringify({ raw: true }));
     expect(verbatim.response_body).toBe('RAW-RESP');
+
+    // A function raw request body stringifies to undefined → request_body omitted.
+    const omitted = buildSpan('cursor', 'llm', {
+      stage: 'started',
+      rawRequestBody: function raw() {},
+    });
+    expect(omitted.request_body).toBeUndefined();
   });
 
   test('sanitizeHeaderMap drops non-string values and redacts sensitive headers', () => {
-    const span = buildLLMCompletionSpan({
-      content: 'x',
-      responseHeaders: {
+    const headers = buildSpan('cursor', 'llm', {
+      model: 'gpt-4',
+      stage: 'completed',
+      response_headers: {
         'x-numeric': 123 as unknown as string,
         authorization: 'Bearer secret',
         'x-ratelimit-remaining-tokens': '42',
       },
-      httpStatusCode: 200,
-    });
-    const headers = span.response_headers as Record<string, string>;
+    }).response_headers as Record<string, string>;
     expect(headers['x-numeric']).toBeUndefined();
     expect(headers.authorization).toBe('[REDACTED]');
     expect(headers['x-ratelimit-remaining-tokens']).toBe('42');
   });
-});
 
-describe('leanCopilotLlmSpan', () => {
-  test('non-POST span is returned unchanged', () => {
-    const span = { name: 'GET', data: { keep: true } };
-    expect(leanCopilotLlmSpan(span)).toBe(span);
-  });
-
-  test('POST span: null duration/description dropped, attrs minimal', () => {
-    const lean = leanCopilotLlmSpan({
-      name: 'POST',
-      data: { x: 1 },
-      span_type: 'function',
-      model: 'gpt-4',
-      duration_ns: null,
-      status: { code: 'UNSET', description: null },
-    }) as Record<string, unknown>;
-    expect(lean.data).toBeUndefined();
-    expect(lean.model).toBeUndefined();
-    expect(lean.duration_ns).toBeUndefined();
-    expect(lean.semantic_type).toBeDefined();
-    expect(Object.keys(lean.attributes as object)).toHaveLength(0);
-    expect((lean.status as Record<string, unknown>).description).toBeUndefined();
-  });
-
-  test('POST span: numeric duration + http fields kept; non-null description kept', () => {
-    const lean = leanCopilotLlmSpan({
-      name: 'POST',
-      http_url: 'https://api.openai.com/v1/chat/completions',
-      http_method: 'POST',
-      http_status_code: 200,
-      duration_ns: 1000,
-      status: { code: 'OK', description: 'fine' },
-    }) as Record<string, unknown>;
-    expect(lean.duration_ns).toBe(1000);
-    const a = lean.attributes as Record<string, unknown>;
-    expect(a['http.url']).toBe('https://api.openai.com/v1/chat/completions');
-    expect(a['http.method']).toBe('POST');
-    expect(a['http.status_code']).toBe(200);
-    expect((lean.status as Record<string, unknown>).description).toBe('fine');
-  });
-
-  test('POST span without http fields / status', () => {
-    const lean = leanCopilotLlmSpan({ name: 'POST' }) as Record<string, unknown>;
-    expect(Object.keys(lean.attributes as object)).toHaveLength(0);
-    expect(lean.status).toBeUndefined();
+  test('response_headers with only non-string values → falls back to default response headers', () => {
+    // sanitizeHeaderMap returns undefined (no string entries), so with a status code
+    // present the default OpenAI response headers are synthesized instead.
+    const headers = buildSpan('cursor', 'llm', {
+      model: 'openai/gpt-4',
+      stage: 'completed',
+      response_headers: { 'x-only-number': 7 as unknown as string },
+    }).response_headers as Record<string, string>;
+    expect(headers['openai-version']).toBe('2020-10-01');
   });
 });
 
@@ -569,7 +595,9 @@ describe('buildSpan: llm', () => {
     expect(span.http_status_code).toBe(200);
     const body = JSON.parse(span.response_body as string);
     expect(body.choices[0].message.content).toBe('hello there');
-    expect(attrs(span)['openbox.model.provider']).toBe('anthropic');
+    // Provider telemetry survives only in the synthesized bodies (canonical strip).
+    expect(reqBody(span).provider).toBe('anthropic');
+    expect(span.http_url).toBe('https://api.anthropic.com/v1/messages');
   });
 
   test('started LLM span: no response body, request body present', () => {
@@ -626,31 +654,44 @@ describe('buildSpan: llm', () => {
 });
 
 describe('buildSpan: llm_embedding', () => {
-  test('embedding span with model, prompt, usage', () => {
+  test('embedding span with model, prompt, usage (canonical function_call)', () => {
     const span = buildSpan('cursor', 'llm_embedding', {
       model: 'openai/text-embedding-3-small',
       prompt: 'embed me',
       usage: { input_tokens: 4, cost_usd: 0.001 },
     });
+    // Embedding collapses to a canonical function_call span: span_type, the http_*
+    // root fields, request/response bodies, and gen_ai.*/openbox.* attrs are stripped.
     expect(span.name).toBe('openai.EMBEDDING.create');
-    expect(span.http_url).toContain('/embeddings');
-    expect(attrs(span)['gen_ai.usage.input_tokens']).toBe(4);
-    expect(attrs(span)['gen_ai.usage.total_tokens']).toBe(4); // falls back to inputTokens
-    expect(attrs(span)['openbox.usage.cost_usd']).toBe(0.001);
-    expect(JSON.parse(span.request_body as string).input).toBe('embed me');
-    expect(span.response_body).toBeNull();
+    expect(span.hook_type).toBe('function_call');
+    // OTel-native http.* attributes survive (the embeddings endpoint).
+    expect(attrs(span)['http.url']).toContain('/embeddings');
+    expect(attrs(span)['http.method']).toBe('POST');
+    expect(
+      Object.keys(attrs(span)).some((k) => k.startsWith('gen_ai.') || k.startsWith('openbox.')),
+    ).toBe(false);
+    // The request payload survives in the canonical `args` field.
+    expect(span.args).toMatchObject({ model: 'openai/text-embedding-3-small', prompt: 'embed me' });
+    expect(span.result).toBeNull();
+    // Non-canonical fields for a function_call span are dropped.
+    expect(span.http_url).toBeUndefined();
+    expect(span.request_body).toBeUndefined();
+    expect(span.response_body).toBeUndefined();
   });
 
   test('minimal embedding span (no model/usage/prompt)', () => {
     const span = buildSpan('cursor', 'llm_embedding', {});
     expect(span.kind).toBe('INTERNAL');
     expect(attrs(span)['gen_ai.request.model']).toBeUndefined();
-    expect(JSON.parse(span.request_body as string)).toEqual({});
+    expect(span.args).toEqual({});
   });
 });
 
 describe('buildSpan: llm_tool_call', () => {
-  test('completed (default) with no tool_output → tool_calls response body', () => {
+  // Tool calls collapse to a canonical function_call span: span_type, http_* root
+  // fields, the synthesized request/response bodies, and gen_ai.*/openbox.* attrs are
+  // all stripped. The tool input/output survive in the canonical args/result fields.
+  test('completed (default) with no tool_output → args from tool_input, null result', () => {
     const span = buildSpan('cursor', 'llm_tool_call', {
       model: 'gpt-4',
       tool_name: 'search',
@@ -658,19 +699,21 @@ describe('buildSpan: llm_tool_call', () => {
       usage: { input_tokens: 1, output_tokens: 2, total_tokens: 3, cost_usd: 0.1 },
     });
     expect(span.name).toBe('openai.TOOL.call');
+    expect(span.hook_type).toBe('function_call');
     expect(span.function).toBe('ToolCall:search');
-    const body = JSON.parse(span.response_body as string);
-    expect(body.tool_calls[0].name).toBe('search');
+    expect(span.args).toEqual({ q: 'x' });
+    expect(span.result).toBeNull();
     expect(attrs(span)['tool.name']).toBe('search');
+    expect(span.response_body).toBeUndefined();
   });
 
-  test('completed with tool_output → tool_output response body', () => {
+  test('completed with tool_output → result carries the tool output', () => {
     const span = buildSpan('cursor', 'llm_tool_call', {
       tool: 'calc',
       tool_output: { result: 42 },
       stage: 'completed',
     });
-    expect(JSON.parse(span.response_body as string).tool_output.result).toBe(42);
+    expect(span.result).toEqual({ result: 42 });
     expect(span.function).toBe('ToolCall:calc');
   });
 
@@ -679,12 +722,11 @@ describe('buildSpan: llm_tool_call', () => {
     expect(span.response_body).toBeUndefined();
   });
 
-  test('default tool name + no tool_input → tool_calls with empty arguments', () => {
+  test('default tool name + no tool_input → args fall back to the full input', () => {
     const span = buildSpan('cursor', 'llm_tool_call', {});
     expect(span.function).toBe('ToolCall:tool_call');
-    const body = JSON.parse(span.response_body as string);
-    expect(body.tool_calls[0].name).toBe('tool_call');
-    expect(body.tool_calls[0].arguments).toEqual({});
+    expect(span.args).toEqual({});
+    expect(span.result).toBeNull();
   });
 });
 
@@ -901,5 +943,113 @@ describe('buildSpan: db', () => {
     expect(attrs(span)['db.system']).toBe('postgresql');
     expect(attrs(span)['db.operation']).toBe('SELECT');
     expect(attrs(span)['db.statement']).toBe('SELECT operation');
+  });
+});
+
+describe('canonicalizeSpan (direct branch coverage)', () => {
+  test('unknown / missing hook_type → only envelope keys survive, superset root keys dropped', () => {
+    const out = canonicalizeSpan({
+      hook_type: 'mystery',
+      span_id: 's',
+      name: 'n',
+      attributes: { keep: 1, 'openbox.span_type': 'x', 'gen_ai.system': 'y' },
+      // Not in the envelope and no per-hook allow-list for an unknown hook → dropped.
+      function: 'f',
+      module: 'm',
+      span_type: 'function',
+    });
+    expect(out.span_id).toBe('s');
+    expect(out.hook_type).toBe('mystery');
+    expect(out.function).toBeUndefined();
+    expect(out.module).toBeUndefined();
+    expect(out.span_type).toBeUndefined();
+    // openbox.*/gen_ai.* attributes filtered, OTel-native attrs kept.
+    expect(out.attributes).toEqual({ keep: 1 });
+
+    // A span with no hook_type field at all also resolves to the empty allow-list.
+    const noHook = canonicalizeSpan({ name: 'n', http_method: 'GET' });
+    expect(noHook.name).toBe('n');
+    expect(noHook.http_method).toBeUndefined();
+  });
+
+  test('per-hook allow-list keeps canonical root fields (http_request)', () => {
+    const out = canonicalizeSpan({
+      hook_type: 'http_request',
+      http_method: 'POST',
+      http_url: 'https://x',
+      request_body: 'b',
+      attributes: { 'http.method': 'POST' },
+      module: 'should-drop',
+    });
+    expect(out.http_method).toBe('POST');
+    expect(out.http_url).toBe('https://x');
+    expect(out.request_body).toBe('b');
+    expect(out.module).toBeUndefined();
+  });
+
+  test('non-object / missing attributes are left untouched', () => {
+    const arr = canonicalizeSpan({ hook_type: 'http_request', attributes: ['a', 'b'] });
+    expect(arr.attributes).toEqual(['a', 'b']);
+    const none = canonicalizeSpan({ hook_type: 'http_request', http_method: 'GET' });
+    expect(none.attributes).toBeUndefined();
+  });
+
+  test('file.open span drops the file.operation attribute (lives at the root)', () => {
+    const out = canonicalizeSpan({
+      hook_type: 'file_operation',
+      name: 'file.open',
+      file_operation: 'open',
+      attributes: {
+        'file.path': '/x',
+        'file.mode': 'r',
+        'file.operation': 'open',
+        'openbox.span_type': 'file_io',
+      },
+    });
+    expect(out.attributes).toEqual({ 'file.path': '/x', 'file.mode': 'r' });
+    expect(out.file_operation).toBe('open');
+  });
+
+  test('db_query span name falls back to "{db_operation} {db_system}" when both are strings', () => {
+    const renamed = canonicalizeSpan({
+      hook_type: 'db_query',
+      name: 'placeholder',
+      db_operation: 'SELECT',
+      db_system: 'sqlite',
+    });
+    expect(renamed.name).toBe('SELECT sqlite');
+
+    // When db_operation is not a string the rename is skipped (name preserved).
+    const preserved = canonicalizeSpan({
+      hook_type: 'db_query',
+      name: 'orig',
+      db_operation: 123 as unknown as string,
+      db_system: 'sqlite',
+    });
+    expect(preserved.name).toBe('orig');
+  });
+});
+
+describe('applyExplicitTiming edge branches (via buildSpan llm)', () => {
+  test('completed span with endTime only sets end_time but leaves duration unchanged', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'r',
+      endTime: 1_700_000_000_500,
+    });
+    expect(span.end_time).toBe(1_700_000_000_500_000_000);
+    // No startTime and no durationNs → derived duration is undefined → base() 0 kept.
+    expect(span.duration_ns).toBe(0);
+  });
+
+  test('non-finite startTime is ignored while a valid endTime still applies', () => {
+    const span = buildSpan('cursor', 'llm', {
+      stage: 'completed',
+      response: 'r',
+      startTime: Number.NaN,
+      endTime: 1_700_000_000_500,
+    });
+    // NaN start is dropped by normalizeSpanTimestamp; end_time still normalized.
+    expect(span.end_time).toBe(1_700_000_000_500_000_000);
   });
 });

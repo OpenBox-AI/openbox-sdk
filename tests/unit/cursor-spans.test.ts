@@ -120,12 +120,12 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
       prompt: 'hi',
       toolType: 'llm',
     });
+    // Canonical http_request span: no `module` root field (function_call only)
+    // and no openbox.*/gen_ai.* attributes — only native OTel http.* survive.
     expect(main?.payload.spans?.[0]).toMatchObject({
-      module: 'cursor',
       name: 'POST',
       semantic_type: 'llm_completion',
       attributes: expect.objectContaining({
-        'gen_ai.system': 'cursor',
         'http.method': 'POST',
       }),
     });
@@ -146,7 +146,6 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('file_read');
     expect(span.attributes?.['file.path']).toBe('/etc/passwd');
-    expect(span.attributes?.['openbox.tool.name']).toBe('Read');
     expect(span.attributes?.['tool.name']).toBe('Read');
   });
 
@@ -166,8 +165,10 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(captured[0]?.activityType).toBe('FileRead');
     expect(span.semantic_type).toBe('file_open');
     expect(span.attributes?.['file.path']).toBe('/etc/openbox-sensitive.env');
-    expect(span.attributes?.['file.operation']).toBe('open');
-    expect(span.attributes?.['openbox.tool.name']).toBe('TabRead');
+    // Canonical file.open carries the operation at the root only; the
+    // `file.operation` attribute is dropped from file.open spans.
+    expect((span as Record<string, unknown>).file_operation).toBe('open');
+    expect(span.attributes?.['file.operation']).toBeUndefined();
     expect(span.attributes?.['tool.name']).toBe('TabRead');
   });
 
@@ -192,7 +193,6 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     // via the @activityVariant; covered separately below.
     expect(span.semantic_type).toBe('internal');
     expect(span.attributes?.['shell.command']).toBe('echo hello world');
-    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
     expect(span.attributes?.['tool.name']).toBe('Shell');
   });
 
@@ -255,7 +255,6 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     );
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('file_delete');
-    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
     expect(span.attributes?.['tool.name']).toBe('Shell');
     expect(captured[0]?.activityType).toBe('FileDelete');
   });
@@ -272,7 +271,6 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.attributes?.['mcp.method']).toBe('callTool');
     expect(span.attributes?.['mcp.operation']).toBe('fetch');
     expect(span.attributes?.['mcp.server_id']).toBe('unknown');
-    expect(span.attributes?.['openbox.tool.name']).toBe('fetch');
     expect(span.attributes?.['tool.name']).toBe('fetch');
   });
 
@@ -311,18 +309,13 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     });
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span).toMatchObject({
-      semantic_type: 'llm_completion',
-      model: 'gemini-2.5-flash',
+      name: 'POST',
+      hook_type: 'http_request',
+      http_method: 'POST',
       http_url: 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
-      total_tokens: 17,
       attributes: {
-        'gen_ai.system': 'cursor',
-        'gen_ai.response.model': 'gemini-2.5-flash',
-        'gen_ai.usage.input_tokens': 12,
-        'gen_ai.usage.output_tokens': 5,
-        'gen_ai.usage.total_tokens': 17,
+        'http.method': 'POST',
         'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
-        'openbox.cursor.event': 'afterAgentResponse',
       },
     });
     expect(JSON.parse(String((span as any).response_body)).usage).toMatchObject({
@@ -371,7 +364,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('internal');
     expect(span.attributes?.['shell.command']).toBe(command);
-    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
+    expect(span.attributes?.['tool.name']).toBe('Shell');
     expect(captured[0]?.payload.output).toMatchObject({
       tool_output: '{"exitCode":0,"stdout":"ok"}',
       duration_ms: 123,
@@ -458,7 +451,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     const span = (captured[0]?.payload.spans?.[0] ?? {}) as SpanShape;
     expect(span.semantic_type).toBe('internal');
     expect(span.attributes?.['shell.command']).toBe(command);
-    expect(span.attributes?.['openbox.tool.name']).toBe('Shell');
+    expect(span.attributes?.['tool.name']).toBe('Shell');
     expect(captured[0]?.payload.output).toMatchObject({
       command,
       output: 'shell completed',
@@ -499,7 +492,6 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.attributes?.['mcp.method']).toBe('callTool');
     expect(span.attributes?.['mcp.operation']).toBe(`openbox.lookup_${suffix}`);
     expect(span.attributes?.['mcp.server_id']).toBe('unknown');
-    expect(span.attributes?.['openbox.tool.name']).toBe(`openbox.lookup_${suffix}`);
     expect(span.attributes?.['tool.name']).toBe(`openbox.lookup_${suffix}`);
     expect(captured[0]?.payload.output).toMatchObject({
       tool_name: `openbox.lookup_${suffix}`,
@@ -538,7 +530,7 @@ describe('cursor mappers emit spans for behavior-rule matching', () => {
     expect(span.semantic_type).toBe('file_write');
     expect(span.attributes?.['file.path']).toBe(filePath);
     expect(span.attributes?.['file.operation']).toBe('write');
-    expect(span.attributes?.['openbox.tool.name']).toBe('FileEdit');
+    expect(span.attributes?.['tool.name']).toBe('FileEdit');
     expect(captured[0]?.payload.output).toMatchObject({
       file_path: filePath,
       edits: [{ old_string: 'old', new_string: 'new' }],

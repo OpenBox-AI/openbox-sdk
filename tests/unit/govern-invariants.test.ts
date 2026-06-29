@@ -28,7 +28,6 @@ import {
   SessionAlreadyTerminatedError,
 } from '../../ts/src/core-client/generated/govern.js';
 import {
-  buildLLMCompletionSpan,
   buildSpan,
 } from '../../ts/src/governance/spans.js';
 import {
@@ -299,11 +298,14 @@ describe('activity pairing', () => {
     }
     expect(firstHook.spans?.[0]).not.toHaveProperty('semantic_type');
     expect(firstHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
+    // Canonical span: the synthetic openbox.* attr is stripped; the OTel-native
+    // tool.name survives.
     expect(firstHook.spans?.[0]).toMatchObject({
       attributes: expect.objectContaining({
-        'openbox.tool.name': 'Bash',
+        'tool.name': 'Bash',
       }),
     });
+    expect(firstHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.tool.name');
     expect(secondHook.spans?.[0]).not.toHaveProperty('semantic_type');
     expect(secondHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.semantic_type');
     expect(secondHook.spans?.[0]).toMatchObject({
@@ -311,9 +313,10 @@ describe('activity pairing', () => {
         'mcp.method': 'callTool',
         'mcp.operation': 'read',
         'mcp.server_id': 'filesystem',
-        'openbox.tool.name': 'mcp__filesystem__read',
+        'tool.name': 'mcp__filesystem__read',
       }),
     });
+    expect(secondHook.spans?.[0]?.attributes).not.toHaveProperty('openbox.tool.name');
   });
 
   test('official Python-style root-field spans are emitted as hook re-evaluations', async () => {
@@ -490,7 +493,7 @@ describe('activity pairing', () => {
       events.push(payload);
       const toolName = (
         payload.spans?.[0] as { attributes?: Record<string, unknown> } | undefined
-      )?.attributes?.['openbox.tool.name'];
+      )?.attributes?.['tool.name'];
       const arm = payload.hook_trigger === true && toolName === 'Bash'
         ? 'block'
         : 'allow';
@@ -717,30 +720,30 @@ describe('activity pairing', () => {
     const span = completedHook?.spans?.[0] as Record<string, unknown> | undefined;
     expect(span).not.toHaveProperty('semantic_type');
     expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
+    // Canonical: the n8n assistant output IS the LLM provider POST — it collapses
+    // to a plain http_request span. Name is 'POST'; model/token telemetry survives
+    // only in the response_body; attributes are OTel-native http.* only.
     expect(span).toMatchObject({
-      name: 'openbox.n8n.assistant_output',
+      name: 'POST',
+      kind: 'CLIENT',
+      hook_type: 'http_request',
       stage: 'completed',
-      model: 'gemini-2.5-flash',
-      model_id: 'gemini-2.5-flash',
-      provider: 'google',
-      model_provider: 'google',
+      http_method: 'POST',
       http_url: 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
-      input_tokens: 18,
-      output_tokens: 7,
-      total_tokens: 25,
-      attributes: expect.objectContaining({
-        'gen_ai.system': 'n8n',
+      attributes: {
+        'http.method': 'POST',
         'http.url': 'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
-        'openbox.model.id': 'gemini-2.5-flash',
-        'openbox.model.provider': 'google',
-        'openbox.tool.name': 'Governed LLM Draft',
-        'tool.name': 'Governed LLM Draft',
-        tool_name: 'Governed LLM Draft',
-        'openbox.tool.type': 'n8n_node',
-        'openbox.n8n.node_name': 'Governed LLM Draft',
-        'openbox.provider': 'google',
-      }),
+        'http.status_code': 200,
+      },
     });
+    for (const k of ['model', 'model_id', 'provider', 'model_provider', 'input_tokens', 'output_tokens', 'total_tokens']) {
+      expect(span?.[k as keyof typeof span]).toBeUndefined();
+    }
+    expect(
+      Object.keys(span?.attributes as Record<string, unknown>).some(
+        (key) => key.startsWith('gen_ai.') || key.startsWith('openbox.'),
+      ),
+    ).toBe(false);
     expect(JSON.parse(String(span?.response_body))).toMatchObject({
       model: 'gemini-2.5-flash',
       usage: {
@@ -974,10 +977,9 @@ describe('activity pairing', () => {
           output: { response: 'Cursor answer.' },
           completion: 'Cursor answer.',
           spans: [
-            buildLLMCompletionSpan({
-              content: 'Cursor answer.',
-              system: 'cursor',
-              name: 'openbox.cursor.assistant_output',
+            buildSpan('cursor', 'llm', {
+              stage: 'completed',
+              response: 'Cursor answer.',
             }),
           ],
         });

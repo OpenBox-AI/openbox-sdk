@@ -359,13 +359,11 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(stop?.args[0]).toBe('ActivityCompleted');
     const span = stop?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
-      name: 'openbox.claude-code.assistant_output',
-      module: 'claude-code',
+      name: 'POST',
+      hook_type: 'http_request',
       stage: 'completed',
       attributes: {
-        'gen_ai.system': 'claude-code',
         'http.url': 'https://api.anthropic.com/v1/messages',
-        'openbox.claude_code.event': 'Stop',
       },
     });
     expect(span).not.toHaveProperty('semantic_type');
@@ -393,12 +391,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     expect(stop?.args[0]).toBe('ActivityCompleted');
     const span = stop?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
-      module: 'claude-code',
-      name: 'openbox.claude-code.assistant_output',
+      name: 'POST',
+      hook_type: 'http_request',
       stage: 'completed',
-      model: 'claude-opus-4-8',
-      input_tokens: 321,
-      output_tokens: 54,
     });
     expect(span).not.toHaveProperty('semantic_type');
     expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');
@@ -444,15 +439,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       (c: any) => c.method === 'observeActivity' && c.args[1] === 'ClaudeCodeMessage',
     );
     expect(message?.args[2]?.spans?.[0]).toMatchObject({
-      name: 'openbox.claude-code.assistant_output',
+      name: 'POST',
+      hook_type: 'http_request',
       stage: 'completed',
-      model: 'claude-opus-4-8',
-      input_tokens: 321,
-      output_tokens: 54,
-      attributes: {
-        'gen_ai.system': 'claude-code',
-        'openbox.claude_code.event': 'MessageDisplay',
-      },
     });
     expect(message?.args[2]?.spans?.[0]).not.toHaveProperty('semantic_type');
     expect(message?.args[2]?.spans?.[0]?.attributes).not.toHaveProperty(
@@ -564,20 +553,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     );
     const span = message?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
-      model: 'claude-opus-4-8',
-      input_tokens: 3140,
-      output_tokens: 949,
-      cache_read_input_tokens: 14,
-      cache_creation_input_tokens: 7,
-      web_search_requests: 3,
-      attributes: {
-        'gen_ai.usage.cache_read_input_tokens': 14,
-        'gen_ai.usage.cache_creation_input_tokens': 7,
-        'gen_ai.usage.web_search_requests': 3,
-      },
+      name: 'POST',
+      hook_type: 'http_request',
     });
-    expect(span?.cost_usd).toBeCloseTo(0.01);
-    expect(span?.attributes?.['openbox.usage.cost_usd']).toBeCloseTo(0.01);
     expect(message?.args[2]).toMatchObject({
       hasToolCalls: true,
     });
@@ -757,15 +735,9 @@ describe('runtime/claude-code/mappers; every event handler', () => {
     );
     const span = stop?.args[2]?.spans?.[0];
     expect(span).toMatchObject({
-      name: 'openbox.claude-code.assistant_output',
+      name: 'POST',
+      hook_type: 'http_request',
       stage: 'completed',
-      model: 'claude-opus-4-8',
-      input_tokens: 321,
-      output_tokens: 54,
-      attributes: {
-        'gen_ai.system': 'claude-code',
-        'openbox.claude_code.event': 'SubagentStop',
-      },
     });
     expect(span).not.toHaveProperty('semantic_type');
     expect(span?.attributes).not.toHaveProperty('openbox.semantic_type');

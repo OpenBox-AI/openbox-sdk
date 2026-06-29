@@ -1,9 +1,5 @@
 import type { GovernedPayload, SpanData } from '../core-client/index.js';
-import {
-  buildLLMCompletionSpan,
-  type LLMTokenUsage,
-  type LLMCompletionSpanInput,
-} from './spans.js';
+import { buildSpan, type LLMTokenUsage, type LLMCompletionSpanInput } from './spans.js';
 import { openBoxUsageTelemetryFields } from './usage.js';
 
 type AssistantTelemetryFields = Pick<
@@ -85,32 +81,28 @@ export function buildAssistantOutputSpan(
   ) {
     return undefined;
   }
+  // The assistant output IS the LLM provider call — emit it as the canonical
+  // http_request span via the single buildSpan chokepoint (langgraph py has no
+  // separate "assistant_output" span; it instruments the provider POST).
   return [
-    buildLLMCompletionSpan({
-      content: content ?? '',
-      span: input.span,
-      name: input.name ?? defaultAssistantSpanName(input.source),
-      kind: input.kind ?? 'llm',
-      system: input.source,
+    buildSpan(input.source, 'llm', {
+      stage: 'completed',
+      response: content,
       model: input.model,
       provider: input.provider,
+      url: input.providerUrl,
       usage: input.usage,
-      requestBody: input.requestBody,
-      responseBody: input.responseBody,
-      requestHeaders: input.requestHeaders,
-      responseHeaders: input.responseHeaders,
-      httpStatusCode: input.httpStatusCode,
+      request_body: input.requestBody,
+      response_body: input.responseBody,
+      request_headers: input.requestHeaders,
+      response_headers: input.responseHeaders,
+      http_status_code: input.httpStatusCode,
       rawRequestBody: input.rawRequestBody,
       rawResponseBody: input.rawResponseBody,
-      providerUrl: input.providerUrl,
       startTime: input.startTime,
       endTime: input.endTime,
       durationNs: input.durationNs,
-      attributes: {
-        'gen_ai.system': input.source,
-        ...(input.attributes ?? {}),
-      },
       data: input.data,
-    }),
+    }) as unknown as SpanData,
   ];
 }

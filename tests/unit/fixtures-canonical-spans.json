@@ -1,0 +1,154 @@
+{
+  "file_open_started": {
+    "span_id": "0000000000000001",
+    "trace_id": "00000000000000000000000000000002",
+    "parent_span_id": "0000000000000003",
+    "name": "file.open",
+    "kind": "INTERNAL",
+    "stage": "started",
+    "start_time": "<vol>",
+    "end_time": "<vol>",
+    "duration_ns": "<vol>",
+    "attributes": {},
+    "status": {
+      "code": "UNSET",
+      "description": null
+    },
+    "events": [],
+    "hook_type": "file_operation",
+    "file_path": "/vault/secret.txt",
+    "file_mode": "r",
+    "file_operation": "open",
+    "error": null
+  },
+  "file_read_completed": {
+    "span_id": "0000000000000001",
+    "trace_id": "00000000000000000000000000000002",
+    "parent_span_id": "0000000000000003",
+    "name": "file.read",
+    "kind": "INTERNAL",
+    "stage": "completed",
+    "start_time": "<vol>",
+    "end_time": "<vol>",
+    "duration_ns": "<vol>",
+    "attributes": {},
+    "status": {
+      "code": "UNSET",
+      "description": null
+    },
+    "events": [],
+    "hook_type": "file_operation",
+    "file_path": "/vault/secret.txt",
+    "file_mode": "r",
+    "file_operation": "read",
+    "error": null,
+    "data": "hello",
+    "bytes_read": 5
+  },
+  "http_started": {
+    "span_id": "0000000000000001",
+    "trace_id": "00000000000000000000000000000002",
+    "parent_span_id": "0000000000000003",
+    "name": "HTTP POST",
+    "kind": "CLIENT",
+    "stage": "started",
+    "start_time": "<vol>",
+    "end_time": "<vol>",
+    "duration_ns": "<vol>",
+    "attributes": {},
+    "status": {
+      "code": "UNSET",
+      "description": null
+    },
+    "events": [],
+    "hook_type": "http_request",
+    "http_method": "POST",
+    "http_url": "https://api.openai.com/v1/chat/completions",
+    "request_body": "{\"x\":1}",
+    "request_headers": {
+      "authorization": "[REDACTED]",
+      "content-type": "application/json"
+    },
+    "response_body": null,
+    "response_headers": null,
+    "http_status_code": null,
+    "error": null
+  },
+  "http_completed": {
+    "span_id": "0000000000000001",
+    "trace_id": "00000000000000000000000000000002",
+    "parent_span_id": "0000000000000003",
+    "name": "HTTP POST",
+    "kind": "CLIENT",
+    "stage": "completed",
+    "start_time": "<vol>",
+    "end_time": "<vol>",
+    "duration_ns": "<vol>",
+    "attributes": {},
+    "status": {
+      "code": "UNSET",
+      "description": null
+    },
+    "events": [],
+    "hook_type": "http_request",
+    "http_method": "POST",
+    "http_url": "https://api.openai.com/v1/chat/completions",
+    "request_body": null,
+    "request_headers": null,
+    "response_body": "{\"ok\":true}",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "http_status_code": 200,
+    "error": null
+  },
+  "db_completed": {
+    "span_id": "0000000000000001",
+    "trace_id": "00000000000000000000000000000002",
+    "parent_span_id": "0000000000000003",
+    "name": "SELECT sqlite",
+    "kind": "CLIENT",
+    "stage": "completed",
+    "start_time": "<vol>",
+    "end_time": "<vol>",
+    "duration_ns": "<vol>",
+    "attributes": {},
+    "status": {
+      "code": "UNSET",
+      "description": null
+    },
+    "events": [],
+    "hook_type": "db_query",
+    "db_system": "sqlite",
+    "db_name": "mydb",
+    "db_operation": "SELECT",
+    "db_statement": "SELECT * FROM t",
+    "server_address": "unknown",
+    "server_port": null,
+    "rowcount": 3,
+    "error": null
+  },
+  "fn_completed": {
+    "span_id": "0000000000000001",
+    "trace_id": "00000000000000000000000000000002",
+    "parent_span_id": "0000000000000003",
+    "name": "process",
+    "kind": "INTERNAL",
+    "stage": "completed",
+    "start_time": "<vol>",
+    "end_time": "<vol>",
+    "duration_ns": "<vol>",
+    "attributes": {},
+    "status": {
+      "code": "UNSET",
+      "description": null
+    },
+    "events": [],
+    "hook_type": "function_call",
+    "function": "process",
+    "module": "app.tasks",
+    "args": "{\"args\":[1],\"kwargs\":{}}",
+    "result": "\"ok\"",
+    "error": null
+  }
+}

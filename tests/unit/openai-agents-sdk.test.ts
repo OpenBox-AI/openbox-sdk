@@ -327,7 +327,10 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         event.hook_trigger === true,
     );
     expect(hook?.spans?.[0]).toMatchObject({
-      module: 'openai-agents-sdk',
+      hook_type: 'db_query',
+      db_system: 'postgresql',
+      db_operation: 'SELECT',
+      db_statement: 'SELECT 1',
       attributes: expect.objectContaining({
         'db.system': 'postgresql',
         'db.operation': 'SELECT',
@@ -743,14 +746,14 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'OpenAIAgentsSDKRun' &&
         event.hook_trigger === true &&
-        event.spans?.[0]?.module === 'openai-agents-sdk' &&
+        event.spans?.[0]?.hook_type === 'http_request' &&
         event.spans?.[0]?.name === 'POST',
     );
     expect(startedHook?.spans?.[0]).toMatchObject({
-      module: 'openai-agents-sdk',
       name: 'POST',
+      hook_type: 'http_request',
+      http_method: 'POST',
       attributes: expect.objectContaining({
-        'gen_ai.system': 'openai-agents-sdk',
         'http.method': 'POST',
       }),
     });
@@ -759,15 +762,14 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
         event.event_type === 'ActivityStarted' &&
         event.activity_type === 'OpenAIAgentsSDKRun' &&
         event.hook_trigger === true &&
-        event.spans?.[0]?.name === 'openbox.openai-agents-sdk.assistant_output',
+        event.spans?.[0]?.name === 'POST' &&
+        event.spans?.[0]?.stage === 'completed',
     );
     expect(completedHook?.spans?.[0]).toMatchObject({
-      module: 'openai-agents-sdk',
-      name: 'openbox.openai-agents-sdk.assistant_output',
-      model: 'gpt-4.1-mini',
-      input_tokens: 12,
-      output_tokens: 7,
-      total_tokens: 19,
+      name: 'POST',
+      hook_type: 'http_request',
+      http_method: 'POST',
+      stage: 'completed',
     });
     expect(completedHook?.spans?.[0]).not.toHaveProperty('semantic_type');
     expect(completedHook?.spans?.[0]?.attributes).not.toHaveProperty(
@@ -805,7 +807,8 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
           hook_trigger: true,
           spans: expect.arrayContaining([
             expect.objectContaining({
-              module: 'openai-agents-sdk',
+              hook_type: 'http_request',
+              http_method: 'POST',
               name: 'POST',
             }),
           ]),
@@ -1126,15 +1129,10 @@ describe('OpenAI Agents SDK OpenBox adapter', () => {
       | Record<string, any>
       | undefined;
     expect(span).toMatchObject({
-      model: 'gpt-4o-mini',
-      input_tokens: 7,
-      output_tokens: 8,
-      total_tokens: 15,
-      cost_usd: 0.03,
-    });
-    expect(span?.attributes).toMatchObject({
-      'openbox.usage.cost_usd': 0.03,
-      'openbox.cost.usd': 0.03,
+      name: 'POST',
+      hook_type: 'http_request',
+      http_method: 'POST',
+      http_url: 'https://api.openai.com/v1/chat/completions',
     });
   });
 

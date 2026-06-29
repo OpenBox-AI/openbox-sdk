@@ -5,7 +5,6 @@ import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { EVENT } from '../governance/events.js';
 import {
   buildSpan,
-  leanCopilotLlmSpan,
   stripServerComputedSemantic,
   withOpenBoxActivityMetadata,
   type LLMTokenUsage,
@@ -128,7 +127,7 @@ async function evaluateGate<T>(
     input.payload,
     overrides,
   ).map((span, index) => {
-    const lean = leanCopilotLlmSpan(span);
+    const lean = span; // already canonical via the shared canonicalizeSpan chokepoint
     const withParent = withParentSpanId(lean, ids.activityId);
     // The platform pairs a started span with its completion by span_id. The
     // primary span of each gate is the started/completed pair (the

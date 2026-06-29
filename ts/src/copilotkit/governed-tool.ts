@@ -46,7 +46,7 @@ import {
   runWithSubOpCapture,
   type CapturedLLMExchange,
 } from './otel-capture.js';
-import { buildSpan, leanCopilotLlmSpan } from '../governance/spans.js';
+import { buildSpan } from '../governance/spans.js';
 import { randomBytes } from 'node:crypto';
 
 type HaltedCopilotSession = Extract<
@@ -720,14 +720,16 @@ function capturedLlmCompletionSpans(
         http_status_code: exchange.httpStatusCode,
       }),
     );
+    // `started`/`completed` already come canonical from buildSpan('copilotkit',
+    // 'llm', …) via the shared canonicalizeSpan chokepoint — just set timing.
     return [
-      leanCopilotLlmSpan({ ...started, start_time: startedNs, end_time: 0 }),
-      leanCopilotLlmSpan({
+      { ...started, start_time: startedNs, end_time: 0 },
+      {
         ...completed,
         start_time: startedNs,
         end_time: endedNs,
         duration_ns: durationNs,
-      }),
+      },
     ] as unknown as SpanData[];
   });
 }

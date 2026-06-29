@@ -3,7 +3,6 @@ import type { GovernedPayload, SpanData, WorkflowVerdict } from '../core-client/
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { stampSource } from '../approvals/source.js';
 import {
-  buildLLMCompletionSpan,
   buildSpan,
   withOpenBoxActivityMetadata,
   withOpenBoxSubagentActivityMetadata,
@@ -251,48 +250,11 @@ export function usagePayloadFromResult(
   }, 'anthropic-agent-sdk');
 }
 
-export function modelUsageSpansFromResult(message: SDKResultMessage): SpanData[] {
-  const entries = Object.entries(objectRecord(message.modelUsage))
-    .map(([model, usage]) => {
-      const normalizedUsage = normalizeOpenBoxUsage(usage);
-      return {
-        model: model.trim(),
-        usage: normalizedUsage?.raw,
-        costUsd: normalizedUsage?.costUsd,
-      };
-    })
-    .filter(
-      (
-        entry,
-      ): entry is { model: string; usage: LLMTokenUsage; costUsd: number | undefined } =>
-        Boolean(entry.model && entry.usage),
-    );
-
-  if (entries.length <= 1) return [];
-
-  return entries.map(({ model, usage, costUsd }) =>
-    buildLLMCompletionSpan({
-      content: '',
-      name: 'openbox.synthetic.model_usage',
-      system: 'anthropic-agent-sdk',
-      model,
-      usage,
-      providerUrl: 'https://api.anthropic.com/v1/messages',
-      span: { status: { code: 'OK' } },
-      attributes: {
-        'gen_ai.system': 'anthropic-agent-sdk',
-        'openbox.synthetic': true,
-        'openbox.anthropic_agent_sdk.event': 'result_model_usage',
-      },
-      data: {
-        source: 'anthropic-agent-sdk',
-        event: 'result_model_usage',
-        session_id: message.session_id,
-        model,
-        ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
-      },
-    }),
-  );
+export function modelUsageSpansFromResult(_message: SDKResultMessage): SpanData[] {
+  // Synthetic per-model token-usage spans removed: pure telemetry with no
+  // langgraph-py equivalent. The provider LLM call is already captured as a
+  // canonical http_request span via the single buildSpan chokepoint.
+  return [];
 }
 
 export function resultAssistantOutput(

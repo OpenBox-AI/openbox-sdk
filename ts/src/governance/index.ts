@@ -27,7 +27,6 @@ export {
 } from './check.js';
 export {
   buildLLMCompletionResponseBody,
-  buildLLMCompletionSpan,
   buildSpan,
   llmTokenUsageFromRecord,
   openBoxActivityMetadata,

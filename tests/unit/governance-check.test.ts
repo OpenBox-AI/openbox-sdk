@@ -224,10 +224,10 @@ describe('governance/check', () => {
         'mcp.method': 'callTool',
         'mcp.operation': 'danger_tool',
         'mcp.server_id': 'unknown',
-        'openbox.tool.name': 'danger_tool',
         'tool.name': 'danger_tool',
       },
     });
+    expect(state.payloads[2].spans[0].attributes).not.toHaveProperty('openbox.tool.name');
   });
 
   it('skips org keys in env and falls back to the agent key cache', async () => {
@@ -274,8 +274,8 @@ describe('governance/check', () => {
       ['file_read', { file_path: '/tmp/r' }, 'FileRead', 'file.read'],
       ['file_delete', { file_path: '/tmp/d' }, 'FileDelete', 'file.delete'],
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],
-      ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT'],
-      ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'SELECT'],
+      ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT postgresql'],
+      ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'SELECT postgresql'],
       ['mcp', { tool: 'read' }, 'MCPToolCall', 'MCP callTool read'],
     ] as const;
 
@@ -292,16 +292,18 @@ describe('governance/check', () => {
       expect(payload.spans[0]).not.toHaveProperty('semantic_type');
       expect(payload.spans[0].attributes).not.toHaveProperty('openbox.semantic_type');
       if (spanType === 'mcp') {
+        // Canonical: MCP collapses to a function_call span (span_type stripped;
+        // synthetic openbox.* attr stripped). OTel-native mcp.*/tool.* survive.
+        expect(payload.spans[0]).not.toHaveProperty('span_type');
         expect(payload.spans[0]).toMatchObject({
-          span_type: 'mcp_tool_call',
           attributes: {
             'mcp.method': 'callTool',
             'mcp.operation': 'read',
             'mcp.server_id': 'unknown',
-            'openbox.tool.name': 'read',
             'tool.name': 'read',
           },
         });
+        expect(payload.spans[0].attributes).not.toHaveProperty('openbox.tool.name');
       }
       expect(payload.spans[0].trace_id).toHaveLength(32);
       expect(payload.spans[0].span_id).toHaveLength(16);

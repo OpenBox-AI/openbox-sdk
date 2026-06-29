@@ -387,10 +387,10 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
     expect(hook?.spans?.[0]).toMatchObject({
       name: 'POST',
-      module: 'anthropic-agent-sdk',
+      hook_type: 'http_request',
+      http_method: 'POST',
       stage: 'started',
       attributes: expect.objectContaining({
-        'gen_ai.system': 'anthropic-agent-sdk',
         'http.method': 'POST',
       }),
     });
@@ -452,10 +452,10 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     });
     expect(hook?.spans?.[0]).toMatchObject({
       name: 'POST',
-      module: 'anthropic-agent-sdk',
+      hook_type: 'http_request',
+      http_method: 'POST',
       stage: 'started',
       attributes: expect.objectContaining({
-        'gen_ai.system': 'anthropic-agent-sdk',
         'http.method': 'POST',
       }),
     });
@@ -869,7 +869,6 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       module: 'anthropic-agent-sdk',
       attributes: expect.objectContaining({
         'shell.command': 'npm test',
-        'openbox.tool.name': 'Bash',
         'tool.name': 'Bash',
       }),
     });
@@ -1029,7 +1028,6 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       activity_id: alternateCompleted?.activity_id,
       stage: 'completed',
       attributes: expect.objectContaining({
-        'openbox.tool.name': 'Bash',
         'tool.name': 'Bash',
       }),
     });
@@ -1066,7 +1064,6 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
       activity_id: failureCompleted?.activity_id,
       stage: 'completed',
       attributes: expect.objectContaining({
-        'openbox.tool.name': 'Bash',
         'tool.name': 'Bash',
       }),
     });
@@ -1270,7 +1267,8 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(hook?.span_count).toBe(1);
     const span = hook?.spans?.[0] as any;
     expect(span).toMatchObject({
-      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      name: 'POST',
+      hook_type: 'http_request',
       stage: 'completed',
     });
     expect(span).not.toHaveProperty('semantic_type');
@@ -1446,7 +1444,8 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(assistantHook?.activity_type).toBe(assistantParent.activity_type);
     expect(assistantHook?.span_count).toBe(1);
     expect(assistantHook?.spans?.[0]).toMatchObject({
-      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      name: 'POST',
+      hook_type: 'http_request',
       stage: 'completed',
     });
     expect(assistantHook?.spans?.[0]).not.toHaveProperty('semantic_type');
@@ -1521,8 +1520,11 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
         event.hook_trigger === true &&
         event.activity_id === assistantParent?.activity_id,
     );
-    expect(hookEvents).toHaveLength(3);
-    const [contentHook, ...syntheticHooks] = hookEvents;
+    // Synthetic per-model token-telemetry spans were removed
+    // (modelUsageSpansFromResult now returns []), so only the single
+    // canonical assistant-output http_request span remains.
+    expect(hookEvents).toHaveLength(1);
+    const [contentHook] = hookEvents;
     expect(assistantParent).toMatchObject({
       input_tokens: 30,
       output_tokens: 12,
@@ -1533,77 +1535,14 @@ describe('Anthropic Agent SDK OpenBox adapter', () => {
     expect(contentHook?.hook_trigger).toBe(true);
     expect(contentHook?.activity_id).toBe(assistantParent.activity_id);
     expect(contentHook?.spans?.[0]).toMatchObject({
-      name: 'openbox.anthropic-agent-sdk.assistant_output',
+      name: 'POST',
+      hook_type: 'http_request',
     });
     expect(contentHook?.spans?.[0]).not.toHaveProperty('semantic_type');
     expect(contentHook?.spans?.[0]?.attributes).not.toHaveProperty(
       'openbox.semantic_type',
     );
     expect((contentHook.spans?.[0] as any).input_tokens).toBeUndefined();
-
-    expect(syntheticHooks).toHaveLength(2);
-    for (const hook of syntheticHooks) {
-      expect(hook.hook_trigger).toBe(true);
-      expect(hook.event_type).toBe('ActivityStarted');
-      expect(hook.workflow_id).toBe(assistantParent.workflow_id);
-      expect(hook.run_id).toBe(assistantParent.run_id);
-      expect(hook.activity_id).toBe(assistantParent.activity_id);
-      expect(hook.activity_type).toBe(assistantParent.activity_type);
-      expect(hook.span_count).toBe(1);
-    }
-    const spans = syntheticHooks.map((event) => event.spans?.[0] as any);
-    expect(spans).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: 'openbox.synthetic.model_usage',
-          model_id: 'claude-sonnet-4-5',
-          provider: 'anthropic',
-          model_provider: 'anthropic',
-          status: { code: 'OK' },
-          input_tokens: 10,
-          output_tokens: 4,
-          total_tokens: 14,
-          cache_read_input_tokens: 3,
-          cache_creation_input_tokens: 2,
-          web_search_requests: 1,
-          cost_usd: 0.006,
-          attributes: expect.objectContaining({
-            'gen_ai.usage.cache_read_input_tokens': 3,
-            'gen_ai.usage.cache_creation_input_tokens': 2,
-            'gen_ai.usage.web_search_requests': 1,
-            'openbox.usage.web_search_requests': 1,
-            'openbox.usage.cost_usd': 0.006,
-            'openbox.web_search.requests': 1,
-            'openbox.cost.usd': 0.006,
-          }),
-          data: expect.objectContaining({ cost_usd: 0.006 }),
-        }),
-        expect.objectContaining({
-          name: 'openbox.synthetic.model_usage',
-          model_id: 'claude-opus-4-8',
-          provider: 'anthropic',
-          model_provider: 'anthropic',
-          input_tokens: 20,
-          output_tokens: 8,
-          total_tokens: 28,
-          data: expect.objectContaining({ cost_usd: 0.015 }),
-        }),
-      ]),
-    );
-    expect(spans.map((span) => JSON.parse(span.response_body).usage)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          input_tokens: 10,
-          output_tokens: 4,
-          total_tokens: 14,
-          cache_read_input_tokens: 3,
-          cache_creation_input_tokens: 2,
-          web_search_requests: 1,
-          cost_usd: 0.006,
-        }),
-        expect.objectContaining({ input_tokens: 20, output_tokens: 8, total_tokens: 28 }),
-      ]),
-    );
   });
 
   it('marks open sessions failed when the wrapped query throws', async () => {
