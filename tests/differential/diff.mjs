@@ -29,3 +29,17 @@ compare('file.close completed', refBy('close','completed'), tsBy('file_operation
 compare('function started',     refBy('process','started'), tsBy('function_call','process','started'));
 compare('function completed',   refBy('process','completed'),tsBy('function_call','process','completed'));
 console.log(`\nTOTAL field-level diffs: ${totalGaps}`);
+
+// ── http_request ──
+import { buildSpan } from '../../ts/src/governance/spans.ts';
+const refHttp = ref.find(s => s.hook_type==='http_request' && s.stage==='completed');
+if (refHttp) {
+  const tsHttp = buildSpan('copilotkit','http',{
+    method:'POST', url: refHttp.http_url,
+    request_body: refHttp.request_body, response_body: refHttp.response_body,
+    request_headers: refHttp.request_headers,
+    response_headers: refHttp.response_headers,
+    http_status_code: refHttp.http_status_code, stage:'completed',
+  });
+  compare('http completed', refHttp, tsHttp);
+}

@@ -30,6 +30,24 @@ from openbox_langgraph.tracing import traced
 def process(x, y=2): return "ok"
 process(1, y=3)
 
+# ── http_request: real httpx OTel instrumentor + body-capture send patch + MockTransport ──
+import openbox_langgraph.otel_setup as _otel_setup
+_otel_setup._span_processor = object()  # config guard only (enables the request hook)
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from openbox_langgraph.http_governance_hooks import (
+    _httpx_request_hook, _httpx_response_hook, setup_httpx_body_capture,
+)
+HTTPXClientInstrumentor().instrument(request_hook=_httpx_request_hook, response_hook=_httpx_response_hook)
+setup_httpx_body_capture(_otel_setup._span_processor)
+import httpx
+def _handler(request):
+    return httpx.Response(200, headers={"content-type": "application/json"}, json={"ok": True})
+_client = httpx.Client(transport=httpx.MockTransport(_handler))
+_client.post("https://api.example.test/v1/data",
+             headers={"authorization": "Bearer sk-x", "content-type": "application/json"},
+             json={"x": 1})
+
+
 VOL = ("span_id","trace_id","parent_span_id","start_time","end_time","duration_ns")
 norm = lambda d: {k: ("<vol>" if k in VOL else v) for k, v in d.items()}
 print(json.dumps({"meta": {"file_path": fpath, "fn_module": process.__module__,

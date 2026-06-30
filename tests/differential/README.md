@@ -24,6 +24,8 @@ Volatile-normalized: span_id, trace_id, parent_span_id, start/end/duration.
 | file.close completed (cumulative bytes + operations[]) | ✅ 1:1 |
 | function started/completed (hook_type/kind/stage/status/function/module/args/result) | ✅ 1:1 |
 
+| http_request completed | ✅ 1:1 (name "HTTP POST", method, url, request_body, request_headers incl. httpx defaults + redaction, response_body, response_headers, http_status_code) |
+
 ### Documented, justified divergences (NOT bugs)
 - **function `attributes`**: REF `{}` vs TS `{code.function, code.namespace, function.arg.*, function.result}`. The reference's `tracing.py:48` `isinstance(raw_attrs, dict)` drops real OTel `BoundedAttributes`, so it emits `{}` — almost certainly an unintended bug (file spans have no such guard and DO carry attributes). **Decision: keep the TS attributes** — they are what the reference INTENDED; TS is more correct.
 - **function `args` serialization**: `{"args":[1,3],"kwargs":{}}` (TS) vs `{"args": [1], "kwargs": {"y": 3}}` (ref). Two language differences: TS `JSON.stringify` whitespace (idiomatic TS, not imitating Python `json.dumps`), and JS has no keyword args so positional/kwargs can't be split. **Exempt — language, not divergence.**
@@ -36,7 +38,7 @@ Volatile-normalized: span_id, trace_id, parent_span_id, start/end/duration.
 - "attributes 1:1" was silently false: it depended on the OTel SDK being configured (NoOp tracer
   drops attributes) AND on the reference isinstance() quirk.
 
+- **http `attributes`**: REF `{}` vs TS `{http.method, http.url}`  14 the http governance hook sets NO attributes itself; these come from the EXTERNAL OTel httpx instrumentor (semconv). Instrumentor-provided, external to both repos. Exempt.
+
 ## NOT yet covered (honest gaps in the harness itself)
-http_request, db_query, and the LLM/assistant-output path are not yet driven through the
-reference's real instrumentation here (http needs the real request hooks with real request
-objects; db needs an OTel dbapi instrumentor). These remain to be added for full coverage.
+db_query and the LLM/assistant-output path are not yet driven through the reference here (db needs an OTel dbapi instrumentor + a real connection). http_request is now COVERED (real httpx instrumentor + MockTransport). These remain to be added for full coverage.
