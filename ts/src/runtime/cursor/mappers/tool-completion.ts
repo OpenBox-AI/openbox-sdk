@@ -20,16 +20,12 @@ import {
 import { buildCursorSpan } from './spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
+import { objectRecord as recordFrom } from '../../../internal/records.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: CursorSession['activity'];
 };
 
-function recordFrom(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 function stringFrom(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;

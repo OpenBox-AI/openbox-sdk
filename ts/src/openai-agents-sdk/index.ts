@@ -36,6 +36,7 @@ import {
   runTelemetryFields,
 } from './payloads.js';
 import { normalizeOpenBoxUsage } from '../governance/usage.js';
+import { arrayFrom } from '../internal/records.js';
 import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
 
 type OpenAIAgentHooksInstance = OpenAIAgentHooks<unknown, 'text'>;
@@ -734,9 +735,6 @@ function valueAtPath(record: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
-function arrayFrom(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function inputForVerdict(
   input: unknown,

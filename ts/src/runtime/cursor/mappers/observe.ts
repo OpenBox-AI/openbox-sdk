@@ -28,6 +28,7 @@ import {
 import { normalizeOpenBoxUsage } from '../../../governance/usage.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
+import { objectRecord as recordFrom, firstRecord } from '../../../internal/records.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: (
@@ -37,12 +38,6 @@ type ObserveCapableCursorSession = CursorSession & {
   ) => Promise<WorkflowVerdict>;
 };
 
-function recordFrom(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function firstString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value !== 'string') continue;
@@ -50,14 +45,6 @@ function firstString(...values: unknown[]): string | undefined {
     if (trimmed) return trimmed;
   }
   return undefined;
-}
-
-function firstRecord(...values: unknown[]): Record<string, unknown> {
-  for (const value of values) {
-    const record = recordFrom(value);
-    if (Object.keys(record).length > 0) return record;
-  }
-  return {};
 }
 
 function numberFrom(value: unknown): number | undefined {

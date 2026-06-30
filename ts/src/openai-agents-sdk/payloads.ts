@@ -13,7 +13,10 @@ import {
 } from '../governance/usage.js';
 import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
 import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
+import { objectRecord, arrayFrom, hasOwnKey } from '../internal/records.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
+
+export { objectRecord };
 
 const defaultActivity = PRESET_ACTIVITY_TYPES.default;
 const openAIAgentsActivity = PRESET_ACTIVITY_TYPES['openai-agents-sdk'];
@@ -26,12 +29,6 @@ export const OPENAI_AGENTS_ACTIVITY_TYPES = {
   HANDOFF: openAIAgentsActivity.handoff,
   GUARDRAIL: openAIAgentsActivity.guardrail,
 } as const;
-
-export function objectRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 export function compactPayload(
   input: Record<string, unknown>,
@@ -265,17 +262,6 @@ function unwrapOutputRedaction(
   return value;
 }
 
-function hasOwnKey(
-  value: unknown,
-  key: string,
-): value is Record<string, unknown> {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    Object.prototype.hasOwnProperty.call(value, key),
-  );
-}
 
 function spanTypeFor(
   toolName: string,
@@ -514,9 +500,6 @@ function assistantContentFromResult(
   return undefined;
 }
 
-function arrayFrom(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
 
 function firstString(...values: unknown[]): string | undefined {
   for (const value of values) {

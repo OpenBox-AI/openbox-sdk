@@ -6,6 +6,7 @@ import type {
 } from '../../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../../core-client/generated/govern.js';
 import { EVENT } from '../../governance/events.js';
+import { objectRecord as recordFrom, arrayFrom } from '../../internal/records.js';
 import type { LLMTokenUsage } from '../../governance/spans.js';
 import {
   buildSpan,
@@ -243,16 +244,6 @@ function timeToUnixNano(value: number | undefined): number | undefined {
   return timestamp > 0 && timestamp < 100_000_000_000_000
     ? timestamp * 1_000_000
     : timestamp;
-}
-
-function recordFrom(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function arrayFrom(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
 }
 
 function arrayOfStrings(value: unknown): string[] {

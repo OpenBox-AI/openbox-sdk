@@ -14,6 +14,9 @@ import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../governance/assistant-output.js';
+import { objectRecord, isPlainObject, hasOwnKey } from '../internal/records.js';
+
+export { objectRecord };
 
 const defaultActivity = PRESET_ACTIVITY_TYPES.default;
 const anthropicAgentActivity = PRESET_ACTIVITY_TYPES['anthropic-agent-sdk'];
@@ -37,12 +40,6 @@ export const ANTHROPIC_AGENT_ACTIVITY_TYPES = {
   USAGE_SIGNAL: anthropicAgentActivity.usageSignal,
   GOAL_SIGNAL: defaultActivity.goalSignal,
 } as const;
-
-export function objectRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 export function compactPayload(
   input: Record<string, unknown>,
@@ -327,14 +324,6 @@ function unwrapOutputRedaction(value: unknown, originalOutput: unknown): unknown
   if (Object.prototype.hasOwnProperty.call(value, 'activity_output')) return value.activity_output;
   if (Object.prototype.hasOwnProperty.call(value, 'activityOutput')) return value.activityOutput;
   return value;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
-  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function spanTypeFor(

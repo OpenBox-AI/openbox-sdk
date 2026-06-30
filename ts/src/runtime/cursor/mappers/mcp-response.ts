@@ -10,6 +10,7 @@ import {
 } from '../../../core-client/generated/runtime/cursor.js';
 import type { CursorConfig } from '../config.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
+import { objectRecord as recordFrom } from '../../../internal/records.js';
 import { sideEffects } from '../side-effects.js';
 import { stampSource } from '../../../approvals/source.js';
 import { withOpenBoxActivityMetadata } from '../../../governance/spans.js';
@@ -52,11 +53,6 @@ function cursorDurationMs(env: CursorEnvelope): number | undefined {
   return numberFrom(source.duration_ms ?? source.duration);
 }
 
-function recordFrom(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
 
 function spanTypeForMcpTool(
   toolName: string,

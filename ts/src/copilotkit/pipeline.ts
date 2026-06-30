@@ -12,6 +12,7 @@ import {
   type SpanType,
 } from '../governance/spans.js';
 import { normalizeOpenBoxUsage } from '../governance/usage.js';
+import { objectRecord as recordFrom, firstRecord } from '../internal/records.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -786,20 +787,6 @@ function telemetryForGate(
     /* c8 ignore next */
     toolType: toolMetadataFromPayload(payload, activityType).toolType ?? 'custom',
   };
-}
-
-function recordFrom(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function firstRecord(...values: unknown[]): Record<string, unknown> {
-  for (const value of values) {
-    const record = recordFrom(value);
-    if (Object.keys(record).length > 0) return record;
-  }
-  return {};
 }
 
 function firstString(...values: unknown[]): string | undefined {

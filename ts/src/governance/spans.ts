@@ -16,6 +16,7 @@
 import type { SpanData } from '../core-client/index.js';
 import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import { USAGE_NORMALIZATION_SURFACE } from './generated/capability-matrix.js';
+import { objectRecord } from '../internal/records.js';
 
 function hex(len: number): string {
   return Array.from({ length: len }, () =>
@@ -239,12 +240,6 @@ type ObservableSpan = SpanData & {
   web_search_requests?: number;
   cost_usd?: number;
 };
-
-function objectRecord(value: unknown): JsonRecord {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : {};
-}
 
 function parseJsonRecord(value: unknown): JsonRecord {
   if (typeof value === 'string') {

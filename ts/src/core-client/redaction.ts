@@ -7,6 +7,7 @@
 // envelope. `redactedInput` is the Core-canonical validated payload;
 // `redactedOutput` is retained as an SDK/provider compatibility alias.
 import type { WorkflowVerdict } from './generated/govern.js';
+import { isPlainObject, hasOwnKey } from '../internal/records.js';
 
 type GuardrailsVerdict = NonNullable<WorkflowVerdict['guardrailsResult']>;
 
@@ -185,14 +186,6 @@ export function summarizeGuardrailRedaction(
 
 function isRedactedStatus(status: unknown): boolean {
   return status === 'redacted' || status === 'transformed';
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function hasOwnKey(value: unknown, key: string): value is Record<string, unknown> {
-  return isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function cloneValue<T>(value: T): T {
