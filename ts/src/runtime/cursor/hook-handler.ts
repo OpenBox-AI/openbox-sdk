@@ -8,6 +8,7 @@ import {
 } from '../../core-client/generated/runtime/cursor.js';
 import {
   OpenBoxCoreClient,
+  verdictHasIncompleteGovernanceChecks,
   type WorkflowVerdict,
 } from '../../core-client/index.js';
 import { getConfigDir, loadConfig } from './config.js';
@@ -132,17 +133,6 @@ function ensureGoalContext(env: CursorEnvelope, cfg: ReturnType<typeof loadConfi
 function reasonFromError(prefix: string, err?: unknown): string {
   const detail = err instanceof Error ? err.message : String(err ?? '');
   return detail ? `${prefix}: ${detail}` : prefix;
-}
-
-function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
-    ? record.ageResult as Record<string, unknown>
-    : {};
-  return record.governanceChecksIncomplete === true
-    || ageResult.governanceChecksIncomplete === true
-    || ageResult.governance_checks_incomplete === true;
 }
 
 async function ensureWorkflowStartedForDecision(

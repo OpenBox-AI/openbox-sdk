@@ -13,6 +13,7 @@ import type {
   ClaudeCodeSession,
   WorkflowVerdict,
 } from '../../core-client/index.js';
+import { verdictHasIncompleteGovernanceChecks } from '../../core-client/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
@@ -81,17 +82,6 @@ function verdictReason(value: unknown): string | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const reason = (value as Record<string, unknown>).reason;
   return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
-}
-
-function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
-    ? record.ageResult as Record<string, unknown>
-    : {};
-  return record.governanceChecksIncomplete === true
-    || ageResult.governanceChecksIncomplete === true
-    || ageResult.governance_checks_incomplete === true;
 }
 
 function verdictLogMetadata(value: unknown): Record<string, string | boolean> {

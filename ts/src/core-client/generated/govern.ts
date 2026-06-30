@@ -3719,6 +3719,30 @@ export function mapGuardrailsResult(
   };
 }
 
+/**
+ * True when the Core verdict signals its governance checks were INCOMPLETE
+ * (AGE / policy evaluation degraded). Reads the flag both camelCase and
+ * snake_case, at the root AND inside age_result/ageResult. Single spec-driven
+ * reader — every host imports this instead of hand-copying it, so the
+ * fail-closed re-check on an incomplete verdict cannot drift.
+ */
+export function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const ageResult =
+    record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
+      ? (record.ageResult as Record<string, unknown>)
+      : record.age_result && typeof record.age_result === 'object' && !Array.isArray(record.age_result)
+        ? (record.age_result as Record<string, unknown>)
+        : {};
+  return (
+    record.governanceChecksIncomplete === true ||
+    record.governance_checks_incomplete === true ||
+    ageResult.governanceChecksIncomplete === true ||
+    ageResult.governance_checks_incomplete === true
+  );
+}
+
 type RawGuardrailFieldResult = {
   field?: string;
   guardrail_type?: string;

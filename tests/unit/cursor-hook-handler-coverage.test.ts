@@ -50,7 +50,8 @@ vi.mock('../../ts/src/approvals/socket-client.js', () => ({
   }),
 }));
 
-vi.mock('../../ts/src/core-client/index.js', () => ({
+vi.mock('../../ts/src/core-client/index.js', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   OpenBoxCoreClient: class {
     constructor(public opts: any) {
       coreClientOptions = opts;

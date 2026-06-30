@@ -63,6 +63,7 @@ export {
   BaseGovernedSession,
   SessionAlreadyTerminatedError,
   mapGuardrailsResult,
+  verdictHasIncompleteGovernanceChecks,
 } from './generated/govern.js';
 export type {
   PresetName,

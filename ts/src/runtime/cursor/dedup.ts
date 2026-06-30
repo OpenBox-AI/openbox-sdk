@@ -339,19 +339,10 @@ function publishedDecisionExpired(lockPath: string): boolean {
   }
 }
 
-export function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
-    ? record.ageResult as Record<string, unknown>
-    : record.age_result && typeof record.age_result === 'object' && !Array.isArray(record.age_result)
-      ? record.age_result as Record<string, unknown>
-      : {};
-  return record.governanceChecksIncomplete === true
-    || record.governance_checks_incomplete === true
-    || ageResult.governanceChecksIncomplete === true
-    || ageResult.governance_checks_incomplete === true;
-}
+// Single spec-driven source: the canonical reader is generated into govern.ts
+// from the verdict-response contract. Re-exported here so cursor mappers keep
+// their `../dedup.js` import path while sharing the one implementation.
+export { verdictHasIncompleteGovernanceChecks } from '../../core-client/index.js';
 
 /**
  * Loser: poll the lock file until the winner publishes a decision, or

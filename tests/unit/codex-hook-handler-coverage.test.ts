@@ -17,7 +17,8 @@ vi.mock('../../ts/src/logging/hook-log.js', () => ({
   makeHookLog: vi.fn(() => ({ record: vi.fn() })),
 }));
 
-vi.mock('../../ts/src/core-client/index.js', () => ({
+vi.mock('../../ts/src/core-client/index.js', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   OpenBoxCoreClient: class {
     constructor(public opts: any) {
       coreClientOptions = opts;

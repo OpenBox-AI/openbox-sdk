@@ -5,6 +5,7 @@ import {
 } from '../../core-client/generated/runtime/codex.js';
 import {
   OpenBoxCoreClient,
+  verdictHasIncompleteGovernanceChecks,
   type CodexSession,
   type WorkflowVerdict,
 } from '../../core-client/index.js';
@@ -86,17 +87,6 @@ function verdictReason(value: unknown): string | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const reason = (value as Record<string, unknown>).reason;
   return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
-}
-
-function verdictHasIncompleteGovernanceChecks(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  const ageResult = record.ageResult && typeof record.ageResult === 'object' && !Array.isArray(record.ageResult)
-    ? record.ageResult as Record<string, unknown>
-    : {};
-  return record.governanceChecksIncomplete === true
-    || ageResult.governanceChecksIncomplete === true
-    || ageResult.governance_checks_incomplete === true;
 }
 
 function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
