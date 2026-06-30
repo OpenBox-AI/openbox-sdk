@@ -71,6 +71,9 @@ function emitFileRead(
     fileMode: mode,
     operations: ['read'],
     bytesRead,
+    // Canonical close emits BOTH cumulative counters (the unused side as 0,
+    // since `0 is not None`); a read-only close still carries bytes_written:0.
+    bytesWritten: 0,
     startMs,
     endMs,
     error,
@@ -102,6 +105,9 @@ function emitFileWrite(
     fileMode: mode,
     operations: ['write'],
     bytesWritten,
+    // Canonical close emits BOTH cumulative counters (the unused side as 0);
+    // a write-only close still carries bytes_read:0.
+    bytesRead: 0,
     startMs,
     endMs,
     error,

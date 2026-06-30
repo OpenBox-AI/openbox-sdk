@@ -882,7 +882,16 @@ function buildSpanWithClassifierFields(
         (input.response !== undefined || input.usage !== undefined
           ? 'completed'
           : 'started');
-      const llmBase = llmStage === input.stage ? b : base(llmStage, input.error);
+      // Canonical _build_http_span_data auto-derives error + status ERROR when
+      // http_status_code >= 400, independent of any caller-supplied error. Doing
+      // it here covers every LLM http_request span (governed-tool + pipeline).
+      const llmError =
+        input.error ??
+        (typeof input.http_status_code === 'number' &&
+        input.http_status_code >= 400
+          ? `HTTP ${input.http_status_code}`
+          : undefined);
+      const llmBase = base(llmStage, llmError);
       const usage = normalizeUsage(input.usage);
       const inputTokens = toUsageInteger(
         usage?.input_tokens ?? usage?.prompt_tokens,
@@ -1494,6 +1503,20 @@ export function canonicalizeSpan(span: Record<string, unknown>): Record<string, 
   // real Postgres reference span. (_build_db_span_data only falls back to
   // "{db_operation} {db_system}" for an UNNAMED span; real instrumented spans are
   // named, so we keep the operation name the db builder already set.)
+  //
+  // Canonical _build_http_span_data ALWAYS caps request_body/response_body at
+  // caps.httpBody (8192) chars. The non-LLM fetch path pre-truncates, but the
+  // captured-LLM path serializes raw bodies; cap here at the chokepoint so every
+  // http_request span matches regardless of source (idempotent when already capped).
+  if (hook === 'http_request') {
+    const cap = CANONICAL_SPAN.caps.httpBody;
+    for (const k of ['request_body', 'response_body'] as const) {
+      const v = out[k];
+      if (typeof v === 'string' && v.length > cap) {
+        out[k] = v.slice(0, cap) + CANONICAL_SPAN.truncationSuffix;
+      }
+    }
+  }
   return out;
 }
 

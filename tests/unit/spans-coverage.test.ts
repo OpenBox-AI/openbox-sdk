@@ -556,6 +556,50 @@ describe('LLM telemetry helpers via canonical buildSpan llm', () => {
     expect(omitted.request_body).toBeUndefined();
   });
 
+  test('canonicalizeSpan caps http_request request/response bodies at 8192 chars', () => {
+    // Parity: canonical _build_http_span_data always truncates bodies to 8192;
+    // the captured-LLM path serialized raw bodies uncapped before this chokepoint.
+    const big = 'x'.repeat(9000);
+    const capped = canonicalizeSpan({
+      hook_type: 'http_request',
+      request_body: big,
+      response_body: big,
+    });
+    const expected = 'x'.repeat(8192) + '...[truncated]';
+    expect(capped.request_body).toBe(expected);
+    expect(capped.response_body).toBe(expected);
+    // At/under the cap is untouched; non-string bodies pass through.
+    const small = canonicalizeSpan({
+      hook_type: 'http_request',
+      request_body: 'short',
+      response_body: null,
+    });
+    expect(small.request_body).toBe('short');
+    expect(small.response_body).toBeNull();
+  });
+
+  test('buildSpan llm derives error + ERROR status from http_status_code >= 400', () => {
+    // Parity: canonical _build_http_span_data sets error="HTTP {status}" + ERROR
+    // for any >= 400 response, independent of a caller-supplied error.
+    const failed = buildSpan('copilotkit', 'llm', {
+      stage: 'completed',
+      response: 'x',
+      http_status_code: 404,
+    });
+    expect((failed.status as { code: string }).code).toBe('ERROR');
+    expect((failed.status as { description: string }).description).toBe('HTTP 404');
+    expect(failed.error).toBe('HTTP 404');
+
+    // < 400 → no derived error (UNSET).
+    const ok = buildSpan('copilotkit', 'llm', {
+      stage: 'completed',
+      response: 'x',
+      http_status_code: 200,
+    });
+    expect((ok.status as { code: string }).code).toBe('UNSET');
+    expect(ok.error).toBeNull();
+  });
+
   test('sanitizeHeaderMap drops non-string values and redacts sensitive headers', () => {
     const headers = buildSpan('cursor', 'llm', {
       model: 'gpt-4',

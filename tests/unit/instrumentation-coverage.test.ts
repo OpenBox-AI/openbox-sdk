@@ -81,6 +81,16 @@ describe('file read instrumentation', () => {
     expect(read.data).toBe('hello world');
     expect(read.bytes_read).toBe(Buffer.byteLength('hello world'));
 
+    // Parity (D1-file): the open→close lifecycle span carries BOTH cumulative
+    // counters — the unused side as 0 (canonical close always sends both).
+    const readClose = spans.find(
+      (s) =>
+        s.name === 'file.open' &&
+        (s as unknown as { duration_ns: number | null }).duration_ns !== null,
+    ) as unknown as { bytes_read?: number; bytes_written?: number };
+    expect(readClose.bytes_read).toBe(Buffer.byteLength('hello world'));
+    expect(readClose.bytes_written).toBe(0);
+
     // Capturing + buffer result (no encoding -> Buffer -> textData undefined),
     // string options form ('utf8' as the whole options arg => not an object).
     await capture(() => {
@@ -161,6 +171,15 @@ describe('file write instrumentation', () => {
     };
     expect(write.data).toBe('written text');
     expect(write.bytes_written).toBe(Buffer.byteLength('written text'));
+
+    // Parity (D1-file): write-side open→close lifecycle span carries bytes_read:0.
+    const writeClose = spans.find(
+      (s) =>
+        s.name === 'file.open' &&
+        (s as unknown as { duration_ns: number | null }).duration_ns !== null,
+    ) as unknown as { bytes_read?: number; bytes_written?: number };
+    expect(writeClose.bytes_written).toBe(Buffer.byteLength('written text'));
+    expect(writeClose.bytes_read).toBe(0);
 
     // Buffer data -> Buffer.isBuffer branch, textData undefined.
     await capture(() => {
