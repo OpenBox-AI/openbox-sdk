@@ -342,7 +342,7 @@ describe('activity pairing', () => {
     const dbSpan = {
       span_id: '3333333333333333',
       trace_id: '3'.repeat(32),
-      name: 'SELECT postgresql',
+      name: 'SELECT',
       kind: 'CLIENT',
       stage: 'started',
       db_system: 'postgresql',

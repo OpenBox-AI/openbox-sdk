@@ -1003,23 +1003,17 @@ describe('canonicalizeSpan (direct branch coverage)', () => {
     expect(out.file_operation).toBe('open');
   });
 
-  test('db_query span name falls back to "{db_operation} {db_system}" when both are strings', () => {
-    const renamed = canonicalizeSpan({
+  test('db_query span name is preserved (no {op} {system} rewrite)', () => {
+    // Real dbapi instrumentors (psycopg2/mysql) name the span by operation alone,
+    // e.g. "SELECT" — verified against a real Postgres reference span. canonicalizeSpan
+    // keeps the db builder's operation name; it does NOT rewrite to "{op} {system}".
+    const span = canonicalizeSpan({
       hook_type: 'db_query',
-      name: 'placeholder',
+      name: 'SELECT',
       db_operation: 'SELECT',
-      db_system: 'sqlite',
+      db_system: 'postgresql',
     });
-    expect(renamed.name).toBe('SELECT sqlite');
-
-    // When db_operation is not a string the rename is skipped (name preserved).
-    const preserved = canonicalizeSpan({
-      hook_type: 'db_query',
-      name: 'orig',
-      db_operation: 123 as unknown as string,
-      db_system: 'sqlite',
-    });
-    expect(preserved.name).toBe('orig');
+    expect(span.name).toBe('SELECT');
   });
 });
 

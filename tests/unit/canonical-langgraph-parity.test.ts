@@ -62,7 +62,7 @@ describe('canonical langgraph-py span parity — every host, no superset', () =>
     { type: 'file_open', hook: 'file_operation', input: { file_path: '/vault/secret.txt', file_mode: 'r', stage: 'started' }, statics: { name: 'file.open', kind: 'INTERNAL', hook_type: 'file_operation', file_operation: 'open', file_mode: 'r' } },
     { type: 'file_read', hook: 'file_operation', input: { file_path: '/vault/secret.txt', file_mode: 'r', data: 'hello', stage: 'completed' }, statics: { name: 'file.read', kind: 'INTERNAL', hook_type: 'file_operation', file_operation: 'read' } },
     { type: 'http', hook: 'http_request', input: { method: 'POST', url: 'https://api.example.com/x', stage: 'started' }, statics: { kind: 'CLIENT', hook_type: 'http_request', http_method: 'POST' } },
-    { type: 'db', hook: 'db_query', input: { db_system: 'sqlite', db_operation: 'SELECT', db_statement: 'SELECT * FROM t', stage: 'completed' }, statics: { kind: 'CLIENT', hook_type: 'db_query', db_operation: 'SELECT', db_system: 'sqlite', name: 'SELECT sqlite' } },
+    { type: 'db', hook: 'db_query', input: { db_system: 'sqlite', db_operation: 'SELECT', db_statement: 'SELECT * FROM t', stage: 'completed' }, statics: { kind: 'CLIENT', hook_type: 'db_query', db_operation: 'SELECT', db_system: 'sqlite', name: 'SELECT' } },
     { type: 'llm', hook: 'http_request', input: { model: 'gpt-4', url: 'https://api.openai.com/v1/chat/completions', usage: { input_tokens: 10, output_tokens: 5 }, stage: 'completed' }, statics: { kind: 'CLIENT', hook_type: 'http_request', http_method: 'POST' } },
   ];
 

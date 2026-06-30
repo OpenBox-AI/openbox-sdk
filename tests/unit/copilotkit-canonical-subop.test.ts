@@ -63,7 +63,7 @@ describe('copilotkit canonical sub-op span shape', () => {
 
     expect(spans.length).toBeGreaterThan(0);
     for (const s of spans) {
-      expect(s.name).toBe('SELECT sqlite');
+      expect(s.name).toBe('SELECT');
       expect((s as unknown as { db_system: string }).db_system).toBe('sqlite');
     }
     const started = spans.find(

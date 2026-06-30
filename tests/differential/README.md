@@ -41,4 +41,11 @@ Volatile-normalized: span_id, trace_id, parent_span_id, start/end/duration.
 - **http `attributes`**: REF `{}` vs TS `{http.method, http.url}`  14 the http governance hook sets NO attributes itself; these come from the EXTERNAL OTel httpx instrumentor (semconv). Instrumentor-provided, external to both repos. Exempt.
 
 ## NOT yet covered (honest gaps in the harness itself)
-db_query: the reference db governance is architected for psycopg2/mysql dbapi cursors; the OTel sqlite3 instrumentor does NOT route through the patched CursorTracer.traced_execution, so a REAL reference db span needs a running Postgres/MySQL (not drivable in this harness). NOT faked. db root-field shape was verified 1:1 via fixture earlier; db `attributes` follow the SAME reference isinstance() quirk as function (REF={} vs TS db.*), classified identically. LLM/assistant-output collapses to http_request (covered above). These remain to be added for full coverage.
+db_query: COVERED via a REAL Postgres (docker postgres:16) + psycopg2 + the OTel psycopg2 instrumentor, which DOES route through the reference CursorTracer governance. Result: 1:1 on the full contract (name "SELECT", db_system, db_name, db_operation, db_statement, server_address, server_port, rowcount). This caught a real divergence the fake-span fixture missed: the TS canonicalizeSpan rewrote db names to "{op} {system}" ("SELECT postgresql"), but real dbapi instrumentors name spans by operation alone ("SELECT") — FIXED. db `attributes` follow the same reference isinstance() quirk as function (REF={} vs TS db.*; kept by decision). LLM/assistant-output collapses to http_request (covered above).
+
+## Reproduce db
+```
+docker run -d --name diff-pg -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=diff -p 5432:5432 postgres:16
+cd ../../../openbox-langgraph-sdk-python && uv run --python 3.12 --with psycopg2-binary \\
+  --with opentelemetry-instrumentation-psycopg2 python ../openbox-sdk/tests/differential/capture_db_reference_spans.py
+``` These remain to be added for full coverage.

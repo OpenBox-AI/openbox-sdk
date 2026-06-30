@@ -136,7 +136,7 @@ describe('low-branch utility coverage', () => {
       ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete', false],
       ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution', true],
       ['http', { method: 'get', url: 'https://example.test' }, 'HTTP GET', false],
-      ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT postgresql', false],
+      ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT', false],
       ['mcp', { tool_name: 'search' }, 'MCP callTool search', true],
     ] as const;
 

@@ -43,3 +43,19 @@ if (refHttp) {
   });
   compare('http completed', refHttp, tsHttp);
 }
+
+// ── db_query (real Postgres via psycopg2 + reference CursorTracer governance) ──
+import { recordDatabaseQuery } from '../../ts/src/copilotkit/otel-capture.ts';
+try {
+  const dbref = JSON.parse(readFileSync(new URL('./db-reference-spans.json', import.meta.url)));
+  const refDb = dbref.find(s => s.db_operation==='SELECT' && s.stage==='completed');
+  if (refDb) {
+    const tsDb = await runWithSubOpCapture({ activityId: 'a' }, async () => {
+      recordDatabaseQuery({ statement: refDb.db_statement, operation: 'SELECT', system: refDb.db_system,
+        dbName: refDb.db_name, serverAddress: refDb.server_address, serverPort: refDb.server_port,
+        rowcount: refDb.rowcount, startMs: 1, endMs: 2 });
+      return capturedSubOpSpans();
+    });
+    compare('db SELECT completed', refDb, tsDb.find(s => s.stage==='completed'));
+  }
+} catch (e) { console.log('## db — (no db-reference-spans.json)', e.message); }

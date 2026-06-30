@@ -1486,15 +1486,11 @@ export function canonicalizeSpan(span: Record<string, unknown>): Record<string, 
   ) {
     delete (out.attributes as Record<string, unknown>)['file.operation'];
   }
-  // Canonical db span name falls back to "{db_operation} {db_system}" when the
-  // OTel span is unnamed (_build_db_span_data).
-  if (
-    hook === 'db_query' &&
-    typeof out.db_operation === 'string' &&
-    typeof out.db_system === 'string'
-  ) {
-    out.name = `${out.db_operation} ${out.db_system}`;
-  }
+  // Canonical db span name is the OTel span name, which real dbapi instrumentors
+  // (psycopg2/mysql) set to the operation alone, e.g. "SELECT" — verified against a
+  // real Postgres reference span. (_build_db_span_data only falls back to
+  // "{db_operation} {db_system}" for an UNNAMED span; real instrumented spans are
+  // named, so we keep the operation name the db builder already set.)
   return out;
 }
 
