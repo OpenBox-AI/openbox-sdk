@@ -3778,6 +3778,9 @@ function normalizeGuardrailFieldStatus(value: string | undefined): 'allowed' | '
 }
 
 function normalizeArm(value: string | number | undefined): VerdictArm {
+  // Absent verdict (no governance signal) defaults to allow; a PRESENT but
+  // unrecognized value fails CLOSED (a garbled verdict must not silently permit).
+  if (value === undefined || value === null) return 'allow';
   if (typeof value === 'number') {
     switch (value) {
       case 1:
@@ -3789,8 +3792,9 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
       case 4:
         return 'halt';
       case 0:
-      default:
         return 'allow';
+      default:
+        return 'block';
     }
   }
   const normalized =
@@ -3798,6 +3802,7 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
       ? value.trim().toLowerCase().replace(/-/g, '_')
       : value;
   switch (normalized) {
+    case '':
     case 'approve':
     case 'approved':
     case 'allow':
@@ -3824,7 +3829,8 @@ function normalizeArm(value: string | number | undefined): VerdictArm {
     case 'stop':
       return 'halt';
     default:
-      return 'allow';
+      // Present but unrecognized arm — fail CLOSED rather than permit.
+      return 'block';
   }
 }
 
