@@ -42,11 +42,24 @@ describe('cli/config; api-key store CRUD', () => {
   });
 
   it('OPENBOX_BACKEND_API_KEY env bypasses on-disk store', async () => {
+    const cfg = await import('../../ts/src/cli/config');
+    // Seed the on-disk store with a DIFFERENT key so we can prove the env
+    // key wins (rather than coincidentally matching the file).
+    const DISK_KEY = 'obx_key_' + 'd'.repeat(48);
+    cfg.saveApiKey(DISK_KEY);
+    expect(cfg.loadApiKey()).toBe(DISK_KEY);
+
     process.env.OPENBOX_BACKEND_API_KEY = KEY_A;
     process.env.OPENBOX_API_URL = 'http://localhost:3000';
     process.env.OPENBOX_CORE_URL = 'http://localhost:3001';
-    const cfg = await import('../../ts/src/cli/config');
+    // The env key short-circuits the file store entirely.
+    expect(cfg.loadApiKey()).toBe(KEY_A);
     expect(cfg.getClient()).toBeDefined();
+
+    // Removing the env key falls back to the still-present on-disk store,
+    // confirming the env value was an override, not a replacement.
+    delete process.env.OPENBOX_BACKEND_API_KEY;
+    expect(cfg.loadApiKey()).toBe(DISK_KEY);
   });
 });
 

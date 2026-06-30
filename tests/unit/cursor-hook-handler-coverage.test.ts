@@ -373,11 +373,12 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
       subagent_name: 'reviewer',
     };
 
-    await adapterOptions.handlers.beforeSubmitPrompt(base, session);
-    await adapterOptions.handlers.beforeShellExecution(base, session);
-    await adapterOptions.handlers.beforeMCPExecution(base, session);
-    await adapterOptions.handlers.beforeReadFile(base, session);
-    await adapterOptions.handlers.preToolUse({ ...base, generation_id: `gen-pre-${Date.now()}` }, session);
+    const verdicts: Record<string, any> = {};
+    verdicts.beforeSubmitPrompt = await adapterOptions.handlers.beforeSubmitPrompt(base, session);
+    verdicts.beforeShellExecution = await adapterOptions.handlers.beforeShellExecution(base, session);
+    verdicts.beforeMCPExecution = await adapterOptions.handlers.beforeMCPExecution(base, session);
+    verdicts.beforeReadFile = await adapterOptions.handlers.beforeReadFile(base, session);
+    verdicts.preToolUse = await adapterOptions.handlers.preToolUse({ ...base, generation_id: `gen-pre-${Date.now()}` }, session);
     await adapterOptions.handlers.afterMCPExecution(base, session);
     await adapterOptions.handlers.afterAgentResponse(base, session);
     await adapterOptions.handlers.afterAgentThought(base, session);
@@ -391,10 +392,24 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     await adapterOptions.handlers.afterTabFileEdit(base, session);
     await adapterOptions.handlers.sessionEnd(base, session);
     await adapterOptions.handlers.preCompact(base, session);
-    await adapterOptions.handlers.subagentStart(base, session);
+    verdicts.subagentStart = await adapterOptions.handlers.subagentStart(base, session);
     await adapterOptions.handlers.subagentStop(base, session);
 
+    // Each decision-capable (permission) handler returns the gate's allow
+    // verdict to Cursor — not undefined, not a stray block. This proves the
+    // verdict actually flowed back from the session, per handler, rather than
+    // only that `session.activity` was poked somewhere.
+    expect(verdicts.beforeSubmitPrompt).toMatchObject({ arm: 'allow' });
+    expect(verdicts.beforeShellExecution).toMatchObject({ arm: 'allow' });
+    expect(verdicts.beforeMCPExecution).toMatchObject({ arm: 'allow' });
+    expect(verdicts.preToolUse).toMatchObject({ arm: 'allow' });
+    expect(verdicts.subagentStart).toMatchObject({ arm: 'allow' });
+    // The split-stage gates (shell/mcp/preToolUse) route through openActivity;
+    // the signal/subagent gates route through activity. Both must have run.
+    expect(session.openActivity).toHaveBeenCalled();
     expect(session.activity).toHaveBeenCalled();
+    // beforeSubmitPrompt opens the workflow before gating the prompt.
+    expect(session.workflowStarted).toHaveBeenCalled();
     const failingSession = {
       ...session,
       activity: vi.fn(async () => {

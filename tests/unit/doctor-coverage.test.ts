@@ -111,8 +111,27 @@ describe('doctor command', () => {
     try {
       const r = await runDoctor();
       // api-key + reachable backends path produces a rich `lines`
-      // output. We just need the function to have run end-to-end.
+      // output (human TTY rows, since setup.ts forces stdout.isTTY).
       expect(r.lines.length).toBeGreaterThan(2);
+      // No failed checks => doctor never bails, so no exit() was thrown.
+      expect(r.exitCode).toBeUndefined();
+      // Strip ANSI so status colorization doesn't hide the row content.
+      const plain = r.lines.map((l) => l.replace(/\[[0-9;]*m/g, ''));
+      // The api-key check passes and echoes the saved key's prefix.
+      const apiKeyRow = plain.find((l) => l.startsWith('api-key'));
+      expect(apiKeyRow).toContain('pass');
+      expect(apiKeyRow).toContain(FAKE_KEY.slice(0, 12));
+      // Both reachability probes hit the ok server and report 200 OK.
+      const backendRow = plain.find((l) => l.includes('backend /health'));
+      expect(backendRow).toContain('pass');
+      expect(backendRow).toContain('200 OK');
+      const coreRow = plain.find((l) => l.includes('core /health'));
+      expect(coreRow).toContain('pass');
+      expect(coreRow).toContain('200 OK');
+      // Closing summary reports zero failures and a positive pass count.
+      const summaryLine = plain.find((l) => l.startsWith('done.'));
+      expect(summaryLine).toContain('fail=0');
+      expect(summaryLine).toMatch(/pass=[1-9]/);
     } finally {
       delete process.env.OPENBOX_API_URL;
       delete process.env.OPENBOX_CORE_URL;

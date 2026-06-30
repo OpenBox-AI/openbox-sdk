@@ -10,6 +10,7 @@ import {
   validateAgentIdentityConfig,
 } from '../../ts/src/core-client/core-client.js';
 import type { GovernanceEventPayload } from '../../ts/src/core-client/core-client.js';
+import { TokenBucket } from '../../ts/src/client/rate-limiter.js';
 
 const ED25519_PKCS8_PREFIX = Buffer.from(
   '302e020100300506032b657004220420',
@@ -99,27 +100,55 @@ describe('core-client coverage', () => {
       const client = createClient({
         rateLimit: { requestsPerSecond: 1000, burst: 10 },
       });
+      // The configured rate limiter is a TokenBucket whose capacity is the
+      // burst (10), seeded full. No bucket exists without rateLimit.
+      const bucket = (client as any).rateLimiter as TokenBucket;
+      expect(bucket).toBeInstanceOf(TokenBucket);
+      expect((bucket as any).capacity).toBe(10);
+      expect((bucket as any).tokens).toBe(10);
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
       await client.validateApiKey();
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      // One request consumed exactly one token from the burst-10 bucket.
+      expect((bucket as any).tokens).toBe(9);
     });
 
     it('builds a TokenBucket when rateLimit is configured (no burst)', async () => {
       const client = createClient({
         rateLimit: { requestsPerSecond: 1000 },
       });
+      // No burst => capacity falls back to requestsPerSecond (1000).
+      const bucket = (client as any).rateLimiter as TokenBucket;
+      expect(bucket).toBeInstanceOf(TokenBucket);
+      expect((bucket as any).capacity).toBe(1000);
       fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
       await client.validateApiKey();
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The bucket actually gated the request: a token was drawn.
+      expect((bucket as any).tokens).toBe(999);
+    });
+
+    it('does not build a TokenBucket when rateLimit is omitted', () => {
+      const client = createClient();
+      expect((client as any).rateLimiter).toBeNull();
     });
 
     it('acquires a rate-limit token before issuing the request (line 229)', async () => {
       const client = createClient({
         rateLimit: { requestsPerSecond: 1000, burst: 5 },
       });
+      const bucket = (client as any).rateLimiter as TokenBucket;
+      const acquireSpy = vi.spyOn(bucket, 'acquire');
       fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
       await client.validateApiKey();
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The token MUST be acquired before fetch is issued, and exactly one
+      // token is drawn per request.
+      expect(acquireSpy).toHaveBeenCalledTimes(1);
+      expect(acquireSpy.mock.invocationCallOrder[0]).toBeLessThan(
+        fetchMock.mock.invocationCallOrder[0],
+      );
+      expect((bucket as any).tokens).toBe(4);
     });
 
     it('falls back to OPENBOX_CORE_URL env when apiUrl is omitted', async () => {

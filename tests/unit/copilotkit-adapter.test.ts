@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import React from 'react';
 import {
   createOpenBoxCopilotRuntime,
   createOpenBoxGovernedRunner,
@@ -17,10 +18,34 @@ import {
 import {
   createOpenBoxCustomMessageRenderer,
   useOpenBoxCopilotKit,
+  OpenBoxGovernanceDecision,
 } from '../../ts/src/copilotkit/react';
 import type { GovernanceEventPayload } from '../../ts/src/core-client/index';
 
 const FAKE_AGENT_PRIVATE_KEY = Buffer.alloc(32, 1).toString('base64');
+
+// The custom message renderer returns a React.Fragment whose first child is
+// the <OpenBoxGovernanceDecision> element carrying the resolved OpenBox tool
+// result. Walk that tree (without a DOM) and parse the decision's `result`
+// prop so tests can assert the actual verdict/action that was routed in,
+// rather than merely that *something* rendered.
+function decisionResultFromNode(node: unknown): Record<string, any> {
+  expect(React.isValidElement(node)).toBe(true);
+  const element = node as React.ReactElement;
+  expect(element.type).toBe(React.Fragment);
+  const children = React.Children.toArray(
+    (element.props as { children?: React.ReactNode }).children,
+  );
+  const decision = children.find(
+    (child): child is React.ReactElement =>
+      React.isValidElement(child) && child.type === OpenBoxGovernanceDecision,
+  );
+  expect(decision).toBeDefined();
+  const result = (decision!.props as { result?: unknown }).result;
+  return JSON.parse(
+    typeof result === 'string' ? result : JSON.stringify(result),
+  ) as Record<string, any>;
+}
 
 type DemoInput = OpenBoxCopilotActionInput & {
   action: 'demo_action';
@@ -125,6 +150,11 @@ describe('CopilotKit OpenBox adapter', () => {
     });
 
     expect(node).not.toBeNull();
+    const decision = decisionResultFromNode(node);
+    expect(decision.verdict).toBe('allow');
+    expect(decision.action).toBe('open_revenue_queue');
+    expect(decision.status).toBe('executed');
+    expect(decision.request).toBe('Open revenue queue');
   });
 
   it('finds LangGraph ai/tool message pairs through the React custom message renderer', () => {
@@ -164,6 +194,14 @@ describe('CopilotKit OpenBox adapter', () => {
     });
 
     expect(node).not.toBeNull();
+    // Proves the ai->tool pairing resolved the paired tool message (by
+    // tool_call_id) rather than some other message: the verdict/action below
+    // come only from the snapshot tool message, not the ai message.
+    const decision = decisionResultFromNode(node);
+    expect(decision.verdict).toBe('constrain');
+    expect(decision.action).toBe('view_governance_report');
+    expect(decision.status).toBe('constrained');
+    expect(decision.request).toBe('Create a governed report.');
   });
 
   it('maps fail-closed errors to Governance Unavailable, never to a Blocked verdict', async () => {
@@ -281,6 +319,10 @@ describe('CopilotKit OpenBox adapter', () => {
     });
 
     expect(node).not.toBeNull();
+    const decision = decisionResultFromNode(node);
+    expect(decision.verdict).toBe('allow');
+    expect(decision.action).toBe('open_revenue_queue');
+    expect(decision.status).toBe('executed');
   });
 
   it('ignores non-OpenBox tool messages in the React custom message renderer', () => {

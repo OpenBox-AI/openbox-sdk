@@ -209,18 +209,39 @@ describe('CLI command action coverage', () => {
 
   it('auth command actions cover key validation, status, profile, and permissions', async () => {
     const auth = programWith(registerAuthCommands);
+    const goodKey = 'obx_key_' + 'c'.repeat(48);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    await run(auth, ['auth', 'clear-api-key']);
-    await run(auth, ['auth', 'status']);
-    await expect(run(auth, ['auth', 'set-api-key', '--key', 'bad-key'])).rejects.toThrow();
-    await run(auth, ['auth', 'set-api-key', '--key', 'obx_key_' + 'c'.repeat(48)]);
-    await run(auth, ['auth', 'status']);
-    await run(auth, ['auth', 'profile']);
-    await run(auth, ['auth', 'permissions']);
+    try {
+      await run(auth, ['auth', 'clear-api-key']);
+      await run(auth, ['auth', 'status']);
+      await expect(run(auth, ['auth', 'set-api-key', '--key', 'bad-key'])).rejects.toThrow();
+      await run(auth, ['auth', 'set-api-key', '--key', goodKey]);
+      await run(auth, ['auth', 'status']);
+      await run(auth, ['auth', 'profile']);
+      await run(auth, ['auth', 'permissions']);
+
+      const out = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+      // set-api-key actually persisted the validated org key to the on-disk
+      // store (the bad-key attempt above did not, having been rejected).
+      const { getTokenPath } = await import('../../ts/src/cli/config.ts');
+      expect(readFileSync(getTokenPath(), 'utf-8')).toContain(goodKey);
+      // status reported a saved key (never "none") while a key is present.
+      expect(out).toContain('api-key (');
+      expect(out).not.toContain('\nnone');
+      // profile fetched /auth/profile and printed the backend identity.
+      expect(out).toContain('org-dev');
+      expect(out).toContain('dev@example.test');
+      // permissions printed an explicit (empty) JSON permission set.
+      expect(out).toContain('[]');
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it('cursor command actions export/install/inspect/uninstall the plugin surface', async () => {
     const cursor = programWith(registerCursorCommands);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const runtimeKey = `obx_test_${'e'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';
     const identity = {
@@ -319,10 +340,46 @@ describe('CLI command action coverage', () => {
     ]);
     await run(cursor, ['cursor', 'plugin', 'uninstall', '--cwd', project, '--target', installed]);
     await run(cursor, ['cursor', 'plugin', 'uninstall', '--cwd', project, '--target', symlinked]);
+
+    const logLines = logSpy.mock.calls.map((c) => c.join(' '));
+    logSpy.mockRestore();
+
+    // export wrote a real, marketplace-shaped plugin folder, and the
+    // --matcher pairs were baked into hooks/hooks.json verbatim.
+    expect(existsSync(join(exported, '.cursor-plugin', 'plugin.json'))).toBe(true);
+    const exportedHooks = readJson(join(exported, 'hooks', 'hooks.json')) as any;
+    expect(exportedHooks.hooks.beforeShellExecution[0].matcher).toBe('rm');
+    const matcherHooks = readJson(join(exportedWithMatcher, 'hooks', 'hooks.json')) as any;
+    expect(matcherHooks.hooks.beforeReadFile[0].matcher).toBe('.*secret.*');
+    expect(matcherHooks.hooks.beforeShellExecution[0].matcher).toBe('rm|sudo');
+
+    // the --json doctor run reported the installed surface with zero failures.
+    const doctorJson = logLines
+      .map((l) => {
+        try {
+          return JSON.parse(l) as { checks?: any[]; summary?: { fail?: number } };
+        } catch {
+          return undefined;
+        }
+      })
+      .find((v) => v && Array.isArray(v.checks) && v.summary);
+    expect(doctorJson).toBeDefined();
+    expect(doctorJson!.summary!.fail).toBe(0);
+    expect(doctorJson!.checks!.every((c: any) => c.status !== 'fail')).toBe(true);
+    expect(
+      doctorJson!.checks!.some((c: any) => c.name === 'plugin' && c.status === 'pass'),
+    ).toBe(true);
+
+    // uninstall removed exactly the targeted plugin dirs (both the exported
+    // copy and the symlink), while the standalone export folders survive.
+    expect(existsSync(installed)).toBe(false);
+    expect(existsSync(symlinked)).toBe(false);
+    expect(existsSync(exported)).toBe(true);
   });
 
   it('claude-code command actions install and uninstall scoped surfaces', async () => {
     const claude = programWith(registerClaudeCodeCommands);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const runtimeKey = `obx_test_${'f'.repeat(48)}`;
     const coreUrl = 'http://127.0.0.1:8086';
     const identity = {
@@ -406,6 +463,38 @@ describe('CLI command action coverage', () => {
     ]);
     await run(claude, ['claude-code', 'plugin', 'uninstall', '--scope', 'project', '--cwd', project]);
     await run(claude, ['claude-code', 'plugin', 'uninstall', '--scope', 'project', '--cwd', project, '--target', target]);
+
+    const logLines = logSpy.mock.calls.map((c) => c.join(' '));
+    logSpy.mockRestore();
+
+    // export wrote a Claude-shaped plugin folder; the --matcher landed in the
+    // PreToolUse hook entry (matcher is a sibling of the hook handler array).
+    expect(existsSync(join(exported, '.claude-plugin', 'plugin.json'))).toBe(true);
+    const matcherHooks = readJson(join(exportedWithMatcher, 'hooks', 'hooks.json')) as any;
+    expect(matcherHooks.hooks.PreToolUse[0].matcher).toBe('Bash|Write');
+
+    // the --json doctor run reported the installed surface with zero failures.
+    const doctorJson = logLines
+      .map((l) => {
+        try {
+          return JSON.parse(l) as { checks?: any[]; summary?: { fail?: number } };
+        } catch {
+          return undefined;
+        }
+      })
+      .find((v) => v && Array.isArray(v.checks) && v.summary);
+    expect(doctorJson).toBeDefined();
+    expect(doctorJson!.summary!.fail).toBe(0);
+    expect(doctorJson!.checks!.every((c: any) => c.status !== 'fail')).toBe(true);
+    expect(
+      doctorJson!.checks!.some((c: any) => c.name === 'plugin' && c.status === 'pass'),
+    ).toBe(true);
+
+    // both uninstalls removed their scoped surfaces: the default
+    // .claude/skills/openbox dir and the explicit --target dir.
+    expect(existsSync(target)).toBe(false);
+    expect(existsSync(join(project, '.claude', 'skills', 'openbox'))).toBe(false);
+    expect(existsSync(join(exported, '.claude-plugin'))).toBe(true);
   });
 
   it('skill command actions expose and install project-local skill surfaces', async () => {

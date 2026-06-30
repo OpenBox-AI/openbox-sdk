@@ -1781,15 +1781,23 @@ describe('BaseGovernedSession.activity (cross-preset escape)', () => {
 
   test('openActivity leaves a blocked start canonically unpaired', async () => {
     const mock = createMockCore('block');
+    // Capture the verdict OUTSIDE the govern callback. Previously the
+    // `expect(opened.verdict.arm).toBe('block')` lived inside the callback,
+    // whose rejection was swallowed by `.catch(() => undefined)` — so the arm
+    // assertion could never fail the test. Hoisting it here makes it real: if
+    // the start is not blocked (or openActivity never returns a verdict), the
+    // assertion below fails.
+    let openedArm: string | undefined;
     await govern(
       { ...baseConfig(mock), preset: presets.langchain },
       async (session) => {
         const opened = await session.openActivity('on_tool_start', {
           input: [{ tool: 'crm_lookup' }],
         });
-        expect(opened.verdict.arm).toBe('block');
+        openedArm = opened.verdict.arm;
       },
     ).catch(() => undefined);
+    expect(openedArm).toBe('block');
     expect(
       mock.events.filter(
         (e) => e.event_type === 'ActivityCompleted' && e.activity_type === 'on_tool_start',
