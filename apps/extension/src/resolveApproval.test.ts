@@ -70,7 +70,9 @@ describe("resolveApproval", () => {
     const store = new ApprovalStore();
     const order: string[] = [];
     const resolver = vi.fn(() => order.push("socket"));
-    const onResolved = vi.fn(() => order.push("ui"));
+    const onResolved = vi.fn(() => {
+      order.push("ui");
+    });
     const c = client();
     store.upsert(state({ resolver }));
 

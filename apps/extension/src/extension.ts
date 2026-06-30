@@ -1280,7 +1280,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Diagnostic: needsKey context state. Onboard view fires off this.
     vscode.commands.registerCommand("openbox.__diag.needsKey", async () => {
-      const ctxKeys = await vscode.commands.executeCommand<unknown>("getContext", "openbox.needsKey").catch(() => undefined);
+      // executeCommand returns a Thenable (no `.catch`); wrap it so we can
+      // swallow the "getContext is not a registered command" rejection.
+      const ctxKeys = await Promise.resolve(
+        vscode.commands.executeCommand<unknown>("getContext", "openbox.needsKey"),
+      ).catch(() => undefined);
       return ctxKeys === true;
     }),
 

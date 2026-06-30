@@ -156,7 +156,7 @@ function buildApproval(t: SeedTemplate, id: string, status: "pending" | "approve
     created_at: created,
     decided_at: decided,
     approval_expired_at: expires,
-    input: t.input as { [key: string]: unknown } | undefined,
+    input: t.input as Approval["input"],
     metadata: { trust_tier: t.tier },
     agent: { agent_name: agent.agent_name },
   };

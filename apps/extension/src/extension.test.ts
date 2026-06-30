@@ -10,7 +10,6 @@
 // installed on the prototype. That keeps the tests honest about the
 // integration boundary instead of re-testing the gate's internal state.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { PollingService } from './polling';
 import { OPENBOX_EXTENSION_MANIFEST } from './generated/openbox-extension-spec';
 
 // ─── vscode mock ───────────────────────────────────────────────────────────
@@ -215,25 +214,10 @@ class FakePolling {
 
 let lastFakePolling: FakePolling | undefined;
 
-// Local polling module for the halt-verdict pipeline.
-vi.mock('./polling', () => ({
-  PollingService: class {
-    public approvals: unknown[] = [];
-    public hasMore = false;
-    public lastPollAt: number | undefined;
-    public lastErrorAt: number | undefined;
-    public lastErrorMessage: string | undefined;
-    public errorCount = 0;
-    constructor(_client: unknown, _orgId: string) {
-      lastFakePolling = new FakePolling();
-      // Mirror the FakePolling surface back onto the constructed
-      // instance so ViewSession's wiring sees the same emitter.
-      // The constructor return-as-PollingService cross-cast is the
-      // mock-class trick; TS sees the wider PollingService shape.
-      return lastFakePolling as unknown as PollingService;
-    }
-  },
-}));
+// The polling feed is owned by `ViewSession` (mocked below), which
+// constructs a `FakePolling` for the pending scope and bridges its
+// 'changed' events into the halt-verdict pipeline. There is no separate
+// local polling module to stub here.
 
 vi.mock('./api', () => ({
   createApi: vi.fn(),
@@ -404,7 +388,7 @@ describe('extension wiring: generated manifest contract', () => {
       expect(registeredCommands.has(command), `${command} is registered`).toBe(true);
     }
 
-    const contributed = new Set(OPENBOX_EXTENSION_MANIFEST.commands);
+    const contributed = new Set<string>(OPENBOX_EXTENSION_MANIFEST.commands);
     const nonDiagnosticExtras = [...registeredCommands.keys()].filter(
       (command) => command.startsWith('openbox.') &&
         !command.startsWith('openbox.__diag.') &&

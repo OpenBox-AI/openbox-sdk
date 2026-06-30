@@ -31,6 +31,7 @@ import {
 import { ApprovalsPollingService } from "@openbox-ai/openbox-sdk/polling";
 import { statusOf } from "@openbox-ai/openbox-sdk/approvals";
 import type { Approval, Member, Team } from "./types";
+import type { Approval as SdkApproval } from "@openbox-ai/openbox-sdk/types";
 
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500] as const;
@@ -228,10 +229,15 @@ export class ViewSession implements vscode.Disposable {
       if (version !== this.displayVersion) return;
     }
     const filtered = applyClientFilters(
-      source,
+      // applyClientFilters round-trips rows untouched (it only reads
+      // agent_id / action_type / created_at) but is typed against the
+      // SDK's narrower `Approval`, whose `input` lacks the array-wrapped
+      // form the extension models. Assert across that one-field variance
+      // at the SDK boundary; the rows are otherwise structurally identical.
+      source as SdkApproval[],
       this.filters,
       this.deps.agentOwnerLookup,
-    );
+    ) as Approval[];
     const visibleBase = this.cfg.groupByStatus
       ? filtered.filter((a) => ["approved", "rejected", "expired"].includes(statusOf(a)))
       : filtered;
