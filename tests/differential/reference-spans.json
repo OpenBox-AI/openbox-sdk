@@ -1,6 +1,6 @@
 {
   "meta": {
-    "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+    "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
     "fn_module": "__main__",
     "fn_args_positional": [
       1
@@ -21,7 +21,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.mode": "w"
       },
       "status": {
@@ -30,7 +30,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "w",
       "file_operation": "open",
       "error": null
@@ -46,7 +46,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.operation": "write"
       },
       "status": {
@@ -55,7 +55,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "w",
       "file_operation": "write",
       "error": null
@@ -71,7 +71,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.operation": "write",
         "file.bytes": 5
       },
@@ -81,7 +81,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "w",
       "file_operation": "write",
       "error": null,
@@ -99,7 +99,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.mode": "w"
       },
       "status": {
@@ -108,7 +108,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "w",
       "file_operation": "close",
       "error": null,
@@ -129,7 +129,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.mode": "r"
       },
       "status": {
@@ -138,7 +138,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "r",
       "file_operation": "open",
       "error": null
@@ -154,7 +154,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.operation": "read"
       },
       "status": {
@@ -163,7 +163,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "r",
       "file_operation": "read",
       "error": null
@@ -179,7 +179,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.operation": "read",
         "file.bytes": 5
       },
@@ -189,7 +189,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "r",
       "file_operation": "read",
       "error": null,
@@ -207,7 +207,7 @@
       "end_time": "<vol>",
       "duration_ns": "<vol>",
       "attributes": {
-        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
         "file.mode": "r"
       },
       "status": {
@@ -216,7 +216,7 @@
       },
       "events": [],
       "hook_type": "file_operation",
-      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpueux6dj3.txt",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpyir6kk5a.txt",
       "file_mode": "r",
       "file_operation": "close",
       "error": null,
