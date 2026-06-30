@@ -408,8 +408,12 @@ export function recordFunctionCall(opts: {
       },
       function: opts.name,
       module: opts.module ?? 'copilotkit',
-      // Canonical serializes args as {"args": [...], "kwargs": {...}}.
-      args: serializeArg({ args: opts.args ?? [], kwargs: {} }),
+      // Canonical (tracing.py): the STARTED span carries args (no result); the
+      // COMPLETED span carries result with args=null. Match that exactly.
+      args:
+        stage === 'started'
+          ? serializeArg({ args: opts.args ?? [], kwargs: {} })
+          : null,
       result: stage === 'completed' ? serializeArg(opts.result) : null,
       ...(store.activityId ? { activity_id: store.activityId } : {}),
     });

@@ -1,0 +1,276 @@
+{
+  "meta": {
+    "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+    "fn_module": "__main__",
+    "fn_args_positional": [
+      1
+    ],
+    "fn_args_kwargs": {
+      "y": 3
+    }
+  },
+  "spans": [
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.open",
+      "kind": "INTERNAL",
+      "stage": "started",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.mode": "w"
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "w",
+      "file_operation": "open",
+      "error": null
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.write",
+      "kind": "INTERNAL",
+      "stage": "started",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.operation": "write"
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "w",
+      "file_operation": "write",
+      "error": null
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.write",
+      "kind": "INTERNAL",
+      "stage": "completed",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.operation": "write",
+        "file.bytes": 5
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "w",
+      "file_operation": "write",
+      "error": null,
+      "data": "hello",
+      "bytes_written": 5
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.open",
+      "kind": "INTERNAL",
+      "stage": "completed",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.mode": "w"
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "w",
+      "file_operation": "close",
+      "error": null,
+      "bytes_read": 0,
+      "bytes_written": 5,
+      "operations": [
+        "write"
+      ]
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.open",
+      "kind": "INTERNAL",
+      "stage": "started",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.mode": "r"
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "r",
+      "file_operation": "open",
+      "error": null
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.read",
+      "kind": "INTERNAL",
+      "stage": "started",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.operation": "read"
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "r",
+      "file_operation": "read",
+      "error": null
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.read",
+      "kind": "INTERNAL",
+      "stage": "completed",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.operation": "read",
+        "file.bytes": 5
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "r",
+      "file_operation": "read",
+      "error": null,
+      "data": "hello",
+      "bytes_read": 5
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "file.open",
+      "kind": "INTERNAL",
+      "stage": "completed",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {
+        "file.path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+        "file.mode": "r"
+      },
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "file_operation",
+      "file_path": "/var/folders/b7/qdf66g216lg2tn1w1nqxtz980000gn/T/tmpvkwemfpu.txt",
+      "file_mode": "r",
+      "file_operation": "close",
+      "error": null,
+      "bytes_read": 5,
+      "bytes_written": 0,
+      "operations": [
+        "read"
+      ]
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "process",
+      "kind": "INTERNAL",
+      "stage": "started",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {},
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "function_call",
+      "function": "process",
+      "module": "__main__",
+      "args": "{\"args\": [1], \"kwargs\": {\"y\": 3}}",
+      "result": null,
+      "error": null
+    },
+    {
+      "span_id": "<vol>",
+      "trace_id": "<vol>",
+      "parent_span_id": "<vol>",
+      "name": "process",
+      "kind": "INTERNAL",
+      "stage": "completed",
+      "start_time": "<vol>",
+      "end_time": "<vol>",
+      "duration_ns": "<vol>",
+      "attributes": {},
+      "status": {
+        "code": "UNSET",
+        "description": null
+      },
+      "events": [],
+      "hook_type": "function_call",
+      "function": "process",
+      "module": "__main__",
+      "args": null,
+      "result": "ok",
+      "error": null
+    }
+  ]
+}
