@@ -15,6 +15,15 @@ import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-
 import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
 import { objectRecord, arrayFrom, hasOwnKey } from '../internal/records.js';
 import { firstTrimmed as firstString, stringFrom } from '../internal/strings.js';
+import {
+  filePathFor,
+  httpTargetFor,
+  httpMethodFor,
+  dbStatementFor,
+  dbSystemFor,
+  dbOperationFor,
+  isDatabaseMcpTool,
+} from '../internal/tool-input.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
 export { objectRecord };
@@ -284,109 +293,6 @@ function spanTypeFor(
   if (isDatabaseMcpTool(toolName, toolInput)) return 'db';
   if (lower.startsWith('mcp') || lower.includes('mcp')) return 'mcp';
   return 'llm_tool_call';
-}
-
-function filePathFor(toolInput: Record<string, unknown>): string | undefined {
-  return firstString(toolInput.file_path, toolInput.filePath, toolInput.path);
-}
-
-function httpTargetFor(toolInput: Record<string, unknown>): string | undefined {
-  return firstString(
-    toolInput.url,
-    toolInput.uri,
-    toolInput.href,
-    toolInput.query,
-  );
-}
-
-function httpMethodFor(toolInput: Record<string, unknown>): string {
-  return (
-    firstString(
-      toolInput.method,
-      toolInput.http_method,
-      toolInput.httpMethod,
-    )?.toUpperCase() ?? 'GET'
-  );
-}
-
-function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
-  return firstString(
-    toolInput.db_statement,
-    toolInput.dbStatement,
-    toolInput.statement,
-    toolInput.sql,
-    toolInput.query,
-  );
-}
-
-const SQL_VERBS = [
-  'SELECT',
-  'INSERT',
-  'UPDATE',
-  'DELETE',
-  'CREATE',
-  'DROP',
-  'ALTER',
-  'TRUNCATE',
-  'BEGIN',
-  'COMMIT',
-  'ROLLBACK',
-  'EXPLAIN',
-] as const;
-
-function dbOperationFromStatement(statement: string | undefined): string | undefined {
-  if (!statement) return undefined;
-  const normalized = statement.trim().toUpperCase();
-  return SQL_VERBS.find((verb) => normalized.startsWith(verb));
-}
-
-function dbSystemFor(toolName: string, toolInput: Record<string, unknown>): string {
-  const explicit = firstString(
-    toolInput.db_system,
-    toolInput.dbSystem,
-    toolInput.system,
-    toolInput.database_system,
-  );
-  if (explicit) return explicit;
-  const lowerName = toolName.toLowerCase();
-  if (lowerName.includes('sqlite')) return 'sqlite';
-  if (lowerName.includes('mysql')) return 'mysql';
-  if (lowerName.includes('postgres')) return 'postgresql';
-  return 'postgresql';
-}
-
-function dbOperationFor(toolInput: Record<string, unknown>): string {
-  const statementOperation = dbOperationFromStatement(dbStatementFor(toolInput));
-  const explicitOperation = firstString(
-    toolInput.db_operation,
-    toolInput.dbOperation,
-    toolInput.operation,
-  )?.toUpperCase();
-  if (
-    explicitOperation &&
-    explicitOperation !== 'QUERY' &&
-    explicitOperation !== 'UNKNOWN'
-  ) {
-    return explicitOperation;
-  }
-  return statementOperation ?? explicitOperation ?? 'QUERY';
-}
-
-function isDatabaseMcpTool(toolName: string, toolInput: Record<string, unknown>): boolean {
-  if (!toolName.startsWith('mcp__')) return false;
-  const lowerName = toolName.toLowerCase();
-  const nameLooksDatabase =
-    lowerName.includes('db') ||
-    lowerName.includes('sql') ||
-    lowerName.includes('database') ||
-    lowerName.includes('postgres') ||
-    lowerName.includes('mysql') ||
-    lowerName.includes('sqlite');
-  if (!nameLooksDatabase) return false;
-  return Boolean(dbStatementFor(toolInput)) ||
-    lowerName.includes('query') ||
-    lowerName.includes('execute') ||
-    lowerName.includes('select');
 }
 
 export function promptTextForRunInput(input: unknown): string | undefined {

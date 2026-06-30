@@ -17,6 +17,12 @@ import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import { objectRecord as recordFrom, firstRecord } from '../internal/records.js';
 import { firstUntrimmed as firstString } from '../internal/strings.js';
 import {
+  filePathFor,
+  httpTargetFor,
+  isHttpMcpTool,
+  dbStatementFor as dbStatementBaseFor,
+} from '../internal/tool-input.js';
+import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
 } from '../governance/assistant-output.js';
@@ -1052,27 +1058,12 @@ function spanTypeForTool(
   return 'llm_tool_call';
 }
 
-function filePathFor(toolInput: Record<string, unknown>): string | undefined {
-  return firstString(
-    toolInput.file_path,
-    toolInput.filePath,
-    toolInput.path,
-    toolInput.notebook_path,
-  );
-}
-
-function httpTargetFor(toolInput: Record<string, unknown>): string | undefined {
-  return firstString(toolInput.url, toolInput.uri, toolInput.href, toolInput.query);
-}
-
+// Pipeline-specific extension: the shared `dbStatementBaseFor` extracts an
+// explicit statement; copilotkit additionally treats a bare resource/table
+// reference as an implicit "database resource <name>" statement for
+// classification purposes. The 5-field core extraction is single-sourced.
 function dbStatementFor(toolInput: Record<string, unknown>): string | undefined {
-  const explicit = firstString(
-    toolInput.db_statement,
-    toolInput.dbStatement,
-    toolInput.statement,
-    toolInput.sql,
-    toolInput.query,
-  );
+  const explicit = dbStatementBaseFor(toolInput);
   if (explicit) return explicit;
   const resource = firstString(
     toolInput.resource,
@@ -1101,22 +1092,6 @@ function isDatabaseMcpTool(
     lowerName.includes('query') ||
     lowerName.includes('execute') ||
     lowerName.includes('select');
-}
-
-function isHttpMcpTool(
-  toolName: string,
-  toolInput: Record<string, unknown>,
-): boolean {
-  const lowerName = toolName.toLowerCase();
-  if (!lowerName.startsWith('mcp__')) return false;
-  const nameLooksHttp =
-    lowerName.includes('http') ||
-    lowerName.includes('fetch') ||
-    lowerName.includes('request') ||
-    lowerName.includes('web');
-  if (!nameLooksHttp) return false;
-  return Boolean(httpTargetFor(toolInput)) ||
-    Boolean(firstString(toolInput.method, toolInput.http_method, toolInput.httpMethod));
 }
 
 function assistantContentFromPayload(payload: unknown): string | undefined {
