@@ -1,4 +1,5 @@
 import React from 'react';
+import { OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION } from './constants.js';
 import { governedToolNames } from './react-defaults.js';
 import {
   OpenBoxActionResult,
@@ -29,7 +30,7 @@ export function createOpenBoxCustomMessageRenderer(
     const result = findOpenBoxResult(message, props.stateSnapshot);
     if (!result) return null;
     const toolResult = parseToolResult(result);
-    if (toolResult.schemaVersion !== 'openbox.copilotkit.result.v1') {
+    if (toolResult.schemaVersion !== OPENBOX_COPILOTKIT_RESULT_SCHEMA_VERSION) {
       return null;
     }
 

@@ -318,7 +318,14 @@ export function registerInstallCommands(program: Command): void {
       });
       success(`Claude Code plugin installed at ${target}`);
       info('');
-      const checks = verifyClaudeCodePlugin({ scope, cwd, target: opts.pluginTarget });
+      const checks = verifyClaudeCodePlugin({
+        scope,
+        cwd,
+        target: opts.pluginTarget,
+        // Verify against the SAME hook set just installed — omitting this made a
+        // `--include-opt-in-hooks` install verify as if the opt-in hooks weren't wanted.
+        includeOptInHooks: opts.includeOptInHooks,
+      });
       printChecks(checks, 'run `openbox claude-code plugin export --out <dir>` for manual inspection');
     });
 

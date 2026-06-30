@@ -723,7 +723,9 @@ function capturedLlmCompletionSpans(
     // `started`/`completed` already come canonical from buildSpan('copilotkit',
     // 'llm', …) via the shared canonicalizeSpan chokepoint — just set timing.
     return [
-      { ...started, start_time: startedNs, end_time: 0 },
+      // Started spans carry end_time:null (not 0/epoch-1970, which read as a real
+      // timestamp and produced a nonsensical duration downstream).
+      { ...started, start_time: startedNs, end_time: null },
       {
         ...completed,
         start_time: startedNs,
