@@ -624,7 +624,9 @@ export async function emitN8nLlmCompletion(
     ...payload,
     activityId,
     spans: payload.spans?.map((span) => withSpanActivityId(span, activityId)),
-    startTime: pending?.startTime,
+    // Fall back to the caller-supplied startTime when there's no pending activity
+    // (matches emitN8nNodePostExecute; previously dropped input.startTime).
+    startTime: pending?.startTime ?? input.startTime,
     hookSpanParentEventType: payload.spans?.length ? EVENT.START : undefined,
     ensureHookSpanParent: !pending,
   });
