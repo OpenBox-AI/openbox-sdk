@@ -19,7 +19,10 @@ import {
   METHOD_PERMISSIONS,
 } from '../../ts/src/client/index.js';
 import { BACKEND_ENDPOINT_MANIFEST } from '../../ts/src/client/generated/endpoint-manifest.js';
-import { PATH_PERMISSION_RULES } from '../../ts/src/client/generated/wrapper-methods.js';
+import {
+  OpenBoxClientWrapperBase,
+  PATH_PERMISSION_RULES,
+} from '../../ts/src/client/generated/wrapper-methods.js';
 
 interface BackendEndpointEntry {
   operationId: string;
@@ -237,25 +240,74 @@ describe('OpenBoxClient permission pre-flight', () => {
     vi.unstubAllGlobals();
   });
 
-  test('all required perms must be present (AND, not OR)', async () => {
-    // Find a method requiring 2+ perms in METHOD_PERMISSIONS, if any. Today
-    // every entry has exactly one; but the check must be conjunctive so we
-    // don't regress when multi-perm methods are added.
-    const multi = Object.entries(METHOD_PERMISSIONS).find(
+  test('all required perms must be present (AND, not OR)', () => {
+    // Document the current data shape: today every METHOD_PERMISSIONS entry
+    // requires exactly one perm, so no data-driven multi-perm method exists
+    // to exercise the conjunctive gate.
+    const multi = Object.entries(METHOD_PERMISSIONS).filter(
       ([, perms]) => perms.length >= 2,
     );
-    // Skip when no multi-perm method exists yet; the conjunctive logic is
-    // visible in the generated checkPermissions(), so this isn't load-bearing.
-    if (!multi) return;
+    expect(multi).toEqual([]);
+    for (const [, perms] of Object.entries(METHOD_PERMISSIONS)) {
+      expect(perms.length).toBeGreaterThanOrEqual(1);
+    }
 
-    const [methodName, required] = multi;
-    const client = new OpenBoxClient({
-      accessToken: 'test-token',
-      permissions: [required[0]], // partial; has one of N
-    });
-    const fn = (client as unknown as Record<string, () => Promise<unknown>>)[methodName];
-    if (typeof fn === 'function') {
-      await expect(fn.call(client)).rejects.toBeInstanceOf(MissingPermissionError);
+    // The conjunctive check is load-bearing for when multi-perm methods are
+    // added, so verify it directly against the REAL checkPathPermissions by
+    // injecting a synthetic 2-perm rule. AND semantics ⇒ holding only one of
+    // the two required perms must still throw; OR semantics would pass.
+    const syntheticRule = {
+      verb: 'POST',
+      pattern: /^\/__and_test__$/,
+      methodName: 'andTestMethod',
+      perms: ['perm:a', 'perm:b'] as const,
+    };
+    const rules = PATH_PERMISSION_RULES as unknown as Array<typeof syntheticRule>;
+    rules.push(syntheticRule);
+    try {
+      class Probe extends OpenBoxClientWrapperBase {
+        protected httpGet<T>(): Promise<T> { throw new Error('no network'); }
+        protected httpPost<T>(): Promise<T> { throw new Error('no network'); }
+        protected httpPut<T>(): Promise<T> { throw new Error('no network'); }
+        protected httpPatch<T>(): Promise<T> { throw new Error('no network'); }
+        protected httpDelete<T>(): Promise<T> { throw new Error('no network'); }
+        setPerms(perms: string[]): void { this.permissions = new Set(perms); }
+        check(verb: string, path: string): void { this.checkPathPermissions(verb, path); }
+      }
+      const probe = new Probe();
+
+      // Holds only one of the two required perms. AND ⇒ throws; OR ⇒ would pass.
+      probe.setPerms(['perm:a']);
+      let thrown: unknown;
+      try {
+        probe.check('POST', '/__and_test__');
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(MissingPermissionError);
+      // The conjunctive filter reports exactly the still-missing perm.
+      expect((thrown as MissingPermissionError).missing).toEqual(['perm:b']);
+      expect((thrown as MissingPermissionError).methodName).toBe('andTestMethod');
+
+      // Holds the other one only — still missing the first.
+      probe.setPerms(['perm:b']);
+      expect(() => probe.check('POST', '/__and_test__')).toThrow(MissingPermissionError);
+
+      // Holds NEITHER — both reported missing.
+      probe.setPerms([]);
+      let thrownNone: unknown;
+      try {
+        probe.check('POST', '/__and_test__');
+      } catch (e) {
+        thrownNone = e;
+      }
+      expect((thrownNone as MissingPermissionError).missing).toEqual(['perm:a', 'perm:b']);
+
+      // Holds BOTH — the gate is satisfied and does not throw.
+      probe.setPerms(['perm:a', 'perm:b']);
+      expect(() => probe.check('POST', '/__and_test__')).not.toThrow();
+    } finally {
+      rules.pop();
     }
   });
 });

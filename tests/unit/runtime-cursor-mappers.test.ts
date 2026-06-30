@@ -63,20 +63,44 @@ function movedRuntimeSettingKey(prefix: string, suffix: string): string {
 }
 
 describe('core-client/redaction', () => {
-  it('exercises every export for coverage', async () => {
+  it('exercises every export with real shape/value assertions', async () => {
     const mod = await import('../../ts/src/core-client/redaction');
-    // Walk every export and call it with synthetic data.
-    for (const [name, fn] of Object.entries(mod)) {
-      if (typeof fn === 'function') {
-        try {
-          const out = (fn as any)('Authorization: Bearer obx_live_secret');
-          expect(typeof out === 'string' || out === undefined).toBe(true);
-        } catch {
-          // Some redaction helpers may be specialized; just calling
-          // them is enough for coverage even if they reject.
-        }
-      }
+    // Every named export must be present (no silent loss in re-export).
+    for (const fn of Object.values(mod)) {
+      expect(typeof fn).toBe('function');
     }
+
+    // deepUpdateObject: deep-merges source into target, mutating in place.
+    const target: Record<string, unknown> = { a: 1, b: { c: 2 } };
+    mod.deepUpdateObject(target, { b: { d: 3 }, e: 4 });
+    expect(target).toEqual({ a: 1, b: { c: 2, d: 3 }, e: 4 });
+    // ...and rejects a non-plain-object target.
+    expect(() => mod.deepUpdateObject('nope' as never, {})).toThrow();
+
+    // applyInputRedaction / applyOutputRedaction are no-ops without a verdict.
+    expect(mod.applyInputRedaction({ p: 'secret' }, undefined)).toEqual({ p: 'secret' });
+    expect(mod.applyOutputRedaction({ p: 'secret' }, undefined)).toEqual({ p: 'secret' });
+
+    // hasGuardrailRedaction: false without a verdict, true when there's an
+    // input-like redaction to apply.
+    expect(mod.hasGuardrailRedaction(undefined)).toBe(false);
+    expect(
+      mod.hasGuardrailRedaction({
+        inputType: 'activity_input',
+        redactedInput: { prompt: '[REDACTED]' },
+        fieldResults: [],
+      } as never),
+    ).toBe(true);
+
+    // summarizeGuardrailRedaction: default message vs. a field-driven summary.
+    expect(mod.summarizeGuardrailRedaction(undefined)).toBe(
+      'OpenBox redacted sensitive fields.',
+    );
+    expect(
+      mod.summarizeGuardrailRedaction({
+        fieldResults: [{ field: 'ssn', status: 'redacted' }],
+      } as never),
+    ).toContain('ssn');
   });
 
   it('applyInputRedaction replaces flagged secret content with the verdict redaction', async () => {
@@ -527,14 +551,41 @@ describe('maturity/index; full surface', () => {
     expect(mod.isFeatureEnabled('coverage.test.flag')).toBe(true);
   });
 
-  it('listFeatures returns the registered map', async () => {
+  it('listFeatures returns one entry per FEATURE_MATURITY key, sorted, with resolved state', async () => {
     const mod = await import('../../ts/src/maturity');
-    const features = mod.listFeatures();
-    expect(typeof features).toBe('object');
+    const validLevels = ['stable', 'beta', 'experimental'];
+
+    // Seed a registered feature so the map/sort/resolve logic runs against
+    // real data even though the generated FEATURE_MATURITY table is empty.
+    const seeded = '__list_test_feature__';
+    (mod.FEATURE_MATURITY as Record<string, string>)[seeded] = 'beta';
+    try {
+      const features = mod.listFeatures();
+      expect(Array.isArray(features)).toBe(true);
+      // One entry per registered key.
+      expect(features.length).toBe(Object.keys(mod.FEATURE_MATURITY).length);
+      // Sorted by name and well-formed.
+      const names = features.map((f) => f.name);
+      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+      for (const f of features) {
+        expect(typeof f.name).toBe('string');
+        expect(validLevels).toContain(f.maturity);
+        expect(typeof f.enabled).toBe('boolean');
+      }
+      const entry = features.find((f) => f.name === seeded);
+      expect(entry).toMatchObject({ name: seeded, maturity: 'beta' });
+    } finally {
+      delete (mod.FEATURE_MATURITY as Record<string, string>)[seeded];
+    }
   });
 
-  it('FEATURE_MATURITY records spec-driven feature levels', async () => {
+  it('FEATURE_MATURITY is a string-keyed map of valid maturity levels', async () => {
     const mod = await import('../../ts/src/maturity');
-    expect(mod.FEATURE_MATURITY).toBeDefined();
+    const validLevels = ['stable', 'beta', 'experimental'];
+    expect(mod.FEATURE_MATURITY).toBeTypeOf('object');
+    expect(Array.isArray(mod.FEATURE_MATURITY)).toBe(false);
+    for (const value of Object.values(mod.FEATURE_MATURITY)) {
+      expect(validLevels).toContain(value);
+    }
   });
 });

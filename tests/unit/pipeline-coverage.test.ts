@@ -88,6 +88,42 @@ function makeHalted(): HaltedSession {
   };
 }
 
+type EvalCall = Record<string, any>;
+function evalCalls(evaluate: { mock: { calls: unknown[][] } }): EvalCall[] {
+  return evaluate.mock.calls.map((c) => c[0] as EvalCall);
+}
+// The activity-open / activity-complete envelope (carries telemetry like
+// activity_type / tool_type / prompt / total_tokens). The span-bearing
+// hook_trigger evaluation is emitted as a separate call, so exclude it here.
+function activityPayload(evaluate: { mock: { calls: unknown[][] } }): EvalCall | undefined {
+  return evalCalls(evaluate).find(
+    (p) =>
+      (p.event_type === 'ActivityStarted' || p.event_type === 'ActivityCompleted') &&
+      !p.hook_trigger,
+  );
+}
+// The primary embedded span submitted with the gate (the llm_completion POST).
+function primarySpan(evaluate: { mock: { calls: unknown[][] } }): EvalCall | undefined {
+  const call = evalCalls(evaluate).find(
+    (p) => Array.isArray(p.spans) && (p.spans as unknown[]).length > 0,
+  );
+  return (call?.spans as EvalCall[] | undefined)?.[0];
+}
+function spanUrl(span: EvalCall | undefined): unknown {
+  return span?.attributes?.['http.url'] ?? span?.http_url;
+}
+function spanRequestBody(span: EvalCall | undefined): EvalCall {
+  const body = span?.request_body;
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body) as EvalCall;
+    } catch {
+      return {};
+    }
+  }
+  return (body as EvalCall) ?? {};
+}
+
 const SAVED_ENV = { ...process.env };
 
 afterEach(() => {
@@ -162,10 +198,31 @@ describe('governPipelineGate — prompt gate', () => {
   });
 
   it('reconstructs prompt text from string, request and messages payloads', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(adapter, gateInput('prompt', 'plain string prompt'));
-    await governPipelineGate(adapter, gateInput('prompt', { request: 'do the thing' }));
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // A bare string payload becomes the governed prompt verbatim.
+    evaluate.mockClear();
+    const stringResult = await governPipelineGate(
+      adapter,
+      gateInput('prompt', 'plain string prompt'),
+    );
+    expect(stringResult.status).toBe('executed');
+    expect(stringResult.verdict.arm).toBe('allow');
+    expect(stringResult.safe).toBe('plain string prompt');
+    expect(activityPayload(evaluate)?.prompt).toBe('plain string prompt');
+
+    // A { request } record is reconstructed from its request string.
+    evaluate.mockClear();
+    const requestResult = await governPipelineGate(
+      adapter,
+      gateInput('prompt', { request: 'do the thing' }),
+    );
+    expect(requestResult.status).toBe('executed');
+    expect(activityPayload(evaluate)?.prompt).toBe('do the thing');
+
+    // The latest user/human message wins (the trailing human message here).
+    evaluate.mockClear();
+    const messagesResult = await governPipelineGate(
       adapter,
       gateInput('prompt', {
         messages: [
@@ -175,17 +232,27 @@ describe('governPipelineGate — prompt gate', () => {
         ],
       }),
     );
-    await governPipelineGate(
+    expect(messagesResult.status).toBe('executed');
+    expect(activityPayload(evaluate)?.prompt).toBe('human typed message');
+
+    // With no user/human role, the latest non-system content message is used.
+    evaluate.mockClear();
+    const narratorResult = await governPipelineGate(
       adapter,
       gateInput('prompt', {
         messages: [{ role: 'narrator', content: 'a non-system content message' }],
       }),
     );
+    expect(narratorResult.status).toBe('executed');
+    expect(activityPayload(evaluate)?.prompt).toBe('a non-system content message');
   });
 
   it('emits the prompt span with provider-derived URLs (anthropic/google/openai/gemini)', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // anthropic provider + claude model -> anthropic messages endpoint.
+    evaluate.mockClear();
+    const anthropic = await governPipelineGate(
       adapter,
       gateInput('prompt', {
         prompt: 'a',
@@ -193,7 +260,16 @@ describe('governPipelineGate — prompt gate', () => {
         response_metadata: { ls_provider: 'anthropic' },
       }),
     );
-    await governPipelineGate(
+    expect(anthropic.status).toBe('executed');
+    let span = primarySpan(evaluate);
+    expect(span?.name).toBe('POST');
+    expect(spanUrl(span)).toBe('https://api.anthropic.com/v1/messages');
+    expect(spanRequestBody(span).provider).toBe('anthropic');
+    expect(spanRequestBody(span).model_provider).toBe('anthropic');
+
+    // google provider (model 'm') -> provider carried in the request body.
+    evaluate.mockClear();
+    const google = await governPipelineGate(
       adapter,
       gateInput('prompt', {
         prompt: 'b',
@@ -201,7 +277,12 @@ describe('governPipelineGate — prompt gate', () => {
         response_metadata: { provider: 'google' },
       }),
     );
-    await governPipelineGate(
+    expect(google.status).toBe('executed');
+    expect(spanRequestBody(primarySpan(evaluate)).provider).toBe('google');
+
+    // gemini provider (model 'm') -> provider carried in the request body.
+    evaluate.mockClear();
+    const gemini = await governPipelineGate(
       adapter,
       gateInput('prompt', {
         prompt: 'c',
@@ -209,7 +290,12 @@ describe('governPipelineGate — prompt gate', () => {
         response_metadata: { provider: 'gemini' },
       }),
     );
-    await governPipelineGate(
+    expect(gemini.status).toBe('executed');
+    expect(spanRequestBody(primarySpan(evaluate)).provider).toBe('gemini');
+
+    // openai provider (model 'm') -> openai chat completions endpoint.
+    evaluate.mockClear();
+    const openai = await governPipelineGate(
       adapter,
       gateInput('prompt', {
         prompt: 'd',
@@ -217,35 +303,78 @@ describe('governPipelineGate — prompt gate', () => {
         response_metadata: { provider: 'openai' },
       }),
     );
-    await governPipelineGate(
+    expect(openai.status).toBe('executed');
+    span = primarySpan(evaluate);
+    expect(spanUrl(span)).toBe('https://api.openai.com/v1/chat/completions');
+    expect(spanRequestBody(span).provider).toBe('openai');
+
+    // gemini-* model with no explicit provider -> google generative endpoint.
+    evaluate.mockClear();
+    const geminiModel = await governPipelineGate(
       adapter,
       gateInput('prompt', { prompt: 'e', model: 'gemini-1.5-pro' }),
     );
-    await governPipelineGate(
+    expect(geminiModel.status).toBe('executed');
+    expect(spanUrl(primarySpan(evaluate))).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/generateContent',
+    );
+
+    // Unknown model + no provider -> openai default, no provider in body.
+    evaluate.mockClear();
+    const mystery = await governPipelineGate(
       adapter,
       gateInput('prompt', { prompt: 'f', model: 'mystery-model' }),
     );
+    expect(mystery.status).toBe('executed');
+    span = primarySpan(evaluate);
+    expect(spanUrl(span)).toBe('https://api.openai.com/v1/chat/completions');
+    expect(spanRequestBody(span).provider).toBeUndefined();
   });
 
   it('covers span timestamp scaling for normal and pre-scaled start times', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // A millisecond start time is scaled up to nanoseconds (x 1_000_000).
+    evaluate.mockClear();
+    const ms = 1_700_000_000_000;
+    const normal = await governPipelineGate(
       adapter,
-      gateInput('prompt', { prompt: 'normal ms', model: 'x' }, { startTime: Date.now() }),
+      gateInput('prompt', { prompt: 'normal ms', model: 'x' }, { startTime: ms }),
     );
-    await governPipelineGate(
+    expect(normal.status).toBe('executed');
+    expect(primarySpan(evaluate)?.start_time).toBe(ms * 1_000_000);
+
+    // An already-large (pre-scaled) start time is not re-scaled by the gate's
+    // own timestamp guard (value >= 1e14 passes through unchanged there).
+    evaluate.mockClear();
+    const preScaled = await governPipelineGate(
       adapter,
       gateInput('prompt', { prompt: 'already ns', model: 'x' }, { startTime: 2e14 }),
     );
-    await governPipelineGate(
+    expect(preScaled.status).toBe('executed');
+    expect(primarySpan(evaluate)?.start_time).toBe(2e14 * 1_000_000);
+
+    // A zero start time is preserved verbatim (no scaling of a non-positive value).
+    evaluate.mockClear();
+    const zero = await governPipelineGate(
       adapter,
       gateInput('prompt', { prompt: 'zero start', model: 'x' }, { startTime: 0 }),
     );
-    // A non-finite start time yields no span start_time (the empty-spread branch).
-    await governPipelineGate(
+    expect(zero.status).toBe('executed');
+    expect(primarySpan(evaluate)?.start_time).toBe(0);
+
+    // A non-finite start time yields no gate-applied start_time (the empty-spread
+    // branch); the span falls back to the builder's own positive timestamp.
+    evaluate.mockClear();
+    const nan = await governPipelineGate(
       adapter,
       gateInput('prompt', { prompt: 'nan start', model: 'x' }, { startTime: NaN }),
     );
+    expect(nan.status).toBe('executed');
+    const nanStart = primarySpan(evaluate)?.start_time;
+    expect(typeof nanStart).toBe('number');
+    expect(nanStart).toBeGreaterThan(0);
+    expect(Number.isFinite(nanStart)).toBe(true);
   });
 
   it('suppresses the prompt span when capture mode owns llm spans', async () => {
@@ -383,23 +512,44 @@ describe('governPipelineGate — tool gates', () => {
   });
 
   it('handles read=true and open-name variants and stringified args', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // read:true classifies any tool as a file_read regardless of its name.
+    evaluate.mockClear();
+    const reader = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'customReader', args: { read: true } }),
     );
-    await governPipelineGate(
+    expect(reader.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_name).toBe('customReader');
+    expect(activityPayload(evaluate)?.tool_type).toBe('file_read');
+
+    // open:true + a file path classifies as file_open.
+    evaluate.mockClear();
+    const opener = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'open_file_now', args: { path: '/p', open: true } }),
     );
-    await governPipelineGate(
+    expect(opener.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_type).toBe('file_open');
+
+    // a 'monitor'-named tool with a command classifies as a shell.
+    evaluate.mockClear();
+    const monitor = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'monitor', args: { command: 'tail -f log' } }),
     );
-    await governPipelineGate(
+    expect(monitor.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_type).toBe('shell');
+
+    // a name merely containing 'mcp' classifies as a generic mcp tool.
+    evaluate.mockClear();
+    const mcp = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'plainmcp_tool', args: { note: 'has mcp inside name' } }),
     );
+    expect(mcp.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_type).toBe('mcp');
   });
 
   it('blocks a tool output', async () => {
@@ -539,21 +689,54 @@ describe('governPipelineGate — activity-type, telemetry and metadata edges', (
   });
 
   it('falls back to default activity types for nameless tool gates', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(adapter, gateInput('tool_input', { args: { x: 1 } }));
-    await governPipelineGate(adapter, gateInput('tool_output', { result: 'done' }));
+    const { adapter, evaluate } = makeAdapter();
+
+    // A nameless tool_input falls back to the langchain on_tool_start activity.
+    evaluate.mockClear();
+    const inputResult = await governPipelineGate(
+      adapter,
+      gateInput('tool_input', { args: { x: 1 } }),
+    );
+    expect(inputResult.status).toBe('executed');
+    let activity = activityPayload(evaluate);
+    expect(activity?.event_type).toBe('ActivityStarted');
+    expect(activity?.activity_type).toBe('on_tool_start');
+    expect(activity?.tool_name).toBe('on_tool_start');
+    expect(activity?.tool_type).toBe('llm_tool_call');
+
+    // A nameless tool_output falls back to the langchain on_tool_end activity.
+    evaluate.mockClear();
+    const outputResult = await governPipelineGate(
+      adapter,
+      gateInput('tool_output', { result: 'done' }),
+    );
+    expect(outputResult.status).toBe('executed');
+    activity = activityPayload(evaluate);
+    expect(activity?.event_type).toBe('ActivityCompleted');
+    expect(activity?.activity_type).toBe('on_tool_end');
+    expect(activity?.tool_type).toBe('llm_tool_call');
   });
 
   it('routes assistant activity types (onLlmEnd vs custom requested)', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // The langchain on_llm_end alias collapses to the canonical llm_call activity.
+    evaluate.mockClear();
+    const onLlmEnd = await governPipelineGate(
       adapter,
       gateInput('assistant_output', { content: 'a' }, { activityType: 'on_llm_end' }),
     );
-    await governPipelineGate(
+    expect(onLlmEnd.status).toBe('executed');
+    expect(activityPayload(evaluate)?.activity_type).toBe('llm_call');
+
+    // Any other explicitly requested activity type is preserved verbatim.
+    evaluate.mockClear();
+    const custom = await governPipelineGate(
       adapter,
       gateInput('assistant_output', { content: 'b' }, { activityType: 'CustomAssistant' }),
     );
+    expect(custom.status).toBe('executed');
+    expect(activityPayload(evaluate)?.activity_type).toBe('CustomAssistant');
   });
 
   it('reads model + usage + provider from lc_kwargs metadata', async () => {
@@ -597,47 +780,52 @@ describe('governPipelineGate — activity-type, telemetry and metadata edges', (
   });
 
   it('emits a usage-only assistant span (no content) and an empty-capture no-op span', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // Usage with no content still produces a completion span and carries tokens.
+    evaluate.mockClear();
+    const usageOnly = await governPipelineGate(
       adapter,
       gateInput('assistant_output', { usage_metadata: { total_tokens: 7 } }),
     );
-    await governPipelineGate(
+    expect(usageOnly.status).toBe('executed');
+    expect(activityPayload(evaluate)?.total_tokens).toBe(7);
+    expect(primarySpan(evaluate)?.hook_type).toBe('http_request');
+
+    // An empty capture object is enough to force an emitted (started) span even
+    // when the payload has neither content nor usage.
+    evaluate.mockClear();
+    const emptyCapture = await governPipelineGate(
       adapter,
       gateInput('assistant_output', { something: 'else' }, { llmCapture: {} }),
     );
+    expect(emptyCapture.status).toBe('executed');
+    const span = primarySpan(evaluate);
+    expect(span).toBeDefined();
+    expect(span?.stage).toBe('started');
   });
 
   it('classifies mcp database tools by statement, resource, and name keywords', async () => {
-    const { adapter } = makeAdapter();
+    const { adapter, evaluate } = makeAdapter();
+    const toolType = async (payload: Record<string, unknown>) => {
+      evaluate.mockClear();
+      const result = await governPipelineGate(adapter, gateInput('tool_input', payload));
+      expect(result.status).toBe('executed');
+      return activityPayload(evaluate)?.tool_type;
+    };
+
     // resource-only (no explicit statement) exercises the resource statement branch
-    await governPipelineGate(
-      adapter,
-      gateInput('tool_input', { name: 'mcp__db__lookup', args: { resource: 'users' } }),
-    );
+    expect(await toolType({ name: 'mcp__db__lookup', args: { resource: 'users' } })).toBe('db');
     // explicit statement
-    await governPipelineGate(
-      adapter,
-      gateInput('tool_input', { name: 'mcp__mysql__run', args: { statement: 'UPDATE t SET a=1' } }),
-    );
+    expect(
+      await toolType({ name: 'mcp__mysql__run', args: { statement: 'UPDATE t SET a=1' } }),
+    ).toBe('db');
     // name keyword: query / execute / select, without statement or resource
-    await governPipelineGate(
-      adapter,
-      gateInput('tool_input', { name: 'mcp__sqlite__query', args: { note: 'x' } }),
-    );
-    await governPipelineGate(
-      adapter,
-      gateInput('tool_input', { name: 'mcp__postgres__execute', args: { note: 'x' } }),
-    );
-    await governPipelineGate(
-      adapter,
-      gateInput('tool_input', { name: 'mcp__database__select', args: { note: 'x' } }),
-    );
-    // database-looking name but nothing actionable -> not a db tool
-    await governPipelineGate(
-      adapter,
-      gateInput('tool_input', { name: 'mcp__db__info', args: { note: 'x' } }),
-    );
+    expect(await toolType({ name: 'mcp__sqlite__query', args: { note: 'x' } })).toBe('db');
+    expect(await toolType({ name: 'mcp__postgres__execute', args: { note: 'x' } })).toBe('db');
+    expect(await toolType({ name: 'mcp__database__select', args: { note: 'x' } })).toBe('db');
+    // database-looking name but nothing actionable -> a plain mcp tool, not db
+    expect(await toolType({ name: 'mcp__db__info', args: { note: 'x' } })).toBe('mcp');
   });
 
   it('classifies a nameless tool gate with an empty activity type (undefined tool name)', async () => {
@@ -650,29 +838,50 @@ describe('governPipelineGate — activity-type, telemetry and metadata edges', (
   });
 
   it('classifies mcp http tools by target and method', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+
+    // An http-looking name with a uri target classifies as http.
+    evaluate.mockClear();
+    const byTarget = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'mcp__http__call', args: { uri: 'https://a.test' } }),
     );
-    await governPipelineGate(
+    expect(byTarget.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_type).toBe('http');
+
+    // A web-named tool with an http method (but no target) also classifies as http.
+    evaluate.mockClear();
+    const byMethod = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'mcp__web__post', args: { http_method: 'POST' } }),
     );
-    await governPipelineGate(
+    expect(byMethod.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_type).toBe('http');
+
+    // A fetch-named tool with neither target nor method is just a generic mcp tool.
+    evaluate.mockClear();
+    const noop = await governPipelineGate(
       adapter,
       gateInput('tool_input', { name: 'mcp__fetch__noop', args: { note: 'x' } }),
     );
+    expect(noop.status).toBe('executed');
+    expect(activityPayload(evaluate)?.tool_type).toBe('mcp');
   });
 
   it('detects tool-use content parts with non-string types', async () => {
-    const { adapter } = makeAdapter();
-    await governPipelineGate(
+    const { adapter, evaluate } = makeAdapter();
+    evaluate.mockClear();
+    // A content array mixing a numeric type, a bare string, and a function_call
+    // block: the function_call part must register as a tool call despite the
+    // non-string type sibling.
+    const result = await governPipelineGate(
       adapter,
       gateInput('assistant_output', {
         content: [{ type: 123 }, 'a bare string part', { type: 'function_call' }],
       }),
     );
+    expect(result.status).toBe('executed');
+    expect(activityPayload(evaluate)?.has_tool_calls).toBe(true);
   });
 
   it('treats a non-object message field as no assistant content', async () => {

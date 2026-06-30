@@ -68,12 +68,13 @@ describe('reportAndExit error routing', () => {
 
   it('handles API error with null body (extract returns null, status hint)', () => {
     const err = { name: 'OpenBoxApiError', message: 'boom', status: 401, body: null };
-    captureExit(() => reportAndExit(err)); // status 401 hint path
+    // status 401 → AUTH exit, regardless of the (absent) detail body.
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.AUTH);
   });
 
   it('handles API error with non-object body', () => {
     const err = { name: 'CoreApiError', message: 'boom', status: 401, body: 'a string body' };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.AUTH);
   });
 
   it('handles API error with string message detail', () => {
@@ -83,7 +84,8 @@ describe('reportAndExit error routing', () => {
       status: 400,
       body: { message: 'plain detail' },
     };
-    captureExit(() => reportAndExit(err));
+    // 400 is not a specially mapped status → GENERIC.
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.GENERIC);
   });
 
   it('handles API error with array message detail', () => {
@@ -93,7 +95,7 @@ describe('reportAndExit error routing', () => {
       status: 400,
       body: { message: ['field a invalid', 'field b invalid'] },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.GENERIC);
   });
 
   it('handles API error with nested data.message string', () => {
@@ -103,7 +105,7 @@ describe('reportAndExit error routing', () => {
       status: 400,
       body: { data: { message: 'nested detail' } },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.GENERIC);
   });
 
   it('handles API error with nested data.message array', () => {
@@ -113,7 +115,7 @@ describe('reportAndExit error routing', () => {
       status: 400,
       body: { data: { message: ['nested a', 'nested b'] } },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.GENERIC);
   });
 
   it('handles API error with object body but no message/data (detail null)', () => {
@@ -123,7 +125,7 @@ describe('reportAndExit error routing', () => {
       status: 418,
       body: { somethingElse: true },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.GENERIC);
   });
 
   it('handles API error with data present but data.message absent', () => {
@@ -133,7 +135,7 @@ describe('reportAndExit error routing', () => {
       status: 418,
       body: { data: { other: 1 } },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.GENERIC);
   });
 
   // --- hintForDetail branches ---------------------------------------------
@@ -145,7 +147,8 @@ describe('reportAndExit error routing', () => {
       status: 500,
       body: { message: 'failed to start workflow: context deadline exceeded' },
     };
-    captureExit(() => reportAndExit(err));
+    // 5xx → SERVER exit; the detail drives the hint copy (not the exit code).
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.SERVER);
   });
 
   it('hints for RST_STREAM detail', () => {
@@ -155,7 +158,7 @@ describe('reportAndExit error routing', () => {
       status: 500,
       body: { message: 'stream terminated by RST_STREAM' },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.SERVER);
   });
 
   it('hints for OPA-unavailable detail', () => {
@@ -165,7 +168,7 @@ describe('reportAndExit error routing', () => {
       status: 500,
       body: { message: 'OPA unavailable' },
     };
-    captureExit(() => reportAndExit(err));
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.SERVER);
   });
 
   it('detail present but unmatched falls through to status hint (returns null)', () => {
@@ -175,7 +178,8 @@ describe('reportAndExit error routing', () => {
       status: 404,
       body: { message: 'some unmatched detail' },
     };
-    captureExit(() => reportAndExit(err));
+    // 404 → NOT_FOUND exit.
+    expect(captureExit(() => reportAndExit(err))).toBe(EXIT.NOT_FOUND);
   });
 
   // --- hintForStatus branches ---------------------------------------------

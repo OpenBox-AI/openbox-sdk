@@ -6,9 +6,18 @@ describe('TokenBucket', () => {
     const bucket = new TokenBucket(5, 5);
 
     // Should allow 5 immediate requests
+    const burstStart = Date.now();
     for (let i = 0; i < 5; i++) {
       await bucket.acquire();
     }
+    // The full burst (capacity = 5) drains instantly; no token wait.
+    expect(Date.now() - burstStart).toBeLessThan(20);
+
+    // The 6th request exhausts the bucket and must wait for a refill.
+    // refillRate = 5/1000 tokens per ms, so 1 token takes ~200ms.
+    const overflowStart = Date.now();
+    await bucket.acquire();
+    expect(Date.now() - overflowStart).toBeGreaterThanOrEqual(150);
   });
 
   it('throttles requests beyond capacity', async () => {
@@ -48,9 +57,18 @@ describe('TokenBucket', () => {
     const bucket = new TokenBucket(3);
 
     // Should allow 3 immediate requests (burst = requestsPerSecond)
+    const burstStart = Date.now();
     await bucket.acquire();
     await bucket.acquire();
     await bucket.acquire();
+    // Default capacity equals requestsPerSecond (3), so all three are immediate.
+    expect(Date.now() - burstStart).toBeLessThan(20);
+
+    // A 4th token is unavailable: with refillRate = 3/1000 per ms one token
+    // takes ~333ms, proving the default burst capacity is exactly 3 (not more).
+    const overflowStart = Date.now();
+    await bucket.acquire();
+    expect(Date.now() - overflowStart).toBeGreaterThanOrEqual(250);
   });
 
   it('does not exceed capacity on refill', async () => {

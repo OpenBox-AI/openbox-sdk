@@ -551,9 +551,18 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     process.env.OPENBOX_API_KEY = 'obx_test_0fb1a199458e9d1dcc05c785990785a0fede273741b00261';
     process.env.OPENBOX_BACKEND_API_KEY = 'obx_key_mcp_backend';
+    // Stub the network so the tool callbacks run to completion against a
+    // success response instead of failing on a real localhost connection.
+    vi.stubGlobal('fetch', async () =>
+      new Response(
+        JSON.stringify({ status: 200, data: { data: [], id: 'x', name: 'x', orgId: 'x' } }),
+        { status: 200 },
+      ),
+    );
     try {
       const { runMcpServer } = await import('../../ts/src/runtime/mcp');
       await runMcpServer();
+      expect(captured.length).toBeGreaterThan(0);
       for (const tool of captured) {
         const args: any = {};
         // Best-guess inputs from the schema keys.
@@ -561,21 +570,25 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
           for (const key of Object.keys(tool.schema)) {
             if (key.includes('id')) args[key] = '00000000-0000-4000-8000-000000000000';
             else if (key === 'verdict') args[key] = 'allow';
+            else if (key === 'action') args[key] = 'approve';
             else if (key === 'reason') args[key] = 'test';
             else args[key] = 'synth';
           }
         }
-        try {
-          const out = await tool.cb(args);
-          expect(out).toBeDefined();
-          expect(Array.isArray(out.content)).toBe(true);
-        } catch (e) {
-          // Some tool callbacks may reject if the synthetic input
-          // doesn't match a more specific shape; coverage still counts
-          // the executed branches.
+        // No swallowing: every OpenBox tool callback must resolve to the MCP
+        // tool-result contract `{ content: [{ type: 'text', text: string }] }`
+        // (errors are returned as `isError: true` content, never thrown).
+        const out = await tool.cb(args);
+        expect(out, `tool ${tool.name} returned no result`).toBeDefined();
+        expect(Array.isArray(out.content), `tool ${tool.name} content`).toBe(true);
+        expect(out.content.length).toBeGreaterThan(0);
+        for (const item of out.content) {
+          expect(item.type).toBe('text');
+          expect(typeof item.text).toBe('string');
         }
       }
     } finally {
+      vi.unstubAllGlobals();
       if (before !== undefined) process.env.OPENBOX_API_URL = before;
       if (beforeRuntime !== undefined) process.env.OPENBOX_API_KEY = beforeRuntime;
       else delete process.env.OPENBOX_API_KEY;

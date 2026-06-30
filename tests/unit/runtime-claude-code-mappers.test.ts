@@ -677,10 +677,15 @@ describe('runtime/claude-code/mappers; every event handler', () => {
       session,
       { sessionDir: dir } as any,
     );
-    // The mapper's contract: fire exactly one activity for the
-    // PERMISSION_REQUEST event. Non-zero is the real assertion.
-    expect(session.calls.length).toBeGreaterThan(0);
-    expect(session.calls[0]?.method).toBe('activity');
+    // The mapper's contract: fire exactly one activity, an ActivityStarted
+    // (EVENT.START) event whose activity type is routed from the tool name
+    // (Read → FileRead), carrying the session id + tool name.
+    expect(session.calls.length).toBe(1);
+    const call = session.calls[0];
+    expect(call?.method).toBe('activity');
+    expect(call?.args[0]).toBe('ActivityStarted');
+    expect(call?.args[1]).toBe('FileRead');
+    expect(call?.args[2]).toMatchObject({ sessionId: 'S', toolName: 'Read' });
   });
 
   it('subagent-start + subagent-stop fire AGENT_SPAWN activities', async () => {
@@ -773,14 +778,16 @@ describe('runtime/claude-code/mappers; every event handler', () => {
 // here were tautologies (post-audit cleanup).
 
 describe('runtime/cursor/hook-handler', () => {
-  it('module imports without throwing', async () => {
-    await import('../../ts/src/runtime/cursor/hook-handler');
+  it('exposes runCursorHook as the hook entrypoint', async () => {
+    const mod = await import('../../ts/src/runtime/cursor/hook-handler');
+    expect(typeof mod.runCursorHook).toBe('function');
   });
 });
 
 describe('runtime/claude-code/hook-handler', () => {
-  it('module imports without throwing', async () => {
-    await import('../../ts/src/runtime/claude-code/hook-handler');
+  it('exposes runClaudeHook as the hook entrypoint', async () => {
+    const mod = await import('../../ts/src/runtime/claude-code/hook-handler');
+    expect(typeof mod.runClaudeHook).toBe('function');
   });
 });
 

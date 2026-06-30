@@ -55,9 +55,13 @@ beforeEach(() => {
   // Stub fetch globally so the OpenBoxCoreClient governance/evaluate
   // call returns a canned allow verdict instead of a real HTTP call.
   vi.stubGlobal('fetch', async (_url: string, _init?: RequestInit) => {
+    // Core's /governance/evaluate returns `verdict` as a string arm
+    // (mapVerdict reads response.verdict directly; a nested object would
+    // normalize to a fail-closed block). Supply a real allow verdict.
     return new Response(
       JSON.stringify({
-        verdict: { arm: 'allow', reason: '' },
+        verdict: 'allow',
+        reason: '',
         guardrails_result: null,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -95,7 +99,10 @@ describe('runtime/claude-code/hook-handler', () => {
   it('runs the dispatch loop end-to-end when API key and Core URL are set', async () => {
     const beforeKey = process.env.OPENBOX_API_KEY;
     const beforeCore = process.env.OPENBOX_CORE_URL;
-    process.env.OPENBOX_API_KEY = 'obx_live_test';
+    // Format-valid runtime key so the OpenBoxCoreClient passes its key
+    // validation and actually reaches the stubbed /evaluate fetch
+    // (which returns the canned allow verdict) instead of failing closed.
+    process.env.OPENBOX_API_KEY = 'obx_test_' + 'a'.repeat(48);
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     try {
       const r = await runWithStdin(
@@ -105,14 +112,19 @@ describe('runtime/claude-code/hook-handler', () => {
           await runClaudeHook();
         },
       );
-      // The fetch stub above supplies an allow verdict. The strong
-      // assertion is the protocol contract: anything emitted to stdout
-      // MUST parse as JSON (claude-code reads stdout as the verdict
-      // envelope).
-      expect(r.exitCode === undefined || r.exitCode === 0).toBe(true);
-      if (r.stdout.length > 0) {
-        expect(() => JSON.parse(r.stdout)).not.toThrow();
-      }
+      // The fetch stub above supplies an allow verdict, so the
+      // end-to-end dispatch must complete with a clean exit 0.
+      expect(r.exitCode).toBe(0);
+      // PreToolUse is a decision-capable hook: claude-code reads stdout
+      // as the permission envelope. An allow verdict renders an explicit
+      // allow permissionDecision for the PreToolUse event.
+      expect(r.stdout.length).toBeGreaterThan(0);
+      expect(JSON.parse(r.stdout)).toEqual({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'allow',
+        },
+      });
     } finally {
       if (beforeKey !== undefined) process.env.OPENBOX_API_KEY = beforeKey;
       else delete process.env.OPENBOX_API_KEY;
@@ -148,7 +160,9 @@ describe('runtime/cursor/hook-handler', () => {
   it('drives the dispatch loop with API key and Core URL', async () => {
     const beforeKey = process.env.OPENBOX_API_KEY;
     const beforeCore = process.env.OPENBOX_CORE_URL;
-    process.env.OPENBOX_API_KEY = 'obx_live_test';
+    // Format-valid runtime key so the OpenBoxCoreClient reaches the
+    // stubbed /evaluate fetch (canned allow verdict) instead of failing closed.
+    process.env.OPENBOX_API_KEY = 'obx_test_' + 'a'.repeat(48);
     process.env.OPENBOX_CORE_URL = 'http://localhost:8086';
     try {
       const r = await runWithStdin(
@@ -158,12 +172,12 @@ describe('runtime/cursor/hook-handler', () => {
           await runCursorHook();
         },
       );
-      // Same protocol contract as claude-code: clean dispatch means
-      // exit 0 or no explicit exit; anything else is a regression.
-      expect(r.exitCode === undefined || r.exitCode === 0).toBe(true);
-      if (r.stdout.length > 0) {
-        expect(() => JSON.parse(r.stdout)).not.toThrow();
-      }
+      // Clean dispatch on an allow verdict completes with exit 0.
+      expect(r.exitCode).toBe(0);
+      // beforeShellExecution is a decision-capable cursor hook; an allow
+      // verdict renders cursor's allow permission envelope on stdout.
+      expect(r.stdout.length).toBeGreaterThan(0);
+      expect(JSON.parse(r.stdout)).toEqual({ permission: 'allow' });
     } finally {
       if (beforeKey !== undefined) process.env.OPENBOX_API_KEY = beforeKey;
       else delete process.env.OPENBOX_API_KEY;

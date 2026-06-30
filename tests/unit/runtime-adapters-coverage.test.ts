@@ -362,7 +362,10 @@ describe('runtime/claude-code/mappers/pre-tool-use', () => {
     const env: any = { tool_name: 'mcp__filesystem__read', tool_input: {}, session_id: 'S4' };
     const cfg: any = { sessionDir: dir };
     await handlePreToolUse(env, session, cfg);
-    expect(session.calls.length).toBeGreaterThan(0);
+    // Dynamic mcp__* tools have no spec-driven route, so they fall through
+    // to the MCP_CALL activity type ('MCPToolCall'), opened via openActivity.
+    expect(session.calls[0]?.method).toBe('openActivity');
+    expect(session.calls[0]?.args[0]).toBe('MCPToolCall');
   });
 
   it('classifies database MCP tools as DatabaseQuery with SQL-derived DB spans', async () => {
@@ -720,6 +723,11 @@ describe('runtime/mcp/config', () => {
     if ('setMcpClientName' in mod) {
       (mod as any).setMcpClientName('openbox-test');
     }
+    // Actually construct the api: createApi tolerates absent tokens
+    // (it defers the readTokens throw until the first call) and returns
+    // the bound request function rather than throwing at construction.
+    const api = mod.createApi({ tokensPath: join(dir, 'no-such-tokens') });
+    expect(typeof api).toBe('function');
     delete process.env.OPENBOX_API_URL;
     delete process.env.OPENBOX_CORE_URL;
   });
@@ -737,9 +745,35 @@ describe('install/from-spec; defensive paths', () => {
       configDir: dir,
       events: [{ name: 'PreToolUse' }],
     };
+    // The hook block lands in .claude/settings.json (claude-array style),
+    // not in `target`, which is just a spec marker here.
+    const settingsFile = join(dir, '.claude', 'settings.json');
+
     installAdapter(spec, { cwd: dir });
+    const afterFirstInstall = readFileSync(settingsFile, 'utf8');
+    const firstParsed = JSON.parse(afterFirstInstall) as {
+      hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
+    };
+    // One install registers exactly one OpenBox rule for PreToolUse.
+    expect(firstParsed.hooks.PreToolUse).toHaveLength(1);
+
     installAdapter(spec, { cwd: dir }); // second install should be a no-op (no dup)
+    const afterSecondInstall = readFileSync(settingsFile, 'utf8');
+    // Idempotent: re-running install neither duplicates the rule nor
+    // otherwise mutates the settings file.
+    expect(afterSecondInstall).toBe(afterFirstInstall);
+    expect(
+      (JSON.parse(afterSecondInstall) as typeof firstParsed).hooks.PreToolUse,
+    ).toHaveLength(1);
+
     uninstallAdapter(spec, { cwd: dir });
+    const afterFirstUninstall = readFileSync(settingsFile, 'utf8');
+    // Uninstall removes the OpenBox rule; the now-empty hooks key is dropped.
+    expect(JSON.parse(afterFirstUninstall)).not.toHaveProperty('hooks');
+
     uninstallAdapter(spec, { cwd: dir }); // second uninstall should be a no-op
+    const afterSecondUninstall = readFileSync(settingsFile, 'utf8');
+    // Idempotent: nothing left to remove, file unchanged.
+    expect(afterSecondUninstall).toBe(afterFirstUninstall);
   });
 });
