@@ -106,10 +106,14 @@ export function registerDoctorCommand(program: Command) {
 
       const failed = checks.filter((c) => c.status === 'fail');
       const warned = checks.filter((c) => c.status === 'warn');
+      const skipped = checks.filter((c) => c.status === 'skip');
       const counts = {
-        pass: checks.length - failed.length - warned.length,
+        // skips ("we didn't probe this") are NOT passes — exclude them so the
+        // summary doesn't inflate the pass count with every skip row.
+        pass: checks.length - failed.length - warned.length - skipped.length,
         warn: warned.length,
         fail: failed.length,
+        skip: skipped.length,
       };
 
       if (isMachineMode()) {

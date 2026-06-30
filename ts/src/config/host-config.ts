@@ -17,7 +17,10 @@ export function loadJsonConfig(file: string): Record<string, string> {
     const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(raw)) {
-      out[k.toUpperCase().replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase()] = String(v);
+      // Insert the camelCase boundary underscore BEFORE uppercasing — uppercasing
+      // first left no lowercase chars for the regex, so it never matched and
+      // `fooBar` became `FOOBAR` instead of the documented `FOO_BAR`.
+      out[k.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()] = String(v);
       out[k] = String(v);
     }
     return out;

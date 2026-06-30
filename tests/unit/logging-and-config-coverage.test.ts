@@ -85,10 +85,12 @@ describe('host config readers', () => {
     const root = tempRoot();
     const file = join(root, 'config.json');
     writeFileSync(file, JSON.stringify({ openboxApiKey: 'k', hitlEnabled: false }));
+    // camelCase keys are exposed under their UPPER_SNAKE form (the documented
+    // contract): openboxApiKey -> OPENBOX_API_KEY, hitlEnabled -> HITL_ENABLED.
     expect(loadJsonConfig(file)).toMatchObject({
-      OPENBOXAPIKEY: 'k',
+      OPENBOX_API_KEY: 'k',
       openboxApiKey: 'k',
-      HITLENABLED: 'false',
+      HITL_ENABLED: 'false',
       hitlEnabled: 'false',
     });
     writeFileSync(file, '{bad');

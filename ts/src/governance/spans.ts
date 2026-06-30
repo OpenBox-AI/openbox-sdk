@@ -1061,7 +1061,9 @@ function buildSpanWithClassifierFields(
       );
       return {
         ...b,
-        name: 'openai.EMBEDDING.create',
+        // Use the resolved provider, not a hardcoded "openai" (an anthropic/google
+        // embedding was mislabeled "openai.EMBEDDING.create").
+        name: `${modelTelemetry.provider ?? 'openai'}.EMBEDDING.create`,
         span_type: 'function',
         hook_type: 'function_call',
         attributes: {
@@ -1125,7 +1127,8 @@ function buildSpanWithClassifierFields(
       const toolName = input.tool_name ?? input.tool ?? 'tool_call';
       return {
         ...llmToolBase,
-        name: 'openai.TOOL.call',
+        // Use the resolved provider, not a hardcoded "openai".
+        name: `${modelTelemetry.provider ?? 'openai'}.TOOL.call`,
         span_type: 'function',
         hook_type: 'function_call',
         attributes: {
