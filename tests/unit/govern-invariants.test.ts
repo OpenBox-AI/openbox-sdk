@@ -324,7 +324,7 @@ describe('activity pairing', () => {
     const httpSpan = {
       span_id: '1111111111111111',
       trace_id: '1'.repeat(32),
-      name: 'GET https://api.example.test/data',
+      name: 'HTTP GET',
       kind: 'CLIENT',
       stage: 'started',
       http_method: 'GET',

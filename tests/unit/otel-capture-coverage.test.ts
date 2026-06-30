@@ -768,8 +768,8 @@ describe('captureHttpSpan request/response body branches', () => {
       await f({} as unknown as Request);
       return capturedSubOpSpans();
     });
-    // empty url → not LLM → http span with name "POST "
-    expect(spans.some((s) => String(s.name).startsWith('POST'))).toBe(true);
+    // empty url → not LLM → http span with the canonical "HTTP {method}" name
+    expect(spans.some((s) => String(s.name).startsWith('HTTP'))).toBe(true);
   });
 
   test('non-text content-type response body skipped', async () => {

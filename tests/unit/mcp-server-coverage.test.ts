@@ -910,7 +910,7 @@ describe('runtime/mcp/index; runMcpServer registers + drives every tool', () => 
       ]);
       expect(parent.activity_input[0]).not.toHaveProperty('value');
       expect(hook.spans[0]).toMatchObject({
-        name: 'POST https://example.com/blocked',
+        name: 'HTTP POST',
         http_method: 'POST',
         http_url: 'https://example.com/blocked',
         attributes: expect.objectContaining({

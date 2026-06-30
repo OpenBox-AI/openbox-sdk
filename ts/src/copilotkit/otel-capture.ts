@@ -329,6 +329,9 @@ export function recordDatabaseQuery(opts: {
   recordOpSpanPair('db', base, completed, opts);
 }
 
+// Serialize a function arg/result for the span. Idiomatic TS (JSON.stringify) —
+// the value semantics match the canonical @traced field; we intentionally do NOT
+// imitate Python json.dumps whitespace/str() formatting, which is language style.
 function serializeArg(value: unknown, max = CANONICAL_SPAN.caps.functionArg): unknown {
   if (value === undefined) return undefined;
   let text: string;

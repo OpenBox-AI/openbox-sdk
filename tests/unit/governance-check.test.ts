@@ -273,7 +273,7 @@ describe('governance/check', () => {
       ['llm', { prompt: 'hi' }, 'PromptSubmission', 'POST'],
       ['file_read', { file_path: '/tmp/r' }, 'FileRead', 'file.read'],
       ['file_delete', { file_path: '/tmp/d' }, 'FileDelete', 'file.delete'],
-      ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'GET https://example.test'],
+      ['http', { method: 'get', url: 'https://example.test' }, 'HTTPRequest', 'HTTP GET'],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'DatabaseQuery', 'INSERT postgresql'],
       ['db', { query: 'SELECT 1' }, 'DatabaseQuery', 'SELECT postgresql'],
       ['mcp', { tool: 'read' }, 'MCPToolCall', 'MCP callTool read'],

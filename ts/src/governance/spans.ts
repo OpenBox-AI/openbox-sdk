@@ -1352,7 +1352,10 @@ function buildSpanWithClassifierFields(
       const httpStatusCode = input.http_status_code ?? input.httpStatusCode ?? null;
       return {
         ...b,
-        name: `${method} ${url}`,
+        // Canonical _build_http_span_data names the span `span.name or "HTTP
+        // {method}"`; this synthetic tool span has no OTel name, so use the
+        // canonical fallback (NOT "{method} {url}", which appended the URL).
+        name: `HTTP ${method}`,
         span_type: 'http',
         hook_type: 'http_request',
         attributes: {

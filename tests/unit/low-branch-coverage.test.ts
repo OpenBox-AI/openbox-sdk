@@ -135,7 +135,7 @@ describe('low-branch utility coverage', () => {
       ['file_write', { file_path: '/tmp/write.txt' }, 'file.write', false],
       ['file_delete', { file_path: '/tmp/delete.txt' }, 'file.delete', false],
       ['shell', { command: 'echo ok', cwd: '/repo' }, 'ShellExecution', true],
-      ['http', { method: 'get', url: 'https://example.test' }, 'GET https://example.test', false],
+      ['http', { method: 'get', url: 'https://example.test' }, 'HTTP GET', false],
       ['db', { operation: 'insert', statement: 'insert 1' }, 'INSERT postgresql', false],
       ['mcp', { tool_name: 'search' }, 'MCP callTool search', true],
     ] as const;
@@ -150,7 +150,7 @@ describe('low-branch utility coverage', () => {
       expect(span.status).toEqual({ code: 'UNSET', description: null });
     }
 
-    expect(buildSpan('mcp', 'http', {}).name).toBe('GET ');
+    expect(buildSpan('mcp', 'http', {}).name).toBe('HTTP GET');
     expect(buildSpan('mcp', 'db', {}).db_operation).toBe('SELECT');
     expect(buildSpan('mcp', 'mcp', {}).function).toBe('mcp.call');
   });

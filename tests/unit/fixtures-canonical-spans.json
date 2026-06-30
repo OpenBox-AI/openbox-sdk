@@ -9,7 +9,10 @@
     "start_time": "<vol>",
     "end_time": "<vol>",
     "duration_ns": "<vol>",
-    "attributes": {},
+    "attributes": {
+      "file.path": "/vault/secret.txt",
+      "file.mode": "r"
+    },
     "status": {
       "code": "UNSET",
       "description": null
@@ -31,7 +34,11 @@
     "start_time": "<vol>",
     "end_time": "<vol>",
     "duration_ns": "<vol>",
-    "attributes": {},
+    "attributes": {
+      "file.path": "/vault/secret.txt",
+      "file.operation": "read",
+      "file.bytes": 5
+    },
     "status": {
       "code": "UNSET",
       "description": null
@@ -55,7 +62,10 @@
     "start_time": "<vol>",
     "end_time": "<vol>",
     "duration_ns": "<vol>",
-    "attributes": {},
+    "attributes": {
+      "http.method": "POST",
+      "http.url": "https://api.openai.com/v1/chat/completions"
+    },
     "status": {
       "code": "UNSET",
       "description": null
@@ -84,7 +94,11 @@
     "start_time": "<vol>",
     "end_time": "<vol>",
     "duration_ns": "<vol>",
-    "attributes": {},
+    "attributes": {
+      "http.method": "POST",
+      "http.url": "https://api.openai.com/v1/chat/completions",
+      "http.status_code": 200
+    },
     "status": {
       "code": "UNSET",
       "description": null
@@ -112,7 +126,11 @@
     "start_time": "<vol>",
     "end_time": "<vol>",
     "duration_ns": "<vol>",
-    "attributes": {},
+    "attributes": {
+      "db.system": "sqlite",
+      "db.statement": "SELECT * FROM t",
+      "db.name": "mydb"
+    },
     "status": {
       "code": "UNSET",
       "description": null
@@ -138,7 +156,12 @@
     "start_time": "<vol>",
     "end_time": "<vol>",
     "duration_ns": "<vol>",
-    "attributes": {},
+    "attributes": {
+      "code.function": "process",
+      "code.namespace": "app.tasks",
+      "function.arg.0": "1",
+      "function.result": "ok"
+    },
     "status": {
       "code": "UNSET",
       "description": null
@@ -147,8 +170,8 @@
     "hook_type": "function_call",
     "function": "process",
     "module": "app.tasks",
-    "args": "{\"args\":[1],\"kwargs\":{}}",
-    "result": "\"ok\"",
+    "args": "{\"args\": [1], \"kwargs\": {}}",
+    "result": "ok",
     "error": null
   }
 }

@@ -850,7 +850,7 @@ describe('buildSpan: http', () => {
       http_status_code: 201,
       tool_name: 'fetch',
     });
-    expect(span.name).toBe('POST https://x.com/api');
+    expect(span.name).toBe('HTTP POST');
     expect(span.request_body).toBe(JSON.stringify({ a: 1 }));
     expect(span.response_body).toBe('plain-text-response');
     expect((span.request_headers as Record<string, string>).authorization).toBe('[REDACTED]');
@@ -860,7 +860,7 @@ describe('buildSpan: http', () => {
 
   test('minimal http span: GET default, null bodies/headers', () => {
     const span = buildSpan('cursor', 'http', {});
-    expect(span.name).toBe('GET ');
+    expect(span.name).toBe('HTTP GET');
     expect(span.request_body).toBeNull();
     expect(span.response_body).toBeNull();
     expect(span.request_headers).toBeNull();
