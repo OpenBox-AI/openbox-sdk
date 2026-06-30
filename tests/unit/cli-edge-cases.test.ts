@@ -123,63 +123,47 @@ describe('cli/index.ts; import side effects', () => {
 });
 
 describe('validators; every uncovered branch', () => {
-  it('validateActivitiesConfig accepts well-shaped activities', async () => {
-    const mod: any = await import('../../ts/src/validators');
-    if (typeof mod.validateActivitiesConfig === 'function') {
-      try {
-        mod.validateActivitiesConfig([{ activity_type: 'PromptSubmission', fields_to_check: ['prompt'] }], '0');
-      } catch { /* validator may be strict; branches still exercised */ }
-      try {
-        mod.validateActivitiesConfig('invalid', '0');
-      } catch { /* expected */ }
-    }
+  it('validateActivitiesConfig is a compatibility no-op (accepts anything)', async () => {
+    const { validateActivitiesConfig } = await import('../../ts/src/validators');
+    expect(() =>
+      validateActivitiesConfig([{ activity_type: 'PromptSubmission', fields_to_check: ['prompt'] }], '0'),
+    ).not.toThrow();
+    // documented back-compat no-op — even a malformed value is accepted.
+    expect(() => validateActivitiesConfig('invalid' as unknown, '0')).not.toThrow();
   });
 
-  it('validateGuardrailParams runs against multiple type IDs', async () => {
-    const mod: any = await import('../../ts/src/validators');
-    if (typeof mod.validateGuardrailParams === 'function') {
-      const types = ['pii_detection', 'topic_classifier', 'rate_limiter', 'made_up_kind'];
-      for (const t of types) {
-        try {
-          mod.validateGuardrailParams(t, {});
-          mod.validateGuardrailParams(t, { foo: 1 });
-        } catch { /* type-specific schemas; throws are fine */ }
-      }
-    }
+  it('validateGuardrailParams enforces required params for type 4/5, passes others', async () => {
+    const { validateGuardrailParams } = await import('../../ts/src/validators');
+    expect(() => validateGuardrailParams('4', {})).toThrow(); // ban_list needs banned_words
+    expect(() => validateGuardrailParams('4', { banned_words: ['x'] })).not.toThrow();
+    expect(() => validateGuardrailParams('5', {})).toThrow(); // regex needs params.regex
+    expect(() => validateGuardrailParams('1', {})).not.toThrow(); // no required params
   });
 
-  it('validateBehaviorTrigger / validateBehaviorStates accept canonical names', async () => {
-    const mod: any = await import('../../ts/src/validators');
-    const triggers = ['http_post', 'http_get', 'file_read', 'internal', 'tool_call', 'made_up'];
-    for (const t of triggers) {
-      try { mod.validateBehaviorTrigger(t); } catch { /* */ }
-    }
-    if (typeof mod.validateBehaviorStates === 'function') {
-      try { mod.validateBehaviorStates(['http_get', 'http_post']); } catch { /* */ }
-      try { mod.validateBehaviorStates([]); } catch { /* */ }
-    }
+  it('validateBehaviorTrigger / validateBehaviorStates accept canonical names, reject unknown', async () => {
+    const { validateBehaviorTrigger, validateBehaviorStates } = await import('../../ts/src/validators');
+    expect(validateBehaviorTrigger('http_post')).toBe('http_post');
+    expect(validateBehaviorTrigger('file_read')).toBe('file_read');
+    expect(() => validateBehaviorTrigger('made_up')).toThrow();
+    expect(validateBehaviorStates(['http_get', 'http_post'])).toEqual(['http_get', 'http_post']);
+    expect(() => validateBehaviorStates(['made_up'])).toThrow();
   });
 
-  it('validateApprovalTimeout enforces bounds', async () => {
-    const mod: any = await import('../../ts/src/validators');
-    if (typeof mod.validateApprovalTimeout === 'function') {
-      try { mod.validateApprovalTimeout(0, 'block'); } catch { /* */ }
-      try { mod.validateApprovalTimeout(-1, 'block'); } catch { /* */ }
-      try { mod.validateApprovalTimeout(30, 'block'); } catch { /* */ }
-      try { mod.validateApprovalTimeout(30, 'allow'); } catch { /* */ }
-    }
+  it('validateApprovalTimeout requires a positive timeout only for verdict 2', async () => {
+    const { validateApprovalTimeout } = await import('../../ts/src/validators');
+    expect(() => validateApprovalTimeout(2, null)).toThrow(); // require_approval needs a timeout
+    expect(() => validateApprovalTimeout(2, 0)).toThrow(); // must be >= 1
+    expect(() => validateApprovalTimeout(2, 300)).not.toThrow();
+    expect(() => validateApprovalTimeout(0, null)).not.toThrow(); // other verdicts: no-op
   });
 
-  it('validateRegoSource handles various inputs', async () => {
-    const mod: any = await import('../../ts/src/validators');
-    if (typeof mod.validateRegoSource === 'function') {
-      // valid
-      try { mod.validateRegoSource('package x\ndefault allow = true'); } catch { /* */ }
-      // missing package
-      try { mod.validateRegoSource('default allow = true'); } catch { /* */ }
-      // empty
-      try { mod.validateRegoSource(''); } catch { /* */ }
-    }
+  it('validateRegoSource requires non-empty source with a package declaration', async () => {
+    const { validateRegoSource } = await import('../../ts/src/validators');
+    expect(() => validateRegoSource('')).toThrow(); // empty
+    expect(() => validateRegoSource('default allow = true')).toThrow(); // missing package
+    expect(() =>
+      validateRegoSource('package x\nresult := {"decision": "allow"}'),
+    ).not.toThrow();
   });
 });
 
@@ -223,9 +207,8 @@ describe('verify; additional rules + edge fixtures', () => {
 });
 
 describe('runtime/mcp/index; additional helpers', () => {
-  it('hex generates a hex string of requested length', async () => {
-    // hex/buildSpan are not exported, but importing the module covers
-    // their definitions when other tests later invoke server.tool().
+  it('mcp module exports runMcpServer (import smoke)', async () => {
+    // (renamed: this asserts the module export, not hex — hex is not exported.)
     const mod = await import('../../ts/src/runtime/mcp');
     expect(typeof mod.runMcpServer).toBe('function');
   });
@@ -248,7 +231,10 @@ describe('cli/config; getCoreClient + edge cases', () => {
       (process as any).exit = ovExit;
       console.error = oe;
     }
-    expect(typeof caught === 'number' || caught === undefined).toBe(true);
+    // getCoreClient MUST bail (call process.exit) when the key is unset — caught
+    // is the exit code. (Was a tautology that passed even if it returned a client.)
+    expect(typeof caught).toBe('number');
+    expect(caught).not.toBe(0);
   });
 
   it('getCoreClient rejects malformed OPENBOX_API_KEY', async () => {

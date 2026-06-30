@@ -95,7 +95,9 @@ describe('client/client.ts; retry + transport', () => {
     // Either OpenBoxApiError or a raw ECONNREFUSED
     const code = (err as any)?.code ?? '';
     const name = (err as any)?.name ?? '';
-    expect(['ECONNREFUSED', 'OpenBoxApiError', 'TypeError', ''].some((c) => code === c || name === c)).toBe(true);
+    // A real network error must surface — NOT the empty-string fallback (which
+    // made this a tautology that passed even on a silent/empty error).
+    expect(['ECONNREFUSED', 'OpenBoxApiError', 'TypeError'].some((c) => code === c || name === c)).toBe(true);
     void OpenBoxApiError;
   });
 
