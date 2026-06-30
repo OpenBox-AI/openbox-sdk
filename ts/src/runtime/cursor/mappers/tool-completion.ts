@@ -21,15 +21,12 @@ import { buildCursorSpan } from './spans.js';
 import { stampSource } from '../../../approvals/source.js';
 import { claimCompletionTelemetry, takeCompletionActivity } from '../dedup.js';
 import { objectRecord as recordFrom } from '../../../internal/records.js';
+import { stringFromRaw as stringFrom } from '../../../internal/strings.js';
 
 type ObserveCapableCursorSession = CursorSession & {
   observeActivity?: CursorSession['activity'];
 };
 
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined;
-}
 
 function numberFrom(value: unknown): number | undefined {
   const parsed =

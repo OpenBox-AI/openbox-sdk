@@ -13,6 +13,7 @@ import {
 } from '../governance/spans.js';
 import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import { objectRecord as recordFrom, firstRecord } from '../internal/records.js';
+import { firstUntrimmed as firstString } from '../internal/strings.js';
 import {
   assistantOutputTelemetryFields,
   buildAssistantOutputSpan,
@@ -787,13 +788,6 @@ function telemetryForGate(
     /* c8 ignore next */
     toolType: toolMetadataFromPayload(payload, activityType).toolType ?? 'custom',
   };
-}
-
-function firstString(...values: unknown[]): string | undefined {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value;
-  }
-  return undefined;
 }
 
 function toolActivityInput(payload: unknown, activityType: string): unknown[] {

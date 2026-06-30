@@ -5,15 +5,7 @@ import {
   buildAssistantOutputSpan,
 } from '../../../governance/assistant-output.js';
 import { stableCodexSessionKey } from '../session-resolver.js';
-
-function firstText(...values: Array<unknown>): string | undefined {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return undefined;
-}
+import { firstTrimmed as firstText } from '../../../internal/strings.js';
 
 function codexAssistantText(env: CodexEnvelope): string | undefined {
   return firstText(env.content, env.response);

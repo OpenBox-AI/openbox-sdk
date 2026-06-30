@@ -15,6 +15,7 @@ import {
   buildAssistantOutputSpan,
 } from '../governance/assistant-output.js';
 import { objectRecord, isPlainObject, hasOwnKey } from '../internal/records.js';
+import { firstTrimmed as firstString, stringFrom } from '../internal/strings.js';
 
 export { objectRecord };
 
@@ -385,18 +386,6 @@ function singleResultModel(value: unknown): string | undefined {
   const record = objectRecord(value);
   const models = Object.keys(record).filter((key) => key.trim());
   return models.length === 1 ? models[0] : undefined;
-}
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function firstString(...values: unknown[]): string | undefined {
-  for (const value of values) {
-    const stringValue = stringFrom(value);
-    if (stringValue) return stringValue;
-  }
-  return undefined;
 }
 
 function filePathFor(toolInput: Record<string, unknown>): string | undefined {

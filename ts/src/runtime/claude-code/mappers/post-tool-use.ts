@@ -12,6 +12,7 @@ import {
 } from '../../../core-client/generated/runtime/claude-code.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { markHalted } from '../session-resolver.js';
+import { stringFromRaw as stringFrom } from '../../../internal/strings.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 import {
   buildSpan,
@@ -62,10 +63,6 @@ function durationMsFor(env: ClaudeCodeEnvelope): number | undefined {
 
 function outputFor(env: ClaudeCodeEnvelope, payload: Record<string, unknown>): unknown {
   return env.tool_response ?? env.tool_output ?? payload.output;
-}
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
 function failureError(env: ClaudeCodeEnvelope, payload: Record<string, unknown>): unknown {

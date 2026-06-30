@@ -1,4 +1,5 @@
 import type { GovernedPayload, SpanData } from '../core-client/index.js';
+import { firstTrimmed as firstText } from '../internal/strings.js';
 import { buildSpan, type LLMTokenUsage, type LLMCompletionSpanInput } from './spans.js';
 import { openBoxUsageTelemetryFields } from './usage.js';
 
@@ -40,14 +41,6 @@ export interface AssistantOutputTelemetryInput {
   data?: unknown;
 }
 
-function firstText(...values: Array<unknown>): string | undefined {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return undefined;
-}
 
 function defaultAssistantSpanName(source: string): string {
   return `openbox.${source}.assistant_output`;

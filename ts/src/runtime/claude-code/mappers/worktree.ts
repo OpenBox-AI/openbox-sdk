@@ -9,6 +9,7 @@ import {
   type ClaudeCodeEnvelope,
 } from '../../../core-client/generated/runtime/claude-code.js';
 import { stampSource } from '../../../approvals/source.js';
+import { stringFrom } from '../../../internal/strings.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -59,10 +60,6 @@ export async function handleWorktreeCreate(
     delete record.worktree_path;
     throw error;
   }
-}
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function sanitizePathSegment(value: string): string {

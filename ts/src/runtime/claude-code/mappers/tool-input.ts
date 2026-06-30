@@ -1,11 +1,4 @@
-function firstString(...values: unknown[]): string | undefined {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
+import { firstTrimmed as firstString } from '../../../internal/strings.js';
 
 export function filePathFor(toolInput: Record<string, unknown>): string | undefined {
   return firstString(

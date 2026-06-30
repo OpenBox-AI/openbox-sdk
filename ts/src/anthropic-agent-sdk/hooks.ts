@@ -9,6 +9,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type { WorkflowVerdict } from '../core-client/index.js';
+import { stringFrom } from '../internal/strings.js';
 import { EVENT } from '../governance/events.js';
 import {
   createOpenBoxAnthropicRuntimeContext,
@@ -937,10 +938,6 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
     default:
       return { decision: 'block', reason };
   }
-}
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function sanitizePathSegment(value: string): string {

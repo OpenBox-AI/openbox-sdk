@@ -15,6 +15,7 @@ import {
 import type { CursorConfig } from '../config.js';
 import { clearSession, isStarted, markStarted } from '../session-resolver.js';
 import { EVENT } from '../activity-types.js';
+import { firstTrimmed as firstString } from '../../../internal/strings.js';
 import {
   assistantOutputTelemetryFields,
 } from '../../../governance/assistant-output.js';
@@ -37,15 +38,6 @@ type ObserveCapableCursorSession = CursorSession & {
     payload: GovernedPayload,
   ) => Promise<WorkflowVerdict>;
 };
-
-function firstString(...values: unknown[]): string | undefined {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return undefined;
-}
 
 function numberFrom(value: unknown): number | undefined {
   const numeric =

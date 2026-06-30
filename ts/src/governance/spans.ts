@@ -17,6 +17,7 @@ import type { SpanData } from '../core-client/index.js';
 import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
 import { USAGE_NORMALIZATION_SURFACE } from './generated/capability-matrix.js';
 import { objectRecord } from '../internal/records.js';
+import { firstTrimmed } from '../internal/strings.js';
 
 function hex(len: number): string {
   return Array.from({ length: len }, () =>
@@ -487,14 +488,6 @@ function normalizeUsage(usage?: LLMTokenUsage): JsonRecord | undefined {
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-function firstTrimmed(...values: Array<unknown>): string | undefined {
-  for (const value of values) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (trimmed) return trimmed;
-  }
-  return undefined;
-}
 
 function normalizeProvider(value: string | undefined): string | undefined {
   if (!value) return undefined;

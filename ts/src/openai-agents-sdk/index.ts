@@ -37,6 +37,7 @@ import {
 } from './payloads.js';
 import { normalizeOpenBoxUsage } from '../governance/usage.js';
 import { arrayFrom } from '../internal/records.js';
+import { firstTrimmed as firstString, stringFrom } from '../internal/strings.js';
 import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
 
 type OpenAIAgentHooksInstance = OpenAIAgentHooks<unknown, 'text'>;
@@ -698,20 +699,6 @@ function firstStringFromRecord(
 ): string | undefined {
   const record = objectRecord(value);
   return firstString(...keys.map((key) => record[key]));
-}
-
-function firstString(...values: unknown[]): string | undefined {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim().length > 0)
-      return value.trim();
-  }
-  return undefined;
-}
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : undefined;
 }
 
 function firstStringForFields(

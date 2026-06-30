@@ -14,6 +14,7 @@ import {
 import { USAGE_NORMALIZATION_SURFACE } from '../governance/generated/capability-matrix.js';
 import { buildAssistantOutputSpan } from '../governance/assistant-output.js';
 import { objectRecord, arrayFrom, hasOwnKey } from '../internal/records.js';
+import { firstTrimmed as firstString, stringFrom } from '../internal/strings.js';
 import type { OpenBoxAgentsToolCallDetails } from './types.js';
 
 export { objectRecord };
@@ -500,20 +501,6 @@ function assistantContentFromResult(
   return undefined;
 }
 
-
-function firstString(...values: unknown[]): string | undefined {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim().length > 0)
-      return value.trim();
-  }
-  return undefined;
-}
-
-function stringFrom(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-}
 
 function stringAtPath(record: Record<string, unknown>, path: string): string | undefined {
   if (Object.prototype.hasOwnProperty.call(record, path)) {
