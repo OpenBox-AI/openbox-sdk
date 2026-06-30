@@ -448,6 +448,9 @@ function ageResultFromVerdict(
 }
 
 export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
+  // Absent verdict (no governance signal) defaults to allow — callers that mean
+  // "no verdict" rely on this. A PRESENT but unrecognized value fails CLOSED below.
+  if (value === undefined || value === null) return 'allow';
   if (typeof value === 'number') {
     switch (value) {
       case 1:
@@ -459,12 +462,15 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
       case 4:
         return 'halt';
       case 0:
-      default:
         return 'allow';
+      default:
+        // Unknown numeric arm — a garbled verdict must NOT silently permit.
+        return 'block';
     }
   }
   const normalized =
     typeof value === 'string' ? value.trim().toLowerCase().replace(/-/g, '_') : value;
+  if (normalized === '') return 'allow';
   if (
     normalized === 'allow' ||
     normalized === 'constrain' ||
@@ -495,7 +501,8 @@ export function normalizeArm(value: unknown): WorkflowVerdict['arm'] {
     normalized === 'pending' ||
     normalized === 'ask'
   ) return 'require_approval';
-  return 'allow';
+  // Present but unrecognized arm string — fail CLOSED rather than permit.
+  return 'block';
 }
 
 export function effectiveArmForGuardrails(

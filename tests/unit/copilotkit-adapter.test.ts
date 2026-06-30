@@ -1154,13 +1154,13 @@ describe('CopilotKit OpenBox adapter', () => {
     expect(core.pollApproval).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to allow for unrecognized CopilotKit approval verdict strings', async () => {
+  it('fails CLOSED (block) for unrecognized CopilotKit approval verdict strings', async () => {
     const core = {
       evaluate: vi.fn(),
       pollApproval: vi.fn(async () => ({
         verdict: 'future_verdict_value',
         action: 'require_approval',
-        reason: 'unknown verdict is compatibility-allowed',
+        reason: 'unknown verdict must not silently permit',
       })),
     };
     const adapter = createOpenBoxCopilotKitAdapter({
@@ -1179,8 +1179,8 @@ describe('CopilotKit OpenBox adapter', () => {
         activityId: 'activity-approval',
       }),
     ).resolves.toMatchObject({
-      arm: 'allow',
-      reason: 'unknown verdict is compatibility-allowed',
+      arm: 'block',
+      reason: 'unknown verdict must not silently permit',
     });
     expect(core.pollApproval).toHaveBeenCalledTimes(1);
   });

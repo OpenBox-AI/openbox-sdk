@@ -8,15 +8,10 @@ import { readFileSync } from 'fs';
  */
 export function parseJsonInput<T = unknown>(value: string): T {
   if (value === '-') {
-    const chunks: Buffer[] = [];
-    const fd = require('fs').openSync('/dev/stdin', 'r');
-    const buf = Buffer.alloc(4096);
-    let n: number;
-    while ((n = require('fs').readSync(fd, buf)) > 0) {
-      chunks.push(buf.subarray(0, n));
-    }
-    require('fs').closeSync(fd);
-    return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+    // Read all of stdin (fd 0) to EOF. (Previously used `require('fs')`, which
+    // throws in an ESM runtime, plus a reused-buffer loop that corrupted payloads
+    // over 4 KB — both broke the documented `-` stdin input mode.)
+    return JSON.parse(readFileSync(0, 'utf-8'));
   }
 
   if (value.startsWith('@')) {
