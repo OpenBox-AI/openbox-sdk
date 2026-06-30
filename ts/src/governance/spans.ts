@@ -1509,6 +1509,17 @@ export function canonicalizeSpan(span: Record<string, unknown>): Record<string, 
   // captured-LLM path serializes raw bodies; cap here at the chokepoint so every
   // http_request span matches regardless of source (idempotent when already capped).
   if (hook === 'http_request') {
+    // SINGLE redaction chokepoint. Every span — including sub-op merge-backs that
+    // re-inject raw `completed` fields (recordOpSpanPair) — lands here LAST, so
+    // sanitizing root headers here is the one authority that guarantees sensitive
+    // headers (set-cookie/www-authenticate/authorization) can never reach Core in
+    // the clear, regardless of upstream build/merge order. No other path redacts.
+    for (const k of ['request_headers', 'response_headers'] as const) {
+      const h = out[k];
+      if (h && typeof h === 'object' && !Array.isArray(h)) {
+        out[k] = sanitizeHeaderMap(h) ?? null;
+      }
+    }
     const cap = CANONICAL_SPAN.caps.httpBody;
     for (const k of ['request_body', 'response_body'] as const) {
       const v = out[k];

@@ -578,6 +578,25 @@ describe('LLM telemetry helpers via canonical buildSpan llm', () => {
     expect(small.response_body).toBeNull();
   });
 
+  test('canonicalizeSpan redacts sensitive root headers (single redaction chokepoint)', () => {
+    // Guards the response-header leak: a raw `completed` merge-back can re-inject
+    // sensitive headers over buildSpan's redaction, so the chokepoint must redact.
+    const out = canonicalizeSpan({
+      hook_type: 'http_request',
+      request_headers: { authorization: 'Bearer sk-secret', 'x-trace': 'ok' },
+      response_headers: { 'set-cookie': 'session=abc', 'content-type': 'text/plain' },
+    });
+    const req = out.request_headers as Record<string, string>;
+    const res = out.response_headers as Record<string, string>;
+    expect(req.authorization).toBe('[REDACTED]');
+    expect(req['x-trace']).toBe('ok');
+    expect(res['set-cookie']).toBe('[REDACTED]');
+    expect(res['content-type']).toBe('text/plain');
+    // null headers pass through untouched (no redaction needed)
+    const noHdr = canonicalizeSpan({ hook_type: 'http_request', request_headers: null });
+    expect(noHdr.request_headers).toBeNull();
+  });
+
   test('buildSpan llm derives error + ERROR status from http_status_code >= 400', () => {
     // Parity: canonical _build_http_span_data sets error="HTTP {status}" + ERROR
     // for any >= 400 response, independent of a caller-supplied error.
