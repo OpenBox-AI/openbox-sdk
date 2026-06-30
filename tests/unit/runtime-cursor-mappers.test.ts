@@ -79,20 +79,19 @@ describe('core-client/redaction', () => {
     }
   });
 
-  it('redact patterns scrub OPENBOX_API_KEY env names + JWT tokens', async () => {
-    const mod = await import('../../ts/src/core-client/redaction');
-    const fn = (mod as any).redact ?? (mod as any).redactSecrets ?? (mod as any).default;
-    if (typeof fn === 'function') {
-      const samples = [
-        `export OPENBOX_API_KEY=${['obx_live_abcd', '1234567890123456789012345678901234567890123456'].join('')}`,
-        'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIx',
-        'X-Api-Key: obx_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-      ];
-      for (const s of samples) {
-        const out = fn(s);
-        expect(typeof out).toBe('string');
-      }
-    }
+  it('applyInputRedaction replaces flagged secret content with the verdict redaction', async () => {
+    // (Was a no-op: it looked for a non-existent `redact`/`redactSecrets` export and
+    // only asserted typeof === 'string'. Redaction is verdict-driven via
+    // applyInputRedaction; assert the secret is ACTUALLY removed.)
+    const { applyInputRedaction } = await import('../../ts/src/core-client/redaction');
+    const original = { prompt: 'export OPENBOX_API_KEY=obx_live_secretvalue' };
+    const out = applyInputRedaction(original, {
+      inputType: 'activity_input',
+      redactedInput: { prompt: '[REDACTED]' },
+    } as never);
+    expect(out).toEqual({ prompt: '[REDACTED]' });
+    expect(JSON.stringify(out)).not.toContain('obx_live_secretvalue');
+    expect(applyInputRedaction(original, undefined)).toEqual(original);
   });
 });
 

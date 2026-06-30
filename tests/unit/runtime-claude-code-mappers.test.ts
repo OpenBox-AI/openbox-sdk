@@ -819,17 +819,19 @@ describe('cli/commands; skill + install', () => {
 });
 
 describe('core-client/redaction', () => {
-  it('redacts API keys + tokens from URL/headers', async () => {
-    const mod = await import('../../ts/src/core-client/redaction');
-    expect(typeof mod).toBe('object');
-    // Redaction is a pure module; importing it counts.
-    // If it has a `redact` export, exercise it on synthetic input.
-    const fn = (mod as any).redact ?? (mod as any).redactSecrets;
-    if (typeof fn === 'function') {
-      const out = fn('Authorization: Bearer obx_live_secretvalue');
-      expect(typeof out).toBe('string');
-      expect(out).not.toContain('obx_live_secretvalue');
-    }
+  it('applyOutputRedaction replaces flagged output with the verdict redaction', async () => {
+    // (Was a no-op + tautology: typeof mod === 'object' plus a real check gated
+    // behind a non-existent `redact`/`redactSecrets` export. Redaction is
+    // verdict-driven; assert the secret is ACTUALLY removed.)
+    const { applyOutputRedaction } = await import('../../ts/src/core-client/redaction');
+    const original = { result: 'Authorization: Bearer obx_live_secretvalue' };
+    const out = applyOutputRedaction(original, {
+      inputType: 'activity_output',
+      redactedOutput: { result: '[REDACTED]' },
+    } as never);
+    expect(JSON.stringify(out)).not.toContain('obx_live_secretvalue');
+    // no verdict → passthrough unchanged
+    expect(applyOutputRedaction(original, undefined)).toEqual(original);
   });
 });
 
