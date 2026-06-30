@@ -16,6 +16,7 @@ import type {
 } from '../../core-client/index.js';
 import { verdictHasIncompleteGovernanceChecks } from '../../core-client/index.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
+import { failClosedVerdict, verdictDecision, verdictReason } from '../_shared/verdict.js';
 import { getConfigDir, loadConfig } from './config.js';
 import { createLogger } from '../../logging/logger.js';
 import {
@@ -71,19 +72,6 @@ const MAX_STDIN_BYTES = 10 * 1024 * 1024;
 
 type HandlerResult = Promise<WorkflowVerdict | undefined | void>;
 type HookHandler = (env: ClaudeCodeEnvelope, session: ClaudeCodeSession) => HandlerResult;
-
-function verdictDecision(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const record = value as Record<string, unknown>;
-  const decision = record.arm ?? record.verdict ?? record.action ?? record.decision;
-  return typeof decision === 'string' && decision.trim() ? decision.trim() : undefined;
-}
-
-function verdictReason(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const reason = (value as Record<string, unknown>).reason;
-  return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
-}
 
 function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -144,14 +132,6 @@ function logged<E, S, R>(
       });
       throw err;
     }
-  };
-}
-
-function failClosedVerdict(reason: string): WorkflowVerdict {
-  return {
-    arm: 'block',
-    reason,
-    riskScore: 1,
   };
 }
 
@@ -482,7 +462,23 @@ export async function runClaudeHook(): Promise<void> {
 
   await createClaudeCodeAdapter({
     core,
-    resolveSession: (env) => resolveSession(env, cfg),
+    // The generated adapter resolves the session BEFORE the guarded
+    // decision try/catch, so a throwing resolver would otherwise escape
+    // run() with no deny output (fail open). Wrap it so decision-capable
+    // hooks fail closed (deny) on a resolver throw, matching
+    // governancePolicy:'fail_closed'. Observe-only hooks and active Stop
+    // retries preserve prior behavior by re-raising.
+    resolveSession: async (env) => {
+      try {
+        return await resolveSession(env, cfg);
+      } catch (err) {
+        if (!isDecisionCapable(env.hook_event_name) || isActiveStopRetry(env)) throw err;
+        const reason = reasonFromError('OpenBox governance failed while resolving Claude Code session', err);
+        if (cfg.verbose) console.error(`[openbox claude-code] ${reason}`);
+        writeFailClosedIfPossible(env, reason);
+        return process.exit(0);
+      }
+    },
     approvalMaxWaitMs,
     readStdin: async () => raw,
     // When approvalMode is inline, the SDK skips its internal poll loop

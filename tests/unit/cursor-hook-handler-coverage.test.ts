@@ -550,4 +550,64 @@ describe('runtime/cursor/hook-handler; adapter orchestration', () => {
     });
     write.mockRestore();
   });
+
+  it('fails closed when the session resolver throws for a decision-capable hook and re-raises for observe-only', async () => {
+    const { runCursorHook } = await import('../../ts/src/runtime/cursor/hook-handler.ts');
+    await runCursorHook();
+    expect(adapterOptions.resolveSession).toBeTypeOf('function');
+
+    const resolver = vi.mocked(
+      (await import('../../ts/src/runtime/cursor/session-resolver.js')).resolveSession,
+    );
+    const original = resolver.getMockImplementation();
+    resolver.mockImplementation(() => {
+      throw new Error('session store unreadable');
+    });
+
+    let stdout = '';
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: any) => {
+      stdout += String(chunk);
+      return true;
+    }) as any);
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('exit');
+    }) as never);
+
+    try {
+      // Decision-capable beforeShellExecution: a throwing resolver must fail
+      // CLOSED (deny) and exit(0), not escape run() with no output (fail open).
+      await expect(
+        adapterOptions.resolveSession({
+          conversation_id: 'cursor-resolver-throw',
+          hook_event_name: 'beforeShellExecution',
+          command: 'pwd',
+          cwd: '/tmp',
+        }),
+      ).rejects.toThrow('exit');
+      expect(exit).toHaveBeenCalledWith(0);
+      expect(JSON.parse(stdout)).toMatchObject({
+        permission: 'deny',
+        user_message: expect.stringContaining('failed while resolving Cursor session'),
+      });
+
+      // Observe-only afterShellExecution: preserve prior behavior by
+      // re-raising the original error with no deny output and no exit.
+      stdout = '';
+      exit.mockClear();
+      await expect(
+        adapterOptions.resolveSession({
+          conversation_id: 'cursor-resolver-throw',
+          hook_event_name: 'afterShellExecution',
+          command: 'pwd',
+          cwd: '/tmp',
+        }),
+      ).rejects.toThrow('session store unreadable');
+      expect(exit).not.toHaveBeenCalled();
+      expect(stdout).toBe('');
+    } finally {
+      if (original) resolver.mockImplementation(original);
+      write.mockRestore();
+      exit.mockRestore();
+    }
+  });
 });

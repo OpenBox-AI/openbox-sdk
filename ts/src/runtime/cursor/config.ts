@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 import type { AgentIdentityConfig } from '../../core-client/index.js';
 import { resolveAgentIdentity } from '../../env/agent-identity.js';
+import { asBoolean } from '../../internal/coerce.js';
 import { cursorRuntimeConfigDir } from './plugin.js';
 
 function hasRuntimeConfig(dir: string): boolean {
@@ -139,8 +140,4 @@ export function getConfigDir(): string {
 
 export function getConfigFilePath(): string {
   return CONFIG_FILE;
-}
-
-function asBoolean(value: string): boolean {
-  return value === 'true' || value === '1';
 }

@@ -11,6 +11,7 @@ import {
 } from '../../core-client/index.js';
 import { createLogger } from '../../logging/logger.js';
 import { makeHookLog } from '../../logging/hook-log.js';
+import { failClosedVerdict, verdictDecision, verdictReason } from '../_shared/verdict.js';
 import { getConfigDir, loadConfig, type CodexConfig } from './config.js';
 import { reasonFromError } from '../../internal/errors.js';
 import {
@@ -77,19 +78,6 @@ function logged<E, S, R>(
   };
 }
 
-function verdictDecision(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const record = value as Record<string, unknown>;
-  const decision = record.arm ?? record.verdict ?? record.action ?? record.decision;
-  return typeof decision === 'string' && decision.trim() ? decision.trim() : undefined;
-}
-
-function verdictReason(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const reason = (value as Record<string, unknown>).reason;
-  return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
-}
-
 function verdictLogMetadata(value: unknown): Record<string, string | boolean> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const record = value as Record<string, unknown>;
@@ -117,14 +105,6 @@ function envelopeLogMetadata(value: unknown): Record<string, string> {
     ...(typeof record.tool_name === 'string' && record.tool_name.trim()
       ? { tool_name: record.tool_name.trim() }
       : {}),
-  };
-}
-
-function failClosedVerdict(reason: string): WorkflowVerdict {
-  return {
-    arm: 'block',
-    reason,
-    riskScore: 1,
   };
 }
 
@@ -316,7 +296,23 @@ export async function runCodexHook(): Promise<void> {
 
   await createCodexAdapter({
     core,
-    resolveSession: (env) => resolveSession(env, cfg),
+    // The generated adapter resolves the session BEFORE the guarded
+    // decision try/catch, so a throwing resolver would otherwise escape
+    // run() with no deny output (fail open). Wrap it so decision-capable
+    // hooks fail closed (deny) on a resolver throw, matching
+    // governancePolicy:'fail_closed'. Observe-only hooks preserve prior
+    // behavior by re-raising.
+    resolveSession: async (env) => {
+      try {
+        return await resolveSession(env, cfg);
+      } catch (err) {
+        if (!isDecisionCapable(env.hook_event_name)) throw err;
+        const reason = reasonFromError('OpenBox governance failed while resolving Codex session', err);
+        if (cfg.verbose) console.error(`[openbox codex] ${reason}`);
+        writeFailClosedIfPossible(env, reason);
+        return process.exit(0);
+      }
+    },
     approvalMaxWaitMs,
     inlineApproval: cfg.approvalMode === 'inline' || cfg.approvalMode === 'defer',
     deferApproval: cfg.approvalMode === 'defer',

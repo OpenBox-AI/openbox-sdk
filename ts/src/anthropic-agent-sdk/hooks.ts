@@ -10,6 +10,7 @@ import type {
 import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type { WorkflowVerdict } from '../core-client/index.js';
 import { stringFrom } from '../internal/strings.js';
+import { sanitizePathSegment } from '../internal/paths.js';
 import { errorMessage } from '../internal/errors.js';
 import { EVENT } from '../governance/events.js';
 import {
@@ -939,14 +940,6 @@ function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown)
     default:
       return { decision: 'block', reason };
   }
-}
-
-function sanitizePathSegment(value: string): string {
-  const sanitized = value
-    .trim()
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return sanitized || 'worktree';
 }
 
 function numberFrom(value: unknown): number | undefined {

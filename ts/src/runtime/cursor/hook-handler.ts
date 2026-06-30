@@ -12,6 +12,7 @@ import {
   type WorkflowVerdict,
 } from '../../core-client/index.js';
 import { getConfigDir, loadConfig } from './config.js';
+import { failClosedVerdict } from '../_shared/verdict.js';
 import { reasonFromError } from '../../internal/errors.js';
 import { createLogger } from '../../logging/logger.js';
 import {
@@ -99,14 +100,6 @@ const CURSOR_PERMISSION_EVENTS = new Set([
   'beforeTabFileRead',
   'subagentStart',
 ]);
-
-function failClosedVerdict(reason: string): WorkflowVerdict {
-  return {
-    arm: 'block',
-    reason,
-    riskScore: 1,
-  };
-}
 
 function isDecisionCapable(eventName: string | undefined): boolean {
   return CURSOR_CONTINUE_EVENTS.has(String(eventName ?? '')) ||
@@ -316,7 +309,23 @@ export async function runCursorHook(): Promise<void> {
 
   await createCursorAdapter({
     core,
-    resolveSession: (env) => resolveSession(env, cfg),
+    // The generated adapter resolves the session BEFORE the guarded
+    // decision try/catch, so a throwing resolver would otherwise escape
+    // run() with no deny output (fail open). Wrap it so decision-capable
+    // hooks fail closed (deny) on a resolver throw, matching
+    // governancePolicy:'fail_closed'. Observe-only hooks preserve prior
+    // behavior by re-raising.
+    resolveSession: async (env) => {
+      try {
+        return await resolveSession(env, cfg);
+      } catch (err) {
+        if (!isDecisionCapable(env.hook_event_name)) throw err;
+        const reason = reasonFromError('OpenBox governance failed while resolving Cursor session', err);
+        if (cfg.verbose) console.error(`[openbox cursor] ${reason}`);
+        writeFailClosedIfPossible(env, reason);
+        return process.exit(0);
+      }
+    },
     approvalMaxWaitMs,
     readStdin: async () => raw,
     // When approvalMode is inline, the SDK skips its internal poll loop

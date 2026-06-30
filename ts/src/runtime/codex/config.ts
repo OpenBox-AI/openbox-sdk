@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import type { AgentIdentityConfig } from '../../core-client/index.js';
 import { resolveAgentIdentity } from '../../env/agent-identity.js';
+import { asBoolean } from '../../internal/coerce.js';
 import { codexRuntimeConfigDir } from './install.js';
 
 function hasRuntimeConfig(dir: string): boolean {
@@ -122,8 +123,4 @@ function parseApprovalMode(value: string): CodexConfig['approvalMode'] {
   const mode = value.toLowerCase();
   if (mode === 'inline' || mode === 'defer') return mode;
   return 'remote';
-}
-
-function asBoolean(value: string): boolean {
-  return value === 'true' || value === '1';
 }

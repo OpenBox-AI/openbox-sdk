@@ -10,6 +10,7 @@ import {
 } from '../../../core-client/generated/runtime/claude-code.js';
 import { stampSource } from '../../../approvals/source.js';
 import { stringFrom } from '../../../internal/strings.js';
+import { sanitizePathSegment } from '../../../internal/paths.js';
 import type { ClaudeCodeConfig } from '../config.js';
 import { ACTIVITY_TYPES, EVENT } from '../activity-types.js';
 
@@ -60,12 +61,4 @@ export async function handleWorktreeCreate(
     delete record.worktree_path;
     throw error;
   }
-}
-
-function sanitizePathSegment(value: string): string {
-  const sanitized = value
-    .trim()
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return sanitized || 'worktree';
 }

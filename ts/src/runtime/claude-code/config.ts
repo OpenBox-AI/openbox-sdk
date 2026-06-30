@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadJsonConfig, loadDotenv } from '../../config/host-config.js';
 import type { AgentIdentityConfig } from '../../core-client/index.js';
 import { resolveAgentIdentity } from '../../env/agent-identity.js';
+import { asBoolean } from '../../internal/coerce.js';
 import {
   claudeCodeRuntimeConfigDir,
   claudeCodeSettingsLocalFile,
@@ -156,8 +157,4 @@ function parseApprovalMode(value: string): ClaudeCodeConfig['approvalMode'] {
   const mode = value.toLowerCase();
   if (mode === 'inline' || mode === 'defer') return mode;
   return 'remote';
-}
-
-function asBoolean(value: string): boolean {
-  return value === 'true' || value === '1';
 }
