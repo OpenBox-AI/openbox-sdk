@@ -9,6 +9,7 @@ import {
   type ClaudeCodeAdapterHandlers,
   type ClaudeCodeEnvelope,
 } from '../../core-client/generated/runtime/claude-code.js';
+import { reasonFromError } from '../../internal/errors.js';
 import type {
   ClaudeCodeSession,
   WorkflowVerdict,
@@ -202,11 +203,6 @@ async function ensureWorkflowStartedForDecision(
   // stores workflow/run as a unique session key.
   await session.workflowStarted();
   markStarted(env.session_id, cfg);
-}
-
-function reasonFromError(prefix: string, err?: unknown): string {
-  const detail = err instanceof Error ? err.message : String(err ?? '');
-  return detail ? `${prefix}: ${detail}` : prefix;
 }
 
 function guarded(

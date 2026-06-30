@@ -47,7 +47,8 @@ import {
   type CapturedLLMExchange,
 } from './otel-capture.js';
 import { buildSpan } from '../governance/spans.js';
-import { randomBytes } from 'node:crypto';
+import { newSpanId, newTraceId } from '../internal/ids.js';
+import { errorMessage } from '../internal/errors.js';
 
 type HaltedCopilotSession = Extract<
   OpenBoxCopilotSessionState,
@@ -683,8 +684,8 @@ function capturedLlmCompletionSpans(
     return typeof record[key] === 'string' ? (record[key] as string) : undefined;
   };
   return captures.flatMap((exchange) => {
-    const spanId = randomBytes(8).toString('hex');
-    const traceId = randomBytes(16).toString('hex');
+    const spanId = newSpanId();
+    const traceId = newTraceId();
     const identify = (span: Record<string, unknown>): Record<string, unknown> => ({
       ...span,
       span_id: spanId,
@@ -795,7 +796,7 @@ function createTimingCollector(
     } catch (error) {
       console.warn(
         `[openbox:copilotkit] timing event observer failed: ${
-          error instanceof Error ? error.message : String(error)
+          errorMessage(error)
         }`,
       );
     }

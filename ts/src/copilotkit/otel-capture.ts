@@ -20,7 +20,8 @@
 // to that call collects the exchanges and spans; the tool then reads them.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { newSpanId, newTraceId } from '../internal/ids.js';
 import { SpanKind, trace, type Span } from '@opentelemetry/api';
 import type { SpanData } from '../core-client/index.js';
 import { CANONICAL_SPAN } from '../core-client/generated/govern.js';
@@ -176,8 +177,8 @@ function recordOpSpanPair(
 ): void {
   const store = captureStore.getStore();
   if (!store) return;
-  const spanId = randomBytes(8).toString('hex');
-  const traceId = randomBytes(16).toString('hex');
+  const spanId = newSpanId();
+  const traceId = newTraceId();
   const parentSpanId = store.activityId
     ? parentSpanIdForActivity(store.activityId)
     : null;
@@ -364,8 +365,8 @@ export function recordFunctionCall(opts: {
 }): void {
   const store = captureStore.getStore();
   if (!store) return;
-  const spanId = randomBytes(8).toString('hex');
-  const traceId = randomBytes(16).toString('hex');
+  const spanId = newSpanId();
+  const traceId = newTraceId();
   const parentSpanId = store.activityId
     ? parentSpanIdForActivity(store.activityId)
     : null;

@@ -12,6 +12,7 @@ import {
   type WorkflowVerdict,
 } from '../../core-client/index.js';
 import { getConfigDir, loadConfig } from './config.js';
+import { reasonFromError } from '../../internal/errors.js';
 import { createLogger } from '../../logging/logger.js';
 import {
   isStarted,
@@ -128,11 +129,6 @@ function ensureGoalContext(env: CursorEnvelope, cfg: ReturnType<typeof loadConfi
   throw new Error(
     'OpenBox goal context is required for AGE alignment, but this Cursor session has no prompt/query/workflow goal.',
   );
-}
-
-function reasonFromError(prefix: string, err?: unknown): string {
-  const detail = err instanceof Error ? err.message : String(err ?? '');
-  return detail ? `${prefix}: ${detail}` : prefix;
 }
 
 async function ensureWorkflowStartedForDecision(

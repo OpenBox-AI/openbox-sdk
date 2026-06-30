@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { newSpanId, newTraceId } from '../../internal/ids.js';
 import type {
   GovernedPayload,
   N8nSession,
@@ -301,8 +301,8 @@ function nodeExecutionSpan(input: N8nNodePostExecutePayloadInput) {
   const endTime = timeToUnixNano(input.endTime) ?? nowUnixNano();
   const error = errorDescription(input.error);
   return stripServerComputedSemantic({
-    span_id: randomBytes(8).toString('hex'),
-    trace_id: randomBytes(16).toString('hex'),
+    span_id: newSpanId(),
+    trace_id: newTraceId(),
     name: `n8n.${toolName}`,
     // Canonical function_call spans are INTERNAL (tracing.py); 'tool' is not a
     // valid OTel SpanKind. Also carry the canonical function/module/args that

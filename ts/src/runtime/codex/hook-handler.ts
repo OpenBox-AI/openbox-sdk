@@ -12,6 +12,7 @@ import {
 import { createLogger } from '../../logging/logger.js';
 import { makeHookLog } from '../../logging/hook-log.js';
 import { getConfigDir, loadConfig, type CodexConfig } from './config.js';
+import { reasonFromError } from '../../internal/errors.js';
 import {
   isStarted,
   markStarted,
@@ -125,11 +126,6 @@ function failClosedVerdict(reason: string): WorkflowVerdict {
     reason,
     riskScore: 1,
   };
-}
-
-function reasonFromError(prefix: string, err?: unknown): string {
-  const detail = err instanceof Error ? err.message : String(err ?? '');
-  return detail ? `${prefix}: ${detail}` : prefix;
 }
 
 function isDecisionCapable(eventName: string | undefined): boolean {

@@ -18,6 +18,7 @@ import {
   type AgentIdentityConfig,
 } from '../../core-client/index.js';
 import { checkProjectOpenBoxRuntime } from '../project-openbox-runtime.js';
+import { errorMessage } from '../../internal/errors.js';
 import { resolveInstallRuntimeCoreUrl } from '../install-runtime-defaults.js';
 
 export type CodexInstallCheckStatus = 'pass' | 'fail' | 'skip';
@@ -112,7 +113,7 @@ function buildRuntimeEnv(cwd = process.cwd()) {
     try {
       coreUrl = normalizeServiceUrl('OPENBOX_CORE_URL', rawCoreUrl);
     } catch (err) {
-      coreUrlError = err instanceof Error ? err.message : String(err);
+      coreUrlError = errorMessage(err);
     }
   }
   const apiKey = get('OPENBOX_API_KEY') ?? '';

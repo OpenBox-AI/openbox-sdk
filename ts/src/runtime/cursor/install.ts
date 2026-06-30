@@ -15,6 +15,7 @@ import {
   verifyCursorRepoMode,
 } from './plugin.js';
 import { checkProjectOpenBoxRuntime } from '../project-openbox-runtime.js';
+import { errorMessage } from '../../internal/errors.js';
 
 export type CursorInstallCheckStatus = 'pass' | 'fail' | 'skip';
 
@@ -61,7 +62,7 @@ function buildHookRuntimeEnv(cwd = process.cwd()) {
     try {
       coreUrl = normalizeServiceUrl('OPENBOX_CORE_URL', rawCoreUrl);
     } catch (err) {
-      coreUrlError = err instanceof Error ? err.message : String(err);
+      coreUrlError = errorMessage(err);
     }
   }
   const apiKey = get('OPENBOX_API_KEY') ?? '';

@@ -4,6 +4,7 @@ import { loadDotenv, loadJsonConfig } from '../../config/host-config.js';
 import { OpenBoxCoreClient } from '../../core-client/index.js';
 import { normalizeServiceUrl } from '../../env/connection.js';
 import { resolveAgentIdentity, validateApiKeyFormat } from '../../env/index.js';
+import { errorMessage } from '../../internal/errors.js';
 import {
   claudeCodePluginTargetDir,
   claudeCodeRuntimeConfigDir,
@@ -76,7 +77,7 @@ function buildProjectRuntimeEnv(cwd = process.cwd()) {
     try {
       coreUrl = normalizeServiceUrl('OPENBOX_CORE_URL', rawCoreUrl);
     } catch (err) {
-      coreUrlError = err instanceof Error ? err.message : String(err);
+      coreUrlError = errorMessage(err);
     }
   }
 

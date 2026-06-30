@@ -8,6 +8,7 @@ import {
   tool as openaiAgentsTool,
 } from '@openai/agents';
 import type { WorkflowVerdict } from '../core-client/index.js';
+import { errorMessage } from '../internal/errors.js';
 import {
   DEFAULT_OPENAI_AGENTS_TASK_QUEUE,
   DEFAULT_OPENAI_AGENTS_WORKFLOW_TYPE,
@@ -207,7 +208,7 @@ export function createOpenBoxAgentsTool(
           toolConfig.name,
           governedInput,
           {
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage(error),
           },
           call,
         );

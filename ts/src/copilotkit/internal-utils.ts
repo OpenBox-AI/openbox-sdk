@@ -414,9 +414,9 @@ export function errorOutput(error: unknown): Record<string, unknown> {
     : { message: String(error) };
 }
 
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+// `errorMessage` now lives in the canonical single source ../internal/errors.ts
+// and is re-exported here so existing importers keep working. No drift.
+export { errorMessage } from '../internal/errors.js';
 
 export function truncate(value: string, maxLength = 4_000): string {
   return value.length > maxLength

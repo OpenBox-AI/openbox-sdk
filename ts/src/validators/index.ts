@@ -27,6 +27,7 @@
 export { parseJsonInput } from './input.js';
 
 import { EXIT, exitCodeForStatus } from '../cli/exit-codes.js';
+import { errorMessage } from '../internal/errors.js';
 import { error as printError, warn } from '../cli/output.js';
 import {
   CANONICAL_ACTIVITY_TYPES as GENERATED_CANONICAL_ACTIVITY_TYPES,
@@ -107,11 +108,11 @@ export function reportAndExit(err: unknown): never {
     code === 'UND_ERR_SOCKET' ||
     code === 'UND_ERR_CONNECT_TIMEOUT'
   ) {
-    printError(`network: ${err instanceof Error ? err.message : String(err)}`);
+    printError(`network: ${errorMessage(err)}`);
     process.exit(EXIT.NETWORK);
   }
 
-  printError(err instanceof Error ? err.message : String(err));
+  printError(errorMessage(err));
   process.exit(EXIT.GENERIC);
 }
 

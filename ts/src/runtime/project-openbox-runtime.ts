@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readJsonFile as readJson } from '../internal/json.js';
 
 const PACKAGE_NAME = '@openbox-ai/openbox-sdk';
 const SDK_LINK_RELATIVE = path.join('.openbox', 'sdk');
@@ -27,14 +28,6 @@ export interface ProjectOpenBoxRuntimeCheck {
 export interface EnsureProjectOpenBoxRuntimeOptions {
   cwd?: string;
   gitignoreEntries?: string[];
-}
-
-function readJson(file: string): Record<string, unknown> | undefined {
-  try {
-    return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
 }
 
 function findPackageRoot(startFile = fileURLToPath(import.meta.url)): string {

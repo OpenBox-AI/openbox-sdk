@@ -17,6 +17,7 @@ import {
   withOpenBoxActivityMetadata,
 } from '../governance/spans.js';
 import { errorMessage, nowUnixNano } from './internal-utils.js';
+import { sleep } from '../internal/async.js';
 import {
   effectiveArmForGuardrails,
   guardrailFailureReason,
@@ -207,10 +208,6 @@ export async function pollApproval(
     }
     await sleep(APPROVAL_POLL_INTERVAL_MS);
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function completeWorkflow(

@@ -4,6 +4,7 @@ import { OpenBoxCoreClient } from '../core-client/index.js';
 import type { AgentIdentityConfig } from '../core-client/index.js';
 import { loadDotenv, loadJsonConfig } from '../config/host-config.js';
 import { resolveAgentIdentity } from '../env/agent-identity.js';
+import { errorMessage } from '../internal/errors.js';
 import { API_KEY_PATTERN } from '../env/generated/env-bindings.js';
 import type { OpenBoxAgentsSDKConfig } from './types.js';
 
@@ -270,7 +271,7 @@ function agentIdentityCheck(
     return {
       name: 'signed-agent-identity',
       status: 'fail',
-      detail: error instanceof Error ? error.message : String(error),
+      detail: errorMessage(error),
       remediation: 'Set both OPENBOX_AGENT_DID and OPENBOX_AGENT_PRIVATE_KEY, or remove both.',
     };
   }

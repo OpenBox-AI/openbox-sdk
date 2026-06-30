@@ -1,5 +1,7 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { SpanData } from '../core-client/core-client.js';
+import { newSpanId, newTraceId } from '../internal/ids.js';
+import { parentSpanIdForActivity } from './otel-capture.js';
 import type { GovernedPayload, WorkflowVerdict } from '../core-client/index.js';
 import { PRESET_ACTIVITY_TYPES } from '../core-client/generated/govern.js';
 import { EVENT } from '../governance/events.js';
@@ -946,10 +948,6 @@ function spansForGate(
   ];
 }
 
-function parentSpanIdForActivity(activityId: string): string {
-  return createHash('sha256').update(activityId).digest('hex').slice(0, 16);
-}
-
 function withParentSpanId<T extends SpanData>(span: T, activityId: string): T {
   // Every span produced by the gate builders carries parent_span_id=null, so
   // the already-parented early return is never taken here.
@@ -969,8 +967,8 @@ function pipelineSpan(
 ): SpanData {
   const now = nowUnixNano();
   const span = {
-    span_id: randomBytes(8).toString('hex'),
-    trace_id: randomBytes(16).toString('hex'),
+    span_id: newSpanId(),
+    trace_id: newTraceId(),
     name: activityType,
     kind: 'internal',
     span_type: 'function',

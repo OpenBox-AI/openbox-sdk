@@ -4,13 +4,13 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
+import { readJsonFile as readJson } from '../../internal/json.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/claude-code.js';
@@ -160,14 +160,6 @@ export interface UninstallClaudeCodePluginOptions {
 
 export function claudeCodePluginTargetDir(cwd = process.cwd()): string {
   return path.join(cwd, '.claude', 'skills', 'openbox');
-}
-
-function readJson(file: string): Record<string, unknown> | undefined {
-  try {
-    return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
 }
 
 function packageVersion(): string {

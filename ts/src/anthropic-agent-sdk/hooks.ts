@@ -10,6 +10,7 @@ import type {
 import { HOOK_EVENTS as ANTHROPIC_AGENT_HOOK_EVENTS } from '@anthropic-ai/claude-agent-sdk';
 import type { WorkflowVerdict } from '../core-client/index.js';
 import { stringFrom } from '../internal/strings.js';
+import { errorMessage } from '../internal/errors.js';
 import { EVENT } from '../governance/events.js';
 import {
   createOpenBoxAnthropicRuntimeContext,
@@ -886,7 +887,7 @@ function renderContinueBlock(verdict: WorkflowVerdict | undefined): HookJSONOutp
 
 function renderFailClosed(event: OpenBoxAnthropicAgentHookEvent, error: unknown): HookJSONOutput {
   const reason = `[OpenBox] OpenBox governance failed while processing Anthropic Agent SDK ${event}: ${
-    error instanceof Error ? error.message : String(error)
+    errorMessage(error)
   }`;
   switch (event) {
     case 'PreToolUse':

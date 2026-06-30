@@ -3,13 +3,13 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
+import { readJsonFile as readJson } from '../../internal/json.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOOK_SPEC } from '../../core-client/generated/runtime/codex.js';
@@ -96,14 +96,6 @@ export function codexRepoSkillTargetDir(cwd = process.cwd()): string {
 
 export function codexMarketplaceFile(cwd = process.cwd()): string {
   return path.join(cwd, '.agents', 'plugins', 'marketplace.json');
-}
-
-function readJson(file: string): Record<string, unknown> | undefined {
-  try {
-    return JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
 }
 
 function writeJson(file: string, value: unknown): void {
