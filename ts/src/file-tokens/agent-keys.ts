@@ -11,9 +11,9 @@
 // (not the .env-style token store) because the caller is always the
 // SDK/runtime; there's no target layering to support.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { dirname } from 'path';
+import { readFileSync, existsSync } from 'fs';
 import { resolveOsPath } from '../env/os-paths.js';
+import { writeSecretFile } from '../env/secret-file.js';
 
 export interface AgentKeyRecord {
   agentId: string;
@@ -26,7 +26,7 @@ export interface AgentKeyRecord {
 type Store = Record<string, AgentKeyRecord>;
 
 function getPath(): string {
-  return resolveOsPath('agent-keys' as never);
+  return resolveOsPath('agent-keys');
 }
 
 function read(): Store {
@@ -41,10 +41,7 @@ function read(): Store {
 }
 
 function write(store: Store): void {
-  const path = getPath();
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(path, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
+  writeSecretFile(getPath(), JSON.stringify(store, null, 2) + '\n');
 }
 
 /** Persist the runtime key for an agent. Last-write-wins on agentId. */

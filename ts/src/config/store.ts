@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname } from 'path';
+import { existsSync, readFileSync } from 'fs';
 import { resolveOsPath } from '../env/os-paths.js';
+import { writeSecretFile } from '../env/secret-file.js';
 
 type Store = Record<string, string>;
 
@@ -30,10 +30,7 @@ function read(): Store {
 function write(store: Store): void {
   const lines = ['# OpenBox CLI config; managed by `openbox config set/get/unset/list`.'];
   for (const key of Object.keys(store).sort()) lines.push(`${key}=${store[key]}`);
-  const path = getPath();
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(path, `${lines.join('\n')}\n`, { mode: 0o600 });
+  writeSecretFile(getPath(), `${lines.join('\n')}\n`);
 }
 
 export function effectiveScope(_requested: Scope, _key: string): Scope {

@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseTokenStore, serializeTokenStore, type TokenStore } from '../env/index.js';
 import { resolveOsPath } from '../env/os-paths.js';
+import { writeSecretFile } from '../env/secret-file.js';
 
 export function getTokenPath(): string {
   const projectTokens = resolve(process.cwd(), '.tokens');
@@ -27,16 +28,13 @@ export function saveApiKey(apiKey: string): void {
     features: _features,
     ...storeWithoutPrincipalMetadata
   } = store;
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(
+  writeSecretFile(
     path,
     serializeTokenStore({
       ...storeWithoutPrincipalMetadata,
       apiKey,
       updatedAt: new Date().toISOString(),
     }),
-    { mode: 0o600 },
   );
 }
 
@@ -45,9 +43,7 @@ export function clearApiKey(): boolean {
   const store = readTokenStore();
   if (!store.apiKey) return false;
   const { apiKey: _apiKey, ...next } = store;
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(path, serializeTokenStore(next), { mode: 0o600 });
+  writeSecretFile(path, serializeTokenStore(next));
   return true;
 }
 

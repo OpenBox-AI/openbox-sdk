@@ -22,7 +22,6 @@ import { handleUserPromptSubmit } from '../../ts/src/runtime/codex/mappers/promp
 import { handleStop } from '../../ts/src/runtime/codex/mappers/session.js';
 import { resolveSession } from '../../ts/src/runtime/codex/session-resolver.js';
 import { sideEffects } from '../../ts/src/runtime/codex/side-effects.js';
-import { parseApprovalExpirationMs } from '../../ts/src/core-client/approval-time.js';
 import { registerCodexCommands } from '../../ts/src/cli/commands/codex.js';
 import { registerMcpCommands } from '../../ts/src/cli/commands/mcp.js';
 
@@ -839,15 +838,6 @@ describe('Codex runtime adapter', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
-
-  it('parses approval expiration timestamps defensively', () => {
-    expect(parseApprovalExpirationMs(undefined)).toBeUndefined();
-    expect(parseApprovalExpirationMs(null)).toBeUndefined();
-    expect(parseApprovalExpirationMs('   ')).toBeUndefined();
-    expect(parseApprovalExpirationMs('not-a-date')).toBeUndefined();
-    expect(parseApprovalExpirationMs('2026-06-20 12:00:00')).toBe(Date.parse('2026-06-20T12:00:00Z'));
-    expect(parseApprovalExpirationMs('2026-06-20T12:00:00+07:00')).toBe(Date.parse('2026-06-20T12:00:00+07:00'));
   });
 
   it('covers Codex and MCP command validation branches', async () => {

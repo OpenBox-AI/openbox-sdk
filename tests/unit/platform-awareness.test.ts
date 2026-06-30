@@ -76,58 +76,36 @@ describe('platform / OS awareness contract', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('token-store writes carry mode: 0o600', () => {
-    // Token-store writes split across cli/config.ts (CLI-only:
-    // savePermissions, saveFeatures) and file-tokens/index.ts (the
-    // shared X-API-Key surface every Node consumer uses: saveApiKey,
-    // clearApiKey). Count both so a future split / dedupe can't drop
-    // the 0o600 invariant unnoticed.
-    const sources = [
-      readFileSync(`${SRC_ROOT}/cli/config.ts`, 'utf-8'),
-      readFileSync(`${SRC_ROOT}/file-tokens/index.ts`, 'utf-8'),
-    ];
-    let total = 0;
-    let secured = 0;
-    for (const src of sources) {
-      total += (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
-      secured += (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
+  it('the shared secret writer is the single 0o600 authority + consumers route through it', () => {
+    // Secret-bearing writes (token store, agent-keys cache, config) route through
+    // ONE chokepoint: env/secret-file.ts. It must set 0o600 on create AND chmod
+    // existing files (umask-proof). Verify the authority, then that each consumer
+    // uses it with NO open-coded writeFileSync that could bypass the bit.
+    const secret = readFileSync(`${SRC_ROOT}/env/secret-file.ts`, 'utf-8');
+    expect(secret).toMatch(/\bwriteFileSync\b[^;]*0o600/s);
+    expect(secret).toMatch(/\bchmodSync\b[^)]*0o600/s);
+    for (const f of [
+      'file-tokens/index.ts',
+      'file-tokens/agent-keys.ts',
+      'config/store.ts',
+      'config/host-config.ts',
+    ]) {
+      const src = readFileSync(`${SRC_ROOT}/${f}`, 'utf-8');
+      expect(src).toContain('writeSecretFile');
+      expect(src.match(/\bwriteFileSync\b/g) ?? []).toHaveLength(0);
     }
-    expect(total).toBeGreaterThanOrEqual(4);
-    expect(secured).toBe(total);
   });
 
-  it('session-store and install template writes carry mode: 0o600', () => {
-    const sessSrc = readFileSync(`${SRC_ROOT}/session/store.ts`, 'utf-8');
-    expect(sessSrc).toMatch(/\bwriteFileSync\b[^;]*0o600/s);
-
-    const installSrc = readFileSync(`${SRC_ROOT}/install/from-spec.ts`, 'utf-8');
-    // The template-config write (the one that contains a user-pasted
-    // API key) MUST be 0o600. The settings.json/hooks.json saveJson is
-    // editor-managed; kept at default mode by design.
-    expect(installSrc).toContain('mode: 0o600');
-  });
-
-  it('agent-keys store writes carry mode: 0o600', () => {
-    // The store caches obx_live_*/obx_test_* runtime keys. A regression
-    // that drops the bit would leave runtime keys world-readable on
-    // shared Unix boxes.
-    const src = readFileSync(`${SRC_ROOT}/file-tokens/agent-keys.ts`, 'utf-8');
-    const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
-    const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
-    expect(total).toBeGreaterThanOrEqual(1);
-    expect(secured).toBe(total);
-  });
-
-  it('config store writes carry mode: 0o600', () => {
-    // The CLI config store layers values into process.env on every
-    // command (URL overrides, default flags). Some keys may carry
-    // semi-sensitive values (org IDs, custom URLs, client variants),
-    // so the file must not be world-readable.
-    const src = readFileSync(`${SRC_ROOT}/config/store.ts`, 'utf-8');
-    const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
-    const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
-    expect(total).toBeGreaterThanOrEqual(1);
-    expect(secured).toBe(total);
+  it('not-yet-consolidated CLI/session/install secret writes still carry mode: 0o600', () => {
+    // These open-code the write (separate dedup buckets); assert their 0o600.
+    for (const f of ['cli/config.ts', 'session/store.ts']) {
+      const src = readFileSync(`${SRC_ROOT}/${f}`, 'utf-8');
+      const total = (src.match(/\bwriteFileSync\s*\(/g) ?? []).length;
+      const secured = (src.match(/\bwriteFileSync\b[^;]*0o600/gs) ?? []).length;
+      expect(total).toBeGreaterThanOrEqual(1);
+      expect(secured).toBe(total);
+    }
+    expect(readFileSync(`${SRC_ROOT}/install/from-spec.ts`, 'utf-8')).toContain('mode: 0o600');
   });
 
   it('host runtime config resolvers do not read per-user hook dirs', () => {

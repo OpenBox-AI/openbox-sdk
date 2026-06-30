@@ -5,7 +5,7 @@
 // two readers cannot drift apart.
 
 import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { writeSecretFile } from '../env/secret-file.js';
 
 /** Read a JSON config file. Returns the parsed object as
  *  string-keyed values, with each camelCase key also exposed under
@@ -70,10 +70,5 @@ export function writeDotenvConfig(
   const lines = Object.entries(next)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${JSON.stringify(value)}`);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${lines.join('\n')}\n`, {
-    mode: 0o600,
-    encoding: 'utf-8',
-  });
-  fs.chmodSync(file, 0o600);
+  writeSecretFile(file, `${lines.join('\n')}\n`);
 }
