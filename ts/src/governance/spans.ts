@@ -1209,30 +1209,22 @@ function buildSpanWithClassifierFields(
         file_operation: 'read',
       };
     case 'file_open':
+      // Canonical (file_governance_hooks.py:traced_open + TracedFile.close): the
+      // open span is held across the file's life and ends as the 'close' completed
+      // stage — it KEEPS the OTel span name "file.open" (verified against the real
+      // reference); the close carries cumulative bytes_read/bytes_written +
+      // operations[] at root (merged by recordOpSpanPair). The cumulative
+      // file.total_bytes_* live on the PARENT span in the reference, not here.
       return {
         ...b,
         name: 'file.open',
         kind: CANONICAL_SPAN.spanKind.file_operation,
         span_type: 'file_io',
         hook_type: 'file_operation',
-        // Canonical open span (file_governance_hooks.py:traced_open) carries
-        // `file.mode`. We add it here (was missing); `file.operation` is retained
-        // additively because the other shared-builder hosts (cursor/claude-code/
-        // codex) assert it on the open span — extra OTel attrs are harmless.
         attributes: {
           'file.path': input.file_path ?? '',
           'file.mode': (input.file_mode as string | undefined) ?? 'r',
           'file.operation': 'open',
-          // Canonical TracedFile.close() sets cumulative file.total_bytes_read /
-          // file.total_bytes_written on the open span. Counts are only known at
-          // the close (completed) stage, so the started open span omits them.
-          ...(typeof input.bytes_read === 'number' ||
-          typeof input.bytes_written === 'number'
-            ? {
-                'file.total_bytes_read': input.bytes_read ?? 0,
-                'file.total_bytes_written': input.bytes_written ?? 0,
-              }
-            : {}),
           ...toolNameAttributes(input),
           'openbox.span_type': 'file_io',
         },

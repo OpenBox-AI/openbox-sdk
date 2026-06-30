@@ -747,30 +747,23 @@ describe('buildSpan: file operations', () => {
     expect(minimal.file_path).toBe('');
   });
 
-  test('file_open with byte totals + mode, and minimal', () => {
+  test('file_open: mode (explicit + default) + file_path fallback, no total_bytes', () => {
     const span = buildSpan('cursor', 'file_open', {
       file_path: '/a',
-      bytes_read: 1,
-      bytes_written: 2,
       file_mode: 'rw',
       tool: 'Open',
     });
-    expect(attrs(span)['file.total_bytes_read']).toBe(1);
-    expect(attrs(span)['file.total_bytes_written']).toBe(2);
     expect(attrs(span)['file.mode']).toBe('rw');
+    // Canonical: cumulative file.total_bytes_* live on the PARENT span, not the
+    // file span — so the file_open span no longer carries them.
+    expect(attrs(span)['file.total_bytes_read']).toBeUndefined();
+    expect(attrs(span)['file.total_bytes_written']).toBeUndefined();
+    // Default mode + empty-string file_path fallback.
     const minimal = buildSpan('cursor', 'file_open', { file_path: '/b' });
-    expect(attrs(minimal)['file.total_bytes_read']).toBeUndefined();
     expect(attrs(minimal)['file.mode']).toBe('r');
-    // No file_path → empty-string fallback; only bytes_written → bytes_read ?? 0.
-    const writeOnly = buildSpan('cursor', 'file_open', { bytes_written: 5 });
-    expect(writeOnly.file_path).toBe('');
-    expect(attrs(writeOnly)['file.path']).toBe('');
-    expect(attrs(writeOnly)['file.total_bytes_read']).toBe(0);
-    expect(attrs(writeOnly)['file.total_bytes_written']).toBe(5);
-    // Only bytes_read → bytes_written ?? 0.
-    const readOnly = buildSpan('cursor', 'file_open', { file_path: '/c', bytes_read: 7 });
-    expect(attrs(readOnly)['file.total_bytes_read']).toBe(7);
-    expect(attrs(readOnly)['file.total_bytes_written']).toBe(0);
+    const noPath = buildSpan('cursor', 'file_open', {});
+    expect(noPath.file_path).toBe('');
+    expect(attrs(noPath)['file.path']).toBe('');
   });
 
   test('file_write with bytes, and minimal', () => {

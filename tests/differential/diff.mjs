@@ -7,7 +7,7 @@ const norm = (o) => Object.fromEntries(Object.entries(o).map(([k,v]) => [k, VOL.
 const ts = await runWithSubOpCapture({ activityId: 'a' }, async () => {
   recordFileOperation({ filePath: meta.file_path, operation: 'write', fileMode: 'w', data: 'hello', bytesWritten: 5, startMs: 1, endMs: 2 });
   recordFileOperation({ filePath: meta.file_path, operation: 'read', fileMode: 'r', data: 'hello', bytesRead: 5, startMs: 1, endMs: 2 });
-  recordFileOperation({ filePath: meta.file_path, operation: 'open', fileMode: 'r', startMs: 1, endMs: 2 });
+  recordFileOperation({ filePath: meta.file_path, operation: 'open', fileMode: 'w', bytesRead: 0, bytesWritten: 5, operations: ['write'], startMs: 1, endMs: 2 });
   recordFunctionCall({ name: 'process', module: meta.fn_module, args: [1, 3], result: 'ok', startMs: 1, endMs: 2 });
   return capturedSubOpSpans();
 });
